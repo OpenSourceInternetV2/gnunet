@@ -1,0 +1,166 @@
+#
+#    Translators, if you are not familiar with the PO format, gettext
+#    documentation is worth reading, especially sections dedicated to
+#    this format, e.g. by running:
+#         info -n '(gettext)PO Files'
+#         info -n '(gettext)Header Entry'
+#
+#    Some information specific to po-debconf are available at
+#            /usr/share/doc/po-debconf/README-trans
+#         or http://www.debian.org/intl/l10n/po-debconf/README-trans
+#
+#    Developers do not need to manually edit POT or PO files.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2004-12-03 08:11+0100\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=CHARSET\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. Type: note
+#. Description
+#: ../gnunet.templates:3
+msgid "Former installation of GNUnet detected"
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../gnunet.templates:3
+msgid ""
+"Since there are important changes in this version, we will need to modify "
+"your GNUnet configuration file (/etc/gnunet.conf)."
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../gnunet.templates:3
+msgid ""
+"The installation process will backup /etc/gnunet.conf to /etc/gnunet.conf."
+"old, and will automatically build a new configuration file."
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../gnunet.templates:3
+msgid "Your personal settings will be preserved as much as possible."
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../gnunet.templates:15
+msgid "Warning"
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../gnunet.templates:15
+msgid ""
+"For some obscure reason, we have failed to discover your configuration "
+"settings in /etc/gnunet.conf."
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../gnunet.templates:15
+msgid "Your old configuration file will be moved to /etc/gnunet.conf.old."
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../gnunet.templates:15
+msgid ""
+"Since some changes are *mandatory* in this file, a fresh default "
+"configuration file will now be installed"
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../gnunet.templates:15
+msgid ""
+"Please take a look and make necessary changes in it if needed after "
+"installation."
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../gnunet.templates:30
+msgid "Launch at startup?"
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../gnunet.templates:30
+msgid "Do you want to launch GNUnet as a system service ?"
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../gnunet.templates:30
+msgid ""
+"If you accept here, a GNUnet server will be started each time your machine "
+"starts.  If you decline this option, you need to launch GNUnet each time you "
+"want to use it."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../gnunet.templates:40
+msgid "GNUnet user:"
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../gnunet.templates:40
+msgid "Define the user owning the GNUnet daemon process."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../gnunet.templates:40
+msgid ""
+"For security reason, the best is to create a new user for this, and make "
+"sure that it owns no data beside GNUnet's ones."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../gnunet.templates:40
+msgid ""
+"If you go that way, the user will automatically be created (as system user) "
+"and no login will be allowed for it."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../gnunet.templates:52
+msgid "GNUnet group:"
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../gnunet.templates:52
+msgid "Define the group owning the GNUnet daemon process."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../gnunet.templates:52
+msgid ""
+"For security reason, the best is to create a new group for this, and make "
+"sure that it owns no data beside GNUnet's ones."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../gnunet.templates:52
+msgid ""
+"Only the members of this group are allowed to start and stop the GNUnet "
+"server and  have access to GNUnet data."
+msgstr ""

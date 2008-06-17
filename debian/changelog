@@ -1,3 +1,24 @@
+gnunet (0.6.5-2) unstable; urgency=low
+
+  * Applied Martin Quinson l10n patch wich switch to gettext-based debconf and
+    does the following modifications (Closes: #283632):
+    - debian/control: modification for dependencies:
+      build-dep: debhelper (>= 4.1.16) which depends on po-debconf.
+      depend: debconf (>= 1.2.0) since old versions have problems with
+      templates specifying the encoding of their content.
+    - debian/rules: Add 'debconf-updatepo' to the clean target   
+      (to make sure that the relevant files are ready for translation in the
+      distributed source packages, and thus help translators).
+    - execute "debconf-gettextize debian/*templates*". 
+    - update the style to the best current practice.
+
+  * Applied Andreas Jochens patch to fix build process on AMD64 with gcc 4.0
+    (Closes #289496). 
+
+  * debian/control: Fixed dependencies.
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Fri,  3 Dec 2004 07:59:37 +0100
+
 gnunet (0.6.5-1) unstable; urgency=low
 
   * New upstream release.

@@ -1,63 +1,59 @@
 Template: gnunet/warning
 Type: note
-Description: Information
- We detect a former installation of GNUnet.
- .
- Since there are important changes in this version, we will
- need to modify your GNUnet configuration file (/etc/gnunet.conf).
+_Description: Former installation of GNUnet detected
+ Since there are important changes in this version, we will need to modify
+ your GNUnet configuration file (/etc/gnunet.conf).
  .
  The installation process will backup /etc/gnunet.conf to
- /etc/gnunet.conf.old, and will automatically build a new
- configuration file.
+ /etc/gnunet.conf.old, and will automatically build a new configuration
+ file.
  .
- We will keep your personal settings as much as possible.
+ Your personal settings will be preserved as much as possible.
 
 Template: gnunet/failed
 Type: note
-Description: Warning
- For some obscure reason, we have failed to discover your
- configuration settings in /etc/gnunet.conf.
+_Description: Warning
+ For some obscure reason, we have failed to discover your configuration
+ settings in /etc/gnunet.conf.
  .
  Your old configuration file will be moved to /etc/gnunet.conf.old.
  .
- Since some changes are *mandatory* in this file, we will now install a
- fresh default configuration file.
+ Since some changes are *mandatory* in this file, a
+ fresh default configuration file will now be installed
  .
- Please take a look and make necessary changes in it if needed,
- after installation.
+ Please take a look and make necessary changes in it if needed after
+ installation.
 
 Template: gnunet/launch_at_startup
 Type: boolean
 Default: true
-Description: Launch at startup
+_Description: Launch at startup?
  Do you want to launch GNUnet as a system service ?
  .
- If you choose yes, each time your machine start, a GNUnet server will be
- started.
- .
- If you choose no, you will need to launch GNUnet each time you want to
- use it.
+ If you accept here, a GNUnet server will be started each time your machine
+ starts.  If you decline this option, you need to launch GNUnet each time
+ you want to use it.
 
 Template: gnunet/gnunet_user
 Type: string
 Default: gnunet
-Description: GNUnet user
- Define the user who will own the GNUnet daemon process.
+_Description: GNUnet user:
+ Define the user owning the GNUnet daemon process.
  .
- Please choose a user who is not a real user. For security reason, it is
- better to have no data other than from GNUnet's ones.
+ For security reason, the best is to create a new user for this, and make
+ sure that it owns no data beside GNUnet's ones.
  .
- This user will be a system user ( if created ). It won't be able to login
- into your system.
+ If you go that way, the user will automatically be created (as system user)
+ and no login will be allowed for it.
 
 Template: gnunet/gnunet_group
 Type: string
 Default: gnunet
-Description: GNUnet group
- Define the group who will own the GNUnet daemon process.
+_Description: GNUnet group:
+ Define the group owning the GNUnet daemon process.
  .
- Please choose a group who is not a real group. For security reason, it is
- better to have no data other than from GNUnet share.
+ For security reason, the best is to create a new group for this, and make
+ sure that it owns no data beside GNUnet's ones.
  .
- This group will define who can start and stop the GNUnet server and who
- will have access to GNUnet datas.
+ Only the members of this group are allowed to start and stop the GNUnet server and 
+ have access to GNUnet data.
