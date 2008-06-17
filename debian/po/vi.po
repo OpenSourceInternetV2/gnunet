@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gnunet 0.6.6b-4\n"
 "Report-Msgid-Bugs-To: Arnaud.Kyheng@free.fr\n"
-"POT-Creation-Date: 2005-09-18 12:58+0200\n"
+"POT-Creation-Date: 2006-07-04 13:59+0000\n"
 "PO-Revision-Date: 2005-06-15 15:29+0930\n"
 "Last-Translator: Clytie Siddall <clytie@riverland.net.au>\n"
 "Language-Team: Vietnamese <gnomevi-list@lists.sourceforge.net>\n"
@@ -17,13 +17,13 @@ msgstr ""
 
 #. Type: note
 #. Description
-#: ../gnunet.templates:3
+#: ../gnunet.templates:1001
 msgid "Former installation of GNUnet detected"
 msgstr "Mới phát hiện một bản cài đặt GNUnet trước."
 
 #. Type: note
 #. Description
-#: ../gnunet.templates:3
+#: ../gnunet.templates:1002
 msgid ""
 "Since there are important changes in this version, we will need to modify "
 "your GNUnet configuration file (/etc/gnunet.conf)."
@@ -33,7 +33,7 @@ msgstr ""
 
 #. Type: note
 #. Description
-#: ../gnunet.templates:3
+#: ../gnunet.templates:1003
 msgid ""
 "The installation process will backup /etc/gnunet.conf to /etc/gnunet.conf."
 "old, and will automatically build a new configuration file."
@@ -43,19 +43,19 @@ msgstr ""
 
 #. Type: note
 #. Description
-#: ../gnunet.templates:3
+#: ../gnunet.templates:1004
 msgid "Your personal settings will be preserved as much as possible."
 msgstr "Sẽ bảo quản các thiết lập cá nhân của bạn càng nhiều cành có thể."
 
 #. Type: note
 #. Description
-#: ../gnunet.templates:15
+#: ../gnunet.templates:2001
 msgid "Warning"
 msgstr "Cảnh báo"
 
 #. Type: note
 #. Description
-#: ../gnunet.templates:15
+#: ../gnunet.templates:2002
 msgid ""
 "For some obscure reason, we have failed to discover your configuration "
 "settings in /etc/gnunet.conf."
@@ -65,13 +65,13 @@ msgstr ""
 
 #. Type: note
 #. Description
-#: ../gnunet.templates:15
+#: ../gnunet.templates:2003
 msgid "Your old configuration file will be moved to /etc/gnunet.conf.old."
 msgstr "Sẽ di chuyển tập tin cấu hình cũ vào «/etc/gnunet.conf.old»."
 
 #. Type: note
 #. Description
-#: ../gnunet.templates:15
+#: ../gnunet.templates:2004
 msgid ""
 "Since some changes are *mandatory* in this file, a fresh default "
 "configuration file will now be installed"
@@ -81,7 +81,7 @@ msgstr ""
 
 #. Type: note
 #. Description
-#: ../gnunet.templates:15
+#: ../gnunet.templates:2005
 msgid ""
 "Please take a look and make necessary changes in it if needed after "
 "installation."
@@ -91,13 +91,13 @@ msgstr ""
 
 #. Type: note
 #. Description
-#: ../gnunet.templates:29
+#: ../gnunet.templates:3001
 msgid "Upgrade from a version prior to 0.7.0"
 msgstr ""
 
 #. Type: note
 #. Description
-#: ../gnunet.templates:29
+#: ../gnunet.templates:3002
 msgid ""
 "It seems that you are upgrading GNUnet from a version prior to 0.7.x. GNUnet "
 "0.7.x introduced new configuration files and a new database storage format "
@@ -106,13 +106,13 @@ msgstr ""
 
 #. Type: note
 #. Description
-#: ../gnunet.templates:29
+#: ../gnunet.templates:3003
 msgid "GNUnet cannot convert your database format to the new format."
 msgstr ""
 
 #. Type: note
 #. Description
-#: ../gnunet.templates:29
+#: ../gnunet.templates:3004
 msgid ""
 "Your database storage will be automatically moved to /var/lib/GNUnet."
 "prior07, and the gnunet package will build a new empty storage for you."
@@ -120,7 +120,7 @@ msgstr ""
 
 #. Type: note
 #. Description
-#: ../gnunet.templates:29
+#: ../gnunet.templates:3005
 msgid ""
 "Your /etc/gnunet.conf file will also be moved to /etc/gnunet.conf.prior07 "
 "and replaced by /etc/gnunetd.conf which you can modify later by running "
@@ -129,19 +129,19 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../gnunet.templates:46
+#: ../gnunet.templates:4001
 msgid "Launch at startup?"
 msgstr "Khởi chạy vào lúc khởi động máy không?"
 
 #. Type: boolean
 #. Description
-#: ../gnunet.templates:46
+#: ../gnunet.templates:4002
 msgid "Do you want to launch GNUnet as a system service ?"
 msgstr "Bạn có muốn khởi chạy trình GNUnet là một dịch vụ hệ thống không?"
 
 #. Type: boolean
 #. Description
-#: ../gnunet.templates:46
+#: ../gnunet.templates:4003
 msgid ""
 "If you accept here, a GNUnet server will be started each time your machine "
 "starts.  If you decline this option, you need to launch GNUnet each time you "
@@ -153,19 +153,19 @@ msgstr ""
 
 #. Type: string
 #. Description
-#: ../gnunet.templates:56
+#: ../gnunet.templates:5001
 msgid "GNUnet user:"
 msgstr "Người dùng GNUnet:"
 
 #. Type: string
 #. Description
-#: ../gnunet.templates:56
+#: ../gnunet.templates:5002
 msgid "Define the user owning the GNUnet daemon process."
 msgstr "Hãy định nghĩa người dùng sở hữu tiến trình nền GNUnet."
 
 #. Type: string
 #. Description
-#: ../gnunet.templates:56
+#: ../gnunet.templates:5003
 #, fuzzy
 msgid ""
 "For security reasons, it's best to create a new user exclusively for  GNUnet."
@@ -173,7 +173,7 @@ msgstr "Vì lý do bảo mật, tốt nhất để tạo một người dùng m�
 
 #. Type: string
 #. Description
-#: ../gnunet.templates:56
+#: ../gnunet.templates:5004
 #, fuzzy
 msgid ""
 "If you choose this option, that user will automatically be created  as a "
@@ -184,19 +184,19 @@ msgstr ""
 
 #. Type: string
 #. Description
-#: ../gnunet.templates:67
+#: ../gnunet.templates:6001
 msgid "GNUnet group:"
 msgstr "Nhóm GNUnet:"
 
 #. Type: string
 #. Description
-#: ../gnunet.templates:67
+#: ../gnunet.templates:6002
 msgid "Define the group owning the GNUnet daemon process."
 msgstr "Hãy định nghĩa nhớm sở hữu tiến trình nền GNUnet."
 
 #. Type: string
 #. Description
-#: ../gnunet.templates:67
+#: ../gnunet.templates:6003
 msgid ""
 "For security reason, the best is to create a new group for this, and make "
 "sure that it owns no data beside GNUnet's ones."
@@ -204,7 +204,7 @@ msgstr "Vì lý do bảo mật, tốt nhất để tạo một người dùng m�
 
 #. Type: string
 #. Description
-#: ../gnunet.templates:67
+#: ../gnunet.templates:6004
 msgid ""
 "Only the members of this group are allowed to start and stop the GNUnet "
 "server and  have access to GNUnet data."

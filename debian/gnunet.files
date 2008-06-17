@@ -26,6 +26,7 @@ usr/lib/GNUnet/*.la
 usr/include/*
 usr/share/GNUnet/config-daemon.in
 usr/share/GNUnet/config-client.in
+usr/share/GNUnet/wizard.glade
 usr/share/locale/de/LC_MESSAGES/GNUnet.mo
 usr/share/locale/rw/LC_MESSAGES/GNUnet.mo
 usr/share/locale/vi/LC_MESSAGES/GNUnet.mo
