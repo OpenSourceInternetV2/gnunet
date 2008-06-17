@@ -8,7 +8,7 @@ Standards-Version: 3.7.2
 
 Package: gnunet
 Architecture: all
-Depends: gnunet-client (>= ${binary:Version}), gnunet-daemon (>= ${binary:Version}), gnunet-tools (>= ${binary:Version})
+Depends: gnunet-client (>= ${binary:Version}), gnunet-server (>= ${binary:Version}), gnunet-tools (>= ${binary:Version})
 Description: secure, trust-based peer-to-peer framework (meta)
  GNUnet is a peer-to-peer framework which focuses on providing security. All
  link-to-link messages in the network are confidential and authenticated. The
@@ -17,7 +17,7 @@ Description: secure, trust-based peer-to-peer framework (meta)
  .
   Homepage: <http://www.gnunet.org/>
  .
- This package is a meta-package depending on gnunet-client, gnunet-daemon and
+ This package is a meta-package depending on gnunet-client, gnunet-server and
  gnunet-tools.
 
 Package: gnunet-client
@@ -48,10 +48,12 @@ Description: secure, trust-based peer-to-peer framework (common)
  .
  This package contains the common files.
 
-Package: gnunet-daemon
+Package: gnunet-server
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, adduser, gettext, netbase
-Description: secure, trust-based peer-to-peer framework (daemon)
+Conflicts: gnunet-daemon
+Replaces: gnunet-daemon
+Description: secure, trust-based peer-to-peer framework (server)
  GNUnet is a peer-to-peer framework which focuses on providing security. All
  link-to-link messages in the network are confidential and authenticated. The
  framework provides a transport abstraction layer and can currently encapsulate
@@ -59,12 +61,12 @@ Description: secure, trust-based peer-to-peer framework (daemon)
  .
   Homepage: <http://www.gnunet.org/>
  .
- This package contains the daemon, needed to run a GNUnet node.
+ This package contains the server, needed to run a GNUnet node.
 
 Package: gnunet-dev
 Section: libdevel
 Architecture: any
-Depends: gnunet-daemon (>= ${binary:Version}), gnunet-client (>= ${binary:Version}), gnunet-tools (>= ${binary:Version})
+Depends: gnunet-server (>= ${binary:Version}), gnunet-client (>= ${binary:Version}), gnunet-tools (>= ${binary:Version})
 Description: secure, trust-based peer-to-peer framework (development)
  GNUnet is a peer-to-peer framework which focuses on providing security. All
  link-to-link messages in the network are confidential and authenticated. The

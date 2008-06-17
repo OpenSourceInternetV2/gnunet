@@ -1,0 +1,17 @@
+#!/bin/sh
+
+set -e
+
+if [ -x /etc/init.d/gnunet-server ]
+then
+	if [ -x /usr/sbin/invoke-rc.d ]
+	then
+		invoke-rc.d gnunet-server stop || exit 0
+	else
+		/etc/init.d/gnunet-server stop || exit 0
+	fi
+fi
+
+#DEBHELPER#
+
+exit 0

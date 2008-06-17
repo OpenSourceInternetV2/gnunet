@@ -8,7 +8,7 @@ case "${1}" in
 		. /usr/share/debconf/confmodule
 
 		# Read default values
-		CONFIG_FILE="/etc/default/gnunet-daemon"
+		CONFIG_FILE="/etc/default/gnunet-server"
 
 		GNUNETD_HOME="`gnunet-update --get=PATHS:GNUNETD_HOME`" || true
 
@@ -37,11 +37,11 @@ EOF
 		fi
 
 		# Read debconf values
-		db_get gnunet-daemon/gnunet_user
+		db_get gnunet-server/gnunet_user
 		gnunet_user="${RET}"
-		db_get gnunet-daemon/gnunet_group
+		db_get gnunet-server/gnunet_group
 		gnunet_group="${RET}"
-		db_get gnunet-daemon/launch_at_startup
+		db_get gnunet-server/launch_at_startup
 		launch_at_startup="${RET}"
 
 		# Creating gnunet group if needed
@@ -80,7 +80,7 @@ EOF
 cat > "${CONFIG_NEW}" <<EOF
 # This file controls the behaviour of the GNUnet init script.
 # It will be parsed as a shell script.
-# please do not edit by hand, use 'dpkg-reconfigure gnunet-daemon'.
+# please do not edit by hand, use 'dpkg-reconfigure gnunet-server'.
 
 GNUNET_USER=${gnunet_user}
 GNUNET_GROUP=${gnunet_group}
@@ -103,29 +103,29 @@ EOF
 
 		if [ "${launch_at_startup}" = "true" ]
 		then
-			if [ -x /etc/init.d/gnunet-daemon ]
+			if [ -x /etc/init.d/gnunet-server ]
 			then
-				update-rc.d gnunet-daemon defaults > /dev/null 2>&1 || true
+				update-rc.d gnunet-server defaults > /dev/null 2>&1 || true
 
 				if [ -x /usr/sbin/invoke-rc.d ]
 				then
-					invoke-rc.d gnunet-daemon start || true
+					invoke-rc.d gnunet-server start || true
 				else
-					/etc/init.d/gnunet-daemon start || true
+					/etc/init.d/gnunet-server start || true
 				fi
 			fi
 		else
-			if [ -x /etc/init.d/gnunet-daemon ]
+			if [ -x /etc/init.d/gnunet-server ]
 			then
 				if [ -x /usr/sbin/invoke-rc.d ]
 				then
-					invoke-rc.d gnunet-daemon stop || true
+					invoke-rc.d gnunet-server stop || true
 				else
-					/etc/init.d/gnunet-daemon stop || true
+					/etc/init.d/gnunet-server stop || true
 				fi
 			fi
 
-			update-rc.d -f gnunet-daemon remove > /dev/null 2>&1 || true
+			update-rc.d -f gnunet-server remove > /dev/null 2>&1 || true
 		fi
 		;;
 

@@ -1,3 +1,11 @@
+gnunet (0.7.2b-5) unstable; urgency=low
+
+  * Renamed gnunet-daemon package to gnunet-server for consistency reasons.
+    Since gnunet was splittet out after etch, there is no transitional package
+    required.
+
+ -- Daniel Baumann <daniel@debian.org>  Wed, 15 Aug 2007 14:51:00 +0200
+
 gnunet (0.7.2b-4) unstable; urgency=low
 
   * Added netbase dependency to gnunet-daemon as found out by Kurt Roeckx

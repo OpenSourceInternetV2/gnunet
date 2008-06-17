@@ -57,7 +57,7 @@ install: build
 	# Installing package
 	$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp
 
-	install -D -m 0644 debian/config/gnunetd.conf debian/gnunet-daemon/etc/gnunetd.conf
+	install -D -m 0644 debian/config/gnunetd.conf debian/gnunet-server/etc/gnunetd.conf
 
 	# Installing lintian overrides
 	for LINTIAN in debian/lintian/*; \
