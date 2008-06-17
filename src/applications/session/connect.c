@@ -39,7 +39,7 @@
 
 #define DEBUG_SESSION NO
 
-#define EXTRA_CHECKS YES
+#define EXTRA_CHECKS ALLOW_EXTRA_CHECKS
 
 static CoreAPIForApplication * coreAPI;
 
@@ -403,7 +403,6 @@ static int exchangeKey(const PeerIdentity * receiver,
   FREE(ping);
   if (skey == NULL) {
     transport->disconnect(tsession);
-    BREAK();
     return SYSERR;
   }
 

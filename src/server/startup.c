@@ -414,11 +414,6 @@ void detachFromTerminal(int * filedes) {
     exit(1);
   }
   pid = setsid(); /* Detach from controlling terminal */
-  errno = 0;
-  nice(19);
-  if (errno != 0)
-    LOG_STRERROR(LOG_WARNING, "nice");
-       
 #else
  FreeConsole();
 #endif

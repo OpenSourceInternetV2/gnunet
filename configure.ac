@@ -21,8 +21,8 @@
 #
 #
 AC_PREREQ(2.57)
-AC_INIT([GNUnet], [0.7.0d],[bug-gnunet@gnu.org])
-AM_INIT_AUTOMAKE([GNUnet], [0.7.0d])
+AC_INIT([GNUnet], [0.7.0e],[bug-gnunet@gnu.org])
+AM_INIT_AUTOMAKE([GNUnet], [0.7.0e])
 AM_CONFIG_HEADER([config.h])
 
 AH_TOP([#define _GNU_SOURCE  1])
@@ -353,6 +353,9 @@ AM_CONDITIONAL(HAVE_GTK, test x$without_gtk != xtrue)
 if test $without_gtk != true
 then
  AC_DEFINE_UNQUOTED([HAVE_GTK], 1, [We have GTK])
+ PKG_CHECK_MODULES(GNUNETGTK, libglade-2.0) # libgnomeui-2.0 >= 1.110.0
+ AC_SUBST(GNUNETGTK_CFLAGS)
+ AC_SUBST(GNUNETGTK_LIBS)
 fi
 
 # check for gettext
@@ -545,6 +548,7 @@ src/applications/topology_f2f/Makefile
 src/applications/tracekit/Makefile
 src/applications/traffic/Makefile
 src/applications/transport/Makefile
+src/applications/vpn/Makefile
 src/conf/Makefile
 src/server/Makefile
 src/transports/Makefile

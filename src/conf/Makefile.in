@@ -47,9 +47,9 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/ac_define_dir.m4 \
 	$(top_srcdir)/m4/guile.m4 $(top_srcdir)/m4/iconv.m4 \
 	$(top_srcdir)/m4/lib-ld.m4 $(top_srcdir)/m4/lib-link.m4 \
 	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libgcrypt.m4 \
-	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/po.m4 \
-	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/acinclude.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/pkg.m4 \
+	$(top_srcdir)/m4/po.m4 $(top_srcdir)/m4/progtest.m4 \
+	$(top_srcdir)/acinclude.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
@@ -71,10 +71,12 @@ am_libgnunetsetup_curses_la_OBJECTS = mconf.lo mconf_checklist.lo \
 	mconf_textbox.lo mconf_util.lo mconf_yesno.lo wizard_curs.lo
 libgnunetsetup_curses_la_OBJECTS =  \
 	$(am_libgnunetsetup_curses_la_OBJECTS)
-libgnunetsetup_gtk_la_DEPENDENCIES =  \
+am__DEPENDENCIES_1 =
+libgnunetsetup_gtk_la_DEPENDENCIES = $(am__DEPENDENCIES_1) \
 	$(top_builddir)/src/util/libgnunetutil.la libgnunetsetup.la
-am_libgnunetsetup_gtk_la_OBJECTS = gconf_interface.lo gconf_support.lo \
-	gconf.lo wizard_callbacks.lo wizard_interface.lo wizard.lo
+am_libgnunetsetup_gtk_la_OBJECTS = libgnunetsetup_gtk_la-gconf.lo \
+	libgnunetsetup_gtk_la-glade_support.lo \
+	libgnunetsetup_gtk_la-wizard_gtk.lo
 libgnunetsetup_gtk_la_OBJECTS = $(am_libgnunetsetup_gtk_la_OBJECTS)
 @MINGW_TRUE@am__EXEEXT_1 = gnunet-win-tool$(EXEEXT)
 binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
@@ -91,11 +93,11 @@ DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
 @AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/conf.Plo ./$(DEPDIR)/confdata.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/expr.Plo ./$(DEPDIR)/gconf.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/gconf_interface.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/gconf_support.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/gnunet-setup.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/expr.Plo ./$(DEPDIR)/gnunet-setup.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/gnunet-win-tool.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/libgnunetsetup_gtk_la-gconf.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/libgnunetsetup_gtk_la-glade_support.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/libgnunetsetup_gtk_la-wizard_gtk.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/mconf.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/mconf_checklist.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/mconf_inputbox.Plo \
@@ -105,10 +107,7 @@ am__depfiles_maybe = depfiles
 @AMDEP_TRUE@	./$(DEPDIR)/mconf_util.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/mconf_yesno.Plo ./$(DEPDIR)/menu.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/recreate.Plo ./$(DEPDIR)/symbol.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/wizard.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/wizard_callbacks.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/wizard_curs.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/wizard_interface.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/wizard_util.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/zconf_tab.Plo
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
@@ -169,6 +168,8 @@ EXT_LIB_PATH = @EXT_LIB_PATH@
 F77 = @F77@
 FFLAGS = @FFLAGS@
 GMSGFMT = @GMSGFMT@
+GNUNETGTK_CFLAGS = @GNUNETGTK_CFLAGS@
+GNUNETGTK_LIBS = @GNUNETGTK_LIBS@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
 GUILE = @GUILE@
@@ -313,6 +314,7 @@ BUILT_SOURCES = \
  lkc_defs.h
 
 EXTRA_DIST = \
+ wizard.glade \
  images.c \
  lex.zconf.c \
  lkc_proto.h \
@@ -364,24 +366,24 @@ libgnunetsetup_curses_la_LIBADD = \
  libgnunetsetup.la
 
 libgnunetsetup_gtk_la_SOURCES = \
- gconf_callbacks.h \
- gconf_interface.h \
- gconf_support.h \
- gconf_interface.c \
- gconf_support.c \
  gconf.c gconf.h \
- wizard_callbacks.h \
- wizard_interface.h \
- wizard_support.h \
- wizard_callbacks.c \
- wizard_interface.c \
- wizard.c wizard.h
+ glade_support.h glade_support.c \
+ wizard_gtk.c wizard_gtk.h
 
 libgnunetsetup_gtk_la_LDFLAGS = \
- $(GTK_LIBS) @EXT_LIB_PATH@ @EXT_LIBS@ -lgthread-2.0 \
+ $(GTK_LIBS) @EXT_LIB_PATH@ @EXT_LIBS@ \
  -export-dynamic -avoid-version -module
 
+libgnunetsetup_gtk_la_CFLAGS = \
+ -I$(top_scrdir)/include \
+ @GNUNETGTK_CFLAGS@ \
+ @GTK_CFLAGS@ 
+
 libgnunetsetup_gtk_la_LIBADD = \
+ @GTK_LIBS@ @EXT_LIB_PATH@ @EXT_LIBS@ \
+ @GNUNETGTK_LIBS@ \
+  $(INTLLIBS) \
+  -lgthread-2.0 \
  $(top_builddir)/src/util/libgnunetutil.la \
  libgnunetsetup.la
 
@@ -536,11 +538,11 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/conf.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/confdata.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/expr.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gconf.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gconf_interface.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gconf_support.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gnunet-setup.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gnunet-win-tool.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libgnunetsetup_gtk_la-gconf.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libgnunetsetup_gtk_la-glade_support.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libgnunetsetup_gtk_la-wizard_gtk.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mconf.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mconf_checklist.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mconf_inputbox.Plo@am__quote@
@@ -552,10 +554,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/menu.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/recreate.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/symbol.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/wizard.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/wizard_callbacks.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/wizard_curs.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/wizard_interface.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/wizard_util.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zconf_tab.Plo@am__quote@
 
@@ -582,6 +581,78 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	depfile='$(DEPDIR)/$*.Plo' tmpdepfile='$(DEPDIR)/$*.TPlo' @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
+
+libgnunetsetup_gtk_la-gconf.o: gconf.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libgnunetsetup_gtk_la_CFLAGS) $(CFLAGS) -MT libgnunetsetup_gtk_la-gconf.o -MD -MP -MF "$(DEPDIR)/libgnunetsetup_gtk_la-gconf.Tpo" -c -o libgnunetsetup_gtk_la-gconf.o `test -f 'gconf.c' || echo '$(srcdir)/'`gconf.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libgnunetsetup_gtk_la-gconf.Tpo" "$(DEPDIR)/libgnunetsetup_gtk_la-gconf.Po"; else rm -f "$(DEPDIR)/libgnunetsetup_gtk_la-gconf.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='gconf.c' object='libgnunetsetup_gtk_la-gconf.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	depfile='$(DEPDIR)/libgnunetsetup_gtk_la-gconf.Po' tmpdepfile='$(DEPDIR)/libgnunetsetup_gtk_la-gconf.TPo' @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libgnunetsetup_gtk_la_CFLAGS) $(CFLAGS) -c -o libgnunetsetup_gtk_la-gconf.o `test -f 'gconf.c' || echo '$(srcdir)/'`gconf.c
+
+libgnunetsetup_gtk_la-gconf.obj: gconf.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libgnunetsetup_gtk_la_CFLAGS) $(CFLAGS) -MT libgnunetsetup_gtk_la-gconf.obj -MD -MP -MF "$(DEPDIR)/libgnunetsetup_gtk_la-gconf.Tpo" -c -o libgnunetsetup_gtk_la-gconf.obj `if test -f 'gconf.c'; then $(CYGPATH_W) 'gconf.c'; else $(CYGPATH_W) '$(srcdir)/gconf.c'; fi`; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libgnunetsetup_gtk_la-gconf.Tpo" "$(DEPDIR)/libgnunetsetup_gtk_la-gconf.Po"; else rm -f "$(DEPDIR)/libgnunetsetup_gtk_la-gconf.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='gconf.c' object='libgnunetsetup_gtk_la-gconf.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	depfile='$(DEPDIR)/libgnunetsetup_gtk_la-gconf.Po' tmpdepfile='$(DEPDIR)/libgnunetsetup_gtk_la-gconf.TPo' @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libgnunetsetup_gtk_la_CFLAGS) $(CFLAGS) -c -o libgnunetsetup_gtk_la-gconf.obj `if test -f 'gconf.c'; then $(CYGPATH_W) 'gconf.c'; else $(CYGPATH_W) '$(srcdir)/gconf.c'; fi`
+
+libgnunetsetup_gtk_la-gconf.lo: gconf.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libgnunetsetup_gtk_la_CFLAGS) $(CFLAGS) -MT libgnunetsetup_gtk_la-gconf.lo -MD -MP -MF "$(DEPDIR)/libgnunetsetup_gtk_la-gconf.Tpo" -c -o libgnunetsetup_gtk_la-gconf.lo `test -f 'gconf.c' || echo '$(srcdir)/'`gconf.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libgnunetsetup_gtk_la-gconf.Tpo" "$(DEPDIR)/libgnunetsetup_gtk_la-gconf.Plo"; else rm -f "$(DEPDIR)/libgnunetsetup_gtk_la-gconf.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='gconf.c' object='libgnunetsetup_gtk_la-gconf.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	depfile='$(DEPDIR)/libgnunetsetup_gtk_la-gconf.Plo' tmpdepfile='$(DEPDIR)/libgnunetsetup_gtk_la-gconf.TPlo' @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libgnunetsetup_gtk_la_CFLAGS) $(CFLAGS) -c -o libgnunetsetup_gtk_la-gconf.lo `test -f 'gconf.c' || echo '$(srcdir)/'`gconf.c
+
+libgnunetsetup_gtk_la-glade_support.o: glade_support.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libgnunetsetup_gtk_la_CFLAGS) $(CFLAGS) -MT libgnunetsetup_gtk_la-glade_support.o -MD -MP -MF "$(DEPDIR)/libgnunetsetup_gtk_la-glade_support.Tpo" -c -o libgnunetsetup_gtk_la-glade_support.o `test -f 'glade_support.c' || echo '$(srcdir)/'`glade_support.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libgnunetsetup_gtk_la-glade_support.Tpo" "$(DEPDIR)/libgnunetsetup_gtk_la-glade_support.Po"; else rm -f "$(DEPDIR)/libgnunetsetup_gtk_la-glade_support.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='glade_support.c' object='libgnunetsetup_gtk_la-glade_support.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	depfile='$(DEPDIR)/libgnunetsetup_gtk_la-glade_support.Po' tmpdepfile='$(DEPDIR)/libgnunetsetup_gtk_la-glade_support.TPo' @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libgnunetsetup_gtk_la_CFLAGS) $(CFLAGS) -c -o libgnunetsetup_gtk_la-glade_support.o `test -f 'glade_support.c' || echo '$(srcdir)/'`glade_support.c
+
+libgnunetsetup_gtk_la-glade_support.obj: glade_support.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libgnunetsetup_gtk_la_CFLAGS) $(CFLAGS) -MT libgnunetsetup_gtk_la-glade_support.obj -MD -MP -MF "$(DEPDIR)/libgnunetsetup_gtk_la-glade_support.Tpo" -c -o libgnunetsetup_gtk_la-glade_support.obj `if test -f 'glade_support.c'; then $(CYGPATH_W) 'glade_support.c'; else $(CYGPATH_W) '$(srcdir)/glade_support.c'; fi`; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libgnunetsetup_gtk_la-glade_support.Tpo" "$(DEPDIR)/libgnunetsetup_gtk_la-glade_support.Po"; else rm -f "$(DEPDIR)/libgnunetsetup_gtk_la-glade_support.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='glade_support.c' object='libgnunetsetup_gtk_la-glade_support.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	depfile='$(DEPDIR)/libgnunetsetup_gtk_la-glade_support.Po' tmpdepfile='$(DEPDIR)/libgnunetsetup_gtk_la-glade_support.TPo' @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libgnunetsetup_gtk_la_CFLAGS) $(CFLAGS) -c -o libgnunetsetup_gtk_la-glade_support.obj `if test -f 'glade_support.c'; then $(CYGPATH_W) 'glade_support.c'; else $(CYGPATH_W) '$(srcdir)/glade_support.c'; fi`
+
+libgnunetsetup_gtk_la-glade_support.lo: glade_support.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libgnunetsetup_gtk_la_CFLAGS) $(CFLAGS) -MT libgnunetsetup_gtk_la-glade_support.lo -MD -MP -MF "$(DEPDIR)/libgnunetsetup_gtk_la-glade_support.Tpo" -c -o libgnunetsetup_gtk_la-glade_support.lo `test -f 'glade_support.c' || echo '$(srcdir)/'`glade_support.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libgnunetsetup_gtk_la-glade_support.Tpo" "$(DEPDIR)/libgnunetsetup_gtk_la-glade_support.Plo"; else rm -f "$(DEPDIR)/libgnunetsetup_gtk_la-glade_support.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='glade_support.c' object='libgnunetsetup_gtk_la-glade_support.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	depfile='$(DEPDIR)/libgnunetsetup_gtk_la-glade_support.Plo' tmpdepfile='$(DEPDIR)/libgnunetsetup_gtk_la-glade_support.TPlo' @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libgnunetsetup_gtk_la_CFLAGS) $(CFLAGS) -c -o libgnunetsetup_gtk_la-glade_support.lo `test -f 'glade_support.c' || echo '$(srcdir)/'`glade_support.c
+
+libgnunetsetup_gtk_la-wizard_gtk.o: wizard_gtk.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libgnunetsetup_gtk_la_CFLAGS) $(CFLAGS) -MT libgnunetsetup_gtk_la-wizard_gtk.o -MD -MP -MF "$(DEPDIR)/libgnunetsetup_gtk_la-wizard_gtk.Tpo" -c -o libgnunetsetup_gtk_la-wizard_gtk.o `test -f 'wizard_gtk.c' || echo '$(srcdir)/'`wizard_gtk.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libgnunetsetup_gtk_la-wizard_gtk.Tpo" "$(DEPDIR)/libgnunetsetup_gtk_la-wizard_gtk.Po"; else rm -f "$(DEPDIR)/libgnunetsetup_gtk_la-wizard_gtk.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='wizard_gtk.c' object='libgnunetsetup_gtk_la-wizard_gtk.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	depfile='$(DEPDIR)/libgnunetsetup_gtk_la-wizard_gtk.Po' tmpdepfile='$(DEPDIR)/libgnunetsetup_gtk_la-wizard_gtk.TPo' @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libgnunetsetup_gtk_la_CFLAGS) $(CFLAGS) -c -o libgnunetsetup_gtk_la-wizard_gtk.o `test -f 'wizard_gtk.c' || echo '$(srcdir)/'`wizard_gtk.c
+
+libgnunetsetup_gtk_la-wizard_gtk.obj: wizard_gtk.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libgnunetsetup_gtk_la_CFLAGS) $(CFLAGS) -MT libgnunetsetup_gtk_la-wizard_gtk.obj -MD -MP -MF "$(DEPDIR)/libgnunetsetup_gtk_la-wizard_gtk.Tpo" -c -o libgnunetsetup_gtk_la-wizard_gtk.obj `if test -f 'wizard_gtk.c'; then $(CYGPATH_W) 'wizard_gtk.c'; else $(CYGPATH_W) '$(srcdir)/wizard_gtk.c'; fi`; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libgnunetsetup_gtk_la-wizard_gtk.Tpo" "$(DEPDIR)/libgnunetsetup_gtk_la-wizard_gtk.Po"; else rm -f "$(DEPDIR)/libgnunetsetup_gtk_la-wizard_gtk.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='wizard_gtk.c' object='libgnunetsetup_gtk_la-wizard_gtk.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	depfile='$(DEPDIR)/libgnunetsetup_gtk_la-wizard_gtk.Po' tmpdepfile='$(DEPDIR)/libgnunetsetup_gtk_la-wizard_gtk.TPo' @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libgnunetsetup_gtk_la_CFLAGS) $(CFLAGS) -c -o libgnunetsetup_gtk_la-wizard_gtk.obj `if test -f 'wizard_gtk.c'; then $(CYGPATH_W) 'wizard_gtk.c'; else $(CYGPATH_W) '$(srcdir)/wizard_gtk.c'; fi`
+
+libgnunetsetup_gtk_la-wizard_gtk.lo: wizard_gtk.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libgnunetsetup_gtk_la_CFLAGS) $(CFLAGS) -MT libgnunetsetup_gtk_la-wizard_gtk.lo -MD -MP -MF "$(DEPDIR)/libgnunetsetup_gtk_la-wizard_gtk.Tpo" -c -o libgnunetsetup_gtk_la-wizard_gtk.lo `test -f 'wizard_gtk.c' || echo '$(srcdir)/'`wizard_gtk.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libgnunetsetup_gtk_la-wizard_gtk.Tpo" "$(DEPDIR)/libgnunetsetup_gtk_la-wizard_gtk.Plo"; else rm -f "$(DEPDIR)/libgnunetsetup_gtk_la-wizard_gtk.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='wizard_gtk.c' object='libgnunetsetup_gtk_la-wizard_gtk.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	depfile='$(DEPDIR)/libgnunetsetup_gtk_la-wizard_gtk.Plo' tmpdepfile='$(DEPDIR)/libgnunetsetup_gtk_la-wizard_gtk.TPlo' @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libgnunetsetup_gtk_la_CFLAGS) $(CFLAGS) -c -o libgnunetsetup_gtk_la-wizard_gtk.lo `test -f 'wizard_gtk.c' || echo '$(srcdir)/'`wizard_gtk.c
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -725,7 +796,7 @@ info: info-am
 
 info-am:
 
-install-data-am: install-pluginLTLIBRARIES
+install-data-am: install-data-local install-pluginLTLIBRARIES
 
 install-exec-am: install-binPROGRAMS install-libLTLIBRARIES
 
@@ -761,16 +832,22 @@ uninstall-am: uninstall-binPROGRAMS uninstall-info-am \
 	clean-pluginLTLIBRARIES ctags distclean distclean-compile \
 	distclean-generic distclean-libtool distclean-tags distdir dvi \
 	dvi-am html html-am info info-am install install-am \
-	install-binPROGRAMS install-data install-data-am install-exec \
-	install-exec-am install-info install-info-am \
-	install-libLTLIBRARIES install-man install-pluginLTLIBRARIES \
-	install-strip installcheck installcheck-am installdirs \
-	maintainer-clean maintainer-clean-generic mostlyclean \
-	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
-	pdf pdf-am ps ps-am tags uninstall uninstall-am \
-	uninstall-binPROGRAMS uninstall-info-am \
-	uninstall-libLTLIBRARIES uninstall-pluginLTLIBRARIES
+	install-binPROGRAMS install-data install-data-am \
+	install-data-local install-exec install-exec-am install-info \
+	install-info-am install-libLTLIBRARIES install-man \
+	install-pluginLTLIBRARIES install-strip installcheck \
+	installcheck-am installdirs maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-compile \
+	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
+	tags uninstall uninstall-am uninstall-binPROGRAMS \
+	uninstall-info-am uninstall-libLTLIBRARIES \
+	uninstall-pluginLTLIBRARIES
 
+
+install-data-local:
+	$(mkinstalldirs) $(DESTDIR)$(pkgdatadir)
+	$(INSTALL_DATA) wizard.glade $(DESTDIR)$(pkgdatadir)
+	@$(NORMAL_INSTALL)
 
 lkc_defs.h: $(srcdir)/lkc_proto.h
 	sed < $(srcdir)/lkc_proto.h > $@ 's/P(\([^,]*\),.*/#define \1 (\*\1_p)/'

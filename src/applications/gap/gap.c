@@ -101,6 +101,7 @@ static int stat_memory_destinations;
 
 static int stat_pending_rewards;
 
+static int stat_response_count;
 
 /**
  * Topology service.
@@ -277,6 +278,8 @@ static void ageRTD(void * unused) {
     rprev = NULL;
     rpos = pos->responseList;
     while (rpos != NULL) {
+      if (stats != NULL)
+	stats->change(stat_response_count, rpos->responseCount / 2);
       rpos->responseCount = rpos->responseCount / 2;
       if (rpos->responseCount == 0) {	
 	if (rprev == NULL)
@@ -355,6 +358,8 @@ static void updateResponseData(PID_INDEX origin,
   while (rpos != NULL) {
     if (responder == rpos->responder) {
       rpos->responseCount++;
+      if (stats != NULL)
+	stats->change(stat_response_count, 1);
       MUTEX_UNLOCK(lock);
       return;
     }
@@ -363,6 +368,8 @@ static void updateResponseData(PID_INDEX origin,
   }
   rpos = MALLOC(sizeof(ResponseList));
   rpos->responseCount = 1;
+  if (stats != NULL)
+    stats->change(stat_response_count, 1);
   rpos->responder = responder;
   change_pid_rc(responder, 1);
   rpos->next = NULL;
@@ -442,9 +449,10 @@ static void hotpathSelectionCode(const PeerIdentity * peer,
   QueryRecord * qr = cls;
   ReplyTrackData * pos;
   ResponseList * rp;
-  int ranking = 0;
+  unsigned int ranking = 0;
   int distance;
   PID_INDEX id;
+  unsigned int idx;
 
   id = intern_pid(peer);
   /* compute some basic ranking based on historical
@@ -471,14 +479,21 @@ static void hotpathSelectionCode(const PeerIdentity * peer,
   }
   distance
     = distanceHashCode512(&qr->msg->queries[0],
-			  &peer->hashPubKey);
+			  &peer->hashPubKey) >> 10; /* change to value in [0:63] */
   if (distance <= 0)
     distance = 1;
-  ranking += 0xFFFF / (1 + weak_randomi(distance));
-  ranking += 1 + weak_randomi(0xFF); /* small random chance for everyone */
+  ranking += weak_randomi(1 + 0xFFFF * 10 / (1 + distance)); /* 0 to 20 "response equivalents" for proximity */
+  ranking += weak_randomi(0xFFFF); /* 2 "response equivalents" random chance for everyone */
   if (id == qr->noTarget)
     ranking = 0; /* no chance for blocked peers */
-  qr->rankings[getIndex(id)] = ranking; 
+  idx = getIndex(id);
+#if DEBUG_GAP 
+  LOG(LOG_DEBUG,
+      "Ranking for %u: %u\n",
+      idx,
+      ranking);
+#endif
+  qr->rankings[idx] = ranking; 
   change_pid_rc(id, -1);
 }
 
@@ -746,9 +761,9 @@ static void useContentLater(void * data) {
  *  which in turn wraps the DBlock (including
  *  the type ID).
  */
-static void queueReply(const PeerIdentity * sender,
-		       const HashCode512 * primaryKey,
-		       const DataContainer * data) {
+static int queueReply(const PeerIdentity * sender,
+		      const HashCode512 * primaryKey,
+		      const DataContainer * data) {
   P2P_gap_reply_MESSAGE * pmsg;
   IndirectionTableEntry * ite;
   unsigned int size;
@@ -767,6 +782,7 @@ static void queueReply(const PeerIdentity * sender,
   /* verify data is valid */
   uri(data,
       ANY_BLOCK,
+      YES,
       primaryKey);
 #endif
 
@@ -777,21 +793,21 @@ static void queueReply(const PeerIdentity * sender,
     LOG(LOG_DEBUG,
 	"GAP: Dropping reply, routing table has no query associated with it (anymore)\n");
 #endif
-    return; /* we don't care for the reply (anymore) */
+    return NO; /* we don't care for the reply (anymore) */
   }
   if (YES == ite->successful_local_lookup_in_delay_loop) {
 #if DEBUG_GAP
     LOG(LOG_DEBUG,
 	"GAP: Dropping reply, found reply locally during delay\n");
 #endif
-    return; /* wow, really bad concurrent DB lookup and processing for
-	       the same query.  Well, at least we should not also
-	       queue the delayed reply twice... */
+    return NO; /* wow, really bad concurrent DB lookup and processing for
+		  the same query.  Well, at least we should not also
+		  queue the delayed reply twice... */
   }
   size = sizeof(P2P_gap_reply_MESSAGE) + ntohl(data->size) - sizeof(DataContainer);
   if (size >= MAX_BUFFER_SIZE) {
     BREAK();
-    return;
+    return SYSERR;
   }
   ite->successful_local_lookup_in_delay_loop = YES;
   pmsg = MALLOC(size);
@@ -810,6 +826,7 @@ static void queueReply(const PeerIdentity * sender,
 	     weak_randomi(TTL_DECREMENT),
 	     0,
 	     pmsg);
+  return YES;
 }
 
 static void addReward(const HashCode512 * query,
@@ -840,7 +857,7 @@ static unsigned int claimReward(const HashCode512 * query) {
       ret += rewards[i].prio;
       if (stats != NULL)
 	stats->change(stat_pending_rewards,
-		      - rewards[rewardPos].prio);
+		      - rewards[i].prio);
       rewards[i].prio = 0;
     }
   }
@@ -1312,6 +1329,7 @@ queryLocalResultCallback(const HashCode512 * primaryKey,
   /* verify data is valid */
   uri(value,
       ANY_BLOCK,
+      YES,
       primaryKey);
 #endif
 
@@ -1453,8 +1471,6 @@ static int execQuery(const PeerIdentity * sender,
   }
 
   if (cls.valueCount > 0) {
-    if (stats != NULL)
-      stats->change(stat_routing_local_results, 1);
     perm = permute(WEAK, cls.valueCount);
     max = getNetworkLoadDown();
     if (max > 100)
@@ -1468,12 +1484,13 @@ static int execQuery(const PeerIdentity * sender,
 				what we have */
 
     for (i=0;i<cls.valueCount;i++) {
-      if (i < max) {
-	if (sender != NULL)
-	  queueReply(sender,
-		     &query->queries[0],
-		     cls.values[perm[i]]);
-      }
+      if ( (i < max) &&
+	   (sender != NULL) &&
+	   (YES == queueReply(sender,
+			      &query->queries[0],
+			      cls.values[perm[i]])) &&
+	   (stats != NULL) )
+	stats->change(stat_routing_local_results, 1);      
       /* even for local results, always do 'put'
 	 (at least to give back results to local client &
 	 to update priority; but only do this for
@@ -1485,6 +1502,7 @@ static int execQuery(const PeerIdentity * sender,
 
       if (uri(cls.values[perm[i]],
 	      ite->type,
+	      NO, /* no need to verify local results! */
 	      &query->queries[0]))
 	doForward = NO; /* we have the one and only answer,
 				do not bother to forward... */
@@ -1599,9 +1617,6 @@ static int useContent(const PeerIdentity * host,
 	_("GAP received invalid content from `%s'\n"),
 	(host != NULL) ? (const char*)&enc : _("myself"));    
     BREAK();
-    uri(value,
-	ANY_BLOCK,
-	&contentHC);
     FREE(value);
     return SYSERR; /* invalid */
   }
@@ -1639,6 +1654,7 @@ static int useContent(const PeerIdentity * host,
       ite->seenReplyWasUnique
 	= uri(value,
 	      ite->type,
+	      NO, /* already verified */
 	      &ite->primaryKey);
     } else {
       ite->seenReplyWasUnique = NO;
@@ -1684,6 +1700,7 @@ static int useContent(const PeerIdentity * host,
   /* FIFTH: if unique reply, stopy querying */
   if (uri(value,
 	  ite->type,
+	  NO, /* already verified */
 	  &ite->primaryKey)) {
     /* unique reply, stop forwarding! */
     dequeueQuery(&ite->primaryKey);
@@ -2075,6 +2092,7 @@ provide_module_gap(CoreAPIForApplication * capi) {
     stat_memory_seen                = stats->create(gettext_noop("# gap memory used for tracking seen content"));
     stat_memory_destinations        = stats->create(gettext_noop("# gap memory used for tracking routing destinations"));
     stat_pending_rewards            = stats->create(gettext_noop("# gap rewards pending"));
+    stat_response_count             = stats->create(gettext_noop("# gap response weights"));
   }
   init_pid_table(stats);
   GROW(rewards,

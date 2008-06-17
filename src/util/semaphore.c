@@ -436,13 +436,39 @@ void PTHREAD_DETACH(PTHREAD_T * pt) {
 void PTHREAD_KILL(PTHREAD_T * pt,
 		  int signal) {
   pthread_t * handle;
+  int ret;
 
   handle = pt->internal;
   if (handle == NULL) {
-    /*    BREAK(); */
+    BREAK();
     return;
   }
-  pthread_kill(*handle, signal);
+  ret = pthread_kill(*handle, signal);
+  switch (ret) {
+  case 0: 
+    break; /* ok */
+  case EINVAL:
+    LOG(LOG_ERROR, 
+	_("`%s' failed with error code %s: %s"),
+	"pthread_kill",
+	"EINVAL",
+	STRERROR(ret));
+    break;
+  case ESRCH:
+    LOG(LOG_ERROR, 
+	_("`%s' failed with error code %s: %s"),
+	"pthread_kill",
+	"ESRCH",
+	STRERROR(ret));
+    break;
+  default:
+    LOG(LOG_ERROR, 
+	_("`%s' failed with error code %d: %s"),
+	"pthread_kill",
+	ret,
+	STRERROR(ret));
+    break;    
+  }
 }
 
 

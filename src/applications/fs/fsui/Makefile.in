@@ -14,7 +14,8 @@
 
 @SET_MAKE@
 
-SOURCES = $(libgnunetfsui_la_SOURCES) $(downloadtest_SOURCES) $(fsuitest_SOURCES) $(fsuitest2_SOURCES) $(namespace_infotest_SOURCES) $(searchtest_SOURCES)
+
+SOURCES = $(libgnunetfsui_la_SOURCES) $(downloadtest_SOURCES) $(fsui_loader_SOURCES) $(fsuitest_SOURCES) $(fsuitest2_SOURCES) $(namespace_infotest_SOURCES) $(searchtest_SOURCES)
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -37,6 +38,7 @@ NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
 host_triplet = @host@
+noinst_PROGRAMS = fsui-loader$(EXEEXT)
 check_PROGRAMS = fsuitest$(EXEEXT) fsuitest2$(EXEEXT) \
 	searchtest$(EXEEXT) downloadtest$(EXEEXT) \
 	namespace_infotest$(EXEEXT)
@@ -48,9 +50,9 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/ac_define_dir.m4 \
 	$(top_srcdir)/m4/guile.m4 $(top_srcdir)/m4/iconv.m4 \
 	$(top_srcdir)/m4/lib-ld.m4 $(top_srcdir)/m4/lib-link.m4 \
 	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libgcrypt.m4 \
-	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/po.m4 \
-	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/acinclude.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/pkg.m4 \
+	$(top_srcdir)/m4/po.m4 $(top_srcdir)/m4/progtest.m4 \
+	$(top_srcdir)/acinclude.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
@@ -66,11 +68,18 @@ am_libgnunetfsui_la_OBJECTS = collection.lo download.lo file_info.lo \
 	fsui.lo helper.lo namespace_info.lo search.lo unindex.lo \
 	upload.lo
 libgnunetfsui_la_OBJECTS = $(am_libgnunetfsui_la_OBJECTS)
+PROGRAMS = $(noinst_PROGRAMS)
 am_downloadtest_OBJECTS = downloadtest.$(OBJEXT)
 downloadtest_OBJECTS = $(am_downloadtest_OBJECTS)
 downloadtest_DEPENDENCIES =  \
 	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
 	$(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
+	$(top_builddir)/src/util/libgnunetutil.la
+am_fsui_loader_OBJECTS = fsui-loader.$(OBJEXT)
+fsui_loader_OBJECTS = $(am_fsui_loader_OBJECTS)
+fsui_loader_DEPENDENCIES =  \
+	$(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
+	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
 	$(top_builddir)/src/util/libgnunetutil.la
 am_fsuitest_OBJECTS = fsuitest.$(OBJEXT)
 fsuitest_OBJECTS = $(am_fsuitest_OBJECTS)
@@ -102,7 +111,8 @@ am__depfiles_maybe = depfiles
 @AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/collection.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/download.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/downloadtest.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/file_info.Plo ./$(DEPDIR)/fsui.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/file_info.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/fsui-loader.Po ./$(DEPDIR)/fsui.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/fsuitest.Po ./$(DEPDIR)/fsuitest2.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/helper.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/namespace_info.Plo \
@@ -118,11 +128,13 @@ CCLD = $(CC)
 LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
 SOURCES = $(libgnunetfsui_la_SOURCES) $(downloadtest_SOURCES) \
-	$(fsuitest_SOURCES) $(fsuitest2_SOURCES) \
-	$(namespace_infotest_SOURCES) $(searchtest_SOURCES)
+	$(fsui_loader_SOURCES) $(fsuitest_SOURCES) \
+	$(fsuitest2_SOURCES) $(namespace_infotest_SOURCES) \
+	$(searchtest_SOURCES)
 DIST_SOURCES = $(libgnunetfsui_la_SOURCES) $(downloadtest_SOURCES) \
-	$(fsuitest_SOURCES) $(fsuitest2_SOURCES) \
-	$(namespace_infotest_SOURCES) $(searchtest_SOURCES)
+	$(fsui_loader_SOURCES) $(fsuitest_SOURCES) \
+	$(fsuitest2_SOURCES) $(namespace_infotest_SOURCES) \
+	$(searchtest_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -165,6 +177,8 @@ EXT_LIB_PATH = @EXT_LIB_PATH@
 F77 = @F77@
 FFLAGS = @FFLAGS@
 GMSGFMT = @GMSGFMT@
+GNUNETGTK_CFLAGS = @GNUNETGTK_CFLAGS@
+GNUNETGTK_LIBS = @GNUNETGTK_LIBS@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
 GUILE = @GUILE@
@@ -311,6 +325,14 @@ libgnunetfsui_la_LIBADD = \
 EXTRA_DIST = \
   check.conf
 
+fsui_loader_SOURCES = \
+ fsui-loader.c 
+
+fsui_loader_LDADD = \
+ $(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
+ $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+ $(top_builddir)/src/util/libgnunetutil.la 
+
 TESTS = $(check_PROGRAMS)
 fsuitest_SOURCES = \
   fsuitest.c 
@@ -421,9 +443,19 @@ clean-checkPROGRAMS:
 	  echo " rm -f $$p $$f"; \
 	  rm -f $$p $$f ; \
 	done
+
+clean-noinstPROGRAMS:
+	@list='$(noinst_PROGRAMS)'; for p in $$list; do \
+	  f=`echo $$p|sed 's/$(EXEEXT)$$//'`; \
+	  echo " rm -f $$p $$f"; \
+	  rm -f $$p $$f ; \
+	done
 downloadtest$(EXEEXT): $(downloadtest_OBJECTS) $(downloadtest_DEPENDENCIES) 
 	@rm -f downloadtest$(EXEEXT)
 	$(LINK) $(downloadtest_LDFLAGS) $(downloadtest_OBJECTS) $(downloadtest_LDADD) $(LIBS)
+fsui-loader$(EXEEXT): $(fsui_loader_OBJECTS) $(fsui_loader_DEPENDENCIES) 
+	@rm -f fsui-loader$(EXEEXT)
+	$(LINK) $(fsui_loader_LDFLAGS) $(fsui_loader_OBJECTS) $(fsui_loader_LDADD) $(LIBS)
 fsuitest$(EXEEXT): $(fsuitest_OBJECTS) $(fsuitest_DEPENDENCIES) 
 	@rm -f fsuitest$(EXEEXT)
 	$(LINK) $(fsuitest_LDFLAGS) $(fsuitest_OBJECTS) $(fsuitest_LDADD) $(LIBS)
@@ -447,6 +479,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/download.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/downloadtest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/file_info.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fsui-loader.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fsui.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fsuitest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fsuitest2.Po@am__quote@
@@ -644,7 +677,7 @@ check-am: all-am
 	$(MAKE) $(AM_MAKEFLAGS) $(check_PROGRAMS)
 	$(MAKE) $(AM_MAKEFLAGS) check-TESTS
 check: check-am
-all-am: Makefile $(LTLIBRARIES)
+all-am: Makefile $(LTLIBRARIES) $(PROGRAMS)
 installdirs:
 	for dir in "$(DESTDIR)$(libdir)"; do \
 	  test -z "$$dir" || $(mkdir_p) "$$dir"; \
@@ -676,7 +709,7 @@ maintainer-clean-generic:
 clean: clean-am
 
 clean-am: clean-checkPROGRAMS clean-generic clean-libLTLIBRARIES \
-	clean-libtool mostlyclean-am
+	clean-libtool clean-noinstPROGRAMS mostlyclean-am
 
 distclean: distclean-am
 	-rm -rf ./$(DEPDIR)
@@ -726,16 +759,17 @@ uninstall-am: uninstall-info-am uninstall-libLTLIBRARIES
 
 .PHONY: CTAGS GTAGS all all-am check check-TESTS check-am clean \
 	clean-checkPROGRAMS clean-generic clean-libLTLIBRARIES \
-	clean-libtool ctags distclean distclean-compile \
-	distclean-generic distclean-libtool distclean-tags distdir dvi \
-	dvi-am html html-am info info-am install install-am \
-	install-data install-data-am install-exec install-exec-am \
-	install-info install-info-am install-libLTLIBRARIES \
-	install-man install-strip installcheck installcheck-am \
-	installdirs maintainer-clean maintainer-clean-generic \
-	mostlyclean mostlyclean-compile mostlyclean-generic \
-	mostlyclean-libtool pdf pdf-am ps ps-am tags uninstall \
-	uninstall-am uninstall-info-am uninstall-libLTLIBRARIES
+	clean-libtool clean-noinstPROGRAMS ctags distclean \
+	distclean-compile distclean-generic distclean-libtool \
+	distclean-tags distdir dvi dvi-am html html-am info info-am \
+	install install-am install-data install-data-am install-exec \
+	install-exec-am install-info install-info-am \
+	install-libLTLIBRARIES install-man install-strip installcheck \
+	installcheck-am installdirs maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-compile \
+	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
+	tags uninstall uninstall-am uninstall-info-am \
+	uninstall-libLTLIBRARIES
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

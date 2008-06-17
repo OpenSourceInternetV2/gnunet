@@ -1,6 +1,7 @@
 Primary developers (0.7.x series):
 Christian Grothoff <christian@grothoff.org>
 Nils Durner <durner@gnunet.org>
+Michael John Wensley <michael@wensley.org.uk>
 
 Code contributions also came from:
 Andrew McDonald <andrew@mcdonald.org.uk> [ SHA-512]
@@ -28,6 +29,8 @@ Marko Räihä
 Paul Ruth <ruth@cs.purdue.edu>
 Renaldo Ferreira <rf@cs.purdue.edu>
 Risto Saarelma
+Roman Zippel
+Romain Lievin
 Simo Viitanen
 Tiberius Stef <tstef@cs.purdue.edu>
 Tomi Tukiainen

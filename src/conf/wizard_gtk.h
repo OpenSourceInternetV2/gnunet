@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2005 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2005 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -18,17 +18,18 @@
      Boston, MA 02111-1307, USA.
 */
 
+
 /**
  * @file conf/wizard_gtk.h
+ * @brief GNUnet Setup
  * @author Nils Durner
  */
 
-#ifndef _WIZARD_GTK_H_
-#define _WIZARD_GTK_H_
+#ifndef WIZARD_GTK_H
+#define WIZARD_GTK_H
 
-void load_step2();
-void load_step3();
-void load_step4();
-void load_step5();
+int gtk_wizard_main(int argc, 
+		    char **argv,
+		    void * library);
 
-#endif /*_WIZARD_GTK_H_ */
+#endif
