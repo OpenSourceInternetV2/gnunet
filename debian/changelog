@@ -1,3 +1,12 @@
+gnunet (0.6.6a-1) unstable; urgency=low
+
+  * New upstream release (Closes: #293347).
+  * debian/control: Fixed gnunet-gtk dependencies.
+  * debian/gnunet.shlibs: Replaced version number by ${Source-Version}.
+  * debian/gnunet.postinst: Fixed some typos in default configuration file.
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Tue, 15 Feb 2005 19:45:51 +0100
+
 gnunet (0.6.6-2) unstable; urgency=low
 
   * debian/rules: Added --without-extractor.
