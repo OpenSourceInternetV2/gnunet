@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-SOURCES = $(libgnunetecrs_la_SOURCES) $(bincodertest_SOURCES) $(directorytest_SOURCES) $(ecrstest_SOURCES) $(metatest_SOURCES) $(metatest2_SOURCES) $(namespacetest_SOURCES) $(searchtest_SOURCES) $(uritest_SOURCES)
+SOURCES = $(libgnunetecrs_la_SOURCES) $(bincodertest_SOURCES) $(directorytest_SOURCES) $(downloadtest_SOURCES) $(ecrstest_SOURCES) $(metatest_SOURCES) $(metatest2_SOURCES) $(namespacetest_SOURCES) $(searchtest_SOURCES) $(uritest_SOURCES)
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -37,9 +37,10 @@ NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
 host_triplet = @host@
-check_PROGRAMS = bincodertest$(EXEEXT) namespacetest$(EXEEXT) \
-	uritest$(EXEEXT) metatest$(EXEEXT) metatest2$(EXEEXT) \
-	searchtest$(EXEEXT) directorytest$(EXEEXT) ecrstest$(EXEEXT)
+check_PROGRAMS = bincodertest$(EXEEXT) downloadtest$(EXEEXT) \
+	namespacetest$(EXEEXT) uritest$(EXEEXT) metatest$(EXEEXT) \
+	metatest2$(EXEEXT) searchtest$(EXEEXT) directorytest$(EXEEXT) \
+	ecrstest$(EXEEXT)
 subdir = src/applications/fs/ecrs
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -80,6 +81,12 @@ directorytest_DEPENDENCIES =  \
 	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
 	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
 	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la
+am_downloadtest_OBJECTS = downloadtest.$(OBJEXT)
+downloadtest_OBJECTS = $(am_downloadtest_OBJECTS)
+downloadtest_DEPENDENCIES =  \
+	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
+	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
+	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la
 am_ecrstest_OBJECTS = ecrstest.$(OBJEXT)
 ecrstest_OBJECTS = $(am_ecrstest_OBJECTS)
 ecrstest_DEPENDENCIES =  \
@@ -117,7 +124,8 @@ am__depfiles_maybe = depfiles
 @AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/bincodertest.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/directory.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/directorytest.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/download.Plo ./$(DEPDIR)/ecrs.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/download.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/downloadtest.Po ./$(DEPDIR)/ecrs.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/ecrstest.Po ./$(DEPDIR)/helper.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/indexinfo.Plo ./$(DEPDIR)/keyspace.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/meta.Plo ./$(DEPDIR)/metatest.Po \
@@ -136,13 +144,13 @@ CCLD = $(CC)
 LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
 SOURCES = $(libgnunetecrs_la_SOURCES) $(bincodertest_SOURCES) \
-	$(directorytest_SOURCES) $(ecrstest_SOURCES) \
-	$(metatest_SOURCES) $(metatest2_SOURCES) \
+	$(directorytest_SOURCES) $(downloadtest_SOURCES) \
+	$(ecrstest_SOURCES) $(metatest_SOURCES) $(metatest2_SOURCES) \
 	$(namespacetest_SOURCES) $(searchtest_SOURCES) \
 	$(uritest_SOURCES)
 DIST_SOURCES = $(libgnunetecrs_la_SOURCES) $(bincodertest_SOURCES) \
-	$(directorytest_SOURCES) $(ecrstest_SOURCES) \
-	$(metatest_SOURCES) $(metatest2_SOURCES) \
+	$(directorytest_SOURCES) $(downloadtest_SOURCES) \
+	$(ecrstest_SOURCES) $(metatest_SOURCES) $(metatest2_SOURCES) \
 	$(namespacetest_SOURCES) $(searchtest_SOURCES) \
 	$(uritest_SOURCES)
 ETAGS = etags
@@ -203,6 +211,8 @@ HAVE_IPV6_FALSE = @HAVE_IPV6_FALSE@
 HAVE_IPV6_TRUE = @HAVE_IPV6_TRUE@
 HAVE_MHD_FALSE = @HAVE_MHD_FALSE@
 HAVE_MHD_TRUE = @HAVE_MHD_TRUE@
+HAVE_MYSQLE_FALSE = @HAVE_MYSQLE_FALSE@
+HAVE_MYSQLE_TRUE = @HAVE_MYSQLE_TRUE@
 HAVE_MYSQL_FALSE = @HAVE_MYSQL_FALSE@
 HAVE_MYSQL_TRUE = @HAVE_MYSQL_TRUE@
 HAVE_SQLITE_FALSE = @HAVE_SQLITE_FALSE@
@@ -397,6 +407,14 @@ ecrstest_LDADD = \
   $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la 
 
+downloadtest_SOURCES = \
+  downloadtest.c
+
+downloadtest_LDADD = \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
+  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la 
+
 searchtest_SOURCES = \
   searchtest.c
 
@@ -491,6 +509,9 @@ bincodertest$(EXEEXT): $(bincodertest_OBJECTS) $(bincodertest_DEPENDENCIES)
 directorytest$(EXEEXT): $(directorytest_OBJECTS) $(directorytest_DEPENDENCIES) 
 	@rm -f directorytest$(EXEEXT)
 	$(LINK) $(directorytest_LDFLAGS) $(directorytest_OBJECTS) $(directorytest_LDADD) $(LIBS)
+downloadtest$(EXEEXT): $(downloadtest_OBJECTS) $(downloadtest_DEPENDENCIES) 
+	@rm -f downloadtest$(EXEEXT)
+	$(LINK) $(downloadtest_LDFLAGS) $(downloadtest_OBJECTS) $(downloadtest_LDADD) $(LIBS)
 ecrstest$(EXEEXT): $(ecrstest_OBJECTS) $(ecrstest_DEPENDENCIES) 
 	@rm -f ecrstest$(EXEEXT)
 	$(LINK) $(ecrstest_LDFLAGS) $(ecrstest_OBJECTS) $(ecrstest_LDADD) $(LIBS)
@@ -520,6 +541,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/directory.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/directorytest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/download.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/downloadtest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ecrs.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ecrstest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/helper.Plo@am__quote@

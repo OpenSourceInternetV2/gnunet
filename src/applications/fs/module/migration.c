@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004, 2005 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005, 2007 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -36,51 +36,73 @@
 #define DEBUG_MIGRATION NO
 
 /**
+ * To how many peers may we migrate the same piece of content during
+ * one iteration?  Higher values mean less IO, but also migration
+ * becomes quickly much less effective (everyone has the same
+ * content!).  Also, numbers larger than the number of connections are
+ * simply a waste of memory.
+ */
+#define MAX_RECEIVERS 16
+
+/**
+ * How many migration records do we keep in memory
+ * at the same time?  Each record is about 32k, so
+ * 64 records will use about 2 MB of memory.
+ * We might want to allow users to specify larger
+ * values in the configuration file some day.
+ */
+#define MAX_RECORDS 64
+
+/**
  * Datastore service.
  */
-static Datastore_ServiceAPI * datastore;
+static Datastore_ServiceAPI *datastore;
 
 /**
  * Global core API.
  */
-static CoreAPIForApplication * coreAPI;
+static CoreAPIForApplication *coreAPI;
 
 /**
  * GAP service.
  */
-static GAP_ServiceAPI * gap;
+static GAP_ServiceAPI *gap;
 
 /**
  * DHT service.  Maybe NULL!
  */
-static DHT_ServiceAPI * dht;
+static DHT_ServiceAPI *dht;
 
 /**
  * Traffic service.
  */
-static Traffic_ServiceAPI * traffic;
+static Traffic_ServiceAPI *traffic;
 
-static Stats_ServiceAPI * stats;
+static Stats_ServiceAPI *stats;
 
 static int stat_migration_count;
+
+static int stat_migration_factor;
 
 static int stat_on_demand_migration_attempts;
 
 /**
  * Lock used to access content.
  */
-static struct MUTEX * lock;
+static struct MUTEX *lock;
 
-/**
- * The content that we are currently trying
- * to migrate (used to give us more than one
- * chance should we fail for some reason the
- * first time).
- */
-static Datastore_Value * content;
-			
-static struct GE_Context * ectx;
-	
+struct MigrationRecord
+{
+  Datastore_Value *value;
+  HashCode512 key;
+  unsigned int receiverIndices[MAX_RECEIVERS];
+  unsigned int sentCount;
+};
+
+static struct MigrationRecord content[MAX_RECORDS];
+
+static struct GE_Context *ectx;
+
 /**
  * Callback method for pushing content into the network.
  * The method chooses either a "recently" deleted block
@@ -97,170 +119,228 @@ static struct GE_Context * ectx;
  *   that buffer (must be a positive number).
  */
 static unsigned int
-activeMigrationCallback(const PeerIdentity * receiver,
-			void * position,
-			unsigned int padding) {
-  /** key corresponding to content (if content != NULL);
-      yes, must be static! */
-  static HashCode512 key;
+activeMigrationCallback (const PeerIdentity * receiver,
+                         void *position, unsigned int padding)
+{
   unsigned int ret;
-  GapWrapper * gw;
+  GapWrapper *gw;
   unsigned int size;
   cron_t et;
   cron_t now;
   unsigned int anonymity;
   Datastore_Value *enc;
+  Datastore_Value *value;
+  unsigned int index;
+  int entry;
+  int discard_entry;
+  int discard_match;
+  int i;
+  int j;
+  int match;
+  unsigned int dist;
+  unsigned int minDist;
 
-  MUTEX_LOCK(lock);
-  if (content != NULL) {
-    size = sizeof(GapWrapper) + ntohl(content->size) - sizeof(Datastore_Value);
-    if (size > padding) {
-      FREE(content);
-      content = NULL;
+  index = coreAPI->computeIndex (receiver);
+  MUTEX_LOCK (lock);
+  entry = -1;
+  discard_entry = -1;
+  discard_match = -1;
+  minDist = -1;                 /* max */
+  for (i = 0; i < MAX_RECORDS; i++)
+    {
+      if (content[i].value == NULL)
+        {
+          discard_entry = i;
+          discard_match = MAX_RECEIVERS + 1;
+          continue;
+        }
+      match = 1;
+      if (ntohl (content[i].value->size) + sizeof (GapWrapper) -
+          sizeof (Datastore_Value) <= padding)
+        {
+          match = 0;
+          for (j = 0; j < content[i].sentCount; j++)
+            {
+              if (content[i].receiverIndices[j] == index)
+                {
+                  match = 1;
+                  break;
+                }
+            }
+        }
+      if (match == 0)
+        {
+          dist = distanceHashCode512 (&content[i].key, &receiver->hashPubKey);
+          if (dist <= minDist)
+            {
+              entry = i;
+              minDist = dist;
+              break;
+            }
+        }
+      else
+        {
+          if ((content[i].sentCount > discard_match) || (discard_match == -1))
+            {
+              discard_match = content[i].sentCount;
+              discard_entry = i;
+            }
+        }
     }
-  }
-  if (content == NULL) {
-    if (OK != datastore->getRandom(&receiver->hashPubKey,
-				   padding,
-				   &key,
-				   &content,
-				   0)) {
-      MUTEX_UNLOCK(lock);
+  if (entry == -1)
+    {
+      entry = discard_entry;
+      GE_ASSERT (NULL, entry != -1);
+      FREENONNULL (content[entry].value);
+      content[entry].value = NULL;
+      content[entry].sentCount = 0;
+      if (OK != datastore->getRandom (&receiver->hashPubKey,
+                                      padding,
+                                      &content[entry].key,
+                                      &content[entry].value, 0))
+        {
+          content[entry].value = NULL;  /* just to be sure... */
+          MUTEX_UNLOCK (lock);
 #if DEBUG_MIGRATION
-      GE_LOG(ectx,
-	     GE_DEBUG | GE_REQUEST | GE_USER,
-	     "Migration: random lookup in datastore failed.\n");
+          GE_LOG (ectx,
+                  GE_DEBUG | GE_REQUEST | GE_USER,
+                  "Migration: random lookup in datastore failed.\n");
 #endif
+          return 0;
+        }
+      if (stats != NULL)
+        stats->change (stat_migration_factor, 1);
+    }
+  value = content[entry].value;
+  if (value == NULL)
+    {
+      GE_ASSERT (NULL, 0);
+      MUTEX_UNLOCK (lock);
       return 0;
     }
-  }
-
-#if DEBUG_MIGRATION
-  GE_LOG(ectx,
-	 GE_DEBUG | GE_BULK | GE_USER,
-	 "Migration: random lookup in datastore returned type %d.\n",
-	 ntohl(content->type));
-#endif
-  if (ntohl(content->type) == ONDEMAND_BLOCK) {
-    if (ONDEMAND_getIndexed(datastore,
-			    content,
-			    &key,
-			    &enc) != OK) {
-      FREE(content);
-      content = NULL;
-      MUTEX_UNLOCK(lock);
+  size = sizeof (GapWrapper) + ntohl (value->size) - sizeof (Datastore_Value);
+  if (size > padding)
+    {
+      MUTEX_UNLOCK (lock);
       return 0;
     }
-    if (stats != NULL)
-      stats->change(stat_on_demand_migration_attempts, 1);
-
-    FREE(content);
-    content = enc;
-  }
-
-  size = sizeof(GapWrapper) + ntohl(content->size) - sizeof(Datastore_Value);
-  if (size > padding) {
-    MUTEX_UNLOCK(lock);
 #if DEBUG_MIGRATION
-    GE_LOG(ectx,
-	   GE_DEBUG | GE_REQUEST | GE_USER,
-	   "Available content of size %u too big for available space (%u)\n",
-	   size,
-	   padding);
+  GE_LOG (ectx,
+          GE_DEBUG | GE_BULK | GE_USER,
+          "Migration: random lookup in datastore returned type %d.\n",
+          ntohl (value->type));
 #endif
-    return 0;
-  }
-  et = ntohll(content->expirationTime);
-  now = get_time();
-  if (et > now) {
-    et -= now;
-    et = et % MAX_MIGRATION_EXP;
-    et += now;
-  }
-  anonymity = ntohl(content->anonymityLevel);
+  if (ntohl (value->type) == ONDEMAND_BLOCK)
+    {
+      if (ONDEMAND_getIndexed (datastore,
+                               value, &content[entry].key, &enc) != OK)
+        {
+          FREENONNULL (value);
+          content[entry].value = NULL;
+          MUTEX_UNLOCK (lock);
+          return 0;
+        }
+      if (stats != NULL)
+        stats->change (stat_on_demand_migration_attempts, 1);
+      content[entry].value = enc;
+      FREE (value);
+      value = enc;
+    }
+
+  size = sizeof (GapWrapper) + ntohl (value->size) - sizeof (Datastore_Value);
+  if (size > padding)
+    {
+      MUTEX_UNLOCK (lock);
+      return 0;
+    }
+  et = ntohll (value->expirationTime);
+  now = get_time ();
+  if (et > now)
+    {
+      et -= now;
+      et = et % MAX_MIGRATION_EXP;
+      et += now;
+    }
+  anonymity = ntohl (value->anonymityLevel);
   ret = 0;
-  if (anonymity == 0) {
-    /* ret > 0; (if DHT succeeds) fixme for DHT */
-  }
-  if ( (ret == 0) &&
-       (OK == checkCoverTraffic(ectx,
-				traffic,
-				anonymity)) ) {
-    gw = MALLOC(size);
-    gw->dc.size = htonl(size);
-    gw->timeout = htonll(et);
-    memcpy(&gw[1],
-	   &content[1],
-	   size - sizeof(GapWrapper));
-    ret = gap->tryMigrate(&gw->dc,
-			  &key,
-			  position,
-			  padding);
-    FREE(gw);
+  if (anonymity == 0)
+    {
+      value->anonymityLevel = htonl (1);
+      anonymity = 1;
+    }
+  if (OK == checkCoverTraffic (ectx, traffic, anonymity))
+    {
+      gw = MALLOC (size);
+      gw->dc.size = htonl (size);
+      gw->timeout = htonll (et);
+      memcpy (&gw[1], &value[1], size - sizeof (GapWrapper));
+      ret = gap->tryMigrate (&gw->dc, &content[entry].key, position, padding);
+      FREE (gw);
 #if DEBUG_MIGRATION
-    GE_LOG(ectx,
-	   GE_DEBUG | GE_REQUEST | GE_USER,
-	   "gap's tryMigrate returned %u\n",
-	   ret);
+      GE_LOG (ectx,
+              GE_DEBUG | GE_REQUEST | GE_USER,
+              "gap's tryMigrate returned %u\n", ret);
 #endif
-  } else {
-#if DEBUG_MIGRATION
-    GE_LOG(ectx,
-	   GE_DEBUG | GE_REQUEST | GE_USER,
-	   "Migration: anonymity requirements not satisfied.\n");
-#endif
-  }
-  if (ret > 0) {
-    FREE(content);
-    content = NULL;
-  }
-  MUTEX_UNLOCK(lock);
-  if ( (ret > 0)&&
-       (stats != NULL) )
-      stats->change(stat_migration_count, 1);
-  GE_BREAK(NULL, ret <= padding);
+      if (ret != 0)
+        content[entry].receiverIndices[content[entry].sentCount++] = index;
+    }
+  MUTEX_UNLOCK (lock);
+  if ((ret > 0) && (stats != NULL))
+    stats->change (stat_migration_count, 1);
+  GE_BREAK (NULL, ret <= padding);
   return ret;
 }
 
-void initMigration(CoreAPIForApplication * capi,
-		   Datastore_ServiceAPI * ds,
-		   GAP_ServiceAPI * g,
-		   DHT_ServiceAPI * d,
-		   Traffic_ServiceAPI * t) {
+void
+initMigration (CoreAPIForApplication * capi,
+               Datastore_ServiceAPI * ds,
+               GAP_ServiceAPI * g, DHT_ServiceAPI * d, Traffic_ServiceAPI * t)
+{
   ectx = capi->ectx;
-  lock = MUTEX_CREATE(NO);
+  lock = MUTEX_CREATE (NO);
   coreAPI = capi;
   datastore = ds;
   gap = g;
   dht = d;
   traffic = t;
-  coreAPI->registerSendCallback(GAP_ESTIMATED_DATA_SIZE,
-				&activeMigrationCallback);
-  stats = capi->requestService("stats");
-  if (stats != NULL) {
-    stat_migration_count
-      = stats->create(gettext_noop("# blocks migrated"));
-    stat_on_demand_migration_attempts
-      = stats->create(gettext_noop("# on-demand block migration attempts"));
-  }
+  coreAPI->registerSendCallback (GAP_ESTIMATED_DATA_SIZE,
+                                 &activeMigrationCallback);
+  stats = capi->requestService ("stats");
+  if (stats != NULL)
+    {
+      stat_migration_count
+        = stats->create (gettext_noop ("# blocks migrated"));
+      stat_migration_factor
+        = stats->create (gettext_noop ("# blocks fetched for migration"));
+      stat_on_demand_migration_attempts
+        =
+        stats->create (gettext_noop ("# on-demand block migration attempts"));
+    }
 
 }
 
-void doneMigration() {
-  coreAPI->unregisterSendCallback(GAP_ESTIMATED_DATA_SIZE,
-				  &activeMigrationCallback);
-  if (stats != NULL) {
-    coreAPI->releaseService(stats);
-    stats = NULL;
-  }
+void
+doneMigration ()
+{
+  int i;
+  coreAPI->unregisterSendCallback (GAP_ESTIMATED_DATA_SIZE,
+                                   &activeMigrationCallback);
+  if (stats != NULL)
+    {
+      coreAPI->releaseService (stats);
+      stats = NULL;
+    }
   datastore = NULL;
   gap = NULL;
   dht = NULL;
   coreAPI = NULL;
   traffic = NULL;
-  FREENONNULL(content);
-  content = NULL;
-  MUTEX_DESTROY(lock);
+  for (i = 0; i < MAX_RECORDS; i++)
+    {
+      FREENONNULL (content[i].value);
+      content[i].value = NULL;
+    }
+  MUTEX_DESTROY (lock);
   lock = NULL;
 }
 

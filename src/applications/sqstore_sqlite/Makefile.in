@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-SOURCES = $(libgnunetmodule_sqstore_sqlite_la_SOURCES) $(sqlitetest_SOURCES) $(sqlitetest2_SOURCES)
+SOURCES = $(libgnunetmodule_sqstore_sqlite_la_SOURCES) $(sqlitetest_SOURCES) $(sqlitetest2_SOURCES) $(sqlitetest3_SOURCES)
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -37,7 +37,8 @@ NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
 host_triplet = @host@
-check_PROGRAMS = sqlitetest$(EXEEXT) sqlitetest2$(EXEEXT)
+check_PROGRAMS = sqlitetest$(EXEEXT) sqlitetest2$(EXEEXT) \
+	sqlitetest3$(EXEEXT)
 subdir = src/applications/sqstore_sqlite
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -74,12 +75,19 @@ sqlitetest2_DEPENDENCIES =  \
 	$(top_builddir)/src/server/libgnunetcore.la \
 	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
 	$(top_builddir)/src/util/libgnunetutil.la
+am_sqlitetest3_OBJECTS = sqlitetest3.$(OBJEXT)
+sqlitetest3_OBJECTS = $(am_sqlitetest3_OBJECTS)
+sqlitetest3_DEPENDENCIES =  \
+	$(top_builddir)/src/server/libgnunetcore.la \
+	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
+	$(top_builddir)/src/util/libgnunetutil.la
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
 @AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/sqlite.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/sqlitetest.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/sqlitetest2.Po
+@AMDEP_TRUE@	./$(DEPDIR)/sqlitetest2.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/sqlitetest3.Po
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) \
@@ -89,9 +97,11 @@ CCLD = $(CC)
 LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
 SOURCES = $(libgnunetmodule_sqstore_sqlite_la_SOURCES) \
-	$(sqlitetest_SOURCES) $(sqlitetest2_SOURCES)
+	$(sqlitetest_SOURCES) $(sqlitetest2_SOURCES) \
+	$(sqlitetest3_SOURCES)
 DIST_SOURCES = $(libgnunetmodule_sqstore_sqlite_la_SOURCES) \
-	$(sqlitetest_SOURCES) $(sqlitetest2_SOURCES)
+	$(sqlitetest_SOURCES) $(sqlitetest2_SOURCES) \
+	$(sqlitetest3_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -150,6 +160,8 @@ HAVE_IPV6_FALSE = @HAVE_IPV6_FALSE@
 HAVE_IPV6_TRUE = @HAVE_IPV6_TRUE@
 HAVE_MHD_FALSE = @HAVE_MHD_FALSE@
 HAVE_MHD_TRUE = @HAVE_MHD_TRUE@
+HAVE_MYSQLE_FALSE = @HAVE_MYSQLE_FALSE@
+HAVE_MYSQLE_TRUE = @HAVE_MYSQLE_TRUE@
 HAVE_MYSQL_FALSE = @HAVE_MYSQL_FALSE@
 HAVE_MYSQL_TRUE = @HAVE_MYSQL_TRUE@
 HAVE_SQLITE_FALSE = @HAVE_SQLITE_FALSE@
@@ -309,6 +321,14 @@ sqlitetest2_LDADD = \
  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
  $(top_builddir)/src/util/libgnunetutil.la  
 
+sqlitetest3_SOURCES = \
+ sqlitetest3.c 
+
+sqlitetest3_LDADD = \
+ $(top_builddir)/src/server/libgnunetcore.la  \
+ $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
 all: all-am
 
 .SUFFIXES:
@@ -384,6 +404,9 @@ sqlitetest$(EXEEXT): $(sqlitetest_OBJECTS) $(sqlitetest_DEPENDENCIES)
 sqlitetest2$(EXEEXT): $(sqlitetest2_OBJECTS) $(sqlitetest2_DEPENDENCIES) 
 	@rm -f sqlitetest2$(EXEEXT)
 	$(LINK) $(sqlitetest2_LDFLAGS) $(sqlitetest2_OBJECTS) $(sqlitetest2_LDADD) $(LIBS)
+sqlitetest3$(EXEEXT): $(sqlitetest3_OBJECTS) $(sqlitetest3_DEPENDENCIES) 
+	@rm -f sqlitetest3$(EXEEXT)
+	$(LINK) $(sqlitetest3_LDFLAGS) $(sqlitetest3_OBJECTS) $(sqlitetest3_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -394,6 +417,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sqlite.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sqlitetest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sqlitetest2.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sqlitetest3.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \

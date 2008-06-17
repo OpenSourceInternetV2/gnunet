@@ -59,7 +59,8 @@ am__installdirs = "$(DESTDIR)$(plugindir)"
 pluginLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(plugin_LTLIBRARIES)
 libgnunetmodule_dstore_la_DEPENDENCIES =  \
-	$(top_builddir)/src/util/libgnunetutil.la
+	$(top_builddir)/src/util/libgnunetutil.la \
+	$(top_builddir)/src/util/containers/libgnunetutil_containers.la
 am_libgnunetmodule_dstore_la_OBJECTS = dstore.lo
 libgnunetmodule_dstore_la_OBJECTS =  \
 	$(am_libgnunetmodule_dstore_la_OBJECTS)
@@ -143,6 +144,8 @@ HAVE_IPV6_FALSE = @HAVE_IPV6_FALSE@
 HAVE_IPV6_TRUE = @HAVE_IPV6_TRUE@
 HAVE_MHD_FALSE = @HAVE_MHD_FALSE@
 HAVE_MHD_TRUE = @HAVE_MHD_TRUE@
+HAVE_MYSQLE_FALSE = @HAVE_MYSQLE_FALSE@
+HAVE_MYSQLE_TRUE = @HAVE_MYSQLE_TRUE@
 HAVE_MYSQL_FALSE = @HAVE_MYSQL_FALSE@
 HAVE_MYSQL_TRUE = @HAVE_MYSQL_TRUE@
 HAVE_SQLITE_FALSE = @HAVE_SQLITE_FALSE@
@@ -283,6 +286,7 @@ libgnunetmodule_dstore_la_LDFLAGS = \
 
 libgnunetmodule_dstore_la_LIBADD = \
  $(top_builddir)/src/util/libgnunetutil.la \
+ $(top_builddir)/src/util/containers/libgnunetutil_containers.la \
  -lsqlite3
 
 EXTRA_DIST = check.conf

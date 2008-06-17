@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-SOURCES = $(libnetwork_la_SOURCES) $(selecttest_SOURCES)
+SOURCES = $(libnetwork_la_SOURCES) $(ipchecktest_SOURCES) $(selecttest_SOURCES)
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -37,7 +37,7 @@ NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
 host_triplet = @host@
-check_PROGRAMS = selecttest$(EXEEXT)
+check_PROGRAMS = ipchecktest$(EXEEXT) selecttest$(EXEEXT)
 subdir = src/util/network
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -61,6 +61,9 @@ libnetwork_la_DEPENDENCIES = $(am__DEPENDENCIES_1)
 am_libnetwork_la_OBJECTS = dns.lo endian.lo io.lo ip.lo ipcheck.lo \
 	select.lo
 libnetwork_la_OBJECTS = $(am_libnetwork_la_OBJECTS)
+am_ipchecktest_OBJECTS = ipchecktest.$(OBJEXT)
+ipchecktest_OBJECTS = $(am_ipchecktest_OBJECTS)
+ipchecktest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la
 am_selecttest_OBJECTS = selecttest.$(OBJEXT)
 selecttest_OBJECTS = $(am_selecttest_OBJECTS)
 selecttest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la
@@ -69,8 +72,8 @@ depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
 @AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/dns.Plo ./$(DEPDIR)/endian.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/io.Plo ./$(DEPDIR)/ip.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/ipcheck.Plo ./$(DEPDIR)/select.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/selecttest.Po
+@AMDEP_TRUE@	./$(DEPDIR)/ipcheck.Plo ./$(DEPDIR)/ipchecktest.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/select.Plo ./$(DEPDIR)/selecttest.Po
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) \
@@ -79,8 +82,10 @@ LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) \
 CCLD = $(CC)
 LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(libnetwork_la_SOURCES) $(selecttest_SOURCES)
-DIST_SOURCES = $(libnetwork_la_SOURCES) $(selecttest_SOURCES)
+SOURCES = $(libnetwork_la_SOURCES) $(ipchecktest_SOURCES) \
+	$(selecttest_SOURCES)
+DIST_SOURCES = $(libnetwork_la_SOURCES) $(ipchecktest_SOURCES) \
+	$(selecttest_SOURCES)
 RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
 	html-recursive info-recursive install-data-recursive \
 	install-exec-recursive install-info-recursive \
@@ -146,6 +151,8 @@ HAVE_IPV6_FALSE = @HAVE_IPV6_FALSE@
 HAVE_IPV6_TRUE = @HAVE_IPV6_TRUE@
 HAVE_MHD_FALSE = @HAVE_MHD_FALSE@
 HAVE_MHD_TRUE = @HAVE_MHD_TRUE@
+HAVE_MYSQLE_FALSE = @HAVE_MYSQLE_FALSE@
+HAVE_MYSQLE_TRUE = @HAVE_MYSQLE_TRUE@
 HAVE_MYSQL_FALSE = @HAVE_MYSQL_FALSE@
 HAVE_MYSQL_TRUE = @HAVE_MYSQL_TRUE@
 HAVE_SQLITE_FALSE = @HAVE_SQLITE_FALSE@
@@ -289,6 +296,12 @@ selecttest_SOURCES = \
 selecttest_LDADD = \
  $(top_builddir)/src/util/libgnunetutil.la
 
+ipchecktest_SOURCES = \
+ ipchecktest.c 
+
+ipchecktest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la
+
 all: all-recursive
 
 .SUFFIXES:
@@ -340,6 +353,9 @@ clean-checkPROGRAMS:
 	  echo " rm -f $$p $$f"; \
 	  rm -f $$p $$f ; \
 	done
+ipchecktest$(EXEEXT): $(ipchecktest_OBJECTS) $(ipchecktest_DEPENDENCIES) 
+	@rm -f ipchecktest$(EXEEXT)
+	$(LINK) $(ipchecktest_LDFLAGS) $(ipchecktest_OBJECTS) $(ipchecktest_LDADD) $(LIBS)
 selecttest$(EXEEXT): $(selecttest_OBJECTS) $(selecttest_DEPENDENCIES) 
 	@rm -f selecttest$(EXEEXT)
 	$(LINK) $(selecttest_LDFLAGS) $(selecttest_OBJECTS) $(selecttest_LDADD) $(LIBS)
@@ -355,6 +371,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/io.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ip.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ipcheck.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ipchecktest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/select.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/selecttest.Po@am__quote@
 

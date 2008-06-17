@@ -57,8 +57,9 @@
 #include "gnunet_util_os.h"
 
 #ifdef __cplusplus
-extern "C" {
-#if 0 /* keep Emacsens' auto-indent happy */
+extern "C"
+{
+#if 0                           /* keep Emacsens' auto-indent happy */
 }
 #endif
 #endif
@@ -75,9 +76,9 @@ extern "C" {
  * especially the least significant bits may change
  * frequently, even between different SVN versions.
  */
-#define GNUNET_UTIL_VERSION 0x00070200
+#define GNUNET_UTIL_VERSION 0x00070202
 
-#if 0 /* keep Emacsens' auto-indent happy */
+#if 0                           /* keep Emacsens' auto-indent happy */
 {
 #endif
 #ifdef __cplusplus

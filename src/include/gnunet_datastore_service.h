@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet
-     (C) 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
+     (C) 2004, 2005, 2006, 2007 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -34,8 +34,9 @@
 #include "gnunet_core.h"
 
 #ifdef __cplusplus
-extern "C" {
-#if 0 /* keep Emacsens' auto-indent happy */
+extern "C"
+{
+#if 0                           /* keep Emacsens' auto-indent happy */
 }
 #endif
 #endif
@@ -43,7 +44,8 @@ extern "C" {
 /**
  * A value in the datastore.
  */
-typedef struct {
+typedef struct
+{
 
   /**
    * The total size of the Value, including this header, in network
@@ -82,33 +84,19 @@ typedef struct {
 } Datastore_Value;
 
 /**
- * An entry (key-value pair) in the datastore.
- */
-typedef struct {
-
-  /**
-   * A key (not unique) that can be used to lookup this Datum in the
-   * datastore.
-   */
-  HashCode512 key;
-
-  /**
-   * The value associated with the key.
-   */
-  Datastore_Value value;
-
-} Datastore_Datum;
-
-/**
  * An iterator over a set of Datastore items.
  *
  * @param datum called with the next item
  * @param closure user-defined extra argument
- * @return SYSERR to abort the iteration, OK to continue.
+ * @param uid unique identifier for the datum;
+ *        maybe 0 if no unique identifier is available
+ *
+ * @return SYSERR to abort the iteration, OK to continue,
+ *         NO to delete the item and continue (if supported)
  */
-typedef int (*Datum_Iterator)(const HashCode512 * key,
-			      const Datastore_Value * value,
-			      void * closure);
+typedef int (*Datum_Iterator) (const HashCode512 * key,
+                               const Datastore_Value * value, void *closure,
+                               unsigned long long uid);
 
 
 /**
@@ -129,12 +117,13 @@ typedef int (*Datum_Iterator)(const HashCode512 * key,
  * Once GNUnet has IO load management the DS should integrate with
  * that and refuse IO if the load is too high.
  */
-typedef struct {
+typedef struct
+{
 
   /**
    * Get the current on-disk size of the datastore.
    */
-  unsigned long long (*getSize)(void);
+  unsigned long long (*getSize) (void);
 
   /**
    * Store an item in the datastore.  If the item is
@@ -145,8 +134,7 @@ typedef struct {
    *   to justify removing something else, SYSERR on
    *   other serious error (i.e. IO permission denied)
    */
-  int (*put)(const HashCode512 * key,
-	     const Datastore_Value * value);
+  int (*put) (const HashCode512 * key, const Datastore_Value * value);
 
   /**
    * Store an item in the datastore.  If the item is already present,
@@ -158,8 +146,7 @@ typedef struct {
    *   to justify removing something else, SYSERR on
    *   other serious error (i.e. IO permission denied)
    */
-  int (*putUpdate)(const HashCode512 * key,
-		   const Datastore_Value * value);
+  int (*putUpdate) (const HashCode512 * key, const Datastore_Value * value);
 
   /**
    * Iterate over the results for a particular key
@@ -174,15 +161,13 @@ typedef struct {
    *   0 if no matches were found.  May NOT return
    *   SYSERR unless the iterator aborted!
    */
-  int (*get)(const HashCode512 * key,
-	     unsigned int type,
-	     Datum_Iterator iter,
-	     void * closure);
+  int (*get) (const HashCode512 * key,
+              unsigned int type, Datum_Iterator iter, void *closure);
 
   /**
    * Do a quick test if we MAY have the content.
    */
-  int (*fast_get)(const HashCode512 * key);
+  int (*fast_get) (const HashCode512 * key);
 
   /**
    * Get a random value from the datastore that has
@@ -196,26 +181,19 @@ typedef struct {
    *        for any type.
    * @return OK if a value was found, SYSERR if not
    */
-  int (*getRandom)(const HashCode512 * approx,
-		   unsigned int sizeLimit,
-		   HashCode512 * key,
-		   Datastore_Value ** value,
-		   unsigned int type);
+  int (*getRandom) (const HashCode512 * approx,
+                    unsigned int sizeLimit,
+                    HashCode512 * key,
+                    Datastore_Value ** value, unsigned int type);
 
   /**
-   * Delete an item from the datastore.
-   *
-   * @param value maybe NULL, then all items under the
-   *         given key are deleted
-   * @return the number of items deleted, 0 if
-   *         none were found, SYSERR on errors
+   * Explicitly remove some content from the database.
    */
-  int (*del)(const HashCode512 * key,
-	     const Datastore_Value * value);
+  int (*del) (const HashCode512 * query, const Datastore_Value * value);
 
 } Datastore_ServiceAPI;
 
-#if 0 /* keep Emacsens' auto-indent happy */
+#if 0                           /* keep Emacsens' auto-indent happy */
 {
 #endif
 #ifdef __cplusplus

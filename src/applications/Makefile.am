@@ -1,4 +1,3 @@
-
 if HAVE_MYSQL
  MYSQL_DIR = sqstore_mysql
 endif

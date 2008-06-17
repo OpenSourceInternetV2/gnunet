@@ -1,5 +1,5 @@
 # This file is part of GNUnet.
-# (C) 2001, 2002, 2003, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
+# (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007 Christian Grothoff (and other contributing authors)
 #
 # GNUnet is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published
@@ -21,8 +21,8 @@
 #
 #
 AC_PREREQ(2.57)
-AC_INIT([GNUnet], [0.7.2],[bug-gnunet@gnu.org])
-AM_INIT_AUTOMAKE([GNUnet], [0.7.2])
+AC_INIT([GNUnet], [0.7.2b],[bug-gnunet@gnu.org])
+AM_INIT_AUTOMAKE([GNUnet], [0.7.2b])
 AM_CONFIG_HEADER([config.h])
 
 AH_TOP([#define _GNU_SOURCE  1])
@@ -367,6 +367,7 @@ then
   fi
 fi
 AM_CONDITIONAL(HAVE_MYSQL, test x$mysql = xtrue)
+AM_CONDITIONAL(HAVE_MYSQLE, test "0" = "1")
 
 LDFLAGS=$SAVE_LDFLAGS
 CPPFLAGS=$SAVE_CPPFLAGS
@@ -597,7 +598,7 @@ AC_ARG_WITH(guile,
      AC_CHECK_LIB([guile], [scm_sigaction_for_thread],
       guile=1))])
 
-if test "$guile" == 1
+if test "$guile" = 1
 then
  AC_CHECK_LIB([guile], [scm_init_guile], [],
     	AC_MSG_ERROR([Guile doesn't provide scm_init_guile(). Please report to bug-gnunet@gnu.org]))
@@ -708,17 +709,17 @@ AC_MSG_NOTICE([NOTICE: Database support is set to MySQL: $mysql, SQLite: $sqlite
 # guile
 if test "x$guile" = "x0"
 then
-  AC_MSG_NOTICE([NOTICE: Guile not found, gnunet-download-manager will not be installed.])
-fi
-
-if test "$guile" != 1
-then
+ AC_MSG_NOTICE([NOTICE: Guile not found, gnunet-download-manager will not be installed.])
  AC_MSG_NOTICE([WARNING: Guile not found, gnunet-setup will not be installed.])
 fi
-
 
 if test "$adns" != 1
 then
  AC_MSG_NOTICE([WARNING: GNU adns not found, will use synchronous DNS resolution.])
 fi
 
+# sqlite
+if test "x$sqlite" = "x0"
+then
+  AC_MSG_NOTICE([WARNING: sqlite not found, this will cause problems with file-sharing.])
+fi

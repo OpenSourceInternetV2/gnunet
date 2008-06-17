@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-SOURCES = $(libgnunetmodule_sqstore_mysql_la_SOURCES) $(mysqltest_SOURCES) $(mysqltest2_SOURCES)
+SOURCES = $(libgnunetmodule_sqstore_mysql_la_SOURCES) $(mysqltest_SOURCES) $(mysqltest2_SOURCES) $(mysqltest3_SOURCES)
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -37,7 +37,8 @@ NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
 host_triplet = @host@
-check_PROGRAMS = mysqltest$(EXEEXT) mysqltest2$(EXEEXT)
+check_PROGRAMS = mysqltest$(EXEEXT) mysqltest2$(EXEEXT) \
+	mysqltest3$(EXEEXT)
 subdir = src/applications/sqstore_mysql
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -75,11 +76,17 @@ mysqltest2_OBJECTS = $(am_mysqltest2_OBJECTS)
 mysqltest2_DEPENDENCIES = $(top_builddir)/src/server/libgnunetcore.la \
 	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
 	$(top_builddir)/src/util/libgnunetutil.la
+am_mysqltest3_OBJECTS = mysqltest3.$(OBJEXT)
+mysqltest3_OBJECTS = $(am_mysqltest3_OBJECTS)
+mysqltest3_DEPENDENCIES = $(top_builddir)/src/server/libgnunetcore.la \
+	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
+	$(top_builddir)/src/util/libgnunetutil.la
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
 @AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/mysql.Plo ./$(DEPDIR)/mysqltest.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/mysqltest2.Po
+@AMDEP_TRUE@	./$(DEPDIR)/mysqltest2.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/mysqltest3.Po
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) \
@@ -89,9 +96,11 @@ CCLD = $(CC)
 LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
 SOURCES = $(libgnunetmodule_sqstore_mysql_la_SOURCES) \
-	$(mysqltest_SOURCES) $(mysqltest2_SOURCES)
+	$(mysqltest_SOURCES) $(mysqltest2_SOURCES) \
+	$(mysqltest3_SOURCES)
 DIST_SOURCES = $(libgnunetmodule_sqstore_mysql_la_SOURCES) \
-	$(mysqltest_SOURCES) $(mysqltest2_SOURCES)
+	$(mysqltest_SOURCES) $(mysqltest2_SOURCES) \
+	$(mysqltest3_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -150,6 +159,8 @@ HAVE_IPV6_FALSE = @HAVE_IPV6_FALSE@
 HAVE_IPV6_TRUE = @HAVE_IPV6_TRUE@
 HAVE_MHD_FALSE = @HAVE_MHD_FALSE@
 HAVE_MHD_TRUE = @HAVE_MHD_TRUE@
+HAVE_MYSQLE_FALSE = @HAVE_MYSQLE_FALSE@
+HAVE_MYSQLE_TRUE = @HAVE_MYSQLE_TRUE@
 HAVE_MYSQL_FALSE = @HAVE_MYSQL_FALSE@
 HAVE_MYSQL_TRUE = @HAVE_MYSQL_TRUE@
 HAVE_SQLITE_FALSE = @HAVE_SQLITE_FALSE@
@@ -310,6 +321,14 @@ mysqltest2_LDADD = \
  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
  $(top_builddir)/src/util/libgnunetutil.la  
 
+mysqltest3_SOURCES = \
+ mysqltest3.c 
+
+mysqltest3_LDADD = \
+ $(top_builddir)/src/server/libgnunetcore.la  \
+ $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
 all: all-am
 
 .SUFFIXES:
@@ -385,6 +404,9 @@ mysqltest$(EXEEXT): $(mysqltest_OBJECTS) $(mysqltest_DEPENDENCIES)
 mysqltest2$(EXEEXT): $(mysqltest2_OBJECTS) $(mysqltest2_DEPENDENCIES) 
 	@rm -f mysqltest2$(EXEEXT)
 	$(LINK) $(mysqltest2_LDFLAGS) $(mysqltest2_OBJECTS) $(mysqltest2_LDADD) $(LIBS)
+mysqltest3$(EXEEXT): $(mysqltest3_OBJECTS) $(mysqltest3_DEPENDENCIES) 
+	@rm -f mysqltest3$(EXEEXT)
+	$(LINK) $(mysqltest3_LDFLAGS) $(mysqltest3_OBJECTS) $(mysqltest3_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -395,6 +417,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mysql.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mysqltest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mysqltest2.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mysqltest3.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \

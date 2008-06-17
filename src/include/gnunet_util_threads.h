@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -33,8 +33,9 @@
 #define GNUNET_UTIL_THREADS_H
 
 #ifdef __cplusplus
-extern "C" {
-#if 0 /* keep Emacsens' auto-indent happy */
+extern "C"
+{
+#if 0                           /* keep Emacsens' auto-indent happy */
 }
 #endif
 #endif
@@ -58,9 +59,16 @@ typedef unsigned long long cron_t;
 #define cronYEARS ((cron_t)(365 * cronDAYS))
 
 /**
+ * How long will we accept locks to be held before
+ * reporting that there maybe a problem?  Set to
+ * zero to disable reporting.
+ */
+#define REALTIME_LIMIT (000 * cronMILLIS)
+
+/**
  * Main method of a thread.
  */
-typedef void * (*PThreadMain)(void*);
+typedef void *(*PThreadMain) (void *);
 
 /**
  * @brief Encapsulation of a pthread handle.
@@ -80,18 +88,18 @@ struct SEMAPHORE;
 /**
  * Returns YES if pt is the handle for THIS thread.
  */
-int PTHREAD_TEST_SELF(struct PTHREAD * pt);
+int PTHREAD_TEST_SELF (struct PTHREAD *pt);
 
 /**
  * Get the handle for THIS thread.
  */
-struct PTHREAD * PTHREAD_GET_SELF(void);
+struct PTHREAD *PTHREAD_GET_SELF (void);
 
 /**
  * Release handle for a thread (should have been
  * obtained using PTHREAD_GET_SELF).
  */
-void PTHREAD_REL_SELF(struct PTHREAD * pt);
+void PTHREAD_REL_SELF (struct PTHREAD *pt);
 
 /**
  * Create a thread. Use this method instead of pthread_create since
@@ -104,9 +112,10 @@ void PTHREAD_REL_SELF(struct PTHREAD * pt);
  *        will just segfault and gdb will give a messed-up stacktrace.
  * @return the handle
  */
-struct PTHREAD * PTHREAD_CREATE(PThreadMain main,
-				void * arg,
-				unsigned int stackSize);
+struct PTHREAD *PTHREAD_CREATE (PThreadMain main,
+                                void *arg, unsigned int stackSize);
+
+
 
 /**
  * Wait for the other thread to terminate.  May only be called
@@ -114,8 +123,16 @@ struct PTHREAD * PTHREAD_CREATE(PThreadMain main,
  *
  * @param ret set to the return value of the other thread.
  */
-void PTHREAD_JOIN(struct PTHREAD * handle,
-		  void ** ret);
+void PTHREAD_JOIN_FL (struct PTHREAD *handle,
+                      void **ret, const char *file, unsigned int line);
+
+/**
+ * Wait for the other thread to terminate.  May only be called
+ * once per created thread, the handle is afterwards invalid.
+ *
+ * @param ret set to the return value of the other thread.
+ */
+#define PTHREAD_JOIN(handle,ret) PTHREAD_JOIN_FL(handle,ret,__FILE__,__LINE__)
 
 /**
  * Sleep for the specified time interval.  PTHREAD_STOP_SLEEP can be
@@ -124,31 +141,33 @@ void PTHREAD_JOIN(struct PTHREAD * handle,
  *
  * @param time how long to sleep (in milli seconds)
  */
-void PTHREAD_SLEEP(cron_t time);
+void PTHREAD_SLEEP (cron_t time);
 
 /**
  * Get the current time (in cron-units).
  *
  * @return the current time
  */
-cron_t get_time(void);
+cron_t get_time (void);
 
 /**
  * Stop the sleep of anothe thread.
  */
-void PTHREAD_STOP_SLEEP(struct PTHREAD * handle);
+void PTHREAD_STOP_SLEEP (struct PTHREAD *handle);
 
-struct MUTEX * MUTEX_CREATE(int isRecursive);
+struct MUTEX *MUTEX_CREATE (int isRecursive);
 
-void MUTEX_DESTROY(struct MUTEX * mutex);
+void MUTEX_DESTROY (struct MUTEX *mutex);
 
-void MUTEX_LOCK(struct MUTEX * mutex);
+void MUTEX_LOCK_FL (struct MUTEX *mutex, const char *file, unsigned int line);
 
-void MUTEX_UNLOCK(struct MUTEX * mutex);
+#define MUTEX_LOCK(mutex) MUTEX_LOCK_FL(mutex, __FILE__, __LINE__)
 
-struct SEMAPHORE * SEMAPHORE_CREATE(int value);
+void MUTEX_UNLOCK (struct MUTEX *mutex);
 
-void SEMAPHORE_DESTROY(struct SEMAPHORE * sem);
+struct SEMAPHORE *SEMAPHORE_CREATE (int value);
+
+void SEMAPHORE_DESTROY (struct SEMAPHORE *sem);
 
 /**
  * @param block set to NO to never block (and
@@ -156,8 +175,32 @@ void SEMAPHORE_DESTROY(struct SEMAPHORE * sem);
  * @return SYSERR if would block, otherwise
  *  new count value after change
  */
-int SEMAPHORE_DOWN(struct SEMAPHORE * sem,
-		   int mayblock);
+int SEMAPHORE_DOWN_FL (struct SEMAPHORE *sem,
+                       int mayblock,
+                       int longwait, const char *file, unsigned int line);
+
+
+/**
+ * @param block set to NO to never block (and
+ *        thus fail if semaphore counter is 0)
+ * @return SYSERR if would block, otherwise
+ *  new count value after change
+ */
+#define SEMAPHORE_DOWN(sem, mayblock) SEMAPHORE_DOWN_FL(sem, mayblock, YES, __FILE__, __LINE__)
+
+
+/**
+ * Like SEMAPHORE_DOWN, just with the expectation
+ * that this operation does not take a long time.
+ * (used for debugging unexpected high-latency
+ * behavior).
+ *
+ * @param block set to NO to never block (and
+ *        thus fail if semaphore counter is 0)
+ * @return SYSERR if would block, otherwise
+ *  new count value after change
+ */
+#define SEMAPHORE_DOWN_FAST(sem, mayblock) SEMAPHORE_DOWN_FL(sem, mayblock, NO, __FILE__, __LINE__)
 
 /**
  * function increments the semaphore and signals any threads that
@@ -165,19 +208,19 @@ int SEMAPHORE_DOWN(struct SEMAPHORE * sem,
  *
  * @return new count value of the semaphore after increment
  */
-int SEMAPHORE_UP(struct SEMAPHORE * sem);
+int SEMAPHORE_UP (struct SEMAPHORE *sem);
 
 /**
  * Programatically shutdown the application.
  */
-void GNUNET_SHUTDOWN_INITIATE(void);
+void GNUNET_SHUTDOWN_INITIATE (void);
 
 /**
  * Test if the shutdown has been initiated.
  *
  * @return YES if we are shutting down, NO otherwise
  */
-int GNUNET_SHUTDOWN_TEST(void);
+int GNUNET_SHUTDOWN_TEST (void);
 
 /**
  * Wait until the shutdown has been initiated.  This
@@ -185,7 +228,7 @@ int GNUNET_SHUTDOWN_TEST(void);
  * nothing better to do) to wait for a user signal
  * (or other thread) to initiate the shutdown.
  */
-void GNUNET_SHUTDOWN_WAITFOR(void);
+void GNUNET_SHUTDOWN_WAITFOR (void);
 
 struct SignalHandlerContext;
 
@@ -197,20 +240,20 @@ struct SignalHandlerContext;
  * the implementation must guarantee that this handler is not called
  * for signals other than the one that it has been registered for.
  */
-typedef void (*SignalHandler)(void);
+typedef void (*SignalHandler) (void);
 
 /**
  * Install a signal handler that will be run if the
  * given signal is received.
  */
-struct SignalHandlerContext * signal_handler_install(int signal,
-						     SignalHandler handler);
+struct SignalHandlerContext *signal_handler_install (int signal,
+                                                     SignalHandler handler);
 
-void signal_handler_uninstall(int signal,
-			      SignalHandler handler,
-			      struct SignalHandlerContext * ctx);
+void signal_handler_uninstall (int signal,
+                               SignalHandler handler,
+                               struct SignalHandlerContext *ctx);
 
-#if 0 /* keep Emacsens' auto-indent happy */
+#if 0                           /* keep Emacsens' auto-indent happy */
 {
 #endif
 #ifdef __cplusplus

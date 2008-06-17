@@ -38,8 +38,9 @@
 
 
 #ifdef __cplusplus
-extern "C" {
-#if 0 /* keep Emacsens' auto-indent happy */
+extern "C"
+{
+#if 0                           /* keep Emacsens' auto-indent happy */
 }
 #endif
 #endif
@@ -47,7 +48,8 @@ extern "C" {
 /**
  * @brief Definition of the SQ-Store API.
  */
-typedef struct {
+typedef struct
+{
 
   /**
    * Get the current on-disk size of the SQ store.
@@ -55,15 +57,14 @@ typedef struct {
    * available.
    * @return number of bytes used on disk
    */
-  unsigned long long (*getSize)(void);
+  unsigned long long (*getSize) (void);
 
   /**
    * Store an item in the datastore.
    *
-   * @return OK on success, SYSERR on error
+   * @return OK on success, SYSERR on error, NO on temporary error
    */
-  int (*put)(const HashCode512 * key,
-	     const Datastore_Value * value);
+  int (*put) (const HashCode512 * key, const Datastore_Value * value);
 
   /**
    * Iterate over the results for a particular key
@@ -76,10 +77,8 @@ typedef struct {
    * @return the number of results, SYSERR if the
    *   iter is non-NULL and aborted the iteration
    */
-  int (*get)(const HashCode512 * key,
-	     unsigned int type,
-	     Datum_Iterator iter,
-	     void * closure);
+  int (*get) (const HashCode512 * key,
+              unsigned int type, Datum_Iterator iter, void *closure);
 
   /**
    * Update the priority for a particular key in the datastore.  If
@@ -92,10 +91,7 @@ typedef struct {
    * Note that it is possible for multiple values to match this put.
    * In that case, all of the respective values are updated.
    *
-   * @param key never NULL
-   * @param value the value to update (priority
-   *     maybe different than in DB, only match
-   *     on content and use other data as in DB!)
+   * @param uid unique identifier of the datum
    * @param delta by how much should the priority
    *     change?  If priority + delta < 0 the
    *     priority should be set to 0 (never go
@@ -106,10 +102,7 @@ typedef struct {
    * @return OK if a match was found and the update
    *     was successful, SYSERR on error
    */
-  int (*update)(const HashCode512 * key,
-		const Datastore_Value * value,
-		int delta,
-		cron_t expire);
+  int (*update) (unsigned long long uid, int delta, cron_t expire);
 
   /**
    * Iterate over the items in the datastore in ascending
@@ -121,25 +114,20 @@ typedef struct {
    * @return the number of results, SYSERR if the
    *   iter is non-NULL and aborted the iteration
    */
-  int (*iterateLowPriority)(unsigned int type,
-			    Datum_Iterator iter,
-			    void * closure);
+  int (*iterateLowPriority) (unsigned int type,
+                             Datum_Iterator iter, void *closure);
 
   /**
    * Iterate over content with anonymity zero.
    *
    * @param type entries of which type should be considered?
    *        Use 0 for any type.
-   * @param on_demand limit the iteration to entries
-   *        that not on-demand?
    * @param iter never NULL
    * @return the number of results, SYSERR if the
    *   iter is non-NULL and aborted the iteration
    */
-  int (*iterateNonAnonymous)(unsigned int type,
-			     int on_demand,
-			     Datum_Iterator iter,
-			     void * closure);
+  int (*iterateNonAnonymous) (unsigned int type,
+                              Datum_Iterator iter, void *closure);
 
   /**
    * Iterate over the items in the datastore in ascending
@@ -151,9 +139,8 @@ typedef struct {
    * @return the number of results, SYSERR if the
    *   iter is non-NULL and aborted the iteration
    */
-  int (*iterateExpirationTime)(unsigned int type,
-			       Datum_Iterator iter,
-			       void * closure);
+  int (*iterateExpirationTime) (unsigned int type,
+                                Datum_Iterator iter, void *closure);
 
 
   /**
@@ -164,8 +151,7 @@ typedef struct {
    * @return the number of results, SYSERR if the
    *   iter is non-NULL and aborted the iteration
    */
-  int (*iterateMigrationOrder)(Datum_Iterator iter,
-			       void * closure);
+  int (*iterateMigrationOrder) (Datum_Iterator iter, void *closure);
 
   /**
    * Iterate over all the items in the datastore
@@ -177,45 +163,17 @@ typedef struct {
    * @return the number of results, SYSERR if the
    *   iter is non-NULL and aborted the iteration
    */
-  int (*iterateAllNow)(Datum_Iterator iter,
-		       void * closure);
-
-  /**
-   * Delete an item from the datastore.
-   *
-   * Note that it is possible for multiple values to match this del
-   * (even if a value is given).  In that case, only ONE of the
-   * respective values is deleted, and it should be the one with an
-   * expired expiration time or, if such an entry does not exist, the
-   * lowest priority.  (This is done such that if multiple files
-   * contain the same data, the data has multiple replicas and all are
-   * kept, avoiding unavaialbility if just one of the files is
-   * removed).
-   *
-   * @param value maybe NULL, then all items under the
-   *        given key are deleted
-   * @return the number of items deleted (if possible, the
-   *        database should delete only ONE matching item and
-   *        pick the one with the lowest priority [and then
-   *        lowest expiration time]; if the DB cannot do that,
-   *        deleting multiple entries will be 'tolerated' for now,
-   *        but the result is a slightly worse performance of the
-   *        peer; however, that there are multiple matches should
-   *        also be rare).
-   *        0 if no matching items were found, SYSERR on errors
-   */
-  int (*del)(const HashCode512 * key,
-	     const Datastore_Value * value);
+  int (*iterateAllNow) (Datum_Iterator iter, void *closure);
 
   /**
    * Delete the database.  The next operation is
    * guaranteed to be unloading of the module.
    */
-  void (*drop)(void);
+  void (*drop) (void);
 
 } SQstore_ServiceAPI;
 
-#if 0 /* keep Emacsens' auto-indent happy */
+#if 0                           /* keep Emacsens' auto-indent happy */
 {
 #endif
 #ifdef __cplusplus

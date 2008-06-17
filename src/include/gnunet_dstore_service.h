@@ -20,13 +20,12 @@
 
 /**
  * @file include/gnunet_dstore_service.h
- * @brief An SQ store is responsible for storing blocks with
- *   additional indices that allow traversing the store in
- *   order of expiration time or priority, in addition to
- *   queries by key and block type.  The name comes from SQL,
- *   because using an SQL database to do this should be
- *   particularly easy.  But that is of course not the only
- *   way to implement an dstore.
+ * @brief dstore is a simple persistent hash table
+ *        of bounded size with content expiration
+ *        In contrast to the sqstore there is
+ *        no prioritization, deletion or iteration.
+ *        Furthermore, all of the data is
+ *        discarded when the peer shuts down!
  * @author Christian Grothoff
  */
 
@@ -36,33 +35,32 @@
 #include "gnunet_core.h"
 
 #ifdef __cplusplus
-extern "C" {
-#if 0 /* keep Emacsens' auto-indent happy */
+extern "C"
+{
+#if 0                           /* keep Emacsens' auto-indent happy */
 }
 #endif
 #endif
 
-typedef void (*ResultHandler)(const HashCode512 * key,
-			      unsigned int type,
-			      unsigned int size,
-			      const char * data,
-			      void * cls);
+typedef void (*ResultHandler) (const HashCode512 * key,
+                               unsigned int type,
+                               unsigned int size,
+                               const char *data, void *cls);
 
 /**
  * @brief Definition of the SQ-Store API.
  */
-typedef struct {
+typedef struct
+{
 
   /**
    * Store an item in the datastore.
    *
    * @return OK on success, SYSERR on error
    */
-  int (*put)(const HashCode512 * key,
-	     unsigned int type,
-	     cron_t discard_time,
-	     unsigned int size,
-	     const char * data);
+  int (*put) (const HashCode512 * key,
+              unsigned int type,
+              cron_t discard_time, unsigned int size, const char *data);
 
   /**
    * Iterate over the results for a particular key
@@ -74,14 +72,12 @@ typedef struct {
    * @return the number of results, SYSERR if the
    *   iter is non-NULL and aborted the iteration
    */
-  int (*get)(const HashCode512 * key,
-	     unsigned int type,
-	     ResultHandler handler,
-	     void * closure);
+  int (*get) (const HashCode512 * key,
+              unsigned int type, ResultHandler handler, void *closure);
 
 } Dstore_ServiceAPI;
 
-#if 0 /* keep Emacsens' auto-indent happy */
+#if 0                           /* keep Emacsens' auto-indent happy */
 {
 #endif
 #ifdef __cplusplus
