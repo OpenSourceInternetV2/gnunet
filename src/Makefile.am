@@ -1,2 +1,2 @@
 INCLUDES = -I$(top_srcdir)/src/include
-SUBDIRS	= util conf transports applications server include
+SUBDIRS	= include util conf server applications transports

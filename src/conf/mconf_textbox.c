@@ -26,6 +26,8 @@
  * @author Nils Durner
  */
 
+#include "platform.h"
+#include "gnunet_util.h"
 #include "mconf_dialog.h"
 
 static void back_lines (int n);
@@ -52,7 +54,7 @@ dialog_textbox (const char *title, const char *file, int height, int width)
     search_term[0] = '\0';	/* no search term entered yet */
 
     /* Open input file for reading */
-    if ((fd = OPEN (file, O_RDONLY)) == -1) {
+    if ((fd = fileopen(file, O_RDONLY)) == -1) {
 	endwin ();
 	fprintf (stderr,
 		 "\nCan't open input file in dialog_textbox().\n");

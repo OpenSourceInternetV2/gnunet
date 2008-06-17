@@ -26,8 +26,7 @@
 #define TCPSERVER_H
 
 #include "gnunet_util.h"
-#include "keyservice.h"
-
+#include "gnunet_core.h"
 
 /**
  * Initialize the TCP port and listen for incoming client connections.
@@ -43,12 +42,12 @@ int stopTCPServer();
 /**
  * Shutdown the module.
  * @return OK on success, SYSERR on error
- */ 
+ */
 int doneTCPServer();
 
 /**
  * Register a method as a handler for specific message
- * types. 
+ * types.
  * @param type the message type
  * @param callback the method to call if a message of
  *        that type is received, if the callback returns
@@ -57,21 +56,12 @@ int doneTCPServer();
  * @return OK on success, SYSERR if there is already a
  *         handler for that type
  */
-int registerCSHandler(const unsigned short type,
+int registerCSHandler(unsigned short type,
 		      CSHandler callback);
 
 /**
- * Return wheter or not there is a method handler 
- * registered for a specific Client-Server message type.
- * @param the message type
- * @return YES if there is a handler for the type,
- * 	NO if there isn't
- */
-int isCSHandlerRegistered(const unsigned short type);
-  
-/**
  * Unregister a method as a handler for specific message
- * types. 
+ * types.
  * @param type the message type
  * @param callback the method to call if a message of
  *        that type is received, if the callback returns
@@ -80,7 +70,7 @@ int isCSHandlerRegistered(const unsigned short type);
  * @return OK on success, SYSERR if there is no or another
  *         handler for that type
  */
-int unregisterCSHandler(const unsigned short type,
+int unregisterCSHandler(unsigned short type,
 			CSHandler callback);
 
 int registerClientExitHandler(ClientExitHandler callback);
@@ -95,7 +85,7 @@ int unregisterClientExitHandler(ClientExitHandler callback);
  * transfer happens asynchronously.
  */
 int sendToClient(ClientHandle handle,
-		 const CS_HEADER * message);
+		 const CS_MESSAGE_HEADER * message);
 
 
 /**
@@ -111,6 +101,15 @@ int sendTCPResultToClient(ClientHandle sock,
 
 
 void terminateClientConnection(ClientHandle sock);
+
+/**
+ * Check if a handler is registered for a given
+ * message type.
+ *
+ * @param type the message type
+ * @return number of registered handlers (0 or 1)
+ */
+unsigned int isCSHandlerRegistered(unsigned short type);
 
 #endif
 /* end of tcpserver.h */

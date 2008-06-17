@@ -25,7 +25,6 @@
  *
  * Todo:
  * - test
- * - add options (verbose reporting of DHT operations, leave-timeout)
  */
 
 #include "platform.h"
@@ -44,8 +43,6 @@ static void printHelp() {
       gettext_noop("allow SIZE bytes of memory for the local table") },
     { 't', "table", "NAME",
       gettext_noop("join table called NAME") },
-    { 'T', "timeout", "VALUE",
-      gettext_noop("when leaving table, use VALUEs to migrate data") },
     HELP_VERSION,
     HELP_VERBOSE,
     HELP_END,
@@ -57,35 +54,35 @@ static void printHelp() {
 
 static int parseOptions(int argc,
 			char ** argv) {
-  int c;  
+  int c;
 
   while (1) {
     int option_index = 0;
     static struct GNoption long_options[] = {
       LONG_DEFAULT_OPTIONS,
       { "memory", 1, 0, 'm' },
-      { "table", 1, 0, 't' },      
+      { "table", 1, 0, 't' },
       { "verbose", 0, 0, 'V' },
       { 0,0,0,0 }
     };
     c = GNgetopt_long(argc,
 		      argv,
 		      "vhH:c:L:dt:m:T:V",
-		      long_options, 
-		      &option_index);    
-    if (c == -1) 
+		      long_options,
+		      &option_index);
+    if (c == -1)
       break;  /* No more flags to process */
     if (YES == parseDefaultOptions(c, GNoptarg))
       continue;
     switch(c) {
-    case 'h': 
-      printHelp(); 
+    case 'h':
+      printHelp();
       return SYSERR;
     case 'm': {
       unsigned int max;
       if (1 != sscanf(GNoptarg, "%ud", &max)) {
-	LOG(LOG_FAILURE, 
-	    _("You must pass a number to the '%s' option.\n"),
+	LOG(LOG_FAILURE,
+	    _("You must pass a number to the `%s' option.\n"),
 	    "-m");
 	return SYSERR;
       } else {	
@@ -100,21 +97,7 @@ static int parseOptions(int argc,
 					 "TABLE",
 					 GNoptarg));
       break;
-    case 'T': {
-      unsigned int max;
-      if (1 != sscanf(GNoptarg, "%ud", &max)) {
-	LOG(LOG_FAILURE, 
-	    _("You must pass a number to the '%s' option.\n"),
-	    "-T");
-	return SYSERR;
-      } else {	
-	setConfigurationInt("DHT-JOIN",
-			    "TIMEOUT",
-			    max);
-      }
-      break;
-    }
-    case 'v': 
+    case 'v':
       printf("dht-join v0.0.0\n");
       return SYSERR;
     case 'V':
@@ -127,8 +110,8 @@ static int parseOptions(int argc,
       return SYSERR;
     } /* end of parsing commandline */
   } /* while (1) */
-  if (argc - GNoptind != 0) 
-    LOG(LOG_WARNING, 
+  if (argc - GNoptind != 0)
+    LOG(LOG_WARNING,
 	_("Superflous arguments (ignored).\n"));
   return OK;
 }
@@ -145,90 +128,87 @@ static void dump(const char * fmt,
   }
 }
 
-#define LOGRET(ret) dump(_("Call to '%s' returns %d.\n"), __FUNCTION__, ret)
-#define LOGKEY(key) do { EncName kn; hash2enc(key, &kn); dump(_("Call to '%s' with key '%s'.\n"), __FUNCTION__, &kn); } while (0)
-#define LOGVAL(val) dump(_("Call to '%s' with value '%.*s' (%d bytes).\n"), __FUNCTION__, (val == NULL) ? 0 : val->dataLength, (val == NULL) ? NULL : val->data, (val == NULL) ? 0 : val->dataLength)
+#define LOGRET(ret) dump(_("Call to `%s' returns %d.\n"), __FUNCTION__, ret)
+#define LOGKEY(key) do { EncName kn; hash2enc(key, &kn); dump(_("Call to `%s' with key `%s'.\n"), __FUNCTION__, &kn); } while (0)
+#define LOGVAL(val) dump(_("Call to `%s' with value '%.*s' (%d bytes).\n"), __FUNCTION__, (val == NULL) ? 0 : &val[1], (val == NULL) ? NULL : &val[1], (val == NULL) ? 0 : (ntohl(val->size) - sizeof(DataContainer)))
 
 static int lookup(void * closure,
-		 const HashCode160 * key,
-		 unsigned int maxResults,
-		 DHT_DataContainer * results,
-		 int flags) {
+		  unsigned int type,
+		  unsigned int prio,
+		  unsigned int keyCount,
+		  const HashCode512 * keys,
+		  DataProcessor processor,
+		  void * pclosure) {
   int ret;
-  DHT_Datastore * cls = (DHT_Datastore*) closure;  
-  LOGKEY(key);
-  ret = cls->lookup(cls->closure,
-		    key,
-		    maxResults,
-		    results,
-		    flags);
-  if (ret >= 1)
-    LOGVAL(results);
-  LOGRET(ret);  
+  Blockstore * cls = (Blockstore*) closure;
+  LOGKEY(&keys[0]);
+  ret = cls->get(cls->closure,
+		 type,
+		 prio,
+		 keyCount,
+		 keys,
+		 processor,
+		 pclosure);
+  LOGRET(ret);
   return ret;
 }
-  
+
 static int store(void * closure,
-		 const HashCode160 * key,
-		 const DHT_DataContainer * value,
-		 int flags) {
+		 const HashCode512 * key,
+		 const DataContainer * value,
+		 unsigned int prio) {
   int ret;
-  DHT_Datastore * cls = (DHT_Datastore*) closure;
+  Blockstore * cls = (Blockstore*) closure;
   LOGKEY(key);
   LOGVAL(value);
-  ret = cls->store(cls->closure,
-		   key,
-		   value,
-		   flags);
+  ret = cls->put(cls->closure,
+		 key,
+		 value,
+		 prio);
   LOGRET(ret);
   return ret;
 }
 
 static int removeDS(void * closure,
-		    const HashCode160 * key,
-		    const DHT_DataContainer * value,
-		    int flags) {
+		    const HashCode512 * key,
+		    const DataContainer * value) {
   int ret;
-  DHT_Datastore * cls = (DHT_Datastore*) closure;
+  Blockstore * cls = (Blockstore*) closure;
   LOGKEY(key);
   LOGVAL(value);
-  ret = cls->remove(cls->closure,
-		    key,
-		    value,
-		    flags);
+  ret = cls->del(cls->closure,
+		 key,
+		 value);
   LOGRET(ret);
   return ret;
 }
 
-static int iterate(void * closure,		 
-		   int flags,
-		   DHT_DataProcessor processor,
+static int iterate(void * closure,
+		   DataProcessor processor,
 		   void * parg) {
   int ret;
-  DHT_Datastore * cls = (DHT_Datastore*) closure;
+  Blockstore * cls = (Blockstore*) closure;
   ret = cls->iterate(cls->closure,
-		     flags,
 		     processor,
 		     parg);
   LOGRET(ret);
   return ret;
 }
 
-int main(int argc, 
+int main(int argc,
 	 char **argv) {
   char * tableName;
-  int flags;
   unsigned int mem;
-  HashCode160 table;
-  DHT_Datastore myStore;
+  HashCode512 table;
+  Blockstore myStore;
 
-  if (SYSERR == initUtil(argc, argv, &parseOptions)) 
+  if (SYSERR == initUtil(argc, argv, &parseOptions))
     return 0;
 
-  tableName = getConfigurationString("DHT-JOIN", 
+  tableName = getConfigurationString("DHT-JOIN",
 				     "TABLE");
   if (tableName == NULL) {
-    printf(_("No table name specified, using '%s'.\n"),
+    printf(_("No table name specified, using `%s'.\n"),
 	   "test");
     tableName = STRDUP("test");
   }
@@ -242,23 +222,19 @@ int main(int argc,
   mem = getConfigurationInt("DHT-JOIN",
 			    "MEMORY");
   if (mem == 0) mem = 65536; /* default: use 64k */
-  myStore.closure = create_datastore_memory(mem);
-  myStore.lookup = &lookup;
-  myStore.store = &store;
-  myStore.remove = &removeDS;
+  myStore.closure = create_blockstore_memory(mem);
+  myStore.get = &lookup;
+  myStore.put = &store;
+  myStore.del = &removeDS;
   myStore.iterate = &iterate;
 
-  flags = 1; /* one replica */
-  
   DHT_LIB_init();
   initializeShutdownHandlers();
   if (OK != DHT_LIB_join(&myStore,
-			 &table,
-			 0,
-			 flags)) {
+			 &table)) {
     LOG(LOG_WARNING,
 	_("Error joining DHT.\n"));
-    destroy_datastore_memory((DHT_Datastore*)myStore.closure);
+    destroy_blockstore_memory((Blockstore*)myStore.closure);
     doneShutdownHandlers();
     DHT_LIB_done();
     return 1;
@@ -267,20 +243,17 @@ int main(int argc,
   printf(_("Joined DHT.  Press CTRL-C to leave.\n"));
   /* wait for CTRL-C */
   wait_for_shutdown();
-  
-  /* shutdown */ 
-  if (OK != DHT_LIB_leave(&table,
-			  getConfigurationInt("DHT-JOIN",
-					      "TIMEOUT") * cronSECONDS,
-			  0)) {
+
+  /* shutdown */
+  if (OK != DHT_LIB_leave(&table)) {
     LOG(LOG_WARNING,
 	_("Error leaving DHT.\n"));
-    destroy_datastore_memory((DHT_Datastore*)myStore.closure);
+    destroy_blockstore_memory((Blockstore*)myStore.closure);
     doneShutdownHandlers();
     DHT_LIB_done();
     return 1;
   } else {
-    destroy_datastore_memory((DHT_Datastore*)myStore.closure);
+    destroy_blockstore_memory((Blockstore*)myStore.closure);
     doneShutdownHandlers();
     DHT_LIB_done();
     return 0;

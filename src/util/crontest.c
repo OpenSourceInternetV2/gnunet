@@ -12,6 +12,16 @@ static int global2;
 static int global3;
 
 /**
+ * Initialize controlThread.
+ */
+void initCron();
+
+/**
+ * Make sure to call stopCron before calling this method!
+ */
+void doneCron();
+
+/**
  * Process the cron-job at the beginning of the waiting
  * queue, that is, remove, invoke, and re-insert if
  * it is a periodical job. Make sure the sync is down
@@ -40,7 +50,7 @@ int testCron() {
   addCronJob(&cronJob3, cronSECONDS*16, cronSECONDS*16, NULL);
   for (i=0;i<10;i++) {
     /*    fprintf(stderr,"."); */
-    sleep(1);   
+    sleep(1);
     if (((global-i) * (global-i)) > 9) {
       fprintf(stderr,"1: Expected %d got %d\n", i, global);
       return 1;
@@ -73,25 +83,20 @@ static int testDelCron() {
     fprintf(stderr,
 	    "cron job was supposed to be deleted, but ran anyway!\n");
     return 1;
-  } else 
+  } else
     return 0;
 }
- 
-void initStatistics();
-void doneStatistics();
 
 int main(int argc, char * argv[]) {
   int failureCount = 0;
 
-  initStatistics();
   initCron();
   startCron();
-  failureCount += testCron(); 
+  failureCount += testCron();
   failureCount += testDelCron();
   stopCron();
   doneCron();
-  doneStatistics();
-  if (failureCount == 0) 
+  if (failureCount == 0)
     return 0;
   else {
     printf("\n\n%d TESTS FAILED!\n\n",failureCount);

@@ -20,119 +20,37 @@
  * @file server/connection.h
  * @author Tzvetan Horozov
  * @author Christian Grothoff
- */ 
+ */
 
 #ifndef CONNECTION_H
 #define CONNECTION_H
 
-#include "policy.h"
-
-/* ********************* some message types ************** */
-
-/**
- * The body of a sessionkey-message.
- */
-typedef struct {
-  /**
-   * time when this key was created  (network byte order) 
-   */ 
-  TIME_T creationTime; 
-
-  /**
-   * the encrypted session key 
-   */ 
-  RSAEncryptedData key; 
-
-  /**
-   * Signature of the stuff above 
-   */
-  Signature signature;
-
-} SKEY_Body;
+#include "gnunet_util.h"
+#include "gnunet_core.h"
+#include "gnunet_transport.h"
+#include "gnunet_fragmentation_service.h"
 
 /**
- * Session key exchange.  The header is followed by an inlined SKS.
+ * @brief General message header for all encrypted peer-to-peer
+ * messages.  This is the format that handler(.c) expects after
+ * decrypting the message.  It provides a timestamp and sequence
+ * number (to guard against replay attacks).  The header is followed
+ * by the 'data' which contains a sequence of GNUnet p2p messages,
+ * each with its own P2P_MESSAGE_HEADER.
  */
 typedef struct {
-  p2p_HEADER header; 
-  SKEY_Body body;
-} SKEY_Message;
-
-/**
- * Format of a timestamp-message.  The rest of the body is only valid
- * if the timestamp is greater than the current time (in seconds after
- * 1970...).  Used against replay attacks!
- */
-typedef struct {
-  p2p_HEADER header;
-  /* timestamp  (network byte order)*/
-  TIME_T timeStamp;
-} TIMESTAMP_Message;
-
-/**
- * Sequence number.  If the sequence number is lower than a previous
- * number, the rest of the packet should be ignored (replay).  This
- * will of course break if UDP packets arrive out-of-order, but this
- * is rare and we're best-effort.  This is used to defend against
- * replay-attacks.
- */
-typedef struct {
-  p2p_HEADER header;
-  /* sequence number, in network byte order */
+  /* hash of the plaintext, used to verify message integrity;
+     ALSO used as the IV for the symmetric cipher! */
+  HashCode512 hash;
+  /* sequence number, in network byte order, 0 for plaintext messages! */
   unsigned int sequenceNumber;
-} SEQUENCE_Message;
+  /* timestamp  (network byte order), 0 for plaintext messages! */
+  TIME_T timeStamp;
+  /* desired bandwidth, 0 for plaintext messages! */
+  unsigned int bandwidth;
+} P2P_PACKET_HEADER; /* 76 bytes */
 
-/**
- * The other side has decided to terminate the connection.  This
- * message MAY be send if the other node decides to be nice.  It is
- * not required.  Mind that the message contains for which host the
- * termination is, such that we don't hang up the wrong connection...
- * A node can also choose to ignore the HANGUP message, though this is
- * probably not going to help that node.  This message is used to
- * prevent sending data to connections that were closed on the other
- * side (can happen anyway, so this is just an optimization between
- * well-behaved, non-malicious nodes that like each other).
- */
-typedef struct {
-  p2p_HEADER header;
-  HostIdentity sender;
-} HANGUP_Message;
-
-/**
- * Capability specification.
- */
-typedef struct {
-  unsigned int capabilityType;
-  unsigned int value;
-} Capability;
-
-/**
- * Limit number of bytes send to this peer per minute to "value".
- */
-#define CAP_BANDWIDTH_RECV 0
-
-/**
- * This message is used to advertise node capabilities.  Each
- * capability has a capability type and a value.  The primary
- * motivation for the introducation of capabilities is
- * CAP_BANDWIDTH_RECV which can be used by a peer to specify a maximum
- * amount of data that it is currently (!) willing to receive and
- * process from another peer.  After receiving a capability message
- * the other peer is expected to only send requests to the sender that
- * match the capabilities.<p>
- *
- * If a peer does not understand a given capability type, the message
- * is to be ignored.  Future capabilities that are currently planned
- * include an advertisment that specifies the set of application
- * services that are (not) supported. 
- */ 
-typedef struct {
-  p2p_HEADER header;
-  Capability cap;
-} CAPABILITY_Message;
-
-
-/* ********************* Methods called from "node" ********************** */
+/* ***************** GNUnet core internals ************ */
 
 /**
  * Initialize this module.
@@ -145,69 +63,25 @@ void initConnection();
 void doneConnection();
 
 /**
- * Call this method periodically to scan data/hosts for new hosts.
- */
-void cronScanDirectoryDataHosts(void * unused);
-
-/**
  * For debugging.
  */
 void printConnectionBuffer();
 
 /**
- * Accept a session-key that has been sent by another host.  The other
- * host must be known (public key).
+ * Check the sequence number and timestamp.  Decrypts the
+ * message if it was encrypted.  Updates the sequence
+ * number as a side-effect.
  *
- * @param hostId the identity of the sender host
- * @param sessionkeySigned the session key that was "negotiated"
+ * @param sender from which peer did we receive the SEQ message
+ * @param msg the p2p message (the decrypted message is stored here, too!)
+ * @param size the size of the message
+ * @return YES if the message was encrypted,
+ *         NO if it was in plaintext,
+ *         SYSERR if it was malformed
  */
-int acceptSessionKey(const HostIdentity * sender,
-		     TSession * tsession,
-		     const p2p_HEADER * msg);
-
-/**
- * Are we connected to this host?
- */
-int isConnected(const HostIdentity * hi);
-
-/**
- * Shutdown all connections (send HANGUPs, too).
- */
-void closeAllConnections();
-
-/**
- * How important is it at the moment to establish more connections?
- */
-int getConnectPriority();
- 
-/**
- * Increase the host credit by a value - synchronized
- * @param hostId is the identity of the host
- * @param value is the int value by which the host credit is to be increased
- * @returns the new credit
- */
-unsigned int changeHostCredit(const HostIdentity * hostId, 
-			      int value);
-
-/**
- * Call method for every connected node.
- */
-int forEachConnectedNode(PerNodeCallback method,
-			 void * arg);
-
-/**
- * Obtain the credit record of the host.
- */
-unsigned int getHostCredit(const HostIdentity * hostId);
-
-
-/* ********************** Send-interface ****************************** */
-
-/**
- * Compute the hashtable index of a host id.
- */
-unsigned int computeIndex(const HostIdentity * hostId);
-
+int checkHeader(const PeerIdentity * sender,
+		P2P_PACKET_HEADER * msg,
+		unsigned short size);
 
 /**
  * Consider switching the transport mechanism used for contacting the
@@ -220,8 +94,44 @@ unsigned int computeIndex(const HostIdentity * hostId);
  * @param tsession the transport session that is for grabs
  * @param sender the identity of the other node
  */
-void considerTakeover(TSession * tsession,
-		      const HostIdentity * sender);
+void considerTakeover(const PeerIdentity * sender,
+		      TSession * tsession);
+
+/* ***************** CORE API methods ************* */
+
+/**
+ * Are we connected to this host?
+ * @return YES or NO.
+ */
+int isConnected(const PeerIdentity * hi);
+
+/**
+ * Call method for every connected node.
+ */
+int forEachConnectedNode(PerNodeCallback method,
+			 void * arg);
+
+
+/**
+ * Send a plaintext message to another node.  This is
+ * not the usual way for communication and should ONLY be
+ * used by modules that are responsible for setting up
+ * sessions.  This bypasses resource allocation, bandwidth
+ * scheduling, knapsack solving and lots of other goodies
+ * from the GNUnet core.
+ *
+ * @param session the transport session
+ * @param msg the message to transmit, should contain P2P_MESSAGE_HEADERs
+ * @return OK on success, SYSERR on failure
+ */
+int sendPlaintext(TSession * tsession,
+		  const char * msg,
+		  unsigned int size);
+
+/**
+ * Compute the hashtable index of a host id.
+ */
+unsigned int computeIndex(const PeerIdentity * hostId);
 
 /**
  * Register a callback method that should be invoked whenever a
@@ -254,33 +164,8 @@ int unregisterSendCallback(const unsigned int minimumPadding,
 			   BufferFillCallback callback);
 
 /**
- * Send a message to all directly connected nodes.
- *
- * @param message the message to send
- * @param priority how important is the message? The higher, the more important
- * @param maxdelay how long can we wait (max), in CRON-time (ms)
- */
-void broadcast(const p2p_HEADER * message,
-	       unsigned int priority,
-	       unsigned int maxdelay);
-
-/**
- * Send a message to a specific host (reply, enqueue).  This method
- * may only be called by a thread that either holds no locks at all or
- * at most the lock returned by <tt>getConnectionModuleLock</tt>.
- *
- * @param message the message to send (unencrypted!)
- * @param hostId the identity of the receiver
- * @param priority how important is the message?
- * @param maxdelay how long can we wait (max), in CRON-time (ms)
- */
-void sendToNode(const HostIdentity * hostId,
-		const p2p_HEADER * message,
-		unsigned int priority,
-		unsigned int maxdelay);
-
-/**
  * Send an encrypted, on-demand build message to another node.
+ *
  * @param receiver the target node
  * @param callback the callback to build the message
  * @param closure the second argument to callback
@@ -288,49 +173,30 @@ void sendToNode(const HostIdentity * hostId,
  * @param importance how important is the message?
  * @param maxdelay how long can the message wait?
  */
-void unicast(const HostIdentity * hostId,
-	     BuildMessageCallback callback,
-	     void * closure,
-	     unsigned short len,
+void unicastCallback(const PeerIdentity * hostId,
+		     BuildMessageCallback callback,
+		     void * closure,
+		     unsigned short len,
+		     unsigned int importance,
+		     unsigned int maxdelay);
+
+/**
+ * Send an encrypted message to another node.
+ *
+ * @param receiver the target node
+ * @param msg the message to send
+ * @param importance how important is the message?
+ * @param maxdelay how long can the message be delayed?
+ */
+void unicast(const PeerIdentity * receiver,
+	     const P2P_MESSAGE_HEADER * msg,
 	     unsigned int importance,
 	     unsigned int maxdelay);
 
 /**
  * Return a pointer to the lock of the connection module.
- */ 
+ */
 Mutex * getConnectionModuleLock();
-
-/**
- * Shutdown all connections with other peers.
- */
-void shutdownConnections();
-
-/* ************************* encryption service ********************** */
-
-/**
- * Decipher data comming in from a foreign host.
- * @param data the data to decrypt
- * @param size how big is data?
- * @param hostId the sender host that encrypted the data 
- * @param result where to store the decrypted data
- * @returns the size of the decrypted data, SYSERR on error
- */
-int decryptFromHost(const void * data,
-		    const unsigned short size,
-		    const HostIdentity * hostId,
-		    void * result);  
-
-/* **************** ping pong notification (keepalive) *************** */
-
-/**
- * We received a sign of life from this host.
- */
-void notifyPING(const HostIdentity * hostId);
-
-/**
- * We received a sign of life from this host.
- */
-void notifyPONG(const HostIdentity * hostId);
 
 
 /* ******************** traffic management ********** */
@@ -339,25 +205,14 @@ void notifyPONG(const HostIdentity * hostId);
  * How many bpm did we assign this peer (how much traffic
  * may the given peer send to us per minute?)
  */
-unsigned int getBandwidthAssignedTo(const HostIdentity * hostId);
-
-/**
- * Notification for per-connection bandwidth tracking:
- * we received size bytes from hostId.  Note that only
- * encrypted messages are counted as "real" traffic.
- *
- * @param hostId the peer that send the message
- * @param size the size of the message
- */
-void trafficReceivedFrom(const HostIdentity * hostId,
-			 const unsigned int size);
+unsigned int getBandwidthAssignedTo(const PeerIdentity * hostId);
 
 /**
  * Increase the preference for traffic from some other peer.
  * @param node the identity of the other peer
  * @param preference how much should the traffic preference be increased?
  */
-void updateTrafficPreference(const HostIdentity * node,
+void updateTrafficPreference(const PeerIdentity * node,
 			     double preference);
 
 
@@ -367,14 +222,105 @@ void updateTrafficPreference(const HostIdentity * node,
  *
  * @param peer  the peer to disconnect
  */
-void disconnectFromPeer(const HostIdentity *node);
+void disconnectFromPeer(const PeerIdentity *node);
 
 
 /**
- * Disconnect all current connected peers. Send HANGUP messages to 
- * the other peers and mark the sessionkeys as dead.
+ * Offer the core a session for communication with the
+ * given peer.  This is useful after establishing a connection
+ * with another peer to hand it of to the core.  Note that
+ * the core will take over the session and disconnect
+ * it as it feels like.  Thus the client should no longer
+ * use it after this call.  If the core does not want/need
+ * the session, it will also be disconnected.
  */
-void disconnectPeers();
+void offerTSessionFor(const PeerIdentity * peer,
+		      TSession * session);
+
+
+/**
+ * Assign a session key for traffic from or to a given peer.
+ * If the core does not yet have an entry for the given peer
+ * in the connection table, a new entry is created.
+ *
+ * @param key the sessionkey,
+ * @param peer the other peer,
+ * @param forSending NO if it is the key for receiving,
+ *                   YES if it is the key for sending
+ */
+void assignSessionKey(const SESSIONKEY * key,
+		      const PeerIdentity * peer,
+		      TIME_T age,
+		      int forSending);
+
+/**
+ * Obtain the session key used for traffic from or to a given peer.
+ *
+ * @param key the sessionkey (set)
+ * @param age the age of the key (set)
+ * @param peer the other peer,
+ * @param forSending NO if it is the key for receiving,
+ *                   YES if it is the key for sending
+ * @return SYSERR if no sessionkey is known to the core,
+ *         OK if the sessionkey was set.
+ */
+int getCurrentSessionKey(const PeerIdentity * peer,
+			 SESSIONKEY * key,
+			 TIME_T * age,
+			 int forSending);
+
+
+/**
+ * Get the current number of slots in the connection table (as computed
+ * from the available bandwidth).
+ */
+int getSlotCount();
+
+/**
+ * Is the given slot used?
+ * @return 0 if not, otherwise number of peers in
+ * the slot
+ */
+int isSlotUsed(int slot);
+
+/**
+ * Get the time of the last encrypted message that was received
+ * from the given peer.
+ * @param time updated with the time
+ * @return SYSERR if we are not connected to the peer at the moment
+ */
+int getLastActivityOf(const PeerIdentity * peer,
+		      cron_t * time);
+
+
+/**
+ * Confirm that a connection is up.
+ *
+ * @param peer the other peer,
+ */
+void confirmSessionUp(const PeerIdentity * peer);
+
+
+/**
+ * Register a handler that is to be called for each
+ * message that leaves the peer.
+ *
+ * @param callback the method to call for each
+ *        P2P message part that is transmitted
+ * @return OK on success, SYSERR if there is a problem
+ */
+int registerSendNotify(MessagePartHandler callback);
+
+/**
+ * Unregister a handler that is to be called for each
+ * message that leaves the peer.
+ *
+ * @param callback the method to call for each
+ *        P2P message part that is transmitted
+ * @return OK on success, SYSERR if there is a problem
+ */
+int unregisterSendNotify(MessagePartHandler callback);
+
 
 
 #endif

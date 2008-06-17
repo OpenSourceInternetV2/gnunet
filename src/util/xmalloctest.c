@@ -1,4 +1,4 @@
-/** 
+/**
  * @file test/xmalloctest.c
  * @brief testcase for util/xmalloc.c
  */
@@ -12,7 +12,8 @@ static int check() {
   int i;
   int j;
   int k;
-  
+  unsigned int ui;
+
   /* MALLOC/FREE test */
   k = 352; /* random start value */
   for (i=1;i<MAX_TESTVAL;i++) {
@@ -20,13 +21,13 @@ static int check() {
     for (j=0;j<i;j++)
       ptrs[i][j] = k++;
   }
-  
+
   for (i=MAX_TESTVAL-1;i>=1;i--) {
     for (j=i-1;j>=0;j--)
       if (ptrs[i][j] != (char) --k)
 	return 1;
     FREE(ptrs[i]);
-  }  
+  }
 
   /* STRNDUP tests */
   FREE(STRNDUP("foo", 0));
@@ -38,11 +39,11 @@ static int check() {
   if (0 != strcmp(ptrs[0], "fo"))
     return 2;
   FREE(ptrs[0]);
-  
+
   /* FREENONNULL test */
   FREENONNULL(NULL);
   FREENONNULL(MALLOC(4));
-  
+
   /* STRDUP tests */
   ptrs[0] = STRDUP("bar");
   if (0 != strcmp(ptrs[0], "bar"))
@@ -51,21 +52,21 @@ static int check() {
 
   /* GROW tests */
   ptrs[0] = NULL;
-  i=0;
+  ui=0;
   GROW(ptrs[0],
-       i,
+       ui,
        42);
-  if (i != 42)
+  if (ui != 42)
     return 4;
   GROW(ptrs[0],
-       i,
+       ui,
        22);
-  if (i != 22)
+  if (ui != 22)
     return 5;
   for (j=0;j<22;j++)
     ptrs[0][j] = j;
   GROW(ptrs[0],
-       i,
+       ui,
        32);
   for (j=0;j<22;j++)
     if (ptrs[0][j] != j)
@@ -74,26 +75,21 @@ static int check() {
     if (ptrs[0][j] != 0)
       return 7;
   GROW(ptrs[0],
-       i,
+       ui,
        0);
   if (i != 0)
     return 8;
   if (ptrs[0] != NULL)
     return 9;
-  
+
 
   return 0;
 }
 
-void initStatistics();
-void doneStatistics();
-
 int main(int argc,
 	 char * argv[]){
   int ret;
-  initStatistics();
   ret = check();
-  doneStatistics();
   if (ret != 0)
     fprintf(stderr,
 	    "ERROR %d.\n",

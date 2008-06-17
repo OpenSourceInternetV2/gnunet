@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2005 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -20,33 +20,28 @@
 
 /**
  * @file util/xmalloc.c
- * @brief wrapper around malloc/free 
+ * @brief wrapper around malloc/free
  * @author Christian Grothoff
- */ 
+ */
 
 #include "gnunet_util.h"
 #include "platform.h"
 
 #define DEBUG_MALLOC 0
-#define STAT_MALLOC 0
 
-#if DEBUG_MALLOC || STAT_MALLOC
+#if DEBUG_MALLOC
 static Mutex lock;
-#endif
-#if STAT_MALLOC
-static int statMalloc = -1;
-static unsigned long long currentlyAllocated = 0;
 #endif
 
 
 void initXmalloc() {
-#if DEBUG_MALLOC || STAT_MALLOC
+#if DEBUG_MALLOC
   MUTEX_CREATE(&lock);
 #endif
 }
 
 void doneXmalloc() {
-#if DEBUG_MALLOC || STAT_MALLOC
+#if DEBUG_MALLOC
   MUTEX_DESTROY(&lock);
 #endif
 }
@@ -67,10 +62,10 @@ void doneXmalloc() {
  * @param linenumber where in the code was the call to GROW
  * @return pointer to size bytes of memory
  */
-void * xmalloc_(size_t size, 
+void * xmalloc_(size_t size,
 		const char * filename,
 		const int linenumber) {
-  /* As a security precaution, we generally do not allow very large 
+  /* As a security precaution, we generally do not allow very large
      allocations using the default 'MALLOC' macro */
   if (size > 1024 * 1024 * 40)
     errexit(_("Unexpected very large allocation (%u bytes) at %s:%d!\n"),
@@ -78,47 +73,71 @@ void * xmalloc_(size_t size,
   return xmalloc_unchecked_(size, filename, linenumber);
 }
 
-void * xmalloc_unchecked_(size_t size, 
+void * xmalloc_unchecked_(size_t size,
 			  const char * filename,
 			  const int linenumber) {
   void * result;
-  
-#if STAT_MALLOC
-  size += sizeof(long long); /* long long to preserve alignment on 64-bit architectures! */
-#endif
+
   GNUNET_ASSERT(size < INT_MAX);
   result = malloc(size);
-#if STAT_MALLOC
-  size -= sizeof(long long);
-  ((long long*)result)[0] = size;
-  result = &((long long*)result)[1];
-#endif
-
-#if DEBUG_MALLOC 
+#if DEBUG_MALLOC
   MUTEX_LOCK(&lock);
-  printf("%p malloc %s:%d (%d bytes)\n", 
-	 result, 
+  printf("%p malloc %s:%d (%d bytes)\n",
+	 result,
 	 filename,
 	 linenumber,
 	 size);
   fflush(stdout);
   MUTEX_UNLOCK(&lock);
 #endif
-  if (result == NULL) 
+  if (result == NULL)
     DIE_STRERROR_FL(filename, linenumber, "malloc");
   memset(result, 0, size); /* client code should not rely on this, though... */
-#if STAT_MALLOC
-  if (statMalloc == -1) { /* this is guaranteed to be hit before we have multiple threads... */
-    statMalloc = -2;
-    statMalloc = statHandle("# memory in use (bytes)");
-  }
-  MUTEX_LOCK(&lock);
-  currentlyAllocated+=size;
-  MUTEX_UNLOCK(&lock);
-  if (statMalloc >= 0)
-    statSet(statMalloc, currentlyAllocated);
-#endif
   return result;
+}
+
+/**
+ * Reallocate memory. Checks the return value, aborts if no more
+ * memory is available.
+ *
+ * @ptr the pointer to reallocate
+ * @param size how many bytes of memory to allocate, do NOT use
+ *  this function (or MALLOC) to allocate more than several MB
+ *  of memory
+ * @param filename where in the code was the call to REALLOC
+ * @param linenumber where in the code was the call to REALLOC
+ * @return pointer to size bytes of memory
+ */
+void * xrealloc_(void * ptr,
+      const size_t n,
+      const char * filename,
+      const int linenumber) {
+#if DEBUG_MALLOC
+  MUTEX_LOCK(&lock);
+  printf("%p free %s:%d\n",
+   ptr,
+   filename,
+   linenumber);
+  MUTEX_UNLOCK(&lock);
+#endif
+
+  ptr = realloc(ptr, n);
+
+  if (!ptr)
+    DIE_STRERROR_FL(filename, linenumber, "realloc");
+
+#if DEBUG_MALLOC
+  MUTEX_LOCK(&lock);
+  printf("%p malloc %s:%d (%d bytes)\n",
+   ptr,
+   filename,
+   linenumber,
+   n);
+  fflush(stdout);
+  MUTEX_UNLOCK(&lock);
+#endif
+
+  return ptr;
 }
 
 /**
@@ -129,31 +148,19 @@ void * xmalloc_unchecked_(size_t size,
  * @param filename where in the code was the call to GROW
  * @param linenumber where in the code was the call to GROW
  */
-void xfree_(void * ptr, 
+void xfree_(void * ptr,
 	    const char * filename,
 	    const int linenumber) {
-  GNUNET_ASSERT_FL(filename, linenumber, ptr != NULL);
-#if STAT_MALLOC
+  GNUNET_ASSERT_FL(ptr != NULL,
+		   filename, linenumber);
+#if DEBUG_MALLOC
   MUTEX_LOCK(&lock);
-  currentlyAllocated -= ((long long*)ptr)[-1];
-  printf("%p free %s:%d (%lld bytes => %lld allocated) \n", 
-	 ptr, 
-	 filename,
-	 linenumber,
-	 ((long long*)ptr)[-1],
-	 currentlyAllocated);
-  MUTEX_UNLOCK(&lock);
-  ptr = &((long long*)ptr)[-1]; 
-#else
-#if DEBUG_MALLOC 
-  MUTEX_LOCK(&lock);
-  printf("%p free %s:%d\n", 
-	 ptr, 
+  printf("%p free %s:%d\n",
+	 ptr,
 	 filename,
 	 linenumber);
   fflush(stdout);
   MUTEX_UNLOCK(&lock);
-#endif
 #endif
   free(ptr);
 }
@@ -171,7 +178,7 @@ char * xstrdup_(const char * str,
 		const int linenumber) {
   char * res;
 
-  GNUNET_ASSERT_FL(filename, linenumber, str != NULL);
+  GNUNET_ASSERT_FL(str != NULL, filename, linenumber);
   res = (char*)xmalloc_(strlen(str)+1,
 		         filename,
 		         linenumber);
@@ -195,7 +202,7 @@ char * xstrndup_(const char * str,
   char * res;
   size_t min;
 
-  GNUNET_ASSERT_FL(filename, linenumber, str != NULL);
+  GNUNET_ASSERT_FL(str != NULL, filename, linenumber);
   min = 0;
   while ( (min < n) && (str[min] != '\0'))
     min++;
@@ -229,25 +236,26 @@ void xgrow_(void ** old,
   void * tmp;
   size_t size;
 
-  GNUNET_ASSERT_FL(filename, linenumber, INT_MAX / elementSize > newCount);
+  GNUNET_ASSERT_FL(INT_MAX / elementSize > newCount,
+		   filename, linenumber);
   size = newCount * elementSize;
   if (size == 0) {
     tmp = NULL;
   } else {
     tmp = xmalloc_(size,
 		   filename,
-		   linenumber);  
+		   linenumber);
     GNUNET_ASSERT(tmp != NULL);
     memset(tmp, 0, size); /* client code should not rely on this, though... */
     if (*oldCount > newCount)
       *oldCount = newCount; /* shrink is also allowed! */
-    memcpy(tmp, 
-	   *old, 
+    memcpy(tmp,
+	   *old,
 	   elementSize * (*oldCount));
   }
 
   if (*old != NULL) {
-    xfree_(*old, 
+    xfree_(*old,
 	   filename,
 	   linenumber);
   }

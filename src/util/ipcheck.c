@@ -28,6 +28,23 @@
 #include "platform.h"
 
 /**
+ * @brief IPV4 network in CIDR notation.
+ */
+typedef struct CIDRNetwork {
+  IPaddr network;
+  IPaddr netmask;
+} CIDRNetwork;
+
+/**
+ * @brief network in CIDR notation for IPV6.
+ */
+typedef struct CIDR6Network {
+  IP6addr network;
+  IP6addr netmask;
+} CIDR6Network;
+
+
+/**
  * Parse a network specification. The argument specifies
  * a list of networks. The format is
  * <tt>[network/netmask;]*</tt> (no whitespace, must be terminated
@@ -59,7 +76,7 @@ CIDRNetwork * parseRoutes(const char * routeList) {
     if (routeList[i] == ';')
       count++;
   result = MALLOC(sizeof(CIDRNetwork) * (count+1));
-  /* add termination */  
+  /* add termination */
   memset(result,
 	 0,
 	 sizeof(CIDRNetwork)*(count+1));
@@ -80,21 +97,21 @@ CIDRNetwork * parseRoutes(const char * routeList) {
       for (j=0;j<8;j++)
 	if (temps[j] > 0xFF) {
 	  LOG(LOG_ERROR,
-	      _("Invalid format for IP: '%s'\n"),
+	      _("Invalid format for IP: `%s'\n"),
 	      &routeList[pos]);
 	  FREE(result);
 	  return NULL;
 	}
       result[i].network.addr
 	= htonl((temps[0] << 24) + (temps[1] << 16) + (temps[2] << 8) + temps[3]);
-      result[i].netmask.addr 
+      result[i].netmask.addr
 	= htonl((temps[4] << 24) + (temps[5] << 16) + (temps[6] << 8) + temps[7]);
       while (routeList[pos] != ';')
 	pos++;
       pos++;
       i++;
       continue;
-    } 
+    }
     /* try second notation */
     cnt = sscanf(&routeList[pos],
 		 "%u.%u.%u.%u/%u;",
@@ -127,7 +144,7 @@ CIDRNetwork * parseRoutes(const char * routeList) {
 	  pos++;
 	pos++;
  	i++;
-	continue;       
+	continue;
       } else {
 	LOG(LOG_ERROR,
 	    _("Invalid network notation ('/%d' is not legal in IPv4 CIDR)."),
@@ -135,7 +152,7 @@ CIDRNetwork * parseRoutes(const char * routeList) {
 	FREE(result);
 	return NULL; /* error */
       }
-    } 
+    }
     LOG(LOG_ERROR,
 	"invalid network notation: >>%s<<",
 	&routeList[pos]);
@@ -144,7 +161,7 @@ CIDRNetwork * parseRoutes(const char * routeList) {
   }
   if (pos < strlen(routeList)) {
     LOG(LOG_ERROR,
-	_("Invalid network notation (additional characters: '%s')."),
+	_("Invalid network notation (additional characters: `%s')."),
 	&routeList[pos]);
     FREE(result);
     return NULL; /* oops */
@@ -165,23 +182,22 @@ int checkIPListed(const CIDRNetwork * list,
 		  IPaddr ip) {
   int i;
   IPaddr add;
- 
+
   add = ip;
   i=0;
-  if (list == NULL) 
+  if (list == NULL)
     return NO;
-  
+
   while ( (list[i].network.addr != 0) ||
 	  (list[i].netmask.addr != 0) ) {
-    if ( (add.addr & list[i].netmask.addr) == 
-	 (list[i].network.addr & list[i].netmask.addr) ) 
-      return YES;    
+    if ( (add.addr & list[i].netmask.addr) ==
+	 (list[i].network.addr & list[i].netmask.addr) )
+      return YES;
     i++;
   }
   return NO;
 }
 
-#if USE_IPV6
 /**
  * Parse a network specification. The argument specifies
  * a list of networks. The format is
@@ -193,7 +209,7 @@ int checkIPListed(const CIDRNetwork * list,
  * @param routeList a string specifying the forbidden networks
  * @return the converted list, NULL if the synatx is flawed
  */
-CIDR6Network * parseRoutes6(char * routeList) {
+CIDR6Network * parseRoutes6(const char * routeListX) {
   unsigned int count;
   unsigned int i;
   unsigned int len;
@@ -201,44 +217,45 @@ CIDR6Network * parseRoutes6(char * routeList) {
   int start;
   int slash;
   int ret;
+  char * routeList;
   CIDR6Network * result;
 
-  if (routeList == NULL)
+  if (routeListX == NULL)
     return NULL;
-  len = strlen(routeList);
+  len = strlen(routeListX);
   if (len == 0)
     return NULL;
-  routeList = STRDUP(routeList);
+  routeList = STRDUP(routeListX);
   count = 0;
   for (i=0;i<len;i++)
     if (routeList[i] == ';')
       count++;
   if (routeList[len-1] != ';') {
     LOG(LOG_ERROR,
-	_("Invalid network notation (does not end with ';': '%s')\n"),
+	_("Invalid network notation (does not end with ';': `%s')\n"),
 	routeList);
     FREE(routeList);
     return NULL;
   }
-    
+
   result = MALLOC(sizeof(CIDR6Network) * (count+1));
-  memset(result, 
+  memset(result,
 	 0,
 	 sizeof(CIDR6Network) * (count+1));
   i=0;
   pos = 0;
   while (i < count) {
     start = pos;
-    while (routeList[pos] != ';') 
+    while (routeList[pos] != ';')
       pos++;
     slash = pos;
     while ( (slash >= start) &&
 	    (routeList[slash] != '/') )
       slash--;
     if (slash < start) {
-      memset(&result[i].netmask, 
+      memset(&result[i].netmask,
 	     0xFF,
-	     sizeof(IP6addr));	     
+	     sizeof(IP6addr));	
       slash = pos;
     } else {
       routeList[pos] = '\0';
@@ -247,7 +264,7 @@ CIDR6Network * parseRoutes6(char * routeList) {
 		      &result[i].netmask);
       if (ret <= 0) {
 	LOG(LOG_ERROR,
-	    _("Wrong format '%s' for netmask: %s\n"),
+	    _("Wrong format `%s' for netmask: %s\n"),
 	    &routeList[slash+1],
 	    STRERROR(errno));
 	FREE(result);
@@ -261,7 +278,7 @@ CIDR6Network * parseRoutes6(char * routeList) {
 		    &result[i].network);
     if (ret <= 0) {
       LOG(LOG_ERROR,
-	  _("Wrong format '%s' for network: %s\n"),
+	  _("Wrong format `%s' for network: %s\n"),
 	  &routeList[slash+1],
 	  STRERROR(errno));
       FREE(result);
@@ -281,16 +298,16 @@ CIDR6Network * parseRoutes6(char * routeList) {
  * @param ip the IP to check (in network byte order)
  * @return NO if the IP is not in the list, YES if it it is
  */
-int checkIP6Listed(CIDR6Network * list,
-		   IP6addr * ip) {
+int checkIP6Listed(const CIDR6Network * list,
+		   const IP6addr * ip) {
   unsigned int i;
   unsigned int j;
   struct in6_addr zero;
- 
+
   i=0;
-  if (list == NULL) 
+  if (list == NULL)
     return NO;
-  
+
   memset(&zero, 0, sizeof(struct in6_addr));
   while ( (memcmp(&zero, &list[i].network, sizeof(struct in6_addr)) != 0) ||
 	  (memcmp(&zero, &list[i].netmask, sizeof(struct in6_addr)) != 0) ) {
@@ -304,6 +321,5 @@ int checkIP6Listed(CIDR6Network * list,
   }
   return NO;
 }
-#endif
 
 /* end of ipcheck.c */

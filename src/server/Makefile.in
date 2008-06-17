@@ -14,7 +14,8 @@
 
 @SET_MAKE@
 
-SOURCES = $(fragmentationtest_SOURCES) $(gnunet_peer_info_SOURCES) $(gnunet_transport_check_SOURCES) $(gnunet_update_SOURCES) $(gnunetd_SOURCES)
+
+SOURCES = $(libgnunetcore_la_SOURCES) $(gnunet_peer_info_SOURCES) $(gnunet_transport_check_SOURCES) $(gnunet_update_SOURCES) $(gnunetd_SOURCES)
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -37,70 +38,64 @@ NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
 host_triplet = @host@
-bin_PROGRAMS = gnunetd$(EXEEXT) gnunet-update$(EXEEXT) \
-	gnunet-peer-info$(EXEEXT) gnunet-transport-check$(EXEEXT)
-check_PROGRAMS = fragmentationtest$(EXEEXT)
+bin_PROGRAMS = gnunetd$(EXEEXT) gnunet-peer-info$(EXEEXT) \
+	gnunet-transport-check$(EXEEXT) gnunet-update$(EXEEXT)
 subdir = src/server
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/m4/gettext.m4 \
-	$(top_srcdir)/m4/gtk-2.0.m4 $(top_srcdir)/m4/guile.m4 \
-	$(top_srcdir)/m4/iconv.m4 $(top_srcdir)/m4/lib-ld.m4 \
-	$(top_srcdir)/m4/lib-link.m4 $(top_srcdir)/m4/lib-prefix.m4 \
-	$(top_srcdir)/m4/libgcrypt.m4 $(top_srcdir)/m4/nls.m4 \
-	$(top_srcdir)/m4/po.m4 $(top_srcdir)/m4/progtest.m4 \
-	$(top_srcdir)/acinclude.m4 $(top_srcdir)/configure.ac
+am__aclocal_m4_deps = $(top_srcdir)/m4/ac_define_dir.m4 \
+	$(top_srcdir)/m4/gettext.m4 $(top_srcdir)/m4/gtk-2.0.m4 \
+	$(top_srcdir)/m4/guile.m4 $(top_srcdir)/m4/iconv.m4 \
+	$(top_srcdir)/m4/lib-ld.m4 $(top_srcdir)/m4/lib-link.m4 \
+	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libgcrypt.m4 \
+	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/po.m4 \
+	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/acinclude.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
 CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
-am__installdirs = "$(DESTDIR)$(bindir)"
+am__installdirs = "$(DESTDIR)$(libdir)" "$(DESTDIR)$(bindir)"
+libLTLIBRARIES_INSTALL = $(INSTALL)
+LTLIBRARIES = $(lib_LTLIBRARIES)
+libgnunetcore_la_DEPENDENCIES =  \
+	$(top_builddir)/src/util/libgnunetutil.la
+am_libgnunetcore_la_OBJECTS = connection.lo core.lo handler.lo \
+	tcpserver.lo version.lo
+libgnunetcore_la_OBJECTS = $(am_libgnunetcore_la_OBJECTS)
 binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(bin_PROGRAMS)
-am_fragmentationtest_OBJECTS = fragmentationtest.$(OBJEXT)
-fragmentationtest_OBJECTS = $(am_fragmentationtest_OBJECTS)
-fragmentationtest_DEPENDENCIES =  \
-	$(top_builddir)/src/util/libgnunetutil.la
-am_gnunet_peer_info_OBJECTS = gnunet-peer-info.$(OBJEXT) \
-	keyservice.$(OBJEXT) knownhosts.$(OBJEXT) transport.$(OBJEXT)
+am_gnunet_peer_info_OBJECTS = gnunet-peer-info.$(OBJEXT)
 gnunet_peer_info_OBJECTS = $(am_gnunet_peer_info_OBJECTS)
 gnunet_peer_info_DEPENDENCIES =  \
-	$(top_builddir)/src/util/libgnunetutil.la
-am_gnunet_transport_check_OBJECTS = gnunet-transport-check.$(OBJEXT) \
-	keyservice.$(OBJEXT) knownhosts.$(OBJEXT) transport.$(OBJEXT) \
-	httphelo.$(OBJEXT)
+	$(top_builddir)/src/util/libgnunetutil.la \
+	$(top_builddir)/src/server/libgnunetcore.la
+am_gnunet_transport_check_OBJECTS = gnunet-transport-check.$(OBJEXT)
 gnunet_transport_check_OBJECTS = $(am_gnunet_transport_check_OBJECTS)
 gnunet_transport_check_DEPENDENCIES =  \
-	$(top_builddir)/src/util/libgnunetutil.la
+	$(top_builddir)/src/util/libgnunetutil.la \
+	$(top_builddir)/src/server/libgnunetcore.la
 am_gnunet_update_OBJECTS = gnunet-update.$(OBJEXT)
 gnunet_update_OBJECTS = $(am_gnunet_update_OBJECTS)
 gnunet_update_DEPENDENCIES =  \
-	$(top_builddir)/src/util/libgnunetutil.la
-am_gnunetd_OBJECTS = connection.$(OBJEXT) core.$(OBJEXT) \
-	fragmentation.$(OBJEXT) gnunetd.$(OBJEXT) handler.$(OBJEXT) \
-	heloexchange.$(OBJEXT) keyservice.$(OBJEXT) \
-	knownhosts.$(OBJEXT) pingpong.$(OBJEXT) policy.$(OBJEXT) \
-	startup.$(OBJEXT) tcpserver.$(OBJEXT) traffic.$(OBJEXT) \
-	transport.$(OBJEXT) httphelo.$(OBJEXT)
+	$(top_builddir)/src/util/libgnunetutil.la \
+	$(top_builddir)/src/server/libgnunetcore.la
+am_gnunetd_OBJECTS = gnunetd.$(OBJEXT) startup.$(OBJEXT)
 gnunetd_OBJECTS = $(am_gnunetd_OBJECTS)
-gnunetd_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la
+gnunetd_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la \
+	$(top_builddir)/src/server/libgnunetcore.la
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
-@AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/connection.Po ./$(DEPDIR)/core.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/fragmentation.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/fragmentationtest.Po \
+@AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/connection.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/core.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/gnunet-peer-info.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/gnunet-transport-check.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/gnunet-update.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/gnunetd.Po ./$(DEPDIR)/handler.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/heloexchange.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/httphelo.Po ./$(DEPDIR)/keyservice.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/knownhosts.Po ./$(DEPDIR)/pingpong.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/policy.Po ./$(DEPDIR)/startup.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/tcpserver.Po ./$(DEPDIR)/traffic.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/transport.Po
+@AMDEP_TRUE@	./$(DEPDIR)/gnunetd.Po ./$(DEPDIR)/handler.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/startup.Po ./$(DEPDIR)/tcpserver.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/version.Plo
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) \
@@ -109,12 +104,12 @@ LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) \
 CCLD = $(CC)
 LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(fragmentationtest_SOURCES) $(gnunet_peer_info_SOURCES) \
+SOURCES = $(libgnunetcore_la_SOURCES) $(gnunet_peer_info_SOURCES) \
 	$(gnunet_transport_check_SOURCES) $(gnunet_update_SOURCES) \
 	$(gnunetd_SOURCES)
-DIST_SOURCES = $(fragmentationtest_SOURCES) \
-	$(gnunet_peer_info_SOURCES) $(gnunet_transport_check_SOURCES) \
-	$(gnunet_update_SOURCES) $(gnunetd_SOURCES)
+DIST_SOURCES = $(libgnunetcore_la_SOURCES) $(gnunet_peer_info_SOURCES) \
+	$(gnunet_transport_check_SOURCES) $(gnunet_update_SOURCES) \
+	$(gnunetd_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -142,6 +137,7 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 CYGWIN_FALSE = @CYGWIN_FALSE@
 CYGWIN_TRUE = @CYGWIN_TRUE@
+DATADIR = @DATADIR@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
 DLLTOOL = @DLLTOOL@
@@ -161,16 +157,8 @@ GTK_LIBS = @GTK_LIBS@
 GUILE = @GUILE@
 GUILE_CONFIG = @GUILE_CONFIG@
 GUILE_TOOLS = @GUILE_TOOLS@
-HAVE_BDB_DLL_FALSE = @HAVE_BDB_DLL_FALSE@
-HAVE_BDB_DLL_TRUE = @HAVE_BDB_DLL_TRUE@
-HAVE_BDB_FALSE = @HAVE_BDB_FALSE@
-HAVE_BDB_TRUE = @HAVE_BDB_TRUE@
 HAVE_CURSES_FALSE = @HAVE_CURSES_FALSE@
 HAVE_CURSES_TRUE = @HAVE_CURSES_TRUE@
-HAVE_DIRECTORY_FALSE = @HAVE_DIRECTORY_FALSE@
-HAVE_DIRECTORY_TRUE = @HAVE_DIRECTORY_TRUE@
-HAVE_GDBM_FALSE = @HAVE_GDBM_FALSE@
-HAVE_GDBM_TRUE = @HAVE_GDBM_TRUE@
 HAVE_GTK_FALSE = @HAVE_GTK_FALSE@
 HAVE_GTK_TRUE = @HAVE_GTK_TRUE@
 HAVE_GUILE_FALSE = @HAVE_GUILE_FALSE@
@@ -179,10 +167,10 @@ HAVE_IPV6_FALSE = @HAVE_IPV6_FALSE@
 HAVE_IPV6_TRUE = @HAVE_IPV6_TRUE@
 HAVE_MYSQL_FALSE = @HAVE_MYSQL_FALSE@
 HAVE_MYSQL_TRUE = @HAVE_MYSQL_TRUE@
+HAVE_PDCURSES_FALSE = @HAVE_PDCURSES_FALSE@
+HAVE_PDCURSES_TRUE = @HAVE_PDCURSES_TRUE@
 HAVE_SQLITE_FALSE = @HAVE_SQLITE_FALSE@
 HAVE_SQLITE_TRUE = @HAVE_SQLITE_TRUE@
-HAVE_TDB_FALSE = @HAVE_TDB_FALSE@
-HAVE_TDB_TRUE = @HAVE_TDB_TRUE@
 HAVE_ZLIB_FALSE = @HAVE_ZLIB_FALSE@
 HAVE_ZLIB_TRUE = @HAVE_ZLIB_TRUE@
 INSTALL_DATA = @INSTALL_DATA@
@@ -204,6 +192,7 @@ LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
+LOCALEDIR = @LOCALEDIR@
 LTDLINCL = @LTDLINCL@
 LTLIBICONV = @LTLIBICONV@
 LTLIBINTL = @LTLIBINTL@
@@ -214,6 +203,8 @@ MINGW_TRUE = @MINGW_TRUE@
 MKINSTALLDIRS = @MKINSTALLDIRS@
 MSGFMT = @MSGFMT@
 MSGMERGE = @MSGMERGE@
+MYSQL_CPPFLAGS = @MYSQL_CPPFLAGS@
+MYSQL_LDFLAGS = @MYSQL_LDFLAGS@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
@@ -230,14 +221,10 @@ SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 SOLARIS_FALSE = @SOLARIS_FALSE@
 SOLARIS_TRUE = @SOLARIS_TRUE@
+SQLITE_CPPFLAGS = @SQLITE_CPPFLAGS@
+SQLITE_LDFLAGS = @SQLITE_LDFLAGS@
 STRIP = @STRIP@
-USE_GCRYPT_FALSE = @USE_GCRYPT_FALSE@
-USE_GCRYPT_TRUE = @USE_GCRYPT_TRUE@
-USE_LIBEXTRACTOR_FALSE = @USE_LIBEXTRACTOR_FALSE@
-USE_LIBEXTRACTOR_TRUE = @USE_LIBEXTRACTOR_TRUE@
 USE_NLS = @USE_NLS@
-USE_OPENSSL_FALSE = @USE_OPENSSL_FALSE@
-USE_OPENSSL_TRUE = @USE_OPENSSL_TRUE@
 VERSION = @VERSION@
 XGETTEXT = @XGETTEXT@
 ac_ct_AR = @ac_ct_AR@
@@ -287,75 +274,47 @@ subdirs = @subdirs@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 INCLUDES = -I$(top_srcdir)/src/include
-gnunetd_SOURCES = \
- connection.c \
+lib_LTLIBRARIES = \
+  libgnunetcore.la
+
+libgnunetcore_la_SOURCES = \
+ connection.c connection.h \
  core.c \
- fragmentation.c \
+ handler.c handler.h \
+ tcpserver.c tcpserver.h \
+ version.c version.h
+
+libgnunetcore_la_LIBADD = \
+ $(top_builddir)/src/util/libgnunetutil.la 
+
+gnunetd_SOURCES = \
  gnunetd.c \
- handler.c  \
- heloexchange.c  \
- keyservice.c \
- knownhosts.c \
- pingpong.c \
- policy.c \
- startup.c  \
- tcpserver.c  \
- traffic.c \
- transport.c \
- connection.h \
- core.h \
- fragmentation.h \
- handler.h \
- heloexchange.h \
- keyservice.h \
- knownhosts.h \
- pingpong.h \
- policy.h \
- startup.h \
- tcpserver.h \
- traffic.h \
- transport.h \
- httphelo.h \
- httphelo.c 
+ startup.c startup.h 
 
 gnunetd_LDADD = \
- $(top_builddir)/src/util/libgnunetutil.la
+ $(top_builddir)/src/util/libgnunetutil.la \
+ $(top_builddir)/src/server/libgnunetcore.la
 
 gnunet_update_SOURCES = \
  gnunet-update.c 
 
 gnunet_update_LDADD = \
- $(top_builddir)/src/util/libgnunetutil.la
-
-gnunet_transport_check_SOURCES = \
- gnunet-transport-check.c \
- keyservice.c \
- keyservice.h \
- knownhosts.c \
- knownhosts.h \
- transport.c \
- transport.h \
- httphelo.h \
- httphelo.c 
-
-gnunet_transport_check_LDADD = \
- $(top_builddir)/src/util/libgnunetutil.la
+ $(top_builddir)/src/util/libgnunetutil.la \
+ $(top_builddir)/src/server/libgnunetcore.la
 
 gnunet_peer_info_SOURCES = \
- gnunet-peer-info.c \
- keyservice.c \
- knownhosts.c \
- transport.c
+ gnunet-peer-info.c 
 
 gnunet_peer_info_LDADD = \
- $(top_builddir)/src/util/libgnunetutil.la
+ $(top_builddir)/src/util/libgnunetutil.la \
+ $(top_builddir)/src/server/libgnunetcore.la
 
-TESTS = $(check_PROGRAMS)
-fragmentationtest_SOURCES = \
- fragmentationtest.c 
+gnunet_transport_check_SOURCES = \
+ gnunet-transport-check.c 
 
-fragmentationtest_LDADD = \
- $(top_builddir)/src/util/libgnunetutil.la  
+gnunet_transport_check_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la \
+ $(top_builddir)/src/server/libgnunetcore.la
 
 all: all-am
 
@@ -390,6 +349,35 @@ $(top_srcdir)/configure:  $(am__configure_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
+install-libLTLIBRARIES: $(lib_LTLIBRARIES)
+	@$(NORMAL_INSTALL)
+	test -z "$(libdir)" || $(mkdir_p) "$(DESTDIR)$(libdir)"
+	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	  if test -f $$p; then \
+	    f="`echo $$p | sed -e 's|^.*/||'`"; \
+	    echo " $(LIBTOOL) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) '$$p' '$(DESTDIR)$(libdir)/$$f'"; \
+	    $(LIBTOOL) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) "$$p" "$(DESTDIR)$(libdir)/$$f"; \
+	  else :; fi; \
+	done
+
+uninstall-libLTLIBRARIES:
+	@$(NORMAL_UNINSTALL)
+	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	    p="`echo $$p | sed -e 's|^.*/||'`"; \
+	  echo " $(LIBTOOL) --mode=uninstall rm -f '$(DESTDIR)$(libdir)/$$p'"; \
+	  $(LIBTOOL) --mode=uninstall rm -f "$(DESTDIR)$(libdir)/$$p"; \
+	done
+
+clean-libLTLIBRARIES:
+	-test -z "$(lib_LTLIBRARIES)" || rm -f $(lib_LTLIBRARIES)
+	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	  dir="`echo $$p | sed -e 's|/[^/]*$$||'`"; \
+	  test "$$dir" != "$$p" || dir=.; \
+	  echo "rm -f \"$${dir}/so_locations\""; \
+	  rm -f "$${dir}/so_locations"; \
+	done
+libgnunetcore.la: $(libgnunetcore_la_OBJECTS) $(libgnunetcore_la_DEPENDENCIES) 
+	$(LINK) -rpath $(libdir) $(libgnunetcore_la_LDFLAGS) $(libgnunetcore_la_OBJECTS) $(libgnunetcore_la_LIBADD) $(LIBS)
 install-binPROGRAMS: $(bin_PROGRAMS)
 	@$(NORMAL_INSTALL)
 	test -z "$(bindir)" || $(mkdir_p) "$(DESTDIR)$(bindir)"
@@ -418,16 +406,6 @@ clean-binPROGRAMS:
 	  echo " rm -f $$p $$f"; \
 	  rm -f $$p $$f ; \
 	done
-
-clean-checkPROGRAMS:
-	@list='$(check_PROGRAMS)'; for p in $$list; do \
-	  f=`echo $$p|sed 's/$(EXEEXT)$$//'`; \
-	  echo " rm -f $$p $$f"; \
-	  rm -f $$p $$f ; \
-	done
-fragmentationtest$(EXEEXT): $(fragmentationtest_OBJECTS) $(fragmentationtest_DEPENDENCIES) 
-	@rm -f fragmentationtest$(EXEEXT)
-	$(LINK) $(fragmentationtest_LDFLAGS) $(fragmentationtest_OBJECTS) $(fragmentationtest_LDADD) $(LIBS)
 gnunet-peer-info$(EXEEXT): $(gnunet_peer_info_OBJECTS) $(gnunet_peer_info_DEPENDENCIES) 
 	@rm -f gnunet-peer-info$(EXEEXT)
 	$(LINK) $(gnunet_peer_info_LDFLAGS) $(gnunet_peer_info_OBJECTS) $(gnunet_peer_info_LDADD) $(LIBS)
@@ -447,25 +425,16 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/connection.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/core.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fragmentation.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fragmentationtest.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/connection.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/core.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gnunet-peer-info.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gnunet-transport-check.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gnunet-update.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gnunetd.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/handler.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/heloexchange.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/httphelo.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/keyservice.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/knownhosts.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pingpong.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/policy.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/handler.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/startup.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tcpserver.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/traffic.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/transport.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tcpserver.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/version.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -549,79 +518,6 @@ GTAGS:
 distclean-tags:
 	-rm -f TAGS ID GTAGS GRTAGS GSYMS GPATH tags
 
-check-TESTS: $(TESTS)
-	@failed=0; all=0; xfail=0; xpass=0; skip=0; \
-	srcdir=$(srcdir); export srcdir; \
-	list='$(TESTS)'; \
-	if test -n "$$list"; then \
-	  for tst in $$list; do \
-	    if test -f ./$$tst; then dir=./; \
-	    elif test -f $$tst; then dir=; \
-	    else dir="$(srcdir)/"; fi; \
-	    if $(TESTS_ENVIRONMENT) $${dir}$$tst; then \
-	      all=`expr $$all + 1`; \
-	      case " $(XFAIL_TESTS) " in \
-	      *" $$tst "*) \
-		xpass=`expr $$xpass + 1`; \
-		failed=`expr $$failed + 1`; \
-		echo "XPASS: $$tst"; \
-	      ;; \
-	      *) \
-		echo "PASS: $$tst"; \
-	      ;; \
-	      esac; \
-	    elif test $$? -ne 77; then \
-	      all=`expr $$all + 1`; \
-	      case " $(XFAIL_TESTS) " in \
-	      *" $$tst "*) \
-		xfail=`expr $$xfail + 1`; \
-		echo "XFAIL: $$tst"; \
-	      ;; \
-	      *) \
-		failed=`expr $$failed + 1`; \
-		echo "FAIL: $$tst"; \
-	      ;; \
-	      esac; \
-	    else \
-	      skip=`expr $$skip + 1`; \
-	      echo "SKIP: $$tst"; \
-	    fi; \
-	  done; \
-	  if test "$$failed" -eq 0; then \
-	    if test "$$xfail" -eq 0; then \
-	      banner="All $$all tests passed"; \
-	    else \
-	      banner="All $$all tests behaved as expected ($$xfail expected failures)"; \
-	    fi; \
-	  else \
-	    if test "$$xpass" -eq 0; then \
-	      banner="$$failed of $$all tests failed"; \
-	    else \
-	      banner="$$failed of $$all tests did not behave as expected ($$xpass unexpected passes)"; \
-	    fi; \
-	  fi; \
-	  dashes="$$banner"; \
-	  skipped=""; \
-	  if test "$$skip" -ne 0; then \
-	    skipped="($$skip tests were not run)"; \
-	    test `echo "$$skipped" | wc -c` -le `echo "$$banner" | wc -c` || \
-	      dashes="$$skipped"; \
-	  fi; \
-	  report=""; \
-	  if test "$$failed" -ne 0 && test -n "$(PACKAGE_BUGREPORT)"; then \
-	    report="Please report to $(PACKAGE_BUGREPORT)"; \
-	    test `echo "$$report" | wc -c` -le `echo "$$banner" | wc -c` || \
-	      dashes="$$report"; \
-	  fi; \
-	  dashes=`echo "$$dashes" | sed s/./=/g`; \
-	  echo "$$dashes"; \
-	  echo "$$banner"; \
-	  test -z "$$skipped" || echo "$$skipped"; \
-	  test -z "$$report" || echo "$$report"; \
-	  echo "$$dashes"; \
-	  test "$$failed" -eq 0; \
-	else :; fi
-
 distdir: $(DISTFILES)
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
@@ -650,12 +546,12 @@ distdir: $(DISTFILES)
 	  fi; \
 	done
 check-am: all-am
-	$(MAKE) $(AM_MAKEFLAGS) $(check_PROGRAMS)
-	$(MAKE) $(AM_MAKEFLAGS) check-TESTS
 check: check-am
-all-am: Makefile $(PROGRAMS)
+all-am: Makefile $(LTLIBRARIES) $(PROGRAMS)
+install-binPROGRAMS: install-libLTLIBRARIES
+
 installdirs:
-	for dir in "$(DESTDIR)$(bindir)"; do \
+	for dir in "$(DESTDIR)$(libdir)" "$(DESTDIR)$(bindir)"; do \
 	  test -z "$$dir" || $(mkdir_p) "$$dir"; \
 	done
 install: install-am
@@ -684,7 +580,7 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-binPROGRAMS clean-checkPROGRAMS clean-generic \
+clean-am: clean-binPROGRAMS clean-generic clean-libLTLIBRARIES \
 	clean-libtool mostlyclean-am
 
 distclean: distclean-am
@@ -705,7 +601,7 @@ info-am:
 
 install-data-am:
 
-install-exec-am: install-binPROGRAMS
+install-exec-am: install-binPROGRAMS install-libLTLIBRARIES
 
 install-info: install-info-am
 
@@ -731,20 +627,22 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-binPROGRAMS uninstall-info-am
+uninstall-am: uninstall-binPROGRAMS uninstall-info-am \
+	uninstall-libLTLIBRARIES
 
-.PHONY: CTAGS GTAGS all all-am check check-TESTS check-am clean \
-	clean-binPROGRAMS clean-checkPROGRAMS clean-generic \
-	clean-libtool ctags distclean distclean-compile \
-	distclean-generic distclean-libtool distclean-tags distdir dvi \
-	dvi-am html html-am info info-am install install-am \
-	install-binPROGRAMS install-data install-data-am install-exec \
-	install-exec-am install-info install-info-am install-man \
-	install-strip installcheck installcheck-am installdirs \
-	maintainer-clean maintainer-clean-generic mostlyclean \
-	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
-	pdf pdf-am ps ps-am tags uninstall uninstall-am \
-	uninstall-binPROGRAMS uninstall-info-am
+.PHONY: CTAGS GTAGS all all-am check check-am clean clean-binPROGRAMS \
+	clean-generic clean-libLTLIBRARIES clean-libtool ctags \
+	distclean distclean-compile distclean-generic \
+	distclean-libtool distclean-tags distdir dvi dvi-am html \
+	html-am info info-am install install-am install-binPROGRAMS \
+	install-data install-data-am install-exec install-exec-am \
+	install-info install-info-am install-libLTLIBRARIES \
+	install-man install-strip installcheck installcheck-am \
+	installdirs maintainer-clean maintainer-clean-generic \
+	mostlyclean mostlyclean-compile mostlyclean-generic \
+	mostlyclean-libtool pdf pdf-am ps ps-am tags uninstall \
+	uninstall-am uninstall-binPROGRAMS uninstall-info-am \
+	uninstall-libLTLIBRARIES
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

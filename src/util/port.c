@@ -29,14 +29,25 @@
  * Return the port-number (in host byte order)
  */
 unsigned short getGNUnetPort() {
-  unsigned short port;
+  static unsigned short port;
+  const char *setting;
+
+  if (port != 0)
+    return port;
+  if (testConfigurationString("GNUNETD",
+			      "_MAGIC_",
+			      "YES"))
+    setting = "PORT";
+  else
+    setting = "CLIENT-PORT";
 
   port = (unsigned short) getConfigurationInt("NETWORK",
-					      "PORT");
-  if (port == 0) { /* try lookup in services */
-    errexit(_("Cannot determine port of gnunetd server. Define in configuration file in section '%s' under '%s'.\n"),
-	    "NETWORK", 
-	    "PORT");
+					      setting);
+  if (port == 0) {
+    errexit(_("Cannot determine port of gnunetd server. "
+	      "Define in configuration file in section `%s' under `%s'.\n"),
+	    "NETWORK",
+	    setting);
   }
   return port;
 }
@@ -44,15 +55,17 @@ unsigned short getGNUnetPort() {
 /**
  * Configuration: get the GNUnetd host where the client
  * should connect to (via TCP)
- * @return the name of the host, caller must free!
+ * @return the name of the host
  */
-char * getGNUnetdHost() {
-  char * res;
+static const char * getGNUnetdHost() {
+  static char * res;
 
+  if (res != NULL)
+    return res;
   res = getConfigurationString("NETWORK",
 			       "HOST");
   if (res == NULL)
-    res = STRDUP("localhost");
+    res = "localhost";
   return res;
 }
 
@@ -61,20 +74,18 @@ char * getGNUnetdHost() {
  */
 GNUNET_TCP_SOCKET * getClientSocket() {
   GNUNET_TCP_SOCKET * sock;
-  char * host;
+  const char * host;
 
   sock = MALLOC(sizeof(GNUNET_TCP_SOCKET));
   host = getGNUnetdHost();
   if (SYSERR == initGNUnetClientSocket(getGNUnetPort(),
 				       host,
-				       sock)) {    
+				       sock)) {
     LOG(LOG_ERROR,
 	_("Could not connect to gnunetd.\n"));
     FREE(sock);
-    FREE(host);
     return NULL;
   }
-  FREE(host);
   return sock;
 }
 

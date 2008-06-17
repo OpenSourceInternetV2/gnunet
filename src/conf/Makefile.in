@@ -41,13 +41,14 @@ bin_PROGRAMS = gnunet-setup$(EXEEXT) $(am__EXEEXT_1)
 subdir = src/conf
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/m4/gettext.m4 \
-	$(top_srcdir)/m4/gtk-2.0.m4 $(top_srcdir)/m4/guile.m4 \
-	$(top_srcdir)/m4/iconv.m4 $(top_srcdir)/m4/lib-ld.m4 \
-	$(top_srcdir)/m4/lib-link.m4 $(top_srcdir)/m4/lib-prefix.m4 \
-	$(top_srcdir)/m4/libgcrypt.m4 $(top_srcdir)/m4/nls.m4 \
-	$(top_srcdir)/m4/po.m4 $(top_srcdir)/m4/progtest.m4 \
-	$(top_srcdir)/acinclude.m4 $(top_srcdir)/configure.ac
+am__aclocal_m4_deps = $(top_srcdir)/m4/ac_define_dir.m4 \
+	$(top_srcdir)/m4/gettext.m4 $(top_srcdir)/m4/gtk-2.0.m4 \
+	$(top_srcdir)/m4/guile.m4 $(top_srcdir)/m4/iconv.m4 \
+	$(top_srcdir)/m4/lib-ld.m4 $(top_srcdir)/m4/lib-link.m4 \
+	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libgcrypt.m4 \
+	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/po.m4 \
+	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/acinclude.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
@@ -57,21 +58,34 @@ CONFIG_CLEAN_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(bin_PROGRAMS)
-am__gnunet_setup_SOURCES_DIST = conf.c confdata.c expr.c expr.h lkc.h \
-	mconf.c mconf_checklist.c mconf_colors.h mconf_dialog.h \
+am__gnunet_setup_SOURCES_DIST = conf.c conf.h confdata.c confdata.h \
+	expr.c expr.h lkc.h menu.c recreate.c recreate.h symbol.c \
+	zconf.tab.h zconf_tab.c zconf_tab.h mconf.c mconf.h \
+	mconf_checklist.c mconf_colors.h mconf_dialog.h \
 	mconf_inputbox.c mconf_menubox.c mconf_msgbox.c \
-	mconf_textbox.c mconf_util.c mconf_yesno.c menu.c symbol.c \
-	zconf.tab.h zconf_tab.c gnunet-setup.c
+	mconf_textbox.c mconf_util.c mconf_yesno.c wizard_curs.c \
+	wizard_curs.h gconf_callbacks.h gconf_interface.h \
+	gconf_support.h gconf_interface.c gconf_support.c gconf.c \
+	gconf.h images.c wizard_callbacks.h wizard_interface.h \
+	wizard_support.h wizard_callbacks.c wizard_interface.c \
+	wizard.c wizard.h wizard_util.c wizard_util.h gnunet-setup.c
 @HAVE_CURSES_TRUE@am__objects_1 = mconf.$(OBJEXT) \
 @HAVE_CURSES_TRUE@	mconf_checklist.$(OBJEXT) \
 @HAVE_CURSES_TRUE@	mconf_inputbox.$(OBJEXT) \
 @HAVE_CURSES_TRUE@	mconf_menubox.$(OBJEXT) \
 @HAVE_CURSES_TRUE@	mconf_msgbox.$(OBJEXT) \
 @HAVE_CURSES_TRUE@	mconf_textbox.$(OBJEXT) mconf_util.$(OBJEXT) \
-@HAVE_CURSES_TRUE@	mconf_yesno.$(OBJEXT)
+@HAVE_CURSES_TRUE@	mconf_yesno.$(OBJEXT) wizard_curs.$(OBJEXT)
+@HAVE_GTK_TRUE@am__objects_2 = gconf_interface.$(OBJEXT) \
+@HAVE_GTK_TRUE@	gconf_support.$(OBJEXT) gconf.$(OBJEXT) \
+@HAVE_GTK_TRUE@	images.$(OBJEXT)
+@HAVE_GTK_TRUE@am__objects_3 = wizard_callbacks.$(OBJEXT) \
+@HAVE_GTK_TRUE@	wizard_interface.$(OBJEXT) wizard.$(OBJEXT)
 am_gnunet_setup_OBJECTS = conf.$(OBJEXT) confdata.$(OBJEXT) \
-	expr.$(OBJEXT) $(am__objects_1) menu.$(OBJEXT) \
-	symbol.$(OBJEXT) zconf_tab.$(OBJEXT) gnunet-setup.$(OBJEXT)
+	expr.$(OBJEXT) menu.$(OBJEXT) recreate.$(OBJEXT) \
+	symbol.$(OBJEXT) zconf_tab.$(OBJEXT) $(am__objects_1) \
+	$(am__objects_2) $(am__objects_3) wizard_util.$(OBJEXT) \
+	gnunet-setup.$(OBJEXT)
 gnunet_setup_OBJECTS = $(am_gnunet_setup_OBJECTS)
 gnunet_setup_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la
 gnunet_win_tool_SOURCES = gnunet-win-tool.c
@@ -82,9 +96,12 @@ DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
 @AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/conf.Po ./$(DEPDIR)/confdata.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/expr.Po ./$(DEPDIR)/gnunet-setup.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/expr.Po ./$(DEPDIR)/gconf.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/gconf_interface.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/gconf_support.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/gnunet-setup.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/gnunet-win-tool.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/mconf.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/images.Po ./$(DEPDIR)/mconf.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/mconf_checklist.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/mconf_inputbox.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/mconf_menubox.Po \
@@ -92,7 +109,13 @@ am__depfiles_maybe = depfiles
 @AMDEP_TRUE@	./$(DEPDIR)/mconf_textbox.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/mconf_util.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/mconf_yesno.Po ./$(DEPDIR)/menu.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/symbol.Po ./$(DEPDIR)/zconf_tab.Po
+@AMDEP_TRUE@	./$(DEPDIR)/recreate.Po ./$(DEPDIR)/symbol.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/wizard.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/wizard_callbacks.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/wizard_curs.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/wizard_interface.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/wizard_util.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/zconf_tab.Po
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) \
@@ -130,6 +153,7 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 CYGWIN_FALSE = @CYGWIN_FALSE@
 CYGWIN_TRUE = @CYGWIN_TRUE@
+DATADIR = @DATADIR@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
 DLLTOOL = @DLLTOOL@
@@ -149,16 +173,8 @@ GTK_LIBS = @GTK_LIBS@
 GUILE = @GUILE@
 GUILE_CONFIG = @GUILE_CONFIG@
 GUILE_TOOLS = @GUILE_TOOLS@
-HAVE_BDB_DLL_FALSE = @HAVE_BDB_DLL_FALSE@
-HAVE_BDB_DLL_TRUE = @HAVE_BDB_DLL_TRUE@
-HAVE_BDB_FALSE = @HAVE_BDB_FALSE@
-HAVE_BDB_TRUE = @HAVE_BDB_TRUE@
 HAVE_CURSES_FALSE = @HAVE_CURSES_FALSE@
 HAVE_CURSES_TRUE = @HAVE_CURSES_TRUE@
-HAVE_DIRECTORY_FALSE = @HAVE_DIRECTORY_FALSE@
-HAVE_DIRECTORY_TRUE = @HAVE_DIRECTORY_TRUE@
-HAVE_GDBM_FALSE = @HAVE_GDBM_FALSE@
-HAVE_GDBM_TRUE = @HAVE_GDBM_TRUE@
 HAVE_GTK_FALSE = @HAVE_GTK_FALSE@
 HAVE_GTK_TRUE = @HAVE_GTK_TRUE@
 HAVE_GUILE_FALSE = @HAVE_GUILE_FALSE@
@@ -167,10 +183,10 @@ HAVE_IPV6_FALSE = @HAVE_IPV6_FALSE@
 HAVE_IPV6_TRUE = @HAVE_IPV6_TRUE@
 HAVE_MYSQL_FALSE = @HAVE_MYSQL_FALSE@
 HAVE_MYSQL_TRUE = @HAVE_MYSQL_TRUE@
+HAVE_PDCURSES_FALSE = @HAVE_PDCURSES_FALSE@
+HAVE_PDCURSES_TRUE = @HAVE_PDCURSES_TRUE@
 HAVE_SQLITE_FALSE = @HAVE_SQLITE_FALSE@
 HAVE_SQLITE_TRUE = @HAVE_SQLITE_TRUE@
-HAVE_TDB_FALSE = @HAVE_TDB_FALSE@
-HAVE_TDB_TRUE = @HAVE_TDB_TRUE@
 HAVE_ZLIB_FALSE = @HAVE_ZLIB_FALSE@
 HAVE_ZLIB_TRUE = @HAVE_ZLIB_TRUE@
 INSTALL_DATA = @INSTALL_DATA@
@@ -189,9 +205,12 @@ LIBICONV = @LIBICONV@
 LIBINTL = @LIBINTL@
 LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
-LIBS = @LIBS@
+
+# GNU Gettext support
+LIBS = @LIBINTL@ @LIBS@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
+LOCALEDIR = @LOCALEDIR@
 LTDLINCL = @LTDLINCL@
 LTLIBICONV = @LTLIBICONV@
 LTLIBINTL = @LTLIBINTL@
@@ -202,6 +221,8 @@ MINGW_TRUE = @MINGW_TRUE@
 MKINSTALLDIRS = @MKINSTALLDIRS@
 MSGFMT = @MSGFMT@
 MSGMERGE = @MSGMERGE@
+MYSQL_CPPFLAGS = @MYSQL_CPPFLAGS@
+MYSQL_LDFLAGS = @MYSQL_LDFLAGS@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
@@ -218,14 +239,10 @@ SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 SOLARIS_FALSE = @SOLARIS_FALSE@
 SOLARIS_TRUE = @SOLARIS_TRUE@
+SQLITE_CPPFLAGS = @SQLITE_CPPFLAGS@
+SQLITE_LDFLAGS = @SQLITE_LDFLAGS@
 STRIP = @STRIP@
-USE_GCRYPT_FALSE = @USE_GCRYPT_FALSE@
-USE_GCRYPT_TRUE = @USE_GCRYPT_TRUE@
-USE_LIBEXTRACTOR_FALSE = @USE_LIBEXTRACTOR_FALSE@
-USE_LIBEXTRACTOR_TRUE = @USE_LIBEXTRACTOR_TRUE@
 USE_NLS = @USE_NLS@
-USE_OPENSSL_FALSE = @USE_OPENSSL_FALSE@
-USE_OPENSSL_TRUE = @USE_OPENSSL_TRUE@
 VERSION = @VERSION@
 XGETTEXT = @XGETTEXT@
 ac_ct_AR = @ac_ct_AR@
@@ -275,6 +292,7 @@ subdirs = @subdirs@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 INCLUDES = -I$(top_srcdir)/src/include
+AM_CFLAGS = $(GTK_CFLAGS)
 @MINGW_TRUE@WINTOOL = gnunet-win-tool
 BUILT_SOURCES = \
  lkc_defs.h
@@ -282,12 +300,13 @@ BUILT_SOURCES = \
 EXTRA_DIST = \
  lex.zconf.c \
  lkc_proto.h \
- qconf.h \
- bool.h
+ bool.h \
+ wizard_gtk.h
 
-@HAVE_CURSES_TRUE@curses_lib = -lncurses
+@HAVE_CURSES_TRUE@@HAVE_PDCURSES_TRUE@pdcurses_lib = -lpdcurses
+@HAVE_CURSES_TRUE@@HAVE_PDCURSES_FALSE@curses_lib = -lncurses
 @HAVE_CURSES_TRUE@mconf_src = \
-@HAVE_CURSES_TRUE@  mconf.c \
+@HAVE_CURSES_TRUE@  mconf.c mconf.h \
 @HAVE_CURSES_TRUE@  mconf_checklist.c \
 @HAVE_CURSES_TRUE@  mconf_colors.h \
 @HAVE_CURSES_TRUE@  mconf_dialog.h \
@@ -296,23 +315,47 @@ EXTRA_DIST = \
 @HAVE_CURSES_TRUE@  mconf_msgbox.c \
 @HAVE_CURSES_TRUE@  mconf_textbox.c \
 @HAVE_CURSES_TRUE@  mconf_util.c \
-@HAVE_CURSES_TRUE@  mconf_yesno.c
+@HAVE_CURSES_TRUE@  mconf_yesno.c \
+@HAVE_CURSES_TRUE@  wizard_curs.c wizard_curs.h
+
+@HAVE_GTK_TRUE@gconf_libs = $(GTK_LIBS) @EXT_LIB_PATH@ $(LDADD) @EXT_LIBS@ -lgthread-2.0
+@HAVE_GTK_TRUE@gconf_src = \
+@HAVE_GTK_TRUE@   gconf_callbacks.h \
+@HAVE_GTK_TRUE@   gconf_interface.h \
+@HAVE_GTK_TRUE@   gconf_support.h \
+@HAVE_GTK_TRUE@   gconf_interface.c \
+@HAVE_GTK_TRUE@   gconf_support.c \
+@HAVE_GTK_TRUE@   gconf.c gconf.h \
+@HAVE_GTK_TRUE@   images.c 
+
+@HAVE_GTK_TRUE@gbasic_src = \
+@HAVE_GTK_TRUE@   wizard_callbacks.h \
+@HAVE_GTK_TRUE@   wizard_interface.h \
+@HAVE_GTK_TRUE@   wizard_support.h \
+@HAVE_GTK_TRUE@   wizard_callbacks.c \
+@HAVE_GTK_TRUE@   wizard_interface.c \
+@HAVE_GTK_TRUE@   wizard.c wizard.h
 
 gnunet_setup_SOURCES = \
- conf.c \
- confdata.c \
+ conf.c conf.h \
+ confdata.c confdata.h \
  expr.c \
  expr.h \
  lkc.h \
- $(mconf_src) \
  menu.c \
+ recreate.c recreate.h \
  symbol.c \
  zconf.tab.h \
- zconf_tab.c \
+ zconf_tab.c zconf_tab.h \
+ $(mconf_src) \
+ $(gconf_src) \
+ $(gbasic_src) \
+ $(wizard_util_src) \
+ wizard_util.c wizard_util.h \
  gnunet-setup.c
 
 gnunet_setup_LDFLAGS = \
- $(curses_lib)
+ $(curses_lib) $(pdcurses_lib) $(gconf_libs)
 
 gnunet_setup_LDADD = \
  $(top_builddir)/src/util/libgnunetutil.la
@@ -401,8 +444,12 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/conf.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/confdata.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/expr.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gconf.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gconf_interface.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gconf_support.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gnunet-setup.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gnunet-win-tool.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/images.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mconf.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mconf_checklist.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mconf_inputbox.Po@am__quote@
@@ -412,7 +459,13 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mconf_util.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mconf_yesno.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/menu.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/recreate.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/symbol.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/wizard.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/wizard_callbacks.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/wizard_curs.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/wizard_interface.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/wizard_util.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/zconf_tab.Po@am__quote@
 
 .c.o:

@@ -24,16 +24,17 @@
  * @author Christian Grothoff
  */
 
+#include "platform.h"
 #include "gnunet_util.h"
 
 static Mutex gcrypt_shared_lock;
 
 void lockGcrypt() {
-  MUTEX_LOCK(&gcrypt_shared_lock);  
+  MUTEX_LOCK(&gcrypt_shared_lock);
 }
 
 void unlockGcrypt() {
-  MUTEX_UNLOCK(&gcrypt_shared_lock);  
+  MUTEX_UNLOCK(&gcrypt_shared_lock);
 }
 
 void initLockingGcrypt() {

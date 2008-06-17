@@ -19,7 +19,7 @@
 */
 
 /**
- * @file applications/testbed/commands.c 
+ * @file applications/testbed/commands.c
  * @brief the commands available in the testbed
  * @author Ronaldo Alves Ferreira
  * @author Christian Grothoff
@@ -33,10 +33,12 @@
  */
 
 #include "platform.h"
+#include "gnunet_protocols.h"
+#include "gnunet_getoption_lib.h"
+#include "gnunet_stats_lib.h"
 #include "testbed.h"
 #include "commands.h"
 #include "socket.h"
-#include "get-stats.h"
 
 /**
  * @brief struct keeping per-peer information for the testbed
@@ -50,8 +52,8 @@ typedef struct {
   char	* ips;
   /** socket to communicate with the peer */
   GNUNET_TCP_SOCKET sock;
-  /** HELO message identifying the peer in the network */
-  HELO_Message * helo;
+  /** hello message identifying the peer in the network */
+  P2P_hello_MESSAGE * helo;
   /** if we're using ssh, what is the PID of the
       ssh process? (-1 for unencrypted direct connections) */
   pid_t ssh;
@@ -65,7 +67,7 @@ static NODE_INFO * nodes = NULL;
 /**
  * Number of known nodes, size of the nodes array.
  */
-static int nnodes = 0;
+static unsigned int nnodes = 0;
 
 /**
  * Should the driver exit?
@@ -81,7 +83,7 @@ int do_quit = NO;
   s = atoi(ss);			\
   d = atoi(ds);				    \
   if (s < 0 || s >= nnodes || d < 0 || d >= nnodes) {  \
-    PRINTF("Invalid src (%s) or dst (%s)\n", ss, ds);  \
+    XPRINTF("Invalid src (%s) or dst (%s)\n", ss, ds);  \
     return -1;					       \
   }
 
@@ -92,7 +94,7 @@ int do_quit = NO;
 #define CHECK_PEER(p, ps)	\
   p = atoi(ps);				\
   if (p < 0 || p >= nnodes) {			\
-    PRINTF("Invalid peer value %s\n", ps);	\
+    XPRINTF("Invalid peer value %s\n", ps);	\
     return -1;					\
   }
 
@@ -100,34 +102,34 @@ int do_quit = NO;
  * Send a message to peer 'peer' of type 'msgType'
  * the given size and data.
  */
-static int sendMessage(unsigned msgType, 
-		       int peer, 
-		       unsigned short argSize, 
+static int sendMessage(unsigned msgType,
+		       int peer,
+		       unsigned short argSize,
 		       void *arg) {
   TESTBED_CS_MESSAGE * msg;
   int msgsz;
-  
+
   /* Assume peer value is valid. */
-  if (argSize + sizeof(TESTBED_CS_MESSAGE) > 65535) 
+  if (argSize + sizeof(TESTBED_CS_MESSAGE) > 65535)
     errexit("Message body too big for sendMessage: %s\n",
 	    argSize);
-  
+
   msgsz = sizeof(TESTBED_CS_MESSAGE)+argSize;
   msg = MALLOC(msgsz);
-  msg->header.size 
+  msg->header.size
     = htons(msgsz);
-  msg->header.tcpType 
-    = htons(TESTBED_CS_PROTO_REQUEST);
+  msg->header.type
+    = htons(CS_PROTO_testbed_REQUEST);
   msg->msgType
     = htonl(msgType);
-  memcpy(&((TESTBED_CS_MESSAGE_GENERIC*)msg)->data[0], 
-	 arg, 
+  memcpy(&((TESTBED_CS_MESSAGE_GENERIC*)msg)->data[0],
+	 arg,
 	 argSize);
   msgsz = writeToSocket(&nodes[peer].sock,
 			&msg->header);
   FREE(msg);
   if (msgsz == SYSERR) {
-    PRINTF(" Could not send message to peer %s.\n", 
+    XPRINTF(" Could not send message to peer %s.\n",
 	   nodes[peer].ips);
     return SYSERR;
   }
@@ -144,7 +146,7 @@ static int readResult(int peer,
 		      int * result) {
   if (OK != readTCPResult(&nodes[peer].sock,
 			  result)) {
-    PRINTF(" peer %s is not responding.\n",
+    XPRINTF(" peer %s is not responding.\n",
 	   nodes[peer].ips);
     return SYSERR;
   }
@@ -160,13 +162,13 @@ static int readResult(int peer,
  */
 static int addNode(int argc, char * argv[]) {
   int currindex;
-  TESTBED_HELO_MESSAGE * hdr;
-  TESTBED_GET_HELO_MESSAGE req;  
+  TESTBED_hello_MESSAGE * hdr;
+  TESTBED_GET_hello_MESSAGE req;
   int port;
   int i;
 
   if (argc != 2) {
-    PRINTF("Syntax: add-node IP PORT.\n");
+    XPRINTF("Syntax: add-node IP PORT.\n");
     return -1;
   }
   port = atoi(argv[1]);
@@ -174,12 +176,12 @@ static int addNode(int argc, char * argv[]) {
     if ( (0 == strcmp(argv[0],
 		      nodes[i].ips)) &&
 	 (port == nodes[i].port) ) {
-      PRINTF("Node already in use!\n");
+      XPRINTF("Node already in use!\n");
       return -1;
     }
   }
-  
-  
+
+
   req.proto = 0;
   req.reserved = 0;
   /* connect */
@@ -193,61 +195,61 @@ static int addNode(int argc, char * argv[]) {
 #else
   nodes[currindex].ip.addr.S_un.S_addr = inet_addr(argv[0]);
 #endif
-  
+
   if (SYSERR == initGNUnetClientSocket(nodes[currindex].port,
 				       nodes[currindex].ips,
 				       &nodes[currindex].sock)) {
-    PRINTF(" could not connect to %s:%d.\n",
+    XPRINTF(" could not connect to %s:%d.\n",
 	   nodes[currindex].ips,
 	   nodes[currindex].port);
     return -1;
   }
-  
-  /* request HELO */
-  if (OK != sendMessage(TESTBED_GET_HELO,
+
+  /* request hello */
+  if (OK != sendMessage(TESTBED_GET_hello,
 			currindex,
-			sizeof(TESTBED_GET_HELO_MESSAGE)-sizeof(TESTBED_CS_MESSAGE),
+			sizeof(TESTBED_GET_hello_MESSAGE)-sizeof(TESTBED_CS_MESSAGE),
 			&req.proto)) {
     /* send message already printed an error message */
     destroySocket(&nodes[currindex].sock);
     FREE(nodes[currindex].ips);
-    GROW(nodes, 
-	 nnodes, 
+    GROW(nodes,
+	 nnodes,
 	 nnodes-1);
     return -1;
   }
-  
+
   hdr = NULL;
-  if (SYSERR == readFromSocket(&nodes[currindex].sock, 
-			       (CS_HEADER**)&hdr)) {
-    PRINTF(" peer %s is not responding.\n",
+  if (SYSERR == readFromSocket(&nodes[currindex].sock,
+			       (CS_MESSAGE_HEADER**)&hdr)) {
+    XPRINTF(" peer %s is not responding.\n",
 	   nodes[currindex].ips);
     destroySocket(&nodes[currindex].sock);
     FREE(nodes[currindex].ips);
     GROW(nodes, nnodes, nnodes-1);
     return -1;
   }
-  if ( (ntohs(hdr->header.header.tcpType) == TESTBED_CS_PROTO_REPLY) &&
-       (ntohs(hdr->header.header.size) >= sizeof(TESTBED_HELO_MESSAGE)) &&
-       (ntohl(hdr->header.msgType) == TESTBED_HELO_RESPONSE) &&
-       (ntohs(hdr->header.header.size) - sizeof(TESTBED_CS_MESSAGE) >= sizeof(HELO_Message)) &&
-       (ntohs(hdr->header.header.size) - sizeof(TESTBED_CS_MESSAGE) == HELO_Message_size(&hdr->helo)) ) {
-    nodes[currindex].helo 
-      = MALLOC(HELO_Message_size(&hdr->helo));
-    memcpy(nodes[currindex].helo, 
-	   &hdr->helo, 
-	   HELO_Message_size(&hdr->helo));
+  if ( (ntohs(hdr->header.header.type) == CS_PROTO_testbed_REPLY) &&
+       (ntohs(hdr->header.header.size) >= sizeof(TESTBED_hello_MESSAGE)) &&
+       (ntohl(hdr->header.msgType) == TESTBED_hello_RESPONSE) &&
+       (ntohs(hdr->header.header.size) - sizeof(TESTBED_CS_MESSAGE) >= sizeof(P2P_hello_MESSAGE)) &&
+       (ntohs(hdr->header.header.size) - sizeof(TESTBED_CS_MESSAGE) == P2P_hello_MESSAGE_size(&hdr->helo)) ) {
+    nodes[currindex].helo
+      = MALLOC(P2P_hello_MESSAGE_size(&hdr->helo));
+    memcpy(nodes[currindex].helo,
+	   &hdr->helo,
+	   P2P_hello_MESSAGE_size(&hdr->helo));
   } else {
     FREE(hdr);
     destroySocket(&nodes[currindex].sock);
-    PRINTF(" peer %s did not respond with proper HELO.\n",
+    XPRINTF(" peer %s did not respond with proper hello.\n",
 	   nodes[currindex].ips);
     FREE(nodes[currindex].ips);
-    GROW(nodes, nnodes, nnodes-1);    
+    GROW(nodes, nnodes, nnodes-1);
     return -1;
   }
   FREE(hdr);
-  PRINTF("%d\n",
+  XPRINTF("%d\n",
 	 currindex);
   return 0;
 }
@@ -261,8 +263,8 @@ static int addNode(int argc, char * argv[]) {
  */
 static int addSshNode(int argc, char * argv[]) {
   int currindex;
-  TESTBED_HELO_MESSAGE * hdr;
-  TESTBED_GET_HELO_MESSAGE req;  
+  TESTBED_hello_MESSAGE * hdr;
+  TESTBED_GET_hello_MESSAGE req;
   int port;
   int i;
   pid_t pid;
@@ -270,9 +272,9 @@ static int addSshNode(int argc, char * argv[]) {
   int rtc;
   int ret;
   int status;
-    
+
   if (argc != 3) {
-    PRINTF("Syntax: add-ssh-node LOGIN IP PORT.\n");
+    XPRINTF("Syntax: add-ssh-node LOGIN IP PORT.\n");
     return -1;
   }
   port = atoi(argv[2]);
@@ -280,7 +282,7 @@ static int addSshNode(int argc, char * argv[]) {
     if ( (0 == strcmp(argv[1],
 		      nodes[i].ips)) &&
 	 (port == nodes[i].port) ) {
-      PRINTF("Node already in use!\n");
+      XPRINTF("Node already in use!\n");
       return -1;
     }
   }
@@ -293,38 +295,38 @@ static int addSshNode(int argc, char * argv[]) {
 
     s = SOCKET(PF_INET, SOCK_STREAM, 0);
     if (s == -1) {
-      PRINTF("Cannot open socket: %s\n",
-	     strerror(errno));
+      XPRINTF("Cannot open socket: %s\n",
+	     STRERROR(errno));
       return -1;
     }
     if ( SETSOCKOPT(s,
-		    SOL_SOCKET, 
-		    SO_REUSEADDR, 
+		    SOL_SOCKET,
+		    SO_REUSEADDR,
 		    &on, sizeof(on)) < 0 )
       perror("setsockopt");
     memset(&addr,
 	   0,
 	   sizeof(addr));
-    addr.sin_family 
+    addr.sin_family
       = AF_INET;
     addr.sin_addr.s_addr
       = htonl(INADDR_ANY);
     addr.sin_port
       = htons(lport);
     if (0 == BIND(s,
-		  &addr,
-		  sizeof(addr))) {
-      CLOSE(s);
+		  (const struct sockaddr *) &addr,
+		  sizeof(struct sockaddr_in))) {
+      closefile(s);
       break; /* found port! */
     } else {
-      CLOSE(s); /* not available, try another one... */
-    }    
+      closefile(s); /* not available, try another one... */
+    }
   }
   if (lport == 65535) {
-    PRINTF(" Cannot find available local port!\n");
+    XPRINTF(" Cannot find available local port!\n");
     return -1;
   }
-  
+
   pid = fork();
   if (pid == 0) {
     char * sargv[7];
@@ -346,15 +348,15 @@ static int addSshNode(int argc, char * argv[]) {
 	   sargv);
     LOG(LOG_ERROR,
 	" execvp failed: %s\n",
-	strerror(errno));
+	STRERROR(errno));
     exit(-1);
-  } 
+  }
   if (pid == -1) {
-    PRINTF("Failed to fork: %s\n",
-	   strerror(errno));
+    XPRINTF("Failed to fork: %s\n",
+	   STRERROR(errno));
     return -1;
   }
-  
+
 
   req.proto = 0;
   req.reserved = 0;
@@ -376,28 +378,28 @@ static int addSshNode(int argc, char * argv[]) {
     ret = initGNUnetClientSocket(nodes[currindex].port,
 				 nodes[currindex].ips,
 				 &nodes[currindex].sock);
-    if (ret == OK) 
+    if (ret == OK)
       break;
     rtc++;
     gnunet_util_sleep(cronSECONDS);
   }
   if (ret == SYSERR) {
-    PRINTF(" could not connect to %s:%d.\n",
+    XPRINTF(" could not connect to %s:%d.\n",
 	   nodes[currindex].ips,
 	   nodes[currindex].port);
     kill(nodes[currindex].ssh,
 	 SIGTERM);
     waitpid(nodes[currindex].ssh,
 	    &status,
-	    0); 
+	    0);
     GROW(nodes, nnodes, nnodes-1);
     return -1;
   }
-  
-  /* request HELO */
-  if (OK != sendMessage(TESTBED_GET_HELO,
+
+  /* request hello */
+  if (OK != sendMessage(TESTBED_GET_hello,
 			currindex,
-			sizeof(TESTBED_GET_HELO_MESSAGE)-sizeof(TESTBED_CS_MESSAGE),
+			sizeof(TESTBED_GET_hello_MESSAGE)-sizeof(TESTBED_CS_MESSAGE),
 			&req.proto)) {
     /* send message already printed an error message */
     destroySocket(&nodes[currindex].sock);
@@ -408,16 +410,16 @@ static int addSshNode(int argc, char * argv[]) {
     waitpid(nodes[currindex].ssh,
 	    &status,
 	    0);
-    GROW(nodes, 
-	 nnodes, 
+    GROW(nodes,
+	 nnodes,
 	 nnodes-1);
     return -1;
   }
-  
+
   hdr = NULL;
-  if (SYSERR == readFromSocket(&nodes[currindex].sock, 
-			       (CS_HEADER**)&hdr)) {
-    PRINTF(" peer %s is not responding.\n",
+  if (SYSERR == readFromSocket(&nodes[currindex].sock,
+			       (CS_MESSAGE_HEADER**)&hdr)) {
+    XPRINTF(" peer %s is not responding.\n",
 	   nodes[currindex].ips);
     destroySocket(&nodes[currindex].sock);
     FREE(nodes[currindex].ips);
@@ -430,20 +432,20 @@ static int addSshNode(int argc, char * argv[]) {
     GROW(nodes, nnodes, nnodes-1);
     return -1;
   }
-  if ( (ntohs(hdr->header.header.tcpType) == TESTBED_CS_PROTO_REPLY) &&
-       (ntohs(hdr->header.header.size) >= sizeof(TESTBED_HELO_MESSAGE)) &&
-       (ntohl(hdr->header.msgType) == TESTBED_HELO_RESPONSE) &&
-       (ntohs(hdr->header.header.size) - sizeof(TESTBED_CS_MESSAGE) >= sizeof(HELO_Message)) &&
-       (ntohs(hdr->header.header.size) - sizeof(TESTBED_CS_MESSAGE) == HELO_Message_size(&hdr->helo)) ) {
-    nodes[currindex].helo 
-      = MALLOC(HELO_Message_size(&hdr->helo));
-    memcpy(nodes[currindex].helo, 
-	   &hdr->helo, 
-	   HELO_Message_size(&hdr->helo));
+  if ( (ntohs(hdr->header.header.type) == CS_PROTO_testbed_REPLY) &&
+       (ntohs(hdr->header.header.size) >= sizeof(TESTBED_hello_MESSAGE)) &&
+       (ntohl(hdr->header.msgType) == TESTBED_hello_RESPONSE) &&
+       (ntohs(hdr->header.header.size) - sizeof(TESTBED_CS_MESSAGE) >= sizeof(P2P_hello_MESSAGE)) &&
+       (ntohs(hdr->header.header.size) - sizeof(TESTBED_CS_MESSAGE) == P2P_hello_MESSAGE_size(&hdr->helo)) ) {
+    nodes[currindex].helo
+      = MALLOC(P2P_hello_MESSAGE_size(&hdr->helo));
+    memcpy(nodes[currindex].helo,
+	   &hdr->helo,
+	   P2P_hello_MESSAGE_size(&hdr->helo));
   } else {
     FREE(hdr);
     destroySocket(&nodes[currindex].sock);
-    PRINTF(" peer %s did not respond with proper HELO.\n",
+    XPRINTF(" peer %s did not respond with proper hello.\n",
 	   nodes[currindex].ips);
     FREE(nodes[currindex].ips);
     /* fixme: check error conditions on kill/waidpid! */
@@ -452,11 +454,11 @@ static int addSshNode(int argc, char * argv[]) {
     waitpid(nodes[currindex].ssh,
 	    &status,
 	    0);
-    GROW(nodes, nnodes, nnodes-1);    
+    GROW(nodes, nnodes, nnodes-1);
     return -1;
   }
   FREE(hdr);
-  PRINTF("%d\n",
+  XPRINTF("%d\n",
 	 currindex);
   return 0;
 }
@@ -468,25 +470,25 @@ static int addSshNode(int argc, char * argv[]) {
 static int delConnection(int argc,
 			 char * argv[]) {
   int src, dst, ack;
-  
+
   if (argc != 2) {
-    PRINTF("Syntax: disconnect PEERID PEERID\n");
+    XPRINTF("Syntax: disconnect PEERID PEERID\n");
     return -1;
   }
   CHECK_SRC_DST(src, dst, argv[0], argv[1]);
-  if (OK != sendMessage(TESTBED_DEL_PEER, 
+  if (OK != sendMessage(TESTBED_DEL_PEER,
 			src,
-			sizeof(HostIdentity),
-			&nodes[dst].helo->senderIdentity)) 
+			sizeof(PeerIdentity),
+			&nodes[dst].helo->senderIdentity))
     return -1;
   if (OK != readResult(src,
 		       &ack))
     return -1;
   if (ack == OK) {
-    PRINTF("OK.\n");
+    XPRINTF("OK.\n");
     return 0;
   } else {
-    PRINTF(" Connection NOT deleted.\n");
+    XPRINTF(" Connection NOT deleted.\n");
     return -1;
   }
 }
@@ -497,25 +499,25 @@ static int delConnection(int argc,
 static int delAllConnections(int argc,
 			     char * argv[]) {
   int dst, ack;
-  
+
   if (argc != 1) {
-    PRINTF("Syntax: disconnect-all PEERID\n");
+    XPRINTF("Syntax: disconnect-all PEERID\n");
     return -1;
   }
   CHECK_PEER(dst, argv[0]);
-  if (OK != sendMessage(TESTBED_DEL_ALL_PEERS, 
+  if (OK != sendMessage(TESTBED_DEL_ALL_PEERS,
 			dst,
 			0,
-			NULL)) 
+			NULL))
     return -1;
   if (OK != readResult(dst,
 		       &ack))
     return -1;
   if (ack == OK) {
-    PRINTF("OK.\n");
+    XPRINTF("OK.\n");
     return 0;
   } else {
-    PRINTF(" Connections NOT deleted.\n");
+    XPRINTF(" Connections NOT deleted.\n");
     return -1;
   }
 }
@@ -523,28 +525,28 @@ static int delAllConnections(int argc,
 /**
  * Add a connection between two peers.
  */
-static int addConnection(int argc, 
+static int addConnection(int argc,
 			 char * argv[]) {
   int src, dst, ack;
-  
+
   if (argc != 2) {
-    PRINTF("Syntax: connect PEERID PEERID\n");
+    XPRINTF("Syntax: connect PEERID PEERID\n");
     return -1;
   }
   CHECK_SRC_DST(src, dst, argv[0], argv[1]);
   if (SYSERR == sendMessage(TESTBED_ADD_PEER,
 			    src,
-			    HELO_Message_size(nodes[dst].helo),
-			    nodes[dst].helo)) 
+			    P2P_hello_MESSAGE_size(nodes[dst].helo),
+			    nodes[dst].helo))
     return -1;
   if (OK != readResult(src,
 		       &ack))
-    return -1;  
+    return -1;
   if (ack == OK) {
-    PRINTF("OK.\n");
+    XPRINTF("OK.\n");
     return 0;
   } else {
-    PRINTF(" peer cannot connect.\n");
+    XPRINTF(" peer cannot connect.\n");
     return -1;
   }
 }
@@ -556,9 +558,9 @@ static int addConnection(int argc,
 static int setTrust(int argc, char * argv[]) {
   int src, dst, value, ack;
   TESTBED_SET_TVALUE_MESSAGE msg;
-  
+
   if (argc != 3) {
-    PRINTF("Syntax: set-trust PEERID PEERID TRUST\n");
+    XPRINTF("Syntax: set-trust PEERID PEERID TRUST\n");
     return -1;
   }
   CHECK_SRC_DST(src, dst, argv[0], argv[1]);
@@ -566,20 +568,20 @@ static int setTrust(int argc, char * argv[]) {
   msg.trust = htonl(value);
   memcpy(&msg.otherPeer,
 	 &nodes[dst].helo->senderIdentity,
-	 sizeof(HostIdentity));
+	 sizeof(PeerIdentity));
   if (SYSERR == sendMessage(TESTBED_SET_TVALUE,
 			    src,
-			    sizeof(HostIdentity)+sizeof(unsigned int),
-			    &msg.otherPeer)) 
-    return -1;  
+			    sizeof(PeerIdentity)+sizeof(unsigned int),
+			    &msg.otherPeer))
+    return -1;
   if (OK != readResult(src,
-		       &ack)) 
+		       &ack))
     return -1;
   if (htonl(ack) != OK) {
-    PRINTF(" peer could not set trust value.\n");
+    XPRINTF(" peer could not set trust value.\n");
     return -1;
   } else {
-    PRINTF("OK.\n");
+    XPRINTF("OK.\n");
     return 0;
   }
 }
@@ -589,79 +591,79 @@ static int setTrust(int argc, char * argv[]) {
  */
 static int getTrust(int argc, char *argv[]) {
   int src, dst, value;
-  
+
   if (argc != 2) {
-    PRINTF("Syntax: get-trust PEERID PEERID\n");
+    XPRINTF("Syntax: get-trust PEERID PEERID\n");
     return -1;
   }
   CHECK_SRC_DST(src, dst, argv[0], argv[1]);
-  if (SYSERR == sendMessage(TESTBED_GET_TVALUE, 
-			    src, 
-			    sizeof(HostIdentity),
-			    &nodes[dst].helo->senderIdentity)) 
+  if (SYSERR == sendMessage(TESTBED_GET_TVALUE,
+			    src,
+			    sizeof(PeerIdentity),
+			    &nodes[dst].helo->senderIdentity))
     return -1;
-  if (SYSERR == readResult(src, &value)) 
+  if (SYSERR == readResult(src, &value))
     return -1;
   if (value < 0) {
-    PRINTF(" could not get trust value.\n");
+    XPRINTF(" could not get trust value.\n");
     return -1;
   } else {
-    PRINTF("%d\n", 
+    XPRINTF("%d\n",
 	   value);
     return 0;
   }
 }
 
 /**
- * Disable HELO at a peer.
+ * Disable hello at a peer.
  */
-static int disableHELO(int argc, char *argv[]) {
+static int disablehello(int argc, char *argv[]) {
   int dst, value;
-  
+
   if (argc != 1) {
-    PRINTF("Syntax: helo-disable PEERID\n");
+    XPRINTF("Syntax: helo-disable PEERID\n");
     return -1;
   }
   CHECK_PEER(dst, argv[0]);
-  if (SYSERR == sendMessage(TESTBED_DISABLE_HELO, 
-			    dst, 
+  if (SYSERR == sendMessage(TESTBED_DISABLE_hello,
+			    dst,
 			    0,
-			    NULL)) 
+			    NULL))
     return -1;
-  if (SYSERR == readResult(dst, &value)) 
+  if (SYSERR == readResult(dst, &value))
     return -1;
   if (value != OK) {
-    PRINTF(" could disable HELO\n");
+    XPRINTF(" could disable hello\n");
     return -1;
   } else {
-    PRINTF("OK.\n");
+    XPRINTF("OK.\n");
     return 0;
   }
 }
 
 /**
- * Enable HELO at a peer.
+ * Enable hello at a peer.
  */
-static int enableHELO(int argc, char *argv[]) {
+static int enablehello(int argc, char *argv[]) {
   int dst, value;
-  
+
   if (argc != 1) {
-    PRINTF("Syntax: helo-enable PEERID\n");
+    XPRINTF("Syntax: helo-enable PEERID\n");
     return -1;
   }
   CHECK_PEER(dst, argv[0]);
-  if (SYSERR == sendMessage(TESTBED_ENABLE_HELO, 
-			    dst, 
+  if (SYSERR == sendMessage(TESTBED_ENABLE_hello,
+			    dst,
 			    0,
-			    NULL)) 
+			    NULL))
     return -1;
-  if (SYSERR == readResult(dst, &value)) 
+  if (SYSERR == readResult(dst, &value))
     return -1;
   if (value != OK) {
-    PRINTF(" could enable HELO\n");
+    XPRINTF(" could enable hello\n");
     return -1;
   } else {
-    PRINTF("OK.\n");
+    XPRINTF("OK.\n");
     return 0;
   }
 }
@@ -671,24 +673,24 @@ static int enableHELO(int argc, char *argv[]) {
  */
 static int disableAUTOCONNECT(int argc, char *argv[]) {
   int dst, value;
-  
+
   if (argc != 1) {
-    PRINTF("Syntax: autoconnect-disable PEERID\n");
+    XPRINTF("Syntax: autoconnect-disable PEERID\n");
     return -1;
   }
   CHECK_PEER(dst, argv[0]);
-  if (SYSERR == sendMessage(TESTBED_DISABLE_AUTOCONNECT, 
-			    dst, 
+  if (SYSERR == sendMessage(TESTBED_DISABLE_AUTOCONNECT,
+			    dst,
 			    0,
-			    NULL)) 
+			    NULL))
     return -1;
-  if (SYSERR == readResult(dst, &value)) 
+  if (SYSERR == readResult(dst, &value))
     return -1;
   if (value != OK) {
-    PRINTF(" could disable AUTOCONNECT\n");
+    XPRINTF(" could disable AUTOCONNECT\n");
     return -1;
   } else {
-    PRINTF("OK.\n");
+    XPRINTF("OK.\n");
     return 0;
   }
 }
@@ -698,24 +700,24 @@ static int disableAUTOCONNECT(int argc, char *argv[]) {
  */
 static int enableAUTOCONNECT(int argc, char *argv[]) {
   int dst, value;
-  
+
   if (argc != 1) {
-    PRINTF("Syntax: autoconnect-enable PEERID\n");
+    XPRINTF("Syntax: autoconnect-enable PEERID\n");
     return -1;
   }
   CHECK_PEER(dst, argv[0]);
-  if (SYSERR == sendMessage(TESTBED_ENABLE_AUTOCONNECT, 
-			    dst, 
+  if (SYSERR == sendMessage(TESTBED_ENABLE_AUTOCONNECT,
+			    dst,
 			    0,
-			    NULL)) 
+			    NULL))
     return -1;
-  if (SYSERR == readResult(dst, &value)) 
+  if (SYSERR == readResult(dst, &value))
     return -1;
   if (value != OK) {
-    PRINTF(" could enable AUTOCONNECT\n");
+    XPRINTF(" could enable AUTOCONNECT\n");
     return -1;
   } else {
-    PRINTF("OK.\n");
+    XPRINTF("OK.\n");
     return 0;
   }
 }
@@ -725,42 +727,42 @@ static int allowDenyConnectHelper(unsigned int argc,
 				  char * argv[],
 				  int type) {
   int dst, value;
-  HostIdentity * list;
+  PeerIdentity * list;
   int i;
   int idx = 0;
-  
+
   CHECK_PEER(dst, argv[0]);
-  if (argc > (65532 - sizeof(TESTBED_CS_MESSAGE)) / sizeof(HostIdentity)) {
-    PRINTF("Too many peers specified.  Ask a wizard to enlarge limit.\n");
+  if (argc > (65532 - sizeof(TESTBED_CS_MESSAGE)) / sizeof(PeerIdentity)) {
+    XPRINTF("Too many peers specified.  Ask a wizard to enlarge limit.\n");
     return -1;
   }
 
   list = NULL;
-  for (i=1;i<argc;i++) 
+  for (i=1;i<argc;i++)
     CHECK_PEER(idx, argv[i]); /* may return, do before MALLOC! */
   if (argc > 1)
-    list = MALLOC(sizeof(HostIdentity)*(argc-1));
+    list = MALLOC(sizeof(PeerIdentity)*(argc-1));
   for (i=1;i<argc;i++) {
     CHECK_PEER(idx, argv[i]);
     memcpy(&list[i-1],
 	   &nodes[idx].helo->senderIdentity,
-	   sizeof(HostIdentity));
+	   sizeof(PeerIdentity));
   }
   if (SYSERR == sendMessage(type,
-			    dst, 
-			    sizeof(HostIdentity)*(argc-1),
+			    dst,
+			    sizeof(PeerIdentity)*(argc-1),
 			    list)) {
     FREENONNULL(list);
-    return -1;  
+    return -1;
   }
   FREENONNULL(list);
-  if (SYSERR == readResult(dst, &value)) 
+  if (SYSERR == readResult(dst, &value))
     return -1;
   if (value != OK) {
-    PRINTF(" could change setting.\n");
+    XPRINTF(" could change setting.\n");
     return -1;
   } else {
-    PRINTF("OK.\n");
+    XPRINTF("OK.\n");
     return 0;
   }
 }
@@ -770,10 +772,10 @@ static int allowDenyConnectHelper(unsigned int argc,
  */
 static int denyConnect(int argc, char *argv[]) {
   if (argc < 1) {
-    PRINTF("Syntax: connect-deny PEERID [PEERID]*\n");
+    XPRINTF("Syntax: connect-deny PEERID [PEERID]*\n");
     return -1;
   }
-  return allowDenyConnectHelper(argc, argv, 
+  return allowDenyConnectHelper(argc, argv,
 				TESTBED_DENY_CONNECT);
 }
 
@@ -782,7 +784,7 @@ static int denyConnect(int argc, char *argv[]) {
  */
 static int allowConnect(int argc, char *argv[]) {
   if (argc < 1) {
-    PRINTF("Syntax: connect-allow PEERID [PEERID]*\n");
+    XPRINTF("Syntax: connect-allow PEERID [PEERID]*\n");
     return -1;
   }
   return allowDenyConnectHelper(argc, argv,
@@ -793,26 +795,26 @@ static int allowConnect(int argc, char *argv[]) {
  * Helper function for (un)loadModule.
  * @param type load or unload requested?
  */
-static int loadModuleHelper(unsigned short type, 
+static int loadModuleHelper(unsigned short type,
 			    char * peerId,
 			    char * modulename) {
   int ok, dst;
-  
+
   CHECK_PEER(dst, peerId);
-  if (OK != sendMessage(type, 
-			dst, 
-			strlen(modulename), 
-			modulename)) 
-    return -1;  
-  if (OK != readResult(dst, 
-		       &ok)) 
+  if (OK != sendMessage(type,
+			dst,
+			strlen(modulename),
+			modulename))
+    return -1;
+  if (OK != readResult(dst,
+		       &ok))
     return -1;
   if (ok != OK) {
-    PRINTF(" peer %s refused.\n",
+    XPRINTF(" peer %s refused.\n",
 	   nodes[dst].ips);
     return -1;
   }
-  PRINTF("OK.\n");
+  XPRINTF("OK.\n");
   return 0;
 }
 
@@ -821,10 +823,10 @@ static int loadModuleHelper(unsigned short type,
  */
 static int loadModule(int argc, char *argv[]) {
   if (argc != 2) {
-    PRINTF("Syntax: load-module PEERID MODULENAME\n");
+    XPRINTF("Syntax: load-module PEERID MODULENAME\n");
     return -1;
   }
-  return loadModuleHelper(TESTBED_LOAD_MODULE, 
+  return loadModuleHelper(TESTBED_LOAD_MODULE,
 			  argv[0],
 			  argv[1]);
 }
@@ -834,7 +836,7 @@ static int loadModule(int argc, char *argv[]) {
  */
 static int unloadModule(int argc, char *argv[]) {
   if (argc != 2) {
-    PRINTF("Syntax: unload-module PEERID MODULENAME\n");
+    XPRINTF("Syntax: unload-module PEERID MODULENAME\n");
     return -1;
   }
   return loadModuleHelper(TESTBED_UNLOAD_MODULE,
@@ -847,7 +849,7 @@ static int unloadModule(int argc, char *argv[]) {
  * available via process-output.  The client can be killed
  * using process-signal.  The process identifier is printed.
  */
-static int startProcess(int argc, 
+static int startProcess(int argc,
 			char *argv[]) {
   char * cmdLine;
   int size;
@@ -857,7 +859,7 @@ static int startProcess(int argc,
   int pos;
 
   if (argc < 2) {
-    PRINTF("Syntax: process-start PEERID COMMAND [ARGUMENTS]\n");
+    XPRINTF("Syntax: process-start PEERID COMMAND [ARGUMENTS]\n");
     return -1;
   }
   CHECK_PEER(dst, argv[0]);
@@ -872,8 +874,8 @@ static int startProcess(int argc,
 	   strlen(argv[i])+1);
     pos += strlen(argv[i])+1;
   }
-  
-  if (OK != sendMessage(TESTBED_EXEC, 
+
+  if (OK != sendMessage(TESTBED_EXEC,
 			dst,
 			size,
 			cmdLine)) {
@@ -885,19 +887,19 @@ static int startProcess(int argc,
 		       &ack))
     return -1;
   if (ack != SYSERR) {
-    PRINTF("%d\n",
+    XPRINTF("%d\n",
 	   ack);
     return 0;
   } else {
-    PRINTF(" Peer could not fork process.\n");
+    XPRINTF(" Peer could not fork process.\n");
     return -1;
-  }  
+  }
 }
 
 /**
  * Send a signal to a client process.  Use signal
  * 0 to test if the process is still live.  Use
- * -1 to obtain the return value from a dead 
+ * -1 to obtain the return value from a dead
  * process and to free all associated resources.
  * For -1 the return value is printed, otherwise OK.
  * Note that if the signal is -1 and the process
@@ -910,13 +912,13 @@ static int signalProcess(int argc, char *argv[]) {
   TESTBED_SIGNAL_MESSAGE msg;
 
   if (argc != 3) {
-    PRINTF("Syntax: process-signal PEERID PROCESSID SIGNAL\n");
+    XPRINTF("Syntax: process-signal PEERID PROCESSID SIGNAL\n");
     return -1;
   }
   CHECK_PEER(dst, argv[0]);
   msg.pid = htonl(atoi(argv[1]));
   msg.signal = htonl(atoi(argv[2]));
-  if (OK != sendMessage(TESTBED_SIGNAL, 
+  if (OK != sendMessage(TESTBED_SIGNAL,
 			dst,
 			sizeof(TESTBED_SIGNAL_MESSAGE) - sizeof(TESTBED_CS_MESSAGE),
 			&msg.pid))
@@ -925,34 +927,34 @@ static int signalProcess(int argc, char *argv[]) {
 		       &ack))
     return -1;
   if (ntohl(msg.signal) == -1) {
-    PRINTF("%d\n", ack);
+    XPRINTF("%d\n", ack);
     return 0;
   }
   if (ack == OK) {
-    PRINTF("OK.\n");
+    XPRINTF("OK.\n");
     return 0;
   } else {
-    PRINTF(" Peer could not signal process.\n");
+    XPRINTF(" Peer could not signal process.\n");
     return -1;
-  }  
+  }
 }
 
 /**
  * Get the recorded output of a process.
  */
-static int dumpProcessOutput(int argc, 
+static int dumpProcessOutput(int argc,
 			     char * argv[]) {
   int dst;
   int pid;
   unsigned int ack;
 
   if (argc != 2) {
-    PRINTF("Syntax: process-output PEERID PROCESSID\n");
+    XPRINTF("Syntax: process-output PEERID PROCESSID\n");
     return -1;
   }
   CHECK_PEER(dst, argv[0]);
   pid = htonl(atoi(argv[1]));
-  if (OK != sendMessage(TESTBED_GET_OUTPUT, 
+  if (OK != sendMessage(TESTBED_GET_OUTPUT,
 			dst,
 			sizeof(int),
 			&pid))
@@ -965,35 +967,35 @@ static int dumpProcessOutput(int argc,
     unsigned int pos = 0;
     while (pos < ack) {
       unsigned short size;
-      TESTBED_OUTPUT_REPLY_MESSAGE * reply;   
+      TESTBED_OUTPUT_REPLY_MESSAGE * reply;
 
       reply = NULL;
-      if (SYSERR == readFromSocket(&nodes[dst].sock, 
-				   (CS_HEADER**)&reply)) {
-	PRINTF(" peer %s is not responding after %d of %d bytes.\n",
+      if (SYSERR == readFromSocket(&nodes[dst].sock,
+				   (CS_MESSAGE_HEADER**)&reply)) {
+	XPRINTF(" peer %s is not responding after %d of %d bytes.\n",
 	       nodes[dst].ips,
 	       pos,
 	       ack);
 	return -1;
       }
       /* FIXME: check that this is the correct reply format */
-      size = ntohs(reply->header.header.size) - sizeof(TESTBED_OUTPUT_REPLY_MESSAGE); 
+      size = ntohs(reply->header.header.size) - sizeof(TESTBED_OUTPUT_REPLY_MESSAGE);
       tmp = MALLOC(size+1);
       memcpy(tmp,
 	     &((TESTBED_OUTPUT_REPLY_MESSAGE_GENERIC*)reply)->data[0],
 	     size);
       tmp[size] = '\0';
-      PRINTF("%s", 
-	     tmp);	     
+      XPRINTF("%s",
+	     tmp);	
       FREE(tmp);
       FREE(reply);
-      pos += size;      
-    }    
+      pos += size;
+    }
     return 0;
   } else {
-    PRINTF(" Peer could not return process output.\n");
+    XPRINTF(" Peer could not return process output.\n");
     return -1;
-  }  
+  }
 }
 
 /**
@@ -1002,32 +1004,32 @@ static int dumpProcessOutput(int argc,
 static int setBW(int argc, char * argv[]) {
   TESTBED_SET_BW_MESSAGE msg;
   int dst, in, out, ack;
-  
+
   if (argc != 3) {
-    PRINTF("Syntax: set-bw PEERID DOWN-BPS UP-BPS\n");
+    XPRINTF("Syntax: set-bw PEERID DOWN-BPS UP-BPS\n");
     return -1;
   }
   CHECK_PEER(dst, argv[0]);
   in  = atoi(argv[1]);
   out = atoi(argv[2]);
   if ((in < 0) || (out < 0)) {
-    PRINTF(" Invalid bandwidth specification.\n");
+    XPRINTF(" Invalid bandwidth specification.\n");
     return -1;
   }
   msg.in_bw  = htonl(in);
-  msg.out_bw = htonl(out);  
+  msg.out_bw = htonl(out);
   if (SYSERR == sendMessage(TESTBED_SET_BW,
 			    dst,
 			    sizeof(TESTBED_SET_BW_MESSAGE) - sizeof(TESTBED_CS_MESSAGE),
-			    &msg.in_bw)) 
+			    &msg.in_bw))
     return -1;
-  if (OK != readResult(dst, &ack)) 
+  if (OK != readResult(dst, &ack))
     return -1;
   if (ack != OK) {
-    PRINTF(" peer could not set the specified bandwith.\n");
+    XPRINTF(" peer could not set the specified bandwith.\n");
     return -1;
   } else {
-    PRINTF("OK.\n");
+    XPRINTF("OK.\n");
     return 0;
   }
 }
@@ -1041,29 +1043,39 @@ static int setLoss(int argc, char * argv[]) {
   TESTBED_SET_LOSS_RATE_MESSAGE msg;
 
   if (argc != 3) {
-    PRINTF("Syntax: set-loss PEERID DOWN-LOSS UP-LOSS\n");
+    XPRINTF("Syntax: set-loss PEERID DOWN-LOSS UP-LOSS\n");
     return -1;
-  }  
+  }
   CHECK_PEER(dst, argv[0]);
-  msg.percentageLossInbound 
+  msg.percentageLossInbound
     = htonl(atoi(argv[1]));
-  msg.percentageLossOutbound 
+  msg.percentageLossOutbound
     = htonl(atoi(argv[2]));
-  
+
   if (SYSERR == sendMessage(TESTBED_SET_LOSS_RATE,
 			    dst,
 			    sizeof(TESTBED_SET_LOSS_RATE_MESSAGE) - sizeof(TESTBED_CS_MESSAGE),
 			    &msg.percentageLossInbound))
     return -1;
-  if (OK != readResult(dst, &ack)) 
+  if (OK != readResult(dst, &ack))
     return -1;
   if (ack != OK) {
-    PRINTF(" peer could not set the specified loss rates.\n");
+    XPRINTF(" peer could not set the specified loss rates.\n");
     return -1;
   } else {
-    PRINTF("OK.\n");
+    XPRINTF("OK.\n");
     return 0;
   }
+}
+
+static int printStatistic(const char * name,
+			  unsigned long long value,
+			  const char * arg) {
+  if (0 == strcmp(name,
+		  arg))
+    XPRINTF("%llu\n",
+	   value);
+  return OK;
 }
 
 /**
@@ -1072,18 +1084,19 @@ static int setLoss(int argc, char * argv[]) {
  * @param argc number of arguments from the command line
  * @param argv command line arguments
  * @return 0 ok, 1 on error
- */   
+ */
 static int getStat(int argc, char ** argv) {
   int res, peer, printProtocols;
-  
+
   printProtocols = NO;
   if (argc != 2) {
-    PRINTF("Syntax: get-stat PEERID STATID\n");
+    XPRINTF("Syntax: get-stat PEERID STATID\n");
     return -1;
   }
   CHECK_PEER(peer, argv[0]);
-  res = requestAndPrintStatistic(&nodes[peer].sock,
-				 argv[1]);
+  res = requestStatistics(&nodes[peer].sock,
+			  (StatisticsProcessor) &printStatistic,
+			  argv[1]);
   if (res == OK)
     return 0;
   else
@@ -1091,32 +1104,80 @@ static int getStat(int argc, char ** argv) {
 }
 
 /**
+ * Print statistics received.
+ *
+ * @param stream where to print the statistics
+ * @return OK on success, SYSERR on error
+ */
+static int printStatistics(const char * name,
+			   unsigned long long value,
+			   void * unused) {
+  XPRINTF("%-60s: %16llu\n",
+	 name,
+	 value);
+  return OK;
+}
+
+static int lastIp2p;
+
+static int printProtocols(unsigned short type,
+			  int isP2P,
+			  void * unused) {
+  const char *name = NULL;
+
+  if (isP2P != lastIp2p) {
+    if (isP2P)
+      XPRINTF(_("Supported peer-to-peer messages:\n"));
+    else
+      XPRINTF(_("Supported client-server messages:\n"));
+    lastIp2p = isP2P;
+  }
+  if (isP2P)
+    name = p2pMessageName(type);
+  else
+    name = csMessageName(type);
+  if (name == NULL)
+    XPRINTF("\t%d\n",
+	   type);
+  else
+    XPRINTF("\t%d\t(%s)\n",
+	   type,
+	   name);
+  return OK;
+}
+
+/**
  * Obtain statistics from a peer.
  *
  * @param argc number of arguments from the command line
  * @param argv command line arguments
  * @return 0 ok, 1 on error
- */   
+ */
 static int getStats(int argc, char ** argv) {
-  int res, peer, printProtocols;
-  
-  printProtocols = NO;
+  int res, peer, printProtocolsOpt;
+
+  printProtocolsOpt = NO;
   if (argc == 2) {
     if (strcmp(argv[0], "-P")) {
-      PRINTF("Syntax: get-stats [-P] PEERID\n");
+      XPRINTF("Syntax: get-stats [-P] PEERID\n");
       return -1;
     }
-    printProtocols = YES;
+    printProtocolsOpt = YES;
     CHECK_PEER(peer, argv[1]);
   } else if (argc != 1) {
-    PRINTF("Syntax: get-stats [-P] PEERID\n");
+    XPRINTF("Syntax: get-stats [-P] PEERID\n");
     return -1;
   } else
     CHECK_PEER(peer, argv[0]);
-  res = requestAndPrintStatistics(&nodes[peer].sock);
-  if ( (printProtocols == YES) && 
+  res = requestStatistics(&nodes[peer].sock,
+			  (StatisticsProcessor) &printStatistics,
+			  NULL);
+  if ( (printProtocolsOpt == YES) &&
        (res == OK)) {
-    res = requestAndPrintProtocols(&nodes[peer].sock);
+ lastIp2p = 42; /* not YES or NO */
+    res = requestAvailableProtocols(&nodes[peer].sock,
+				    (ProtocolProcessor) &printProtocols,
+				    NULL);
   }
   if (res == OK)
     return 0;
@@ -1131,104 +1192,76 @@ static int getStats(int argc, char ** argv) {
  * @param argc number of arguments from the command line
  * @param argv command line arguments
  * @return 0 ok, 1 on error
- */   
+ */
 static int getOption(int argc, char ** argv) {
   int peer;
-  CS_GET_OPTION_REQUEST req;
-  CS_GET_OPTION_REPLY * reply;
-  int res;
-  
+  char * opt;
+
   if (argc != 3) {
-    PRINTF("Syntax: get-option PEERID SECTION OPTION\n");
+    XPRINTF("Syntax: get-option PEERID SECTION OPTION\n");
     return -1;
   }
   CHECK_PEER(peer, argv[0]);
-  memset(&req,
-	 0,
-	 sizeof(CS_GET_OPTION_REQUEST));
-  req.header.tcpType = htons(CS_PROTO_GET_OPTION_REQUEST);
-  req.header.size = htons(sizeof(CS_GET_OPTION_REQUEST));
-  if ( (strlen(argv[1]) >= CS_GET_OPTION_REQUEST_OPT_LEN) ||
-       (strlen(argv[2]) >= CS_GET_OPTION_REQUEST_OPT_LEN) ) {
-    PRINTF("Illegal length of arguments (>= %d characters)",
-	   CS_GET_OPTION_REQUEST_OPT_LEN);
-    return -1;
-  }
-  strcpy(&req.section[0],
-	 argv[1]);
-  strcpy(&req.option[0],
-	 argv[2]);
-  res = writeToSocket(&nodes[peer].sock,
-		      &req.header);
-  if (res != OK) {
-    PRINTF("Error sending request to peer %d\n",
+  opt = getConfigurationOptionValue(&nodes[peer].sock,
+				    argv[1],
+				    argv[2]);
+  if (opt == NULL) {
+    XPRINTF("Error sending request to peer %d\n",
 	   peer);
     return -1;
   }
-  reply = NULL;
-  res = readFromSocket(&nodes[peer].sock,
-		       (CS_HEADER**)&reply);
-  if (res != OK) {
-    PRINTF("Error receiving reply from peer %d\n",
-	   peer);
-    return -1;
-  }
-  PRINTF("%*s\n",
-	 ntohs(reply->header.size) - sizeof(CS_HEADER),
-	 &reply->value[0]);
-  FREE(reply);
-  if (res == OK)
-    return 0;
-  else
-    return -1;
+  XPRINTF("%s\n",
+	 opt);
+  FREE(opt);
+  return 0;
 }
 
 
 /**
  * Upload a file to a peer.
  */
-static int uploadFile(int argc, 
+static int uploadFile(int argc,
 		      char *argv[]) {
   int peer, nbytes, flen, ack;
   char * buf;
   FILE * infile;
   TESTBED_UPLOAD_FILE_MESSAGE * msg;
-    
+
   if (argc != 3) {
-    PRINTF("Syntax: load-file PEERID LOCAL_FILENAME DEST_FILENAME\n");
+    XPRINTF("Syntax: load-file PEERID LOCAL_FILENAME DEST_FILENAME\n");
     return -1;
   }
   CHECK_PEER(peer, argv[0]);
   infile = FOPEN(argv[1], "r");
   if (infile == NULL) {
-    PRINTF(" Could not open file %s\n",
+    XPRINTF(" Could not open file %s\n",
 	   argv[1]);
     return -1;
   }
   flen = strlen(argv[2]) + 1; /* '\0' added in the flen */
   if (flen > TESTBED_FILE_BLK_SIZE) {
-    PRINTF(" destination file name too long (%d characters, limit %d).\n", 
+    XPRINTF(" destination file name too long (%d characters, limit %d).\n",
 	   flen-1,
 	   TESTBED_FILE_BLK_SIZE);
     return -1;
   }
 
   msg = MALLOC(sizeof(TESTBED_UPLOAD_FILE_MESSAGE) + TESTBED_FILE_BLK_SIZE);
-  msg->header.header.size 
+  msg->header.header.size
     = htons(sizeof(TESTBED_UPLOAD_FILE_MESSAGE)+flen);
-  msg->header.header.tcpType 
-    = htons(TESTBED_CS_PROTO_REQUEST);
+  msg->header.header.type
+    = htons(CS_PROTO_testbed_REQUEST);
   msg->header.msgType
     = htonl(TESTBED_UPLOAD_FILE);
-  msg->type 
+  msg->type
     = htonl(TESTBED_FILE_DELETE);
   memcpy(((TESTBED_UPLOAD_FILE_MESSAGE_GENERIC*)msg)->buf, argv[2], flen);
-  
-  if (SYSERR == writeToSocket(&nodes[peer].sock, 
+
+  if (SYSERR == writeToSocket(&nodes[peer].sock,
 			      &msg->header.header)) {
     fclose(infile);
     FREE(msg);
-    PRINTF(" Could not send message to peer %s.\n", 
+    XPRINTF(" Could not send message to peer %s.\n",
 	   nodes[peer].ips);
     return -1;
   }
@@ -1236,18 +1269,18 @@ static int uploadFile(int argc,
   if (OK != readTCPResult(&nodes[peer].sock, &ack)) {
     fclose(infile);
     FREE(msg);
-    PRINTF("Peer is not responding\n");
+    XPRINTF("Peer is not responding\n");
     return -1;
   }
   if (ack != OK) {
     fclose(infile);
     FREE(msg);
-    PRINTF(" Peer returned error (delete existing file).\n");
+    XPRINTF(" Peer returned error (delete existing file).\n");
     return -1;
   }
   msg->type = htonl(TESTBED_FILE_APPEND);
   buf = ((TESTBED_UPLOAD_FILE_MESSAGE_GENERIC*)msg)->buf + flen;
-  while ((nbytes = GN_FREAD(buf, 1, 
+  while ((nbytes = GN_FREAD(buf, 1,
 			    (TESTBED_FILE_BLK_SIZE -
 			     sizeof(TESTBED_UPLOAD_FILE_MESSAGE) - flen),
 			    infile)) > 0) {
@@ -1258,7 +1291,7 @@ static int uploadFile(int argc,
     if (SYSERR == writeToSocket(&nodes[peer].sock, &msg->header.header)) {
       fclose(infile);
       FREE(msg);
-      PRINTF(" could not send file to node %s.\n",
+      XPRINTF(" could not send file to node %s.\n",
 	     nodes[peer].ips);
       return -1;
     }
@@ -1270,31 +1303,31 @@ static int uploadFile(int argc,
     if (ack != OK) {
       fclose(infile);
       FREE(msg);
-      PRINTF(" peer returned error.\n");
+      XPRINTF(" peer returned error.\n");
       return -1;
     }
   }
   if (ferror(infile)) {
     fclose(infile);
     FREE(msg);
-    PRINTF(" could not read source file. Transmission aborted.\n");
+    XPRINTF(" could not read source file. Transmission aborted.\n");
     return -1;
   }
   fclose(infile);
   FREE(msg);
-  PRINTF("OK.\n");
+  XPRINTF("OK.\n");
   return 0;
 }
 
 /**
  * Print the list of commands.
  */
-static int printOnlineHelp(int argc, 
+static int printOnlineHelp(int argc,
 			   char * argv[]) {
   int i;
   i = 0;
   while (commands[i].command != NULL) {
-    PRINTF("%-30s%s\n",
+    XPRINTF("%-30s%s\n",
 	   commands[i].command,
 	   commands[i].help);
     i++;
@@ -1314,13 +1347,13 @@ static int processCommands(char * buffer,
   err = 0;
   end = 0;
   start = 0;
-  while (end < *available) {   
+  while (end < *available) {
     while ( (buffer[end] != '\n') &&
 	    (end < *available) )
       end++;
     if (buffer[end] != '\n') {
       if (start == 0) {
-	PRINTF("Received invalid response from HTTP server!\n");
+	XPRINTF("Received invalid response from HTTP server!\n");
 	return -1;
       } else {
 	memmove(buffer,
@@ -1329,7 +1362,7 @@ static int processCommands(char * buffer,
 	*available -= start;
 	return 0;
       }
-    }    
+    }
     up = MALLOC(end-start+1);
     memcpy(up,
 	   &buffer[start],
@@ -1337,7 +1370,7 @@ static int processCommands(char * buffer,
     up[end-start] = '\0';
     port = 2087; /* default port */
     if (4 <= sscanf(up,
-		    "add-node %u.%u.%u.%u %d",
+		    "add-node %d %d %d %d %d",
 		    &ip[0],
 		    &ip[1],
 		    &ip[2],
@@ -1359,13 +1392,13 @@ static int processCommands(char * buffer,
 	       ip[3]);
       argv[0] = ips;
       argv[1] = ports;
-      if (0 != addNode(2, argv)) 
+      if (0 != addNode(2, argv))
 	err = 2;
-    } else {      
+    } else {
       char * login;
       login = MALLOC(64);
       if (5 <= sscanf(up,
-		      "add-node %63s %u.%u.%u.%u %d",
+		      "add-node %63s %d %d %d %d %d",
 		      login,
 		      &ip[0],
 		      &ip[1],
@@ -1389,7 +1422,7 @@ static int processCommands(char * buffer,
 	argv[0] = login;
 	argv[1] = ips;
 	argv[2] = ports;
-	if (0 != addSshNode(3, argv)) 
+	if (0 != addSshNode(3, argv))
 	  err = 2;
       }
       FREE(login);
@@ -1420,7 +1453,7 @@ static int addAvailable(int argc,
   struct hostent *ip_info;
   struct sockaddr_in soaddr;
   int sock;
-  int ret;
+  size_t ret;
   char * command;
   cron_t start;
   char c;
@@ -1437,24 +1470,24 @@ static int addAvailable(int argc,
     reg = getConfigurationString("GNUNET-TESTBED",
 				 "REGISTERURL");
     if (reg == NULL) {
-      PRINTF(" no testbed registration URL given.\n");
+      XPRINTF(" no testbed registration URL given.\n");
       return -1;
     }
   } else
     reg = STRDUP(argv[0]);
-  
-  
 
-  proxy = getConfigurationString("GNUNETD", 
+
+
+  proxy = getConfigurationString("GNUNETD",
 				 "HTTP-PROXY");
   if (proxy != NULL) {
     ip = GETHOSTBYNAME(proxy);
     if (ip == NULL) {
-      PRINTF(" Couldn't resolve name of HTTP proxy %s\n",
+      XPRINTF(" Couldn't resolve name of HTTP proxy %s\n",
 	     proxy);
       theProxy.sin_addr.s_addr = 0;
     } else {
-      theProxy.sin_addr.s_addr 
+      theProxy.sin_addr.s_addr
 	= ((struct in_addr *)ip->h_addr)->s_addr;
       proxyPort = getConfigurationString("GNUNETD",
 					 "HTTP-PROXY-PORT");
@@ -1471,10 +1504,10 @@ static int addAvailable(int argc,
   }
 
   if (0 != strncmp(HTTP_URL,
-		   reg, 
+		   reg,
 		   strlen(HTTP_URL)) ) {
-    PRINTF(" invalid URL %s (must begin with %s)\n",
-	   reg, 
+    XPRINTF(" invalid URL %s (must begin with %s)\n",
+	   reg,
 	   HTTP_URL);
     return -1;
   }
@@ -1485,16 +1518,16 @@ static int addAvailable(int argc,
   j = -1;
   k = -1;
   for (i=0;i<strlen(hostname);i++) {
-    if (hostname[i] == ':') 
+    if (hostname[i] == ':')
       j = i;
     if (hostname[i] == '/') {
       k = i;
       if (j == -1)
-	j = i;      
+	j = i;
       break;
     }
   }
-  if ( (j != -1) && (j < k) ) {   
+  if ( (j != -1) && (j < k) ) {
     char * pstring;
     if (k == -1) {
       pstring = MALLOC(strlen(hostname)-j+1);
@@ -1511,7 +1544,7 @@ static int addAvailable(int argc,
     }
     port = strtol(pstring, &buffer, 10);
     if ( (port < 0) || (port > 65536) ) {
-      PRINTF(" malformed http URL: %s at %s.\n",
+      XPRINTF(" malformed http URL: %s at %s.\n",
 	     reg,
 	     buffer);
       FREE(hostname);
@@ -1531,13 +1564,13 @@ static int addAvailable(int argc,
 
 
 
-  sock = SOCKET(PF_INET, 
+  sock = SOCKET(PF_INET,
 		SOCK_STREAM,
 		0);
   if (sock < 0) {
-    PRINTF(" could not open socket for hostlist download (%s).\n",
+    XPRINTF(" could not open socket for hostlist download (%s).\n",
 	   STRERROR(errno));
-    FREE(hostname);   
+    FREE(hostname);
     FREE(reg);
     return -1;
   }
@@ -1547,39 +1580,39 @@ static int addAvailable(int argc,
     /* no proxy */
     ip_info = GETHOSTBYNAME(hostname);
     if (ip_info == NULL) {
-      PRINTF(" could not download hostlist, host %s unknown\n",
+      XPRINTF(" could not download hostlist, host %s unknown\n",
 	     hostname);
       FREE(reg);
       FREE(hostname);
       return -1;
-    }    
-    soaddr.sin_addr.s_addr 
+    }
+    soaddr.sin_addr.s_addr
       = ((struct in_addr*)(ip_info->h_addr))->s_addr;
-    soaddr.sin_port 
+    soaddr.sin_port
       = htons((unsigned short)port);
   } else {
     /* proxy */
-    soaddr.sin_addr.s_addr 
+    soaddr.sin_addr.s_addr
       = theProxy.sin_addr.s_addr;
-    soaddr.sin_port 
+    soaddr.sin_port
       = theProxy.sin_port;
   }
   soaddr.sin_family = AF_INET;
-  if (CONNECT(sock, 
-	      (struct sockaddr*)&soaddr, 
+  if (CONNECT(sock,
+	      (struct sockaddr*)&soaddr,
 	      sizeof(soaddr)) < 0) {
-    PRINTF(" failed to send HTTP request to host %s: %s\n",
+    XPRINTF(" failed to send HTTP request to host %s: %s\n",
 	   hostname,
 	   STRERROR(errno));
     FREE(reg);
     FREE(hostname);
-    CLOSE(sock);
+    closefile(sock);
     return -1;
   }
-  
+
   n = strlen(GET_COMMAND) + strlen(reg);
   command = MALLOC(n);
-  SNPRINTF(command, 
+  SNPRINTF(command,
 	   n,
 	   GET_COMMAND,
 	   reg);
@@ -1589,15 +1622,15 @@ static int addAvailable(int argc,
 			     command,
 			     curpos);
   if (SYSERR == (int)curpos) {
-    PRINTF(" failed so send HTTP request %s to host %s (%u - %d) - %s\n",
+    XPRINTF(" failed so send HTTP request %s to host %s (%u - %d) - %s\n",
 	   command,
 	   hostname,
-	   curpos, 
+	   curpos,
 	   sock,
 	   STRERROR(errno));
-    FREE(command);    
+    FREE(command);
     FREE(hostname);
-    CLOSE(sock);
+    closefile(sock);
     return -1;
   }
   FREE(command);
@@ -1609,7 +1642,7 @@ static int addAvailable(int argc,
   curpos = 0;
   while (curpos < 4) {
     int success;
-    
+
     if (start + 5 * cronMINUTES < cronTime(NULL))
       break; /* exit after 5m */
     success = RECV_NONBLOCKING(sock,
@@ -1618,28 +1651,28 @@ static int addAvailable(int argc,
 			       &ret);
     if ( success == NO ) {
       gnunet_util_sleep(100 * cronMILLIS);
-      continue;    
+      continue;
     }
-    if (ret <= 0)
+    if ( (ret == 0) || (ret == (size_t)-1) )
       break; /* end of transmission or error */
-    if ((c=='\r') || (c=='\n')) 
+    if ((c=='\r') || (c=='\n'))
       curpos += ret;
-    else 
-      curpos=0;    
+    else
+      curpos=0;
   }
   if (curpos < 4) { /* invalid response */
-    PRINTF(" exit register (error: no http response read)\n");
-    CLOSE(sock);
+    XPRINTF(" exit register (error: no http response read)\n");
+    closefile(sock);
     return -1;
   }
 
   /* now read peer list */
   buffer = MALLOC(65536);
-  
+
 
   while (1) {
     int success;
-    
+
     if (start + 300 * cronSECONDS < cronTime(NULL))
       break; /* exit after 300s */
     curpos = 0;
@@ -1649,29 +1682,29 @@ static int addAvailable(int argc,
       success = RECV_NONBLOCKING(sock,
 			     &buffer[curpos],
 			     65536-curpos,
-			     &ret);      
+			     &ret);
       if ( success == NO ) {
         gnunet_util_sleep(20);
 	continue;
       }
-      if (ret <= 0)
+      if ( (ret == 0) || (ret == (size_t)-1) )
 	break; /* end of file or error*/
       curpos += ret;
-    
+
       if (0 != processCommands(buffer, &curpos)) {
 	FREE(buffer);
-	CLOSE(sock);
+	closefile(sock);
 	return -1;
       }
     }
   }
   if (0 != processCommands(buffer, &curpos)) {
     FREE(buffer);
-    CLOSE(sock);
+    closefile(sock);
     return -1;
   }
   FREE(buffer);
-  CLOSE(sock);  
+  closefile(sock);
   return 0;
 }
 
@@ -1681,7 +1714,7 @@ static int addAvailable(int argc,
 static int listPeers(int argc, char * argv[]) {
   int i;
   for (i=0;i<nnodes;i++)
-    PRINTF("%4d - %s:%d\n",
+    XPRINTF("%4d - %s:%d\n",
 	   i,
 	   nodes[i].ips,
 	   nodes[i].port);
@@ -1699,74 +1732,74 @@ static int doExit(int argc, char * argv[]) {
 /* ****************** command set ****************** */
 
 CMD_ENTRY commands[] = {
-  { "help", 
-    "print this help text", 
+  { "help",
+    "print this help text",
     &printOnlineHelp },
   { "get-trust",
-    "", 
+    "",
     &getTrust },
-  { "set-bw", 
-    "", 
+  { "set-bw",
+    "",
     &setBW },
-  { "set-trust", 
-    "", 
+  { "set-trust",
+    "",
     &setTrust },
-  { "add-node", 
-    "add node to testbed, arguments: IP PORT", 
+  { "add-node",
+    "add node to testbed, arguments: IP PORT",
     &addNode },
-  { "add-ssh-node", 
-    "add node to testbed, arguments: LOGIN IP PORT", 
+  { "add-ssh-node",
+    "add node to testbed, arguments: LOGIN IP PORT",
     &addSshNode },
   { "connect",
-    "connect two peers", 
+    "connect two peers",
     &addConnection },
-  { "disconnect", 
-    "disconnect two peers", 
+  { "disconnect",
+    "disconnect two peers",
     &delConnection },
   { "disconnect-all",
-    "destroy all connections between peers", 
+    "destroy all connections between peers",
     &delAllConnections },
-  { "helo-disable", 
-    "disable HELO advertisements",
-    &disableHELO },
-  { "helo-enable", 
-    "enable HELO advertisements", 
-    &enableHELO },
+  { "helo-disable",
+    "disable hello advertisements",
+    &disablehello },
+  { "helo-enable",
+    "enable hello advertisements",
+    &enablehello },
   { "autoconnect-disable", "", &disableAUTOCONNECT },
   { "autoconnect-enable", "", &enableAUTOCONNECT },
-  { "process-start", 
+  { "process-start",
     "Start a process on a given peer.  Prints the process-ID on success.",
     &startProcess },
   { "process-signal",
-    "Send a signal to a process running at a peer.  Use signal 0 to test if the process is still running.  Use -1 to obtain the exit code of a process that terminated.", 
+    "Send a signal to a process running at a peer.  Use signal 0 to test if the process is still running.  Use -1 to obtain the exit code of a process that terminated.",
     &signalProcess },
-  { "process-output", 
+  { "process-output",
     "Obtain the process output from a process at a peer.",
     &dumpProcessOutput },
-  { "exit", 
-    "exit the testbed shell", 
+  { "exit",
+    "exit the testbed shell",
     &doExit },
-  { "list-peers", "", &listPeers}, 
+  { "list-peers", "", &listPeers},
   { "set-loss", "", &setLoss} ,
   { "get-stats",
-    "get all stats values from peer", 
-    &getStats }, 
+    "get all stats values from peer",
+    &getStats },
   { "get-stat",
     "get one specific stats value from peer",
-    &getStat }, 
+    &getStat },
   { "get-option",
-    "Get configuration value from peer.", 
+    "Get configuration value from peer.",
     &getOption },
   { "load-module", "", &loadModule },
   { "unload-module", "", &unloadModule },
-  { "add-available", 
+  { "add-available",
     "Check http server for available testbed peers and add"
     " all available nodes.  An optional argument can be"
     " passed to specify the URL of the http server.",
     &addAvailable },
-  { "upload", 
-    "", 
-    &uploadFile }, 
+  { "upload",
+    "",
+    &uploadFile },
   { "connect-deny", "", &denyConnect },
   { "connect-allow", "", &allowConnect },
   { NULL, NULL }, /* termination */

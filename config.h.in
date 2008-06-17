@@ -11,6 +11,9 @@
 /* This is a Cygwin system */
 #undef CYGWIN
 
+/* The directory for installing read-only architecture-independent data */
+#undef DATADIR
+
 /* Define to 1 if translation of program messages to the user's native
    language is requested. */
 #undef ENABLE_NLS
@@ -48,9 +51,6 @@
 /* Define to 1 if you have the `bcopy' function. */
 #undef HAVE_BCOPY
 
-/* Define if you have the shared Berkeley DB library. */
-#undef HAVE_BDB_DLL
-
 /* Define to 1 if you have the `clock_gettime' function. */
 #undef HAVE_CLOCK_GETTIME
 
@@ -63,20 +63,9 @@
 /* We have curses */
 #undef HAVE_CURSES
 
-/* Define to 1 if you have the <db.h> header file. */
-#undef HAVE_DB_H
-
 /* Define if the GNU dcgettext() function is already present or preinstalled.
    */
 #undef HAVE_DCGETTEXT
-
-/* Define to 1 if you have the declaration of `GDBM_CENTFREE', and to 0 if you
-   don't. */
-#undef HAVE_DECL_GDBM_CENTFREE
-
-/* Define to 1 if you have the declaration of `GDBM_COALESCEBLKS', and to 0 if
-   you don't. */
-#undef HAVE_DECL_GDBM_COALESCEBLKS
 
 /* Define to 1 if you have the <dirent.h> header file, and it defines `DIR'.
    */
@@ -127,11 +116,11 @@
 /* Define to 1 if you have the `fork' function. */
 #undef HAVE_FORK
 
+/* Define to 1 if fseeko (and presumably ftello) exists and is declared. */
+#undef HAVE_FSEEKO
+
 /* Define to 1 if you have the `ftruncate' function. */
 #undef HAVE_FTRUNCATE
-
-/* Define to 1 if you have the <gdbm.h> header file. */
-#undef HAVE_GDBM_H
 
 /* Define to 1 if you have the `getcwd' function. */
 #undef HAVE_GETCWD
@@ -157,6 +146,15 @@
 /* Define to 1 if you have the <gmp.h> header file. */
 #undef HAVE_GMP_H
 
+/* Define to 1 if you have the `gmtime' function. */
+#undef HAVE_GMTIME
+
+/* Define to 1 if you have the `gmtime_r' function. */
+#undef HAVE_GMTIME_R
+
+/* We have GTK */
+#undef HAVE_GTK
+
 /* Define if you have the iconv() function. */
 #undef HAVE_ICONV
 
@@ -171,6 +169,9 @@
 
 /* Define to 1 if you have the <kvm.h> header file. */
 #undef HAVE_KVM_H
+
+/* Define to 1 if you have the <langinfo.h> header file. */
+#undef HAVE_LANGINFO_H
 
 /* Define if you have the libdl library or equivalent. */
 #undef HAVE_LIBDL
@@ -262,14 +263,11 @@
 /* Define if you have a post 11/2004 pthread library */
 #undef HAVE_NEW_PTHREAD_T
 
+/* Define to 1 if the system has the type `off_t'. */
+#undef HAVE_OFF_T
+
 /* Define to 1 if you have the `opendir' function. */
 #undef HAVE_OPENDIR
-
-/* Define to 1 if you have the <openssl/blowfish.h> header file. */
-#undef HAVE_OPENSSL_BLOWFISH_H
-
-/* Define to 1 if you have the <openssl/rsa.h> header file. */
-#undef HAVE_OPENSSL_RSA_H
 
 /* Define if libtool can extract symbol lists from object files. */
 #undef HAVE_PRELOADED_SYMBOLS
@@ -297,6 +295,12 @@
 
 /* Define if you have the shl_load function. */
 #undef HAVE_SHL_LOAD
+
+/* Define to 1 if the system has the type `sigset_t'. */
+#undef HAVE_SIGSET_T
+
+/* Define to 1 if the system has the type `size_t'. */
+#undef HAVE_SIZE_T
 
 /* Define to 1 if you have the `socket' function. */
 #undef HAVE_SOCKET
@@ -340,6 +344,12 @@
 
 /* Define to 1 if you have the <string.h> header file. */
 #undef HAVE_STRING_H
+
+/* Define to 1 if you have the `strlcat' function. */
+#undef HAVE_STRLCAT
+
+/* Define to 1 if you have the `strlcpy' function. */
+#undef HAVE_STRLCPY
 
 /* Define to 1 if you have the `strncasecmp' function. */
 #undef HAVE_STRNCASECMP
@@ -403,9 +413,6 @@
 /* Define to 1 if you have <sys/wait.h> that is POSIX.1 compatible. */
 #undef HAVE_SYS_WAIT_H
 
-/* Define to 1 if you have the <tdb.h> header file. */
-#undef HAVE_TDB_H
-
 /* Define to 1 if you have the `uname' function. */
 #undef HAVE_UNAME
 
@@ -429,6 +436,9 @@
 
 /* This is a Linux system */
 #undef LINUX
+
+/* gettext catalogs */
+#undef LOCALEDIR
 
 /* Define to 1 if `lstat' dereferences a symlink specified with a trailing
    slash. */
@@ -514,23 +524,23 @@
 /* Define to 1 if your <sys/time.h> declares `struct tm'. */
 #undef TM_IN_SYS_TIME
 
-/* gcrypt available */
-#undef USE_GCRYPT
-
 /* IPV6 available */
 #undef USE_IPV6
-
-/* libextractor available */
-#undef USE_LIBEXTRACTOR
-
-/* openssl available */
-#undef USE_OPENSSL
 
 /* Version number of package */
 #undef VERSION
 
 /* This is a Windows system */
 #undef WINDOWS
+
+/* Number of bits in a file offset, on hosts where this is settable. */
+#undef _FILE_OFFSET_BITS
+
+/* Define to 1 to make fseeko visible on some hosts (e.g. glibc 2.2). */
+#undef _LARGEFILE_SOURCE
+
+/* Define for large files, on AIX-style hosts. */
+#undef _LARGE_FILES
 
 /* Need with solaris or errno doesnt work */
 #undef _REENTRANT

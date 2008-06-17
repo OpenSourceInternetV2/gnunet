@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2005 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -26,16 +26,21 @@
 
 #include "platform.h"
 #include "gnunet_util.h"
+#include "locking_gcrypt.h"
 
 /* internal prototypes... */
 void initXmalloc();
 
 void doneXmalloc();
 
+void initKBlockKey();
+
+void doneKBlockKey();
+
 /**
  * Initialize Random number generator.
  */
-void initRAND(); 
+void initRAND();
 
 /**
  * This method must be called first. Typically,
@@ -59,16 +64,6 @@ void initState();
 void doneState();
 
 /**
- * Initialize the statistics module.
- */
-void initStatistics();
-
-/**
- * Shutdown the statistics module.
- */
-void doneStatistics();
-
-/**
  * initialize logging module.
  */
 void initLogging();
@@ -90,24 +85,93 @@ void initStatusCalls();
  */
 void doneStatusCalls();
 
-/** 
- * Initialize identity module. Requries configuration.
- */
-int initAddress();
-
-/** 
- * Shutdown identity module.
- */
-void doneAddress();
-
 void gnunet_util_initIO();
 void gnunet_util_doneIO();
 
-#if ! USE_OPENSSL
-void initLockingGcrypt();
-void doneLockingGcrypt();
-#endif
+/**
+ * Initialize controlThread.
+ */
+void initCron();
 
+/**
+ * Make sure to call stopCron before calling this method!
+ */
+void doneCron();
+
+/**
+ * Set our process priority
+ */
+void setProcessPrio() {
+  char *str;
+  int prio = 0;
+
+  /* Get setting as string */
+  str = getConfigurationString(testConfigurationString("GNUNETD",
+						       "_MAGIC_",
+						       "YES")
+			       ? "GNUNETD"
+			       : "GNUNET",
+			       "PROCESS-PRIORITY");
+  if (str) {
+    /* We support four levels (NORMAL, ABOVE NORMAL, BELOW NORMAL, HIGH and IDLE)
+     * and the usual numeric nice() increments */
+    if (strcmp(str, "NORMAL") == 0)
+#ifdef MINGW
+      prio = NORMAL_PRIORITY_CLASS;
+#else
+    prio = 0;
+#endif
+    else if (strcmp(str, "ABOVE NORMAL") == 0)
+#ifdef MINGW
+      prio = ABOVE_NORMAL_PRIORITY_CLASS;
+#else
+    prio = -10;
+#endif
+    else if (strcmp(str, "BELOW NORMAL") == 0)
+#ifdef MINGW
+      prio = BELOW_NORMAL_PRIORITY_CLASS;
+#else
+    prio = 10;
+#endif
+    else if (strcmp(str, "HIGH") == 0)
+#ifdef MINGW
+      prio = HIGH_PRIORITY_CLASS;
+#else
+    prio = -20;
+#endif
+    else if (strcmp(str, "IDLE") == 0)
+#ifdef MINGW
+      prio = IDLE_PRIORITY_CLASS;
+#else
+    prio = 19;
+#endif
+    else {
+      prio = atoi(str);
+
+#ifdef MINGW
+      /* Convert the nice increment to a priority class */
+      if (prio == 0)
+	prio = NORMAL_PRIORITY_CLASS;
+      else if (prio > 0 && prio <= 10)
+	prio = BELOW_NORMAL_PRIORITY_CLASS;
+      else if (prio > 0)
+	prio = IDLE_PRIORITY_CLASS;
+      else if (prio < 0 && prio >= -10)
+	prio = ABOVE_NORMAL_PRIORITY_CLASS;
+      else if (prio < 0)
+	prio = HIGH_PRIORITY_CLASS;
+#endif
+    }
+
+    /* Set process priority */
+#ifdef MINGW
+    SetPriorityClass(GetCurrentProcess(), prio);
+#else
+    nice(prio);
+#endif
+    FREE(str);
+  }
+}
 
 /**
  * Initialize the util library. Use argc, argv and the given parser
@@ -119,20 +183,20 @@ int initUtil(int argc,
 	     char * argv[],
 	     CommandLineParser parser) {
 
-  setlocale (LC_ALL, "");
-  bindtextdomain (PACKAGE, LOCALEDIR);
-  textdomain (PACKAGE);
-
-  gnunet_util_initIO();
-#if ! USE_OPENSSL
-  initLockingGcrypt();
-#endif
-  initRAND();
-  initStatistics();
-  initXmalloc();
 #ifdef MINGW
-  InitWinEnv();
+  if (InitWinEnv() != ERROR_SUCCESS)
+  	return SYSERR;
 #endif
+#if ENABLE_NLS
+  setlocale (LC_ALL, "");
+  BINDTEXTDOMAIN("GNUnet", LOCALEDIR);
+  textdomain("GNUnet");
+#endif
+  gnunet_util_initIO();
+  initLockingGcrypt();
+  initRAND();
+  initXmalloc();
+  initKBlockKey();
   initConfiguration();
   if (argc > 0)
     setConfigurationString("MAIN",
@@ -143,16 +207,12 @@ int initUtil(int argc,
     if (SYSERR == parser(argc, argv))
       return SYSERR;
   readConfiguration();
+  setProcessPrio();
   initLogging();
   if (testConfigurationString("GNUNETD",
 			      "_MAGIC_",
-			      "YES")) {
-    initStatusCalls(); 
-    if (OK != initAddress()) {
-      initState();
-      return SYSERR;
-    }
-  }
+			      "YES"))
+    initStatusCalls();
   initState();
   return OK;
 }
@@ -160,23 +220,19 @@ int initUtil(int argc,
 void doneUtil() {
   if (testConfigurationString("GNUNETD",
 			      "_MAGIC_",
-			      "YES")) {
+			      "YES"))
     doneStatusCalls();
-    doneAddress();
-  }
   doneCron();
   doneState();
-  doneStatistics();
   LOG(LOG_MESSAGE,
       _("Shutdown complete.\n"));
-  doneLogging();  
+  doneLogging();
   doneConfiguration();
 #ifdef MINGW
   ShutdownWinEnv();
 #endif
-#if ! USE_OPENSSL 
+  doneKBlockKey();
   doneLockingGcrypt();
-#endif
   doneXmalloc();
   gnunet_util_doneIO();
 }

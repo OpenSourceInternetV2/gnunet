@@ -1,5 +1,6 @@
 /*
      This file is part of GNUnet
+     (C) 2003, 2004, 2005 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -23,7 +24,7 @@
  * @author Christian Grothoff
  *
  * The basic protocol looks like this:
- * - client sends: 
+ * - client sends:
  *   POST / HTTP/1.1 CRLF
  *   Host:IP CRLF
  *   Transfer-Encoding: chunked CRLF
@@ -35,7 +36,7 @@
  *   And then an arbitrary number of chunks (CRLF HEX, CRLF, Data)
  *
  *
- * - server replies to the welcome-message: 
+ * - server replies to the welcome-message:
  *   HTTP/1.1 200 OK CRLF
  *   Server: Apache/1.3.27 CRLF
  *   Transfer-Encoding: chunked CRLF
@@ -44,84 +45,65 @@
  *   And then transmits an arbitrary number of chunks (CRLF HEX, CRLF, Data)
  *
  * Todo:
- * - fix "sleep on connect": add queue for outbound messages
- *   (at least of size 2 messages)
  * - increase http compliancy; so far, the implementation of the
  *   protocol is very flawed (no good error-responses if non-peers
  *   connect, and even for the P2P basic protocol, I'm not sure how
- *   close it is to actual HTTP.   
+ *   close it is to actual HTTP.
  * - the code is not really pretty
  */
 
 #include "gnunet_util.h"
+#include "gnunet_protocols.h"
 #include "gnunet_transport.h"
+#include "gnunet_stats_service.h"
 #include "platform.h"
+#include "ip.h"
 
 #define DEBUG_HTTP NO
 
 /**
  * after how much time of the core not being associated with a http
- * connection anymore do we close it? 
+ * connection anymore do we close it?
  */
-#define HTTP_TIMEOUT 30 * cronSECONDS
+#define HTTP_TIMEOUT (30 * cronSECONDS)
 
 /**
  * Host-Address in a HTTP network.
  */
 typedef struct {
   /**
-   * claimed IP of the sender, network byte order 
-   */  
+   * claimed IP of the sender, network byte order
+   */
   IPaddr ip;
 
   /**
-   * claimed port of the sender, network byte order 
+   * claimed port of the sender, network byte order
    */
-  unsigned short port; 
+  unsigned short port;
 
   /**
-   * reserved (set to 0 for signature verification) 
+   * reserved (set to 0 for signature verification)
    */
-  unsigned short reserved; 
+  unsigned short reserved;
 
 } HostAddress;
-
-/**
- * HTTP Message-Packet header.  Size is transmitted as part of the
- * HTTP protocol.  
- */
-typedef struct {
-
-  /**
-   * CRC checksum of the packet  (network byte order)
-   */ 
-  int checkSum;
-  
-  int isEncrypted;
-
-  /**
-   * This struct is followed by MESSAGE_PARTs - until size is reached 
-   * There is no "end of message".
-   */
-  p2p_HEADER parts[0];
-} HTTPMessagePack;
 
 /* How much do we read from a buffer at least? Answer: for now, at
    MOST the size of the message, since we MUST not read the next
    header(s) by accident! */
-#define MIN_BUF_READ (4 + sizeof(HTTPMessagePack))
+#define MIN_BUF_READ 4
 /* how long do we allow an http-header to be at
    most? */
 #define MAX_HTTP_HEADER 2048
 
 /**
  * Initial handshake message.  Note that the beginning
- * must match the CS_HEADER since we are using tcpio.
+ * must match the CS_MESSAGE_HEADER since we are using tcpio.
  */
 typedef struct {
   /**
-   * size of the handshake message, in nbo, value is 24 
-   */    
+   * size of the handshake message, in nbo, value is 24
+   */
   unsigned short size;
 
   /**
@@ -130,9 +112,9 @@ typedef struct {
   unsigned short version;
 
   /**
-   * Identity of the node connecting (HTTP client) 
+   * Identity of the node connecting (HTTP client)
    */
-  HostIdentity clientIdentity;
+  PeerIdentity clientIdentity;
 } HTTPWelcome;
 
 /**
@@ -140,7 +122,7 @@ typedef struct {
  */
 typedef struct {
   /**
-   * the http socket 
+   * the http socket
    */
   int sock;
 
@@ -151,7 +133,7 @@ typedef struct {
   unsigned int hostPort;
 
   /**
-   * number of users of this session 
+   * number of users of this session
    */
   unsigned int users;
 
@@ -161,7 +143,7 @@ typedef struct {
   cron_t lastUse;
 
   /**
-   * mutex for synchronized access to 'users' 
+   * mutex for synchronized access to 'users'
    */
   Mutex lock;
 
@@ -169,7 +151,7 @@ typedef struct {
    * To whom are we talking to (set to our identity
    * if we are still waiting for the welcome message)
    */
-  HostIdentity sender;
+  PeerIdentity sender;
 
   /**
    * Are we still expecting the welcome? (YES/NO)
@@ -179,18 +161,18 @@ typedef struct {
   /**
    * Current read position in rbuff.
    */
-  unsigned int rpos;  
+  unsigned int rpos;
 
   /**
    * Current size of the read buffer.
    */
-  unsigned int size;
+  unsigned int rsize;
 
   /**
    * The read buffer (used only for the actual data).
    */
   char * rbuff;
-  
+
   /**
    * Input buffer used for the http header lines.
    * Read fills this buffer until we hit the end of
@@ -203,18 +185,11 @@ typedef struct {
    * Current write-position in httpReadBuff;
    */
   unsigned int httpRPos;
-  
+
   /**
    * Space available in httpReadBuff
    */
   unsigned int httpRSize;
-
-  /**
-   * Position in the write buffer (how many bytes are still waiting to
-   * be transmitted? -- always the first wsize bytes in wbuff are
-   * guaranteed to be valid and are pending).
-   */
-  unsigned int wsize;
 
   /**
    * The write buffer.
@@ -222,30 +197,37 @@ typedef struct {
   char * wbuff;
 
   /**
-   * Output buffer used for the http header lines.
-   * Read fills this buffer until we hit the end of
-   * the request header (CRLF).  Then we switch
-   * to rbuff.
+   * Number of valid bytes in wbuff.
    */
-  char * httpWriteBuff;
+  unsigned int wpos;
 
   /**
-   * Total size of httpWriteBuff
+   * Size of the write buffer.
    */
-  unsigned int httpWSize;
+  unsigned int wsize;
+
 } HTTPSession;
 
 /* *********** globals ************* */
 
 /**
- * apis (our advertised API and the core api ) 
+ * apis (our advertised API and the core api )
  */
 static CoreAPIForTransport * coreAPI;
 static TransportAPI httpAPI;
 
+static Stats_ServiceAPI * stats;
+
+static int stat_bytesReceived;
+
+static int stat_bytesSent;
+
+static int stat_bytesDropped;
+
+
 /**
  * one thread for listening for new connections,
- * and for reading on all open sockets 
+ * and for reading on all open sockets
  */
 static PTHREAD_T listenThread;
 
@@ -263,20 +245,14 @@ static int http_sock;
 static int http_pipe[2];
 
 /**
- * Array of currently active HTTP sessions. 
+ * Array of currently active HTTP sessions.
  */
 static TSession ** tsessions = NULL;
-static int tsessionCount;
-static int tsessionArrayLength;
-
-/**
- * handles for statistics 
- */
-static int stat_octets_total_http_in;
-static int stat_octets_total_http_out;
+static unsigned int tsessionCount;
+static unsigned int tsessionArrayLength;
 
 /* configuration */
-static CIDRNetwork * filteredNetworks_;
+static struct CIDRNetwork * filteredNetworks_;
 
 /**
  * Lock for access to mutable state of the module,
@@ -332,9 +308,7 @@ static void signalSelect() {
 	      &i,
 	      sizeof(char));
   if (ret != sizeof(char))
-      LOG(LOG_ERROR,
-	  " write to http pipe (signalSelect) failed: %s\n",
-	  STRERROR(errno));
+    LOG_STRERROR(LOG_ERROR, "write");
 }
 
 /**
@@ -361,11 +335,12 @@ static int httpDisconnect(TSession * tsession) {
     MUTEX_DESTROY(&httpsession->lock);
     FREENONNULL(httpsession->rbuff);
     FREENONNULL(httpsession->httpReadBuff);
-    FREENONNULL(httpsession->wbuff);
-    FREENONNULL(httpsession->httpWriteBuff);
+    GROW(httpsession->wbuff,
+	 httpsession->wsize,
+	 0);
     FREE(httpsession);
-    FREE(tsession);
   }
+  FREE(tsession);
   return OK;
 }
 
@@ -382,17 +357,14 @@ static int httpDisconnect(TSession * tsession) {
  *
  * @param i index to the session handle
  */
-static void destroySession(int i) {  
+static void destroySession(int i) {
   HTTPSession * httpSession;
 
   httpSession = tsessions[i]->internal;
   if (httpSession->sock != -1)
     if (0 != SHUTDOWN(httpSession->sock, SHUT_RDWR))
-      LOG(LOG_EVERYTHING,
-	  " error shutting down socket %d: %s\n",
-	  httpSession->sock,
-	  STRERROR(errno));
-  CLOSE(httpSession->sock);
+      LOG_STRERROR(LOG_EVERYTHING, "shutdown");
+  closefile(httpSession->sock);
   httpSession->sock = -1;
   httpDisconnect(tsessions[i]);
   tsessions[i] = tsessions[--tsessionCount];
@@ -410,8 +382,8 @@ static unsigned short getGNUnetHTTPPort() {
   port = (unsigned short) getConfigurationInt("HTTP",
 					      "PORT");
   if (port == 0) { /* try lookup in services */
-    if ((pse = getservbyname("tcp", "http"))) 
-      port = htons(pse->s_port);      
+    if ((pse = getservbyname("tcp", "http")))
+      port = htons(pse->s_port);
   }
   return port;
 }
@@ -428,7 +400,7 @@ static unsigned short getGNUnetHTTPPort() {
  * for eventually freeing resources associated with the tesession). If
  * session is not NULL, the core takes responsbility for eventually
  * calling disconnect.
- * 
+ *
  * @param tsession the session handle passed along
  *   from the call to receive that was made by the transport
  *   layer
@@ -450,24 +422,6 @@ static int httpAssociate(TSession * tsession) {
 }
 
 /**
- * We're done processing a message.  Reset buffers as needed to
- * prepare for receiving the next chunk.
- */
-static void messageProcessed(HTTPSession * httpSession) {
-  /* deallocate read buffer, we don't really know
-     how big the next chunk will be */
-  GROW(httpSession->rbuff,
-       httpSession->size,
-       0);
-  /* allocate read-buffer for the next header,
-     ALWAYS start with minimum size!!! */
-  GROW(httpSession->httpReadBuff,
-       httpSession->httpRSize,
-       MIN_BUF_READ);
-  httpSession->httpRPos = 0;
-}
-
-/**
  * We have received more header-bytes.  Check if the HTTP header is
  * complete, and if yes allocate rbuff and move the data-portion that
  * was received over to rbuff (and reset the header-reader).
@@ -477,7 +431,7 @@ static void checkHeaderComplete(HTTPSession * httpSession) {
      "HTTP/1.1 200 OK%c%c"
      "Server: Apache/1.3.27%c%c"
      "Transfer-Encoding: chunked%c%c"
-     "Content-Type: text/html%c%c%"
+     "Content-Type: application/octet-stream%c%c%"
      (which we ignore)
 
      or
@@ -485,13 +439,13 @@ static void checkHeaderComplete(HTTPSession * httpSession) {
      POST / HTTP/1.1 CRLF
      Host:IP CRLF
      Transfer-Encoding: chunked CRLF
-     Content-Type: text/html CRLF
-     (which we also ignore)     
+     Content-Type: application/octet-stream CRLF
+     (which we also ignore)
 
      or just "CRLF%xCRLF" where "%x" is the length of
      the next chunk (in hex); in this case, we grow rbuff to %x
-     and copy the rest of the httpReadBuff to rbuff (and reset 
-     httpReadBuff to NULL).        
+     and copy the rest of the httpReadBuff to rbuff (and reset
+     httpReadBuff to NULL).
 
      */
   unsigned int i;
@@ -506,6 +460,7 @@ static void checkHeaderComplete(HTTPSession * httpSession) {
 	      (httpSession->httpReadBuff[k] != '\r') )
 	k++;
       if ( (k < httpSession->httpRPos-1) &&
+	   (k > i+2) &&
 	   (httpSession->httpReadBuff[k] == '\r') &&
 	   (httpSession->httpReadBuff[k+1] == '\n') ) {
 	unsigned int len;
@@ -516,23 +471,34 @@ static void checkHeaderComplete(HTTPSession * httpSession) {
 		     &endPtr,
 		     16);
 	httpSession->httpReadBuff[k] = '\r';
-	if (endPtr == &httpSession->httpReadBuff[k]) {	  
-	  if (len >= 65536) {
-	    BREAK();
-	  } else {	    
-	    GROW(httpSession->rbuff,
-		 httpSession->size,
+	if ( (endPtr != &httpSession->httpReadBuff[k]) ||
+	     (len == 0) )
+	  continue;
+#if DEBUG_HTTP
+	LOG(LOG_DEBUG,
+	    "http receiving chunk of %u bytes\n",
+	    len);
+#endif
+	if (len >= MAX_BUFFER_SIZE) {
+	  BREAK(); /* FIMXE: inline method and do proper
+		      error handling! */
+	  httpSession->httpRPos = 0;	
+	} else {	
+	  GROW(httpSession->rbuff,
+	       httpSession->rsize,
+	       len);
+	  if (len > httpSession->httpRPos - (k+2))
+	    len = httpSession->httpRPos - (k+2);
+	  memcpy(httpSession->rbuff,
+		 &httpSession->httpReadBuff[k+2],
 		 len);
-	    memcpy(httpSession->rbuff,
-		   &httpSession->httpReadBuff[k+2],
-		   httpSession->httpRPos - (k+2));
-	    httpSession->rpos = httpSession->httpRPos - (k+2);
-	    GROW(httpSession->httpReadBuff,
-		 httpSession->httpRSize,
-		 0);
-	    httpSession->httpRPos = 0;
-	  }
-	} 
+	  httpSession->rpos = len;	
+	  memmove(httpSession->httpReadBuff,
+		  &httpSession->httpReadBuff[k+2+len],
+		  httpSession->httpRPos - (k+2+len));
+	  httpSession->httpRPos -= (k+2+len);
+	  return;
+	} 	
       }
     }
   }
@@ -540,95 +506,88 @@ static void checkHeaderComplete(HTTPSession * httpSession) {
 
 /**
  * The socket of session i has data waiting, process!
- * 
+ *
  * This function may only be called if the httplock is
  * already held by the caller.
  */
 static int readAndProcess(int i) {
   TSession * tsession;
   HTTPSession * httpSession;
-  int len;
-  HTTPMessagePack * pack;
-  MessagePack * mp;
+  unsigned int len;
+  int ret;
+  P2P_PACKET * mp;
 
   tsession = tsessions[i];
   if (SYSERR == httpAssociate(tsession))
     return SYSERR;
   httpSession = tsession->internal;
-  if (httpSession->size == 0) {
+  if (httpSession->rsize == 0) {
     /* chunk read mode */
-    if (httpSession->httpRSize - httpSession->httpRPos < MIN_BUF_READ) {
-      if (httpSession->httpRSize >= MAX_HTTP_HEADER) {
-	len = -1; /* error! */
-	errno = 0; /* make sure it's not set to retry */
-      } else {
-	GROW(httpSession->httpReadBuff,
-	     httpSession->httpRSize,
-	     httpSession->httpRSize + MIN_BUF_READ);
-	len = READ(httpSession->sock,
-		   &httpSession->httpReadBuff[httpSession->httpRPos],
-		   httpSession->httpRSize - httpSession->httpRPos);      
-      }
-    } else
-      len = READ(httpSession->sock,
-		 &httpSession->httpReadBuff[httpSession->httpRPos],
-		 httpSession->httpRSize - httpSession->httpRPos);
-    if (len >= 0) {
-      httpSession->httpRPos += len;
-      checkHeaderComplete(httpSession);
+    if (httpSession->httpRSize == httpSession->httpRPos) {
+      httpDisconnect(tsession);
+      return SYSERR; /* error! */
     }
-  } else {
-    /* data read mode */
-    len = READ(httpSession->sock,
-	       &httpSession->rbuff[httpSession->rpos],
-	       httpSession->size - httpSession->rpos);
-    if (len >= 0)
-      httpSession->rpos += len;
-  }
-  cronTime(&httpSession->lastUse);
-  if (len == 0) {
-    httpDisconnect(tsession);
-#if DEBUG_HTTP
-    LOG(LOG_DEBUG,
-	"READ on socket %d returned 0 bytes, closing connection.\n",
-	httpSession->sock);
-#endif
-    return SYSERR; /* other side closed connection */
-  }
-  if (len < 0) {
-    if ( (errno == EINTR) ||
-	 (errno == EAGAIN) ) { 
+    ret = READ(httpSession->sock,
+	       &httpSession->httpReadBuff[httpSession->httpRPos],
+	       httpSession->httpRSize - httpSession->httpRPos);
+    if ( (ret > 0) &&
+	 (stats != NULL) )
+      stats->change(stat_bytesReceived,
+		    ret);
+    if (ret > 0) {
+      httpSession->httpRPos += ret;
+      incrementBytesReceived(ret);
+    try_again:
+      checkHeaderComplete(httpSession);
+    } else {
 #if DEBUG_HTTP
       LOG_STRERROR(LOG_DEBUG, "read");
 #endif
       httpDisconnect(tsession);
-      return SYSERR;    
+      return SYSERR; /* error! */
     }
+  } else {
+    GNUNET_ASSERT(httpSession->rsize > httpSession->rpos);
+    /* data read mode */
+    ret = READ(httpSession->sock,
+	       &httpSession->rbuff[httpSession->rpos],
+	       httpSession->rsize - httpSession->rpos);
+    if ( (ret > 0) &&
+	 (stats != NULL) )
+      stats->change(stat_bytesReceived,
+		    ret);
+    if (ret > 0) {
+      httpSession->rpos += ret;
+      incrementBytesReceived(ret);
+    } else {
 #if DEBUG_HTTP
-    LOG_STRERROR(LOG_INFO, "read");
+      LOG_STRERROR(LOG_DEBUG, "read");
 #endif
-    httpDisconnect(tsession);
-    return SYSERR;
+      httpDisconnect(tsession);
+      return SYSERR; /* error! */
+    }
   }
-  incrementBytesReceived(len);
-  statChange(stat_octets_total_http_in,
-	     len);
 #if DEBUG_HTTP
   LOG(LOG_DEBUG,
-      "Read %d bytes on socket %d, now having %d of %d (%d)\n",
-      len,
-      httpSession->sock, 
+      "Got message of %u out of %u bytes\n",
       httpSession->rpos,
-      httpSession->size,
-      httpSession->httpRPos);
+      httpSession->rsize);
 #endif
-  if ( (httpSession->rpos < 2) ||
-       (httpSession->rpos < httpSession->size) ) {
+  if ( (httpSession->rsize == 0) ||
+       (httpSession->rpos != httpSession->rsize) ) {
+    /* only have partial message yet */
+#if DEBUG_HTTP
+    LOG(LOG_DEBUG,
+	"Got partial message of %u out of %u bytes\n",
+	httpSession->rpos,
+	httpSession->rsize);
+#endif
     httpDisconnect(tsession);
     return OK;
   }
- 
+  cronTime(&httpSession->lastUse);
   /* complete message received, let's check what it is */
+
   if (YES == httpSession->expectingWelcome) {
     HTTPWelcome * welcome;
 #if DEBUG_HTTP
@@ -644,66 +603,55 @@ static int readAndProcess(int i) {
       return SYSERR;
     }
     httpSession->expectingWelcome = NO;
-    memcpy(&httpSession->sender,
-	   &welcome->clientIdentity,
-	   sizeof(HostIdentity));     
+    httpSession->sender = welcome->clientIdentity;
 #if DEBUG_HTTP
     IFLOG(LOG_DEBUG,
 	  hash2enc(&httpSession->sender.hashPubKey,
 		   &enc));
     LOG(LOG_DEBUG,
-	"Http welcome message from peer '%s' received.\n",
+	"Http welcome message from peer `%s' received.\n",
 	&enc);
 #endif
+    GROW(httpSession->rbuff,
+	 httpSession->rsize,
+	 0);
     httpSession->rpos = 0;
-    messageProcessed(httpSession);
-    GROW(httpSession->httpWriteBuff,
-	 httpSession->httpWSize,
+    GNUNET_ASSERT(httpSession->wsize == 0);
+    GROW(httpSession->wbuff,
+	 httpSession->wsize,
 	 256);
-    len = SNPRINTF(httpSession->httpWriteBuff,
-		   httpSession->httpWSize,
+    len = SNPRINTF(httpSession->wbuff,
+		   httpSession->wsize,
 		   "HTTP/1.1 200 OK\r\n"
 		   "Server: Apache/1.3.27\r\n"
 		   "Transfer-Encoding: chunked\r\n"
-		   "Content-Type: text/html\r\n"
+		   "Content-Type: application/octet-stream\r\n"
 		   "\r\n");
-    GROW(httpSession->httpWriteBuff,
-	 httpSession->httpWSize,
-	 len); 
+    httpSession->wpos = len;
+    if (httpSession->httpRPos > 0)
+      goto try_again;
     httpDisconnect(tsession);
     return OK;
   }
-     
-  pack = (HTTPMessagePack*)&httpSession->rbuff[0];
-  /* send msg to core! */
-  if (httpSession->size <= sizeof(HTTPMessagePack)) {
-    LOG(LOG_WARNING,
-	_("Received malformed message from http-peer connection. Closing.\n"));
-    httpDisconnect(tsession);
-    return SYSERR;
-  }
-  mp      = MALLOC(sizeof(MessagePack));
-  mp->msg = MALLOC(httpSession->size);
-  memcpy(mp->msg,
-	 &pack->parts[0],
-	 httpSession->size - sizeof(HTTPMessagePack));
-  memcpy(&mp->sender,
-	 &httpSession->sender,
-	 sizeof(HostIdentity));
-  mp->crc         = ntohl(pack->checkSum);
-  mp->isEncrypted = ntohs(pack->isEncrypted);
-  mp->size        = httpSession->size - sizeof(HTTPMessagePack);
-  mp->tsession    = tsession;
+
+  /* Full normal message received; pass on to core! */
+  mp      = MALLOC(sizeof(P2P_PACKET));
+  mp->sender = httpSession->sender;
+  mp->tsession = tsession;
+  GNUNET_ASSERT(httpSession->rbuff != NULL);
+  mp->msg = httpSession->rbuff;
+  mp->size = httpSession->rsize;
+  httpSession->rbuff = NULL;
+  httpSession->rsize = 0;
+  httpSession->rpos = 0;
 #if DEBUG_HTTP
   LOG(LOG_DEBUG,
-      "Http transport received %d bytes, forwarding to core.\n",
+      "http transport received %d bytes, forwarding to core.\n",
       mp->size);
 #endif
   coreAPI->receive(mp);
-
-  httpSession->rpos = 0;	   
-  messageProcessed(httpSession);
-  
+  if (httpSession->httpRPos > 0)
+    goto try_again;
   httpDisconnect(tsession);
   return OK;
 }
@@ -715,11 +663,11 @@ static int readAndProcess(int i) {
  * calling.  It is ok to call this function without holding httplock if
  * the return value is ignored.
  */
-static int addTSession(TSession * tsession) {
-  int i;
+static unsigned int addTSession(TSession * tsession) {
+  unsigned int i;
 
   MUTEX_LOCK(&httplock);
-  if (tsessionCount == tsessionArrayLength) 
+  if (tsessionCount == tsessionArrayLength)
     GROW(tsessions,
 	 tsessionArrayLength,
 	 tsessionArrayLength * 2);
@@ -740,21 +688,21 @@ static void createNewSession(int sock) {
 
   httpSession = MALLOC(sizeof(HTTPSession));
   httpSession->rpos = 0;
-  httpSession->size = 0;
+  httpSession->rsize = 0;
   httpSession->rbuff = NULL;
   httpSession->wsize = 0;
+  httpSession->wpos = 0;
   httpSession->wbuff = NULL;
   httpSession->httpReadBuff = NULL;
   httpSession->httpRPos = 0;
   httpSession->httpRSize = 0;
-  httpSession->httpWriteBuff = NULL;
-  httpSession->httpWSize = 0;
+  GROW(httpSession->httpReadBuff,
+       httpSession->httpRSize,
+       MAX_HTTP_HEADER);
   httpSession->sock = sock;
-  /* fill in placeholder identity to mark that we 
+  /* fill in placeholder identity to mark that we
      are waiting for the welcome message */
-  memcpy(&httpSession->sender,
-	 coreAPI->myIdentity,
-	 sizeof(HostIdentity));
+  httpSession->sender = *(coreAPI->myIdentity);
   httpSession->expectingWelcome = YES;
   MUTEX_CREATE_RECURSIVE(&httpSession->lock);
   httpSession->users = 1; /* us only, core has not seen this tsession! */
@@ -763,7 +711,7 @@ static void createNewSession(int sock) {
   tsession->ttype = HTTP_PROTOCOL_NUMBER;
   tsession->internal = httpSession;
   addTSession(tsession);
-}					 
+}					
 
 /**
  * Main method for the thread listening on the http socket and all http
@@ -778,20 +726,20 @@ static void * httpListenMain() {
   fd_set errorSet;
   fd_set writeSet;
   struct stat buf;
-  int lenOfIncomingAddr;
+  socklen_t lenOfIncomingAddr;
   int i;
   int max;
   int ret;
-  
+
   if (http_sock != -1)
-    LISTEN(http_sock, 5);
+    if (0 != LISTEN(http_sock, 5))
+      LOG_STRERROR(LOG_ERROR, "listen");
   SEMAPHORE_UP(serverSignal); /* we are there! */
   MUTEX_LOCK(&httplock);
   while (http_shutdown == NO) {
     FD_ZERO(&readSet);
     FD_ZERO(&errorSet);
     FD_ZERO(&writeSet);
-
     if (http_sock != -1) {
       if (isSocketValid(http_sock)) {
 	FD_SET(http_sock, &readSet);
@@ -799,7 +747,9 @@ static void * httpListenMain() {
 	LOG_STRERROR(LOG_ERROR, "isSocketValid");
 	http_sock = -1; /* prevent us from error'ing all the time */
       }
-    }
+    } else
+      LOG(LOG_DEBUG,
+	  "HTTP server socket not open!\n");
     if (http_pipe[0] != -1) {
       if (-1 != FSTAT(http_pipe[0], &buf)) {
 	FD_SET(http_pipe[0], &readSet);
@@ -818,10 +768,8 @@ static void * httpListenMain() {
 	if (isSocketValid(sock)) {
 	  FD_SET(sock, &readSet);
 	  FD_SET(sock, &errorSet);
-	  if ( (httpSession->wsize > 0) ||
-	       (httpSession->httpWSize > 0) ) {
-	    FD_SET(sock, &writeSet); /* do we have a pending write request? */
-	  }
+	  if (httpSession->wpos > 0)
+	    FD_SET(sock, &writeSet); /* do we have a pending write request? */	
 	} else {
 	  LOG_STRERROR(LOG_ERROR, "isSocketValid");
 	  destroySession(i);
@@ -832,13 +780,13 @@ static void * httpListenMain() {
       }
       if (sock > max)
 	max = sock;
-    }    
+    }
     MUTEX_UNLOCK(&httplock);
-    ret = SELECT(max+1, &readSet, &writeSet, &errorSet, NULL);    
+    ret = SELECT(max+1, &readSet, &writeSet, &errorSet, NULL);
     MUTEX_LOCK(&httplock);
     if ( (ret == -1) &&
-	 ( (errno == EAGAIN) || (errno == EINTR) ) ) 
-      continue;    
+	 ( (errno == EAGAIN) || (errno == EINTR) ) )
+      continue;
     if (ret == -1) {
       if (errno == EBADF) {
 	LOG_STRERROR(LOG_ERROR, "select");
@@ -850,28 +798,35 @@ static void * httpListenMain() {
       if (FD_ISSET(http_sock, &readSet)) {
 	int sock;
 	
-	lenOfIncomingAddr = sizeof(clientAddr);               
-	sock = ACCEPT(http_sock, 
-		      (struct sockaddr *)&clientAddr, 
+	lenOfIncomingAddr = sizeof(clientAddr);
+	sock = ACCEPT(http_sock,
+		      (struct sockaddr *)&clientAddr,
 		      &lenOfIncomingAddr);
-	if (sock != -1) {	  
+	if (sock != -1) {	
 	  /* verify clientAddr for eligibility here (ipcheck-style,
 	     user should be able to specify who is allowed to connect,
-	     otherwise we just close and reject the communication! */  
+	     otherwise we just close and reject the communication! */
 	  IPaddr ipaddr;
 	  GNUNET_ASSERT(sizeof(struct in_addr) == sizeof(IPaddr));
 	  memcpy(&ipaddr,
 		 &clientAddr.sin_addr,
 		 sizeof(struct in_addr));
 
-
 	  if (YES == isBlacklisted(ipaddr)) {
 	    LOG(LOG_INFO,
-		_("Rejected blacklisted connection from %u.%u.%u.%u.\n"),
+		_("%s: Rejected connection from blacklisted "
+		  "address %u.%u.%u.%u.\n"),
+		"HTTP",
 		PRIP(ntohl(*(int*)&clientAddr.sin_addr)));
-	    CLOSE(sock);
-	  } else 
-	    createNewSession(sock);      
+	    closefile(sock);
+	  } else {
+#if DEBUG_HTTP
+	    LOG(LOG_INFO,
+		"Accepted connection from %u.%u.%u.%u.\n",
+		PRIP(ntohl(*(int*)&clientAddr.sin_addr)));
+#endif
+	    createNewSession(sock);
+	  }
 	} else {
 	  LOG_STRERROR(LOG_INFO, "accept");
 	}
@@ -882,10 +837,9 @@ static void * httpListenMain() {
 	 in one shot... */
 #define MAXSIG_BUF 128
       char buf[MAXSIG_BUF];
-
       /* just a signal to refresh sets, eat and continue */
-      if (0 >= READ(http_pipe[0], 
-		    &buf[0], 
+      if (0 >= READ(http_pipe[0],
+		    &buf[0],
 		    MAXSIG_BUF)) {
 	LOG_STRERROR(LOG_WARNING, "read");
       }
@@ -901,82 +855,49 @@ static void * httpListenMain() {
 	}
       }
       if (FD_ISSET(sock, &writeSet)) {
-	int ret, success;
+	size_t ret;
+	int success;
 
-	if (httpSession->httpWSize > 0) {	  
-try_again_1:          
-	  success = SEND_NONBLOCKING(sock,
-				 httpSession->httpWriteBuff,
-				 httpSession->httpWSize,
-				 &ret);
-	  if (success == SYSERR) {
-	    LOG_STRERROR(LOG_WARNING, "send");
-	    destroySession(i);
-	    i--;
-	    continue;
-	  } else if (success == NO) {
-    	    /* this should only happen under Win9x because
-    	       of a bug in the socket implementation (KB177346).
-    	       Let's sleep and try again. */
-    	    gnunet_util_sleep(20);
-    	    goto try_again_1;
-	  }
-	  if (ret == 0) {
-	    /* send only returns 0 on error (other side closed connection),
-	     * so close the session */
-	    destroySession(i);
-	    i--;
-	    continue;
-	  }
-	  if ((unsigned int)ret == httpSession->httpWSize) {
-	    GROW(httpSession->httpWriteBuff,
-		 httpSession->httpWSize,
-		 0);
-	  } else {
-	    memmove(httpSession->httpWriteBuff,
-		    &httpSession->httpWriteBuff[ret],
-		    httpSession->httpWSize - ret);
-	    httpSession->httpWSize -= ret;
-	  }
-	} else { /* httpSession->httpWSize == 0 */
-	  if (httpSession->wsize == 0) 
-	    errexit(" wsize %d for socket %d\n",
-		    httpSession->wsize,
-		    sock);
-try_again_2:
-	  success = SEND_NONBLOCKING(sock,
-				 httpSession->wbuff,
-				 httpSession->wsize,
-				 &ret);
-	  if (success == SYSERR) {
-	    LOG_STRERROR(LOG_WARNING, "send");
-	    destroySession(i);
-	    i--;
-	    continue;
-	  } else if (success == NO) {
-    	    /* this should only happen under Win9x because
-    	       of a bug in the socket implementation (KB177346).
-    	       Let's sleep and try again. */
-    	    gnunet_util_sleep(20);
-    	    goto try_again_2;
-	  }
-	  if (ret == 0) {
-	    /* send only returns 0 on error (other side closed connection),
-	     * so close the session */
-	    destroySession(i);
-	    i--;
-	    continue;
-	  }
-	  if ((unsigned int)ret == httpSession->wsize) {
-	    GROW(httpSession->wbuff,
-		 httpSession->wsize,
-		 0);
-	  } else {
-	    memmove(httpSession->wbuff,
-		    &httpSession->wbuff[ret],
-		    httpSession->wsize - ret);
-	    httpSession->wsize -= ret;
-	  }
+try_again_1:
+	success = SEND_NONBLOCKING(sock,
+				   httpSession->wbuff,
+				   httpSession->wpos,
+				   &ret);
+	if ( (success == SYSERR) || (ret == (size_t) -1) ) {
+	  LOG_STRERROR(LOG_WARNING, "send");
+	  destroySession(i);
+	  i--;
+	  continue;
+	} else if (success == NO) {
+	  /* this should only happen under Win9x because
+	     of a bug in the socket implementation (KB177346).
+	     Let's sleep and try again. */
+	  gnunet_util_sleep(20);
+	  goto try_again_1;
+	}
+	if (stats != NULL)
+	  stats->change(stat_bytesSent,
+			ret);
+
+
+	if (ret == 0) {
+	  /* send only returns 0 on error (other side closed connection),
+	   * so close the session */
+	  destroySession(i);
+	  i--;
+	  continue;
+	}
+	GNUNET_ASSERT(ret <= httpSession->wpos);
+	if (ret == httpSession->wpos) {
+	  FREENONNULL(httpSession->wbuff);
+	  httpSession->wbuff = NULL;
+	  httpSession->wpos = 0;
+	  httpSession->wsize = 0;
+	} else {
+	  memmove(httpSession->wbuff,
+		  &httpSession->wbuff[ret],
+		  httpSession->wpos - ret);
+	  httpSession->wpos -= ret;
 	}
       }
       if (FD_ISSET(sock, &errorSet)) {
@@ -994,11 +915,11 @@ try_again_2:
   }
   /* shutdown... */
   if (http_sock != -1) {
-    CLOSE(http_sock);
+    closefile(http_sock);
     http_sock = -1;
   }
   /* close all sessions */
-  while (tsessionCount > 0) 
+  while (tsessionCount > 0)
     destroySession(0);
   MUTEX_UNLOCK(&httplock);
   SEMAPHORE_UP(serverSignal); /* we are there! */
@@ -1013,113 +934,137 @@ try_again_2:
  * @param doPost should an HTTP post prefix be created?
  * @param mp the message to send
  * @param ssize the size of the message
- * @return OK if message send or queued, SYSERR if queue is full and
- * message was dropped.
+ * @return OK if message send or queued, NO if queue is full and
+ * message was dropped, SYSERR on error
  */
 static int httpDirectSend(HTTPSession * httpSession,
 			  int doPost,
-			  void * mp,
+			  const void * mp,
 			  unsigned int ssize) {
-  int len;
+  unsigned int len;
+  int success;
+  size_t ret;
 
+  if (http_shutdown == YES)
+    return SYSERR;
   if (httpSession->sock == -1) {
 #if DEBUG_HTTP
     LOG(LOG_INFO,
-	" httpDirectSend called, but socket is closed\n");
+	"httpDirectSend called, but socket is closed\n");
 #endif
     return SYSERR;
   }
-  if (ssize > httpAPI.mtu + sizeof(HTTPMessagePack)) {
-    BREAK();
+  if (ssize == 0) {
+    BREAK(); /* size 0 not allowed */
     return SYSERR;
   }
-
-  if (httpSession->wbuff != NULL) {
-#if DEBUG_HTTP
-    LOG(LOG_INFO,
-	"httpTransport has already message "
-	"pending, will not queue more.\n");
-#endif
-    return SYSERR; /* already have msg pending */ 
+  MUTEX_LOCK(&httplock);
+  if (httpSession->wpos > 0) {
+    MUTEX_UNLOCK(&httplock);
+    return NO; /* already have msg pending */
   }
-  GNUNET_ASSERT(httpSession->httpWriteBuff == NULL);
   if (doPost == YES) {
     IPaddr ip;
 
     if (SYSERR == getPublicIPAddress(&ip))
       return SYSERR;
-    GROW(httpSession->httpWriteBuff,
-	 httpSession->httpWSize,
-	 256);
-    strcpy(httpSession->httpWriteBuff, "POST ");
-    /* In case we're talking to a proxy, we need an absolute URI */
-    if (theProxy.sin_addr.s_addr != 0)
-      {
-     len = SNPRINTF(httpSession->httpWriteBuff + 5,
-		    httpSession->httpWSize - 5,
-		    "http://%u.%u.%u.%u:%u",
-		    PRIP(ntohl(httpSession->hostIP)),
-		    ntohs(httpSession->hostPort)) + 5;
+    GROW(httpSession->wbuff,
+	 httpSession->wsize,
+	 256 + ssize);
+    strcpy(httpSession->wbuff, "POST ");
+    /* if we're talking to a proxy, we need an absolute URI */
+    if (theProxy.sin_addr.s_addr != 0) {
+      len = SNPRINTF(httpSession->wbuff + 5,
+		     httpSession->wsize - 5,
+		     "http://%u.%u.%u.%u:%u",
+		     PRIP(ntohl(httpSession->hostIP)),
+ 		     ntohs(httpSession->hostPort)) + 5;
+    } else {
+      len = 5;
     }
-    else
-    {
-     len = 5;
-    }
-    len += SNPRINTF(httpSession->httpWriteBuff + len,
-		    httpSession->httpWSize - len,
+    len += SNPRINTF(httpSession->wbuff + len,
+		    httpSession->wsize - len,
 		    "/ HTTP/1.1\r\n"
 		    "Host: %u.%u.%u.%u\r\n"
 		    "Transfer-Encoding: chunked\r\n"
-		    "Content-Type: text/html\r\n"
+		    "Content-Type: application/octet-stream\r\n"
 		    "\r\n"
 		    "%x\r\n",
 		    PRIP(ntohl(*(int*)&ip)),
 		    ssize);
-    GROW(httpSession->httpWriteBuff,
-	 httpSession->httpWSize,
-	 len);
   } else {
-    GROW(httpSession->httpWriteBuff,
-	 httpSession->httpWSize,
-	 64);
-    len = SNPRINTF(httpSession->httpWriteBuff,
-		   httpSession->httpWSize,
+    GROW(httpSession->wbuff,
+	 httpSession->wsize,
+	 64 + ssize);
+    len = SNPRINTF(httpSession->wbuff,
+		   httpSession->wsize,
 		   "\r\n%x\r\n",
 		   ssize);
-    GROW(httpSession->httpWriteBuff,
-	 httpSession->httpWSize,
-	 len);
-  }		    
-  GROW(httpSession->wbuff,
-       httpSession->wsize,
-       ssize);
-  memcpy(httpSession->wbuff,
+  }
+  memcpy(&httpSession->wbuff[len],
 	 mp,
 	 ssize);
-  signalSelect(); /* select set changed! */
+  len += ssize;
+  incrementBytesSent(len);
+#if DEBUG_HTTP
+  LOG(LOG_DEBUG,
+      "http sending chunk of %u bytes\n",
+      ssize);
+#endif
+  success = SEND_NONBLOCKING(httpSession->sock,
+			     httpSession->wbuff,
+			     len,
+			     &ret);
+  if (success == SYSERR) {
+#if DEBUG_HTTP
+    LOG_STRERROR(LOG_INFO, "send");
+#endif
+    MUTEX_UNLOCK(&httplock);
+    return SYSERR;
+  }
+  if (success == NO)
+    ret = 0;
+  if (stats != NULL)
+    stats->change(stat_bytesSent,
+		  ret);
+  if (ret > 0) {
+    if (ret < len) {
+      memmove(httpSession->wbuff,
+	      &httpSession->wbuff[ret],
+	      len - ret);
+      len -= ret;
+    } else {
+      GROW(httpSession->wbuff,
+	   httpSession->wsize,
+	   0);
+      len = 0;
+    }
+  }
+
+  httpSession->wpos = len;
+  if (len > 0)
+    signalSelect(); /* select set changed! */
   cronTime(&httpSession->lastUse);
-  incrementBytesSent(ssize);
-  statChange(stat_octets_total_http_out,
-	     ssize);
+  MUTEX_UNLOCK(&httplock);
   return OK;
 }
 
 /**
- * Verify that a HELO-Message is correct (a node
+ * Verify that a hello-Message is correct (a node
  * is reachable at that address). Since the reply
  * will be asynchronous, a method must be called on
- * success. 
- * @param helo the HELO message to verify
+ * success.
+ * @param helo the hello message to verify
  *        (the signature/crc have been verified before)
  * @return OK on success, SYSERR on error
  */
-static int verifyHelo(const HELO_Message * helo) {
+static int verifyHelo(const P2P_hello_MESSAGE * helo) {
   HostAddress * haddr;
 
-  haddr = (HostAddress*) &((HELO_Message_GENERIC*)helo)->senderAddress[0];
+  haddr = (HostAddress*) &helo[1];
   if ( (ntohs(helo->senderAddressSize) != sizeof(HostAddress)) ||
-       (ntohs(helo->header.size) != HELO_Message_size(helo)) ||
-       (ntohs(helo->header.requestType) != p2p_PROTO_HELO) ||
+       (ntohs(helo->header.size) != P2P_hello_MESSAGE_size(helo)) ||
+       (ntohs(helo->header.type) != p2p_PROTO_hello) ||
        (ntohs(helo->protocol) != HTTP_PROTOCOL_NUMBER) ||
        (YES == isBlacklisted(haddr->ip)) )
     return SYSERR; /* obviously invalid */
@@ -1128,16 +1073,14 @@ static int verifyHelo(const HELO_Message * helo) {
 }
 
 /**
- * Create a HELO-Message for the current node. The HELO is
+ * Create a hello-Message for the current node. The hello is
  * created without signature and without a timestamp. The
- * GNUnet core will sign the message and add an expiration time. 
+ * GNUnet core will sign the message and add an expiration time.
  *
- * @param helo address where to store the pointer to the HELO
- *        message
- * @return OK on success, SYSERR on error
+ * @return hello on success, NULL on error
  */
-static int createHELO(HELO_Message ** helo) {
-  HELO_Message * msg;
+static P2P_hello_MESSAGE * createhello() {
+  P2P_hello_MESSAGE * msg;
   HostAddress * haddr;
   unsigned short port;
 
@@ -1145,35 +1088,37 @@ static int createHELO(HELO_Message ** helo) {
   if (0 == port) {
     LOG(LOG_DEBUG,
 	"HTTP port is 0, will only send using HTTP.\n");
-    return SYSERR; /* HTTP transport is configured SEND-only! */
+    return NULL; /* HTTP transport is configured SEND-only! */
   }
-  msg = (HELO_Message *) MALLOC(sizeof(HELO_Message) + sizeof(HostAddress));
-  haddr = (HostAddress*) &((HELO_Message_GENERIC*)msg)->senderAddress[0];
+  msg = (P2P_hello_MESSAGE *) MALLOC(sizeof(P2P_hello_MESSAGE) + sizeof(HostAddress));
+  haddr = (HostAddress*) &msg[1];
 
   if (SYSERR == getPublicIPAddress(&haddr->ip)) {
     FREE(msg);
     LOG(LOG_WARNING,
-	" Could not determine my public IP address.\n");
-    return SYSERR;
+	_("HTTP: Could not determine my public IP address.\n"));
+    return NULL;
   }
-  haddr->port = htons(port); 
+  LOG(LOG_DEBUG,
+      "HTTP uses IP address %u.%u.%u.%u.\n",
+      PRIP(ntohl(*(int*)&haddr->ip)));
+  haddr->port = htons(port);
   haddr->reserved = htons(0);
   msg->senderAddressSize = htons(sizeof(HostAddress));
   msg->protocol = htons(HTTP_PROTOCOL_NUMBER);
   msg->MTU = htonl(httpAPI.mtu);
-  *helo = msg;
-  return OK;
+  return msg;
 }
 
 /**
  * Establish a connection to a remote node.
  *
- * @param helo the HELO-Message for the target node
+ * @param helo the hello-Message for the target node
  * @param tsessionPtr the session handle that is set
  * @return OK on success, SYSERR if the operation failed
  */
-static int httpConnect(HELO_Message * helo,
-		      TSession ** tsessionPtr) {
+static int httpConnect(const P2P_hello_MESSAGE * helo,
+		       TSession ** tsessionPtr) {
   int i;
   HostAddress * haddr;
   HTTPWelcome welcome;
@@ -1181,23 +1126,25 @@ static int httpConnect(HELO_Message * helo,
   TSession * tsession;
   HTTPSession * httpSession;
   struct sockaddr_in soaddr;
-  
+
   if (http_shutdown == YES)
     return SYSERR;
-  haddr = (HostAddress*) &((HELO_Message_GENERIC*)helo)->senderAddress[0];
+  haddr = (HostAddress*) &helo[1];
 #if DEBUG_HTTP
   LOG(LOG_DEBUG,
       "Creating HTTP connection to %u.%u.%u.%u:%u.\n",
-      PRIP(ntohl(*(int*)&haddr->ip.addr)), 
+      PRIP(ntohl(*(int*)&haddr->ip.addr)),
       ntohs(haddr->port));
 #endif
-  sock = SOCKET(PF_INET, SOCK_STREAM, 6);/* 6: TCP */
+  sock = SOCKET(PF_INET,
+		SOCK_STREAM,
+		6);/* 6: TCP */
   if (sock == -1) {
     LOG_STRERROR(LOG_FAILURE, "socket");
     return SYSERR;
   }
   if (0 != setBlocking(sock, NO)) {
-    CLOSE(sock);
+    closefile(sock);
     LOG_STRERROR(LOG_FAILURE, "setBlocking");
     return SYSERR;
   }
@@ -1205,7 +1152,7 @@ static int httpConnect(HELO_Message * helo,
 	 0,
 	 sizeof(soaddr));
   soaddr.sin_family = AF_INET;
-  
+
   /* Do we have to use a proxy? */
   if (theProxy.sin_addr.s_addr != 0) {
     soaddr.sin_addr = theProxy.sin_addr;
@@ -1217,7 +1164,7 @@ static int httpConnect(HELO_Message * helo,
 	   sizeof(IPaddr));
     soaddr.sin_port = haddr->port;
   }
-  i = CONNECT(sock, 
+  i = CONNECT(sock,
 	      (struct sockaddr*)&soaddr,
 	      sizeof(soaddr));
   if ( (i < 0) &&
@@ -1227,22 +1174,24 @@ static int httpConnect(HELO_Message * helo,
 	PRIP(ntohl(*(int*)&haddr->ip)),
 	ntohs(haddr->port),
 	STRERROR(errno));
-    CLOSE(sock);
+    closefile(sock);
     return SYSERR;
-  }  
+  }
   httpSession = MALLOC(sizeof(HTTPSession));
   httpSession->sock = sock;
   httpSession->hostIP = haddr->ip.addr;
   httpSession->hostPort = haddr->port;
   httpSession->wsize = 0;
+  httpSession->wpos = 0;
   httpSession->wbuff = NULL;
-  httpSession->size = 0;
+  httpSession->rsize = 0;
   httpSession->rbuff = NULL;
   httpSession->httpReadBuff = NULL;
   httpSession->httpRPos = 0;
   httpSession->httpRSize = 0;
-  httpSession->httpWriteBuff = NULL;
-  httpSession->httpWSize = 0;
+  GROW(httpSession->httpReadBuff,
+       httpSession->httpRSize,
+       MAX_HTTP_HEADER);
   tsession = MALLOC(sizeof(TSession));
   tsession->internal = httpSession;
   tsession->ttype = httpAPI.protocolNumber;
@@ -1250,9 +1199,7 @@ static int httpConnect(HELO_Message * helo,
   httpSession->users = 2; /* caller + us */
   httpSession->rpos = 0;
   cronTime(&httpSession->lastUse);
-  memcpy(&httpSession->sender,
-	 &helo->senderIdentity,
-	 sizeof(HostIdentity));
+  httpSession->sender = helo->senderIdentity;
   httpSession->expectingWelcome = NO;
   MUTEX_LOCK(&httplock);
   i = addTSession(tsession);
@@ -1262,9 +1209,7 @@ static int httpConnect(HELO_Message * helo,
 
   welcome.size = htons(sizeof(HTTPWelcome));
   welcome.version = htons(0);
-  memcpy(&welcome.clientIdentity,
-	 coreAPI->myIdentity,
-	 sizeof(HostIdentity));
+  welcome.clientIdentity = *(coreAPI->myIdentity);
   if (SYSERR == httpDirectSend(httpSession,
 			       YES,
 			       &welcome,
@@ -1275,59 +1220,49 @@ static int httpConnect(HELO_Message * helo,
     return SYSERR;
   }
   MUTEX_UNLOCK(&httplock);
+  signalSelect();
 
-  gnunet_util_sleep(50 * cronMILLIS);
   *tsessionPtr = tsession;
-  FREE(helo);
   return OK;
 }
 
 /**
  * Send a message to the specified remote node.
  *
- * @param tsession the HELO_Message identifying the remote node
+ * @param tsession the P2P_hello_MESSAGE identifying the remote node
  * @param msg the message
  * @param size the size of the message
- * @param isEncrypted is the message encrypted (YES/NO)
- * @param crc CRC32 of the plaintext
- * @return SYSERR on error, OK on success
+ * @return SYSERR on error, OK on success, NO if queue is full
  */
 static int httpSend(TSession * tsession,
-		   const void * msg,
-		   const unsigned int size,
-		   int isEncrypted,
-		   const int crc) {
-  HTTPMessagePack * mp;
+		    const void * msg,
+		    const unsigned int size) {
   int ok;
-  int ssize;
 
-  if (http_shutdown == YES) {
-    BREAK();
+  if (size >= MAX_BUFFER_SIZE)
     return SYSERR;
-  }
+  if (http_shutdown == YES)
+    return SYSERR;
   if (size == 0) {
     BREAK();
     return SYSERR;
   }
-  if (size > httpAPI.mtu) {
-    BREAK();
-    return SYSERR;
-  }
-  if (((HTTPSession*)tsession->internal)->sock == -1)
+
+  if (((HTTPSession*)tsession->internal)->sock == -1) {
+    if (stats != NULL)
+      stats->change(stat_bytesDropped,
+		    size);
     return SYSERR; /* other side closed connection */
-  mp = MALLOC(sizeof(HTTPMessagePack) + size);
-  mp->checkSum = htonl(crc);
-  mp->isEncrypted = htons(isEncrypted);
-  memcpy(&mp->parts[0],
-	 msg,
-	 size);
-  ssize = size + sizeof(HTTPMessagePack);
-  
+  }
   ok = httpDirectSend(tsession->internal,
 		      NO,
-		      mp,
-		      ssize);
-  FREE(mp);
+		      msg,
+		      size);
+  if (ok != OK) {
+    if (stats != NULL)
+      stats->change(stat_bytesDropped,
+		    size);
+  }
   return ok;
 }
 
@@ -1335,36 +1270,46 @@ static int httpSend(TSession * tsession,
  * Start the server process to receive inbound traffic.
  * @return OK on success, SYSERR if the operation failed
  */
-static int startTransportServer(void) {
+static int startTransportServer() {
   struct sockaddr_in serverAddr;
   const int on = 1;
   unsigned short port;
-  
+
   if (serverSignal != NULL) {
     BREAK();
     return SYSERR;
   }
   serverSignal = SEMAPHORE_NEW(0);
   http_shutdown = NO;
-    
+
   if (0 != PIPE(http_pipe)) {
     LOG_STRERROR(LOG_ERROR, "pipe");
     return SYSERR;
   }
   setBlocking(http_pipe[1], NO);
- 
+
   port = getGNUnetHTTPPort();
   if (port != 0) { /* if port == 0, this is a read-only
 		      business! */
-    http_sock = SOCKET(PF_INET, SOCK_STREAM, 0);
-    if (http_sock < 0) 
-      DIE_STRERROR("socket");
+    http_sock = SOCKET(PF_INET,
+		       SOCK_STREAM,
+		       0);
+    if (http_sock < 0) {
+      LOG_STRERROR(LOG_FAILURE, "socket");
+      closefile(http_pipe[0]);
+      closefile(http_pipe[1]);
+      SEMAPHORE_FREE(serverSignal);
+      serverSignal = NULL;
+      http_shutdown = YES;
+      return SYSERR;
+    }
     if (SETSOCKOPT(http_sock,
-		   SOL_SOCKET, 
-		   SO_REUSEADDR, 
-		   &on, sizeof(on)) < 0 ) 
+		   SOL_SOCKET,
+		   SO_REUSEADDR,
+		   &on,
+		   sizeof(on)) < 0 )
       DIE_STRERROR("setsockopt");
-    memset((char *) &serverAddr, 
+    memset((char *) &serverAddr,
 	   0,
 	   sizeof(serverAddr));
     serverAddr.sin_family      = AF_INET;
@@ -1372,32 +1317,34 @@ static int startTransportServer(void) {
     serverAddr.sin_port        = htons(getGNUnetHTTPPort());
 #if DEBUG_HTTP
     LOG(LOG_INFO,
-	"Starting http peer server on port %d\n",
+	"starting %s peer server on port %d\n",
+	"http",
 	ntohs(serverAddr.sin_port));
 #endif
-    if (BIND(http_sock, 
+    if (BIND(http_sock,
 	     (struct sockaddr *) &serverAddr,
 	     sizeof(serverAddr)) < 0) {
       LOG_STRERROR(LOG_ERROR, "bind");
-      LOG(LOG_ERROR, 
+      LOG(LOG_ERROR,
 	  _("Could not bind the HTTP listener to port %d. "
 	    "No transport service started.\n"),
 	  getGNUnetHTTPPort());
-      CLOSE(http_sock);
+      closefile(http_sock);
       SEMAPHORE_FREE(serverSignal);
       serverSignal = NULL;
       return SYSERR;
     }
   } else
     http_sock = -1;
-  if (0 == PTHREAD_CREATE(&listenThread, 
+  if (0 == PTHREAD_CREATE(&listenThread,
 			  (PThreadMain) &httpListenMain,
 			  NULL,
-			  2048)) {
+			  4092)) {
       SEMAPHORE_DOWN(serverSignal); /* wait for server to be up */
   } else {
-    LOG_STRERROR(LOG_FATAL, "pthread_create");
-    CLOSE(http_sock);
+    LOG_STRERROR(LOG_ERROR,
+		 "pthread_create");
+    closefile(http_sock);
     SEMAPHORE_FREE(serverSignal);
     serverSignal = NULL;
     return SYSERR;
@@ -1411,19 +1358,27 @@ static int startTransportServer(void) {
  */
 static int stopTransportServer() {
   void * unused;
+  int haveThread;
 
-  http_shutdown = YES;  
+  if (http_shutdown == YES)
+    return OK;
+  http_shutdown = YES;
   signalSelect();
-  SEMAPHORE_DOWN(serverSignal);
-  SEMAPHORE_FREE(serverSignal);
-  serverSignal = NULL; 
-  CLOSE(http_pipe[1]);
-  CLOSE(http_pipe[0]);
+  if (serverSignal != NULL) {
+    haveThread = YES;
+    SEMAPHORE_DOWN(serverSignal);
+    SEMAPHORE_FREE(serverSignal);
+  } else
+    haveThread = NO;
+  serverSignal = NULL;
+  closefile(http_pipe[1]);
+  closefile(http_pipe[0]);
   if (http_sock != -1) {
-    CLOSE(http_sock);
+    closefile(http_sock);
     http_sock = -1;
   }
-  PTHREAD_JOIN(&listenThread, &unused);
+  if (haveThread == YES)
+    PTHREAD_JOIN(&listenThread, &unused);
   return OK;
 }
 
@@ -1431,7 +1386,7 @@ static int stopTransportServer() {
  * Reload the configuration. Should never fail (keep old
  * configuration on error, syslog errors!)
  */
-static void reloadConfiguration(void) {
+static void reloadConfiguration() {
   char * ch;
 
   MUTEX_LOCK(&httplock);
@@ -1450,90 +1405,82 @@ static void reloadConfiguration(void) {
 /**
  * Convert HTTP address to a string.
  */
-static char * addressToString(const HELO_Message * helo) {
+static char * addressToString(const P2P_hello_MESSAGE * helo) {
   char * ret;
   HostAddress * haddr;
   size_t n;
-  
-  haddr = (HostAddress*) &((HELO_Message_GENERIC*)helo)->senderAddress[0];  
+
+  haddr = (HostAddress*) &helo[1];
   n = 4*4+6+16;
   ret = MALLOC(n);
   SNPRINTF(ret,
 	   n,
 	   "%u.%u.%u.%u:%u (HTTP)",
-	   PRIP(ntohl(*(int*)&haddr->ip.addr)), 
+	   PRIP(ntohl(*(int*)&haddr->ip.addr)),
 	   ntohs(haddr->port));
   return ret;
 }
 
- 
+
 /* ******************** public API ******************** */
- 
+
 /**
  * The exported method. Makes the core api available
  * via a global and returns the udp transport API.
- */ 
+ */
 TransportAPI * inittransport_http(CoreAPIForTransport * core) {
-  int mtu;
   struct hostent *ip;
-  char *proxy, *proxyPort;
+  char * proxy;
+  char * proxyPort;
 
   MUTEX_CREATE_RECURSIVE(&httplock);
   reloadConfiguration();
   tsessionCount = 0;
-  tsessionArrayLength = 32;
-  tsessions = MALLOC(sizeof(TSession*) * tsessionArrayLength);
+  tsessionArrayLength = 0;
+  GROW(tsessions,
+       tsessionArrayLength,
+       32);
   coreAPI = core;
-  stat_octets_total_http_in 
-    = statHandle(_("# bytes received via http"));
-  stat_octets_total_http_out 
-    = statHandle(_("# bytes sent via http"));
-  mtu = getConfigurationInt("HTTP",
-			    "MTU");
-  if (mtu == 0)
-    mtu = 1400;
-  if (mtu < 1200)
-    LOG(LOG_ERROR,
-	_("MTU for '%s' is probably too low (fragmentation not implemented!)\n"),
-	"HTTP");
- 
-  proxy = getConfigurationString("GNUNETD", "HTTP-PROXY");
-  if (proxy != NULL)
-  {
-   ip = GETHOSTBYNAME(proxy);
-   if (ip == NULL)
-   {
-    LOG(LOG_ERROR, 
-	_("Could not resolve name of HTTP proxy '%s'.\n"),
-        proxy);
+
+  proxy = getConfigurationString("GNUNETD",
+				 "HTTP-PROXY");
+  if (proxy != NULL) {
+    ip = GETHOSTBYNAME(proxy);
+    if (ip == NULL) {
+      LOG(LOG_ERROR,
+	  _("Could not resolve name of HTTP proxy `%s'.\n"),
+	  proxy);
+      theProxy.sin_addr.s_addr = 0;
+    } else {
+      theProxy.sin_addr.s_addr = ((struct in_addr *)ip->h_addr)->s_addr;
+      proxyPort = getConfigurationString("GNUNETD",
+					 "HTTP-PROXY-PORT");
+      if (proxyPort == NULL) {
+	theProxy.sin_port = htons(8080);
+      } else {
+	theProxy.sin_port = htons(atoi(proxyPort));
+	FREE(proxyPort);
+      }
+    }
+    FREE(proxy);
+  } else {
     theProxy.sin_addr.s_addr = 0;
-   }
-   else
-   {
-    theProxy.sin_addr.s_addr = ((struct in_addr *)ip->h_addr)->s_addr;
-    proxyPort = getConfigurationString("GNUNETD", "HTTP-PROXY-PORT");
-    if (proxyPort == NULL)
-    {
-     theProxy.sin_port = htons(8080);
-    }
-    else
-    {
-     theProxy.sin_port = htons(atoi(proxyPort));
-     FREE(proxyPort);
-    }
-   }
-   FREE(proxy);
   }
-  else
-  {
-   theProxy.sin_addr.s_addr = 0;
+  stats = coreAPI->requestService("stats");
+  if (stats != NULL) {
+    stat_bytesReceived
+      = stats->create(gettext_noop("# bytes received via HTTP"));
+    stat_bytesSent
+      = stats->create(gettext_noop("# bytes sent via HTTP"));
+    stat_bytesDropped
+      = stats->create(gettext_noop("# bytes dropped by HTTP (outgoing)"));
   }
 
   httpAPI.protocolNumber       = HTTP_PROTOCOL_NUMBER;
-  httpAPI.mtu                  = mtu - sizeof(HTTPMessagePack);
+  httpAPI.mtu                  = 0;
   httpAPI.cost                 = 20000; /* about equal to udp */
   httpAPI.verifyHelo           = &verifyHelo;
-  httpAPI.createHELO           = &createHELO;
+  httpAPI.createhello           = &createhello;
   httpAPI.connect              = &httpConnect;
   httpAPI.associate            = &httpAssociate;
   httpAPI.send                 = &httpSend;
@@ -1548,9 +1495,15 @@ TransportAPI * inittransport_http(CoreAPIForTransport * core) {
 }
 
 void donetransport_http() {
-  FREE(tsessions);
-  tsessions = NULL;
-  tsessionArrayLength = 0;
+  int i;
+
+  coreAPI->releaseService(stats);
+  stats = NULL;
+  for (i=tsessionCount-1;i>=0;i--)
+    destroySession(i);
+  GROW(tsessions,
+       tsessionArrayLength,
+       0);
   FREENONNULL(filteredNetworks_);
   MUTEX_DESTROY(&httplock);
 }

@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001 - 2004 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -23,7 +23,7 @@
  * @brief plaform specifics
  *
  * @author Nils Durner
- **/
+ */
 
 #ifndef PLATFORM_H
 #define PLATFORM_H
@@ -33,15 +33,19 @@
 #include "config.h"
 #endif
 
+#include "plibc.h"
+
 /**
  * For strptime (glibc2 needs this).
  */
-#define _XOPEN_SOURCE 
+#ifndef _XOPEN_SOURCE
+#define _XOPEN_SOURCE
+#endif
+
 
 /* configuration options */
 
 #define VERBOSE_STATS 0
-
 
 #ifdef CYGWIN
  #include <sys/reent.h>
@@ -65,6 +69,7 @@
  #include <netinet/in.h>
  #include <pwd.h>
  #include <sys/ioctl.h>
+ #include <sys/wait.h>
 #else
  #include "winproc.h"
 #endif
@@ -84,7 +89,7 @@
 #endif
 #include <sys/stat.h>
 #include <sys/types.h>
-#ifndef _MSC_VER 
+#ifndef _MSC_VER
 #include <dirent.h> /* KLB_FIX */
 #endif
 #include <fcntl.h>
@@ -101,7 +106,7 @@
  #endif
 #endif
 
-/* if we have both openssl & libgcrypt, stick 
+/* if we have both openssl & libgcrypt, stick
    to openssl for now (who has the obscure
    libgcrypt CVS version that works for us!?...) */
 #if USE_OPENSSL
@@ -143,6 +148,10 @@
 #include <locale.h>
 #include "gettext.h"
 
+/**
+ * GNU gettext support macro.
+ */
+#define _(String) dgettext("GNUnet",String)
 
 #ifdef CYGWIN
  #define SIOCGIFCONF     _IOW('s', 100, struct ifconf) /* get if list */
@@ -150,93 +159,8 @@
  #define SIOCGIFADDR     _IOW('s', 102, struct ifreq) /* Get if addr */
 #endif
 
-
-/**
- * Open a file
- **/
-int OPEN(const char *filename, int oflag, ...);
-
 #ifndef MINGW
- #define DIR_SEPARATOR '/'
- #define DIR_SEPARATOR_STR "/"
-
- #define CREAT(p, m) creat(p, m)
- #undef FOPEN
- #define FOPEN(f, m) fopen(f, m)
- #define OPENDIR(d) opendir(d)
- #define CHDIR(d) chdir(d)
- #define RMDIR(f) rmdir(f)
- #define ACCESS(p, m) access(p, m)
- #define CHMOD(f, p) chmod(f, p)
- #define FSTAT(h, b) fstat(h, b)
- #define PIPE(h) pipe(h)
- #define REMOVE(p) remove(p)
- #define RENAME(o, n) rename(o, n)
- #define STAT(p, b) stat(p, b)
- #define UNLINK(f) unlink(f)
- #define WRITE(f, b, n) write(f, b, n)
- #define READ(f, b, n) read(f, b, n)
- #define GN_FREAD(b, s, c, f) fread(b, s, c, f)
- #define GN_FWRITE(b, s, c, f) fwrite(b, s, c, f)
- #define SYMLINK(a, b) symlink(a, b)
- #define STRERROR(i) strerror(i)
- #define ACCEPT(s, a, l) accept(s, a, l)
- #define BIND(s, n, l) bind(s, n, l)
- #define CONNECT(s, n, l) connect(s, n, l)
- #define GETPEERNAME(s, n, l) getpeername(s, n, l)
- #define GETSOCKNAME(s, n, l) getsockname(s, n, l)
- #define GETSOCKOPT(s, l, o, v, p) getsockopt(s, l, o, v, p)
- #define LISTEN(s, b) listen(s, b)
- #define RECV(s, b, l, f) recv(s, b, l, f)
- #define RECVFROM(s, b, l, f, r, o) recvfrom(s, b, l, f, r, o)
- #define SELECT(n, r, w, e, t) select(n, r, w, e, t)
- #define SEND(s, b, l, f) send(s, b, l, f)
- #define SENDTO(s, b, l, f, o, n) sendto(s, b, l, f, o, n)
- #define SETSOCKOPT(s, l, o, v, n) setsockopt(s, l, o, v, n)
- #define SHUTDOWN(s, h) shutdown(s, h)
- #define SOCKET(a, t, p) socket(a, t, p)
- #define GETHOSTBYADDR(a, l, t) gethostbyname(a, l, t)
- #define GETHOSTBYNAME(n) gethostbyname(n)
-#else
- #define DIR_SEPARATOR '\\'
- #define DIR_SEPARATOR_STR "\\"
-
- #define CREAT(p, m) _win_creat(p, m)
- #define FOPEN(f, m) _win_fopen(f, m)
- #define OPENDIR(d) _win_opendir(d)
- #define CHDIR(d) _win_chdir(d)
- #define FSTAT(h, b) _win_fstat(h, b)
- #define RMDIR(f) _win_rmdir(f)
- #define ACCESS(p, m) _win_access(p, m)
- #define CHMOD(f, p) _win_chmod(f, p)
- #define PIPE(h) _win_pipe(h)
- #define REMOVE(p) _win_remove(p)
- #define RENAME(o, n) _win_rename(o, n)
- #define STAT(p, b) _win_stat(p, b)
- #define UNLINK(f) _win_unlink(f)
- #define WRITE(f, b, n) _win_write(f, b, n)
- #define READ(f, b, n) _win_read(f, b, n)
- #define GN_FREAD(b, s, c, f) _win_fread(b, s, c, f)
- #define GN_FWRITE(b, s, c, f) _win_fwrite(b, s, c, f)
- #define SYMLINK(a, b) _win_symlink(a, b)
- #define STRERROR(i) _win_strerror(i)
- #define ACCEPT(s, a, l) _win_accept(s, a, l)
- #define BIND(s, n, l) _win_bind(s, n, l)
- #define CONNECT(s, n, l) _win_connect(s, n, l)
- #define GETPEERNAME(s, n, l) _win_getpeername(s, n, l)
- #define GETSOCKNAME(s, n, l) _win_getsockname(s, n, l) 
- #define GETSOCKOPT(s, l, o, v, p) _win_getsockopt(s, l, o, v, p)
- #define LISTEN(s, b) _win_listen(s, b)
- #define RECV(s, b, l, f) _win_recv(s, b, l, f)
- #define RECVFROM(s, b, l, f, r, o) _win_recvfrom(s, b, l, f, r, o)
- #define SELECT(n, r, w, e, t) _win_select(n, r, w, e, t)
- #define SEND(s, b, l, f) _win_send(s, b, l, f)
- #define SENDTO(s, b, l, f, o, n) _win_sendto(s, b, l, f, o, n)
- #define SETSOCKOPT(s, l, o, v, n) _win_setsockopt(s, l, o, v, n)
- #define SHUTDOWN(s, h) _win_shutdown(s, h)
- #define SOCKET(a, t, p) _win_socket(a, t, p)
- #define GETHOSTBYADDR(a, l, t) _win_gethostbyname(a, l, t)
- #define GETHOSTBYNAME(n) _win_gethostbyname(n)
+#include <sys/mman.h>
 #endif
 
 #ifdef OSX
@@ -245,6 +169,10 @@ int OPEN(const char *filename, int oflag, ...);
 
 #if !HAVE_ATOLL
 long long atoll(const char *nptr);
+#endif
+
+#if ENABLE_NLS
+	#include "langinfo.h"
 #endif
 
 #endif

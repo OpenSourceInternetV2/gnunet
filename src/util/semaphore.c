@@ -22,7 +22,7 @@
  * @file util/semaphore.c
  * @brief functions related to threading and synchronization
  *
- * In particular, functions for mutexes, semaphores 
+ * In particular, functions for mutexes, semaphores
  * and thread creation are provided.
  */
 
@@ -44,24 +44,22 @@
 #include <pthread.h>
 #include <semaphore.h>
 #endif
-  
-/* TODO: This does not work! LOG uses semaphores? -> infinite loop */
-#define DEBUG_SEMUPDOWN NO
 
 /**
- * Shall we use error-checking (slow) 
+ * Shall we use error-checking (slow)
  * mutexes (e.g. for debugging)
  */
 #define USE_CHECKING_MUTEX 1
 
-
 typedef struct {
 #if SOLARIS || FREEBSD5 || OSX
   sem_t * internal;
+#elif WINDOWS
+  HANDLE internal;
 #elif LINUX
   int internal;
   char * filename;
-#elif SOMEBSD || MINGW
+#elif SOMEBSD
   int initialValue;
   int fd;
   Mutex internalLock;
@@ -70,7 +68,7 @@ typedef struct {
   int internal; /* KLB_FIX */
   char * filename;
 #else
-  /* FIXME! */
+  /* PORT-ME! */
 #endif
 } IPC_Semaphore_Internal;
 
@@ -90,6 +88,7 @@ typedef struct {
 #ifndef _MSC_VER
 extern int pthread_mutexattr_setkind_np(pthread_mutexattr_t *attr, int kind);
 #endif
+
 /* ********************* public methods ******************* */
 
 void create_mutex_(Mutex * mutex) {
@@ -99,7 +98,7 @@ void create_mutex_(Mutex * mutex) {
 #if WINDOWS
   attr = NULL;
 #endif
-  
+
   pthread_mutexattr_init(&attr);
 #if USE_CHECKING_MUTEX
 #if LINUX
@@ -125,20 +124,15 @@ void create_recursive_mutex_(Mutex * mutex) {
   pthread_mutex_t * mut;
 
   pthread_mutexattr_init(&attr);
-  /* NOTE: What should FreeBSD do here? */
 #if LINUX
   GNUNET_ASSERT(0 == pthread_mutexattr_setkind_np
-		(&attr,  
+		(&attr,
 		 PTHREAD_MUTEX_RECURSIVE_NP));
-#elif SOMEBSD
+#elif SOMEBSD || FREEBSD || FREEBSD5
   GNUNET_ASSERT(0 == pthread_mutexattr_setkind_np
 		(&attr,
 		 PTHREAD_MUTEX_RECURSIVE));
-#elif SOLARIS || OSX
-  GNUNET_ASSERT(0 == pthread_mutexattr_settype
-		(&attr,
-		 PTHREAD_MUTEX_RECURSIVE));
-#elif WINDOWS
+#elif SOLARIS || OSX || WINDOWS
   GNUNET_ASSERT(0 == pthread_mutexattr_settype
 		(&attr,
 		 PTHREAD_MUTEX_RECURSIVE));
@@ -175,11 +169,11 @@ void mutex_lock_(Mutex * mutex,
   ret = pthread_mutex_lock(mut);
   if (ret != 0) {
     if (ret == EINVAL)
-      errexit(_("Invalid argument for '%s' at %s:%d.\n"),
+      errexit(_("Invalid argument for `%s' at %s:%d.\n"),
 	      "pthread_mutex_lock",
 	      filename, line);
     if (ret == EDEADLK)
-      errexit(_("Deadlock due to '%s' at %s:%d.\n"),
+      errexit(_("Deadlock due to `%s' at %s:%d.\n"),
 	      "pthread_mutex_lock",
 	      filename, line);
     GNUNET_ASSERT(0);
@@ -201,15 +195,15 @@ void mutex_unlock_(Mutex * mutex,
   ret = pthread_mutex_unlock(mut);
   if (ret != 0) {
     if (ret == EINVAL)
-      errexit(_("Invalid argument for '%s' at %s:%d.\n"),
+      errexit(_("Invalid argument for `%s' at %s:%d.\n"),
 	      "pthread_mutex_unlock",
 	      filename, line);
     if (ret == EPERM)
-      errexit(_("Permission denied for '%s' at %s:%d.\n"),
+      errexit(_("Permission denied for `%s' at %s:%d.\n"),
 	      "pthread_mutex_unlock",
 	      filename, line);
     GNUNET_ASSERT_FL(0, filename, line);
-  } 
+  }
 }
 
 /**
@@ -260,26 +254,11 @@ int semaphore_up_(Semaphore * s,
 
   GNUNET_ASSERT_FL(s != NULL, filename, linenumber);
   cond = s->cond;
-#if DEBUG_SEMUPDOWN
-  LOG(LOG_DEBUG,
-      "semaphore_up %p enter at %s:%d\n",
-      s,
-      filename,
-      linenumber);
-#endif
-  MUTEX_LOCK(&(s->mutex));  
+  MUTEX_LOCK(&(s->mutex));
   (s->v)++;
-  value_after_op = s->v;  
+  value_after_op = s->v;
   GNUNET_ASSERT(0 == pthread_cond_signal(cond));
   MUTEX_UNLOCK(&(s->mutex));
- 
-#if DEBUG_SEMUPDOWN
-  LOG(LOG_DEBUG,
-      "semaphore_up %p exit at %s:%d\n",
-      s,
-      filename,
-      linenumber);
-#endif
   return value_after_op;
 }
 
@@ -293,16 +272,9 @@ int semaphore_down_(Semaphore * s,
   int value_after_op;
   int return_value;
   pthread_cond_t * cond;
-  
+
   GNUNET_ASSERT_FL(s != NULL, filename, linenumber);
   cond = s->cond;
-#if DEBUG_SEMUPDOWN
-  LOG(LOG_DEBUG,
-      "semaphore_down %p enter at %s:%d\n",
-      s,
-      filename,
-      linenumber);
-#endif
   MUTEX_LOCK(&(s->mutex));
   while (s->v <= 0) {
     if ((return_value = pthread_cond_wait(cond,
@@ -311,14 +283,7 @@ int semaphore_down_(Semaphore * s,
   }
   (s->v)--;
   value_after_op = s->v;
-  MUTEX_UNLOCK(&(s->mutex));  
-#if DEBUG_SEMUPDOWN
-  LOG(LOG_DEBUG,
-      "semaphore_down %p exit at %s:%d\n",
-      s,
-      filename,
-      linenumber);
-#endif
+  MUTEX_UNLOCK(&(s->mutex));
   return value_after_op;
 }
 
@@ -337,7 +302,7 @@ int semaphore_down_nonblocking_(Semaphore * s,
     return SYSERR;
   }
   (s->v)--;
-  MUTEX_UNLOCK(&(s->mutex));  
+  MUTEX_UNLOCK(&(s->mutex));
   return OK;
 }
 
@@ -347,6 +312,7 @@ int semaphore_down_nonblocking_(Semaphore * s,
 int PTHREAD_SELF_TEST(PTHREAD_T * pt) {
   pthread_t * handle;
 
+  GNUNET_ASSERT(pt != NULL);
   handle = pt->internal;
   if (handle == NULL)
     return NO;
@@ -383,10 +349,10 @@ void PTHREAD_REL_SELF(PTHREAD_T * pt) {
  * @param handle handle to the pthread (for detaching, join)
  * @param main the main method of the thread
  * @param arg the argument to main
- * @param stackSize the size of the stack of the thread in bytes. 
- *        Note that if the stack overflows, some OSes (seen under BSD) 
+ * @param stackSize the size of the stack of the thread in bytes.
+ *        Note that if the stack overflows, some OSes (seen under BSD)
  *        will just segfault and gdb will give a messed-up stacktrace.
- * @return see pthread_create 
+ * @return see pthread_create
  */
 int PTHREAD_CREATE(PTHREAD_T * pt,
 		   PThreadMain main,
@@ -398,16 +364,17 @@ int PTHREAD_CREATE(PTHREAD_T * pt,
 
   handle = MALLOC(sizeof(pthread_t));
 #ifdef MINGW
-  memset(handle, sizeof(pthread_t), 0);
+  memset(handle, 0, sizeof(pthread_t));
 #endif
 
   pthread_attr_init(&stack_size_custom_attr);
   pthread_attr_setstacksize(&stack_size_custom_attr,
 			    stackSize);
-  ret = pthread_create(handle, 
+  ret = pthread_create(handle,
 		       &stack_size_custom_attr,
-		       main, 
-		       arg);			    
+		       main,
+		       arg);
+
   if (ret != 0) {
     FREE(handle);
     pt->internal = NULL;
@@ -422,33 +389,35 @@ void PTHREAD_JOIN(PTHREAD_T * pt,
   int k;
   pthread_t * handle;
 
+  GNUNET_ASSERT(pt != NULL);
   handle = pt->internal;
   GNUNET_ASSERT(handle != NULL);
+  GNUNET_ASSERT(NO == PTHREAD_SELF_TEST(pt));
   switch ((k=pthread_join(*handle, ret))) {
-  case 0: 
+  case 0:
     FREE(handle);
     pt->internal = NULL;
     return;
   case ESRCH:
-    errexit("'%s' failed with error code %s: %s\n",
+    errexit("`%s' failed with error code %s: %s\n",
 	    "pthread_join",
 	    "ESRCH",
 	    STRERROR(errno));
   case EINVAL:
-    errexit("'%s' failed with error code %s: %s\n",
+    errexit("`%s' failed with error code %s: %s\n",
 	    "pthread_join",
 	    "EINVAL",
 	    STRERROR(errno));
   case EDEADLK:
-    errexit("'%s' failed with error code %s: %s\n",
+    errexit("`%s' failed with error code %s: %s\n",
 	    "pthread_join",
 	    "EDEADLK",
 	    STRERROR(errno));
   default:
-    errexit("'%s' failed with error code %d: %s\n",
+    errexit("`%s' failed with error code %d: %s\n",
 	    "pthread_join",
 	    k,
-	    STRERROR(errno));    
+	    STRERROR(errno));
   }
 }
 
@@ -457,7 +426,7 @@ void PTHREAD_DETACH(PTHREAD_T * pt) {
 
   handle = pt->internal;
   GNUNET_ASSERT(handle != NULL);
-  if (0 != pthread_detach(*handle)) 
+  if (0 != pthread_detach(*handle))
     LOG_STRERROR(LOG_ERROR, "pthread_detach");
   pt->internal = NULL;
   FREE(handle);
@@ -482,16 +451,16 @@ void PTHREAD_KILL(PTHREAD_T * pt,
 #if LINUX
   /* IPC semaphore kludging for linux */
 
-  /* FIXME: ugly. why don't we start at count 0 and increment when opening? */
+  /* Why don't we start at count 0 and increment when opening? */
   #define PROCCOUNT 10000
 
   /**
-   * Implementation for a single semaphore actually uses three : 
+   * Implementation for a single semaphore actually uses three :
    *
    * 0 : actual semaphore value
-   * 1 : process counter 
+   * 1 : process counter
    * 2 : lock
-   */ 
+   */
 
   /* Various operations */
   static struct sembuf op_lock[2] = {
@@ -515,7 +484,7 @@ void PTHREAD_KILL(PTHREAD_T * pt,
   };
 #endif
 
-#if SOMEBSD || MINGW
+#if SOMEBSD
 static void FLOCK(int fd,
 		  int operation) {
   int ret;
@@ -535,8 +504,8 @@ static void FLOCK(int fd,
 static int LSEEK(int fd, off_t pos, int mode) {
   int ret;
   ret = lseek(fd, pos, mode);
-  if (ret == -1) 
-    LOG_STRERROR(LOG_ERROR, "lseek");  
+  if (ret == -1)
+    LOG_STRERROR(LOG_ERROR, "lseek");
   return ret;
 }
 #endif
@@ -560,23 +529,55 @@ IPC_Semaphore * ipc_semaphore_new_(const char * basename,
     if (noslashBasename[i] == '/')
       noslashBasename[i] = '.'; /* first character MUST be /, but Solaris
 				   forbids it afterwards */
-  noslashBasename[0] = '/';  
+  noslashBasename[0] = '/';
   ret->internal = sem_open(noslashBasename,
 			   O_CREAT,
 			   S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, /* 660 */
 			   initialValue);
-  while ( ret->internal == (void *) SEM_FAILED
- && errno == ENAMETOOLONG) {
+  while ( (ret->internal == (void *) SEM_FAILED)
+	  && (errno == ENAMETOOLONG) ) {
     if (strlen(noslashBasename) < 4)
       break; /* definitely OS error... */
     noslashBasename[strlen(noslashBasename)/2] = '\0'; /* cut in half */
     ret->internal = sem_open(noslashBasename,
-			     O_CREAT,   
+			     O_CREAT,
 			     S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, /* 660 */
-			     initialValue);			     
+			     initialValue);			
   }
-  if (ret->internal == (void *) SEM_FAILED) 
+  if (ret->internal == (void *) SEM_FAILED)
     DIE_FILE_STRERROR("sem_open", noslashBasename);
+  FREE(noslashBasename);
+  return rret;
+#elif WINDOWS
+  char * noslashBasename;
+  int i;
+  IPC_Semaphore * rret;
+  IPC_Semaphore_Internal * ret;
+  SECURITY_ATTRIBUTES sec;
+  DWORD dwErr;
+
+  rret = MALLOC(sizeof(IPC_Semaphore));
+  ret = MALLOC(sizeof(IPC_Semaphore_Internal));
+  rret->platform = ret;
+  noslashBasename = STRDUP(basename);
+  for (i=strlen(noslashBasename);i>0;i--)
+    if (noslashBasename[i] == '\\')
+      noslashBasename[i] = '.'; /* must not contain backslashes */
+
+  sec.nLength = sizeof(SECURITY_ATTRIBUTES);
+  sec.bInheritHandle = TRUE;
+  sec.lpSecurityDescriptor = NULL;
+
+  ret->internal = CreateSemaphore(&sec, initialValue, LONG_MAX, noslashBasename);
+  dwErr = GetLastError();
+  if (! ret->internal && dwErr == ERROR_ALREADY_EXISTS) {
+    ret->internal = OpenSemaphore(SEMAPHORE_MODIFY_STATE, TRUE, noslashBasename);
+    dwErr = GetLastError();
+  }
+  if (! ret->internal) {
+    LOG(LOG_FAILURE, _("Can't create semaphore: %i"), dwErr);
+    DIE_FILE_STRERROR("sem_open", noslashBasename);
+  }
   FREE(noslashBasename);
   return rret;
 #elif LINUX
@@ -586,11 +587,11 @@ IPC_Semaphore * ipc_semaphore_new_(const char * basename,
       ushort          *array;
   } semctl_arg;
   IPC_Semaphore * rret;
-  IPC_Semaphore_Internal * ret;  
+  IPC_Semaphore_Internal * ret;
   key_t key;
   FILE * fp;
   int pcount;
- 
+
   rret = MALLOC(sizeof(IPC_Semaphore));
   ret = MALLOC(sizeof(IPC_Semaphore_Internal));
   rret->platform = ret;
@@ -607,7 +608,7 @@ IPC_Semaphore * ipc_semaphore_new_(const char * basename,
     return NULL;
   }
   fclose(fp);
-  
+
   key = ftok(basename,'g');
 
 again:
@@ -624,58 +625,45 @@ again:
   }
 
   /* get process count */
-  if ( (pcount = semctl(ret->internal, 1, GETVAL, 0)) < 0) 
-    DIE_STRERROR_FL("semctl", filename, linenumber); 
+  if ( (pcount = semctl(ret->internal, 1, GETVAL, 0)) < 0)
+    DIE_STRERROR_FL("semctl", filename, linenumber);
   if (pcount==0) {
      semctl_arg.val = initialValue;
-     if (semctl(ret->internal, 0, SETVAL, semctl_arg) < 0) 
-       DIE_STRERROR_FL("semtcl", filename, linenumber);     
+     if (semctl(ret->internal, 0, SETVAL, semctl_arg) < 0)
+       DIE_STRERROR_FL("semtcl", filename, linenumber);
      semctl_arg.val = PROCCOUNT;
-     if (semctl(ret->internal, 1, SETVAL, semctl_arg) < 0) 
-       DIE_STRERROR_FL("semtcl", filename, linenumber); 
-  } 
+     if (semctl(ret->internal, 1, SETVAL, semctl_arg) < 0)
+       DIE_STRERROR_FL("semtcl", filename, linenumber);
+  }
 
-  if (semop(ret->internal, &op_endcreate[0], 2) < 0) 
-     DIE_STRERROR_FL("semop", filename, linenumber); 
-  
+  if (semop(ret->internal, &op_endcreate[0], 2) < 0)
+     DIE_STRERROR_FL("semop", filename, linenumber);
+
   ret->filename = STRDUP(basename);
-  return rret;  
-#elif SOMEBSD || MINGW
+  return rret;
+#elif SOMEBSD
   int fd;
-  int cnt;  
+  int cnt;
   IPC_Semaphore * rret;
-  IPC_Semaphore_Internal * ret;  
+  IPC_Semaphore_Internal * ret;
 
   rret = MALLOC(sizeof(IPC_Semaphore));
   ret = MALLOC(sizeof(IPC_Semaphore_Internal));
   rret->platform = ret;
 
-#if DEBUG_SEMUPDOWN
-  LOG(LOG_DEBUG,
-      "creating IPC semaphore\n");
-#endif
   MUTEX_CREATE(&ret->internalLock);
   ret->filename = STRDUP(basename);
   fd = -1;
   while (fd == -1) {
-    fd = OPEN(basename,
+    fd = fileopen(basename,
 	      O_CREAT|O_RDWR|O_EXCL,
 	      S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP /* 660 */);
-#if DEBUG_SEMUPDOWN
-    LOG(LOG_DEBUG,
-	"exclusive opening result: %d\n",
-	fd);
-#endif
     if ( (fd == -1) &&
 	 (errno == EEXIST) ) {
       /* try without creation */
-      fd = OPEN(basename,
+      fd = fileopen(basename,
 		O_RDWR,
 		S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP /* 660 */);
-#if DEBUG_SEMUPDOWN
-      LOG(LOG_DEBUG,
-	  "non-exclusive opening result: %d\n", fd);
-#endif
       /* possibly the file was deleted in the meantime,
 	 then try again with O_CREAT! */
       if ( (fd == -1) &&
@@ -699,9 +687,9 @@ again:
       LOG_FILE_STRERROR(LOG_WARNING, "write", basename);
   }
   LSEEK(fd, sizeof(int), SEEK_SET);
-  if (sizeof(int) != READ(fd, &cnt, sizeof(int))) 
+  if (sizeof(int) != READ(fd, &cnt, sizeof(int)))
     cnt = htonl(1);
-  else 
+  else
     cnt = htonl(ntohl(cnt)+1);
   LSEEK(fd, sizeof(int), SEEK_SET);
   if (sizeof(int) != WRITE(fd, &cnt, sizeof(int)))
@@ -713,11 +701,11 @@ again:
 #else
  #ifndef _MSC_VER
    #warning Port IPC.
-   return NULL; 
+   return NULL;
  #else
    return NULL;
  #endif
-#endif  
+#endif
 }
 
 void ipc_semaphore_up_(IPC_Semaphore * rsem,
@@ -734,10 +722,17 @@ void ipc_semaphore_up_(IPC_Semaphore * rsem,
 	STRERROR(errno),
 	filename,
 	linenumber);
+#elif WINDOWS
+  if (!ReleaseSemaphore(sem->internal, 1, NULL))
+    LOG(LOG_WARNING,
+      "ReleaseSemaphore signaled error: %i at %s:%d\n",
+      GetLastError(),
+      filename,
+      linenumber);
 #elif LINUX
   {
     struct sembuf sops = {0,1,SEM_UNDO};
-    
+
     if (0 != semop(sem->internal,&sops,1))
       LOG(LOG_WARNING,
 	  "semop signaled error: %s at %s:%d\n",
@@ -745,14 +740,11 @@ void ipc_semaphore_up_(IPC_Semaphore * rsem,
 	  filename,
 	  linenumber);
   }
-#elif SOMEBSD || MINGW
-  { 
+#elif SOMEBSD
+  {
     int cnt;
-    
-#if DEBUG_SEMUPDOWN
-    LOG(LOG_DEBUG,
-	"up on IPC semaphore\n");
-#endif
+
+
     MUTEX_LOCK(&sem->internalLock);
     FLOCK(sem->fd, LOCK_EX);
     LSEEK(sem->fd, 0, SEEK_SET);
@@ -774,20 +766,9 @@ void ipc_semaphore_up_(IPC_Semaphore * rsem,
 	  STRERROR(errno),
 	  __FILE__,
 	  __LINE__);
-#if DEBUG_SEMUPDOWN
-    else
-      LOG(LOG_DEBUG,
-	  "wrote count %d\n",
-	  ntohl(cnt));
-#endif
     FLOCK(sem->fd, LOCK_UN);
     MUTEX_UNLOCK(&sem->internalLock);
-#if DEBUG_SEMUPDOWN
-    LOG(LOG_DEBUG,
-	"up on IPC semaphore returns\n");
-#endif
   }
-#else
 #endif
 }
 
@@ -827,10 +808,17 @@ void ipc_semaphore_down_(IPC_Semaphore * rsem,
       break;
     }
   }
+#elif WINDOWS
+  if (WaitForSingleObject(sem->internal, INFINITE) == WAIT_FAILED)
+    LOG(LOG_WARNING,
+      "WaitForSingleObject signaled error: %s at %s:%d\n",
+      STRERROR(errno),
+      filename,
+      linenumber);
 #elif LINUX
   {
     struct sembuf sops = {0,-1,SEM_UNDO};
-    
+
     while (0 != semop(sem->internal,&sops,1)) {
       switch(errno) {
       case EINTR:
@@ -855,14 +843,10 @@ void ipc_semaphore_down_(IPC_Semaphore * rsem,
       }
     }
   }
-#elif SOMEBSD || MINGW
+#elif SOMEBSD
   {
     int cnt;
-    
-#if DEBUG_SEMUPDOWN
-    LOG(LOG_DEBUG,
-	"down on IPC semaphore\n");
-#endif
+
     MUTEX_LOCK(&sem->internalLock);
     FLOCK(sem->fd, LOCK_EX);
     cnt = ntohl(0);
@@ -882,14 +866,10 @@ void ipc_semaphore_down_(IPC_Semaphore * rsem,
 	/* busy wait! */
 	FLOCK(sem->fd, LOCK_UN);
 	gnunet_util_sleep(50 * cronMILLIS);
-#if DEBUG_SEMUPDOWN
-	LOG(LOG_DEBUG,
-	    "down on IPC semaphore: busy waiting...\n");
-#endif
 	FLOCK(sem->fd, LOCK_EX);
       }
     }
-    
+
     cnt = htonl(ntohl(cnt)-1);
     LSEEK(sem->fd, 0, SEEK_SET);
     if (sizeof(int) != WRITE(sem->fd, &cnt, sizeof(int)))
@@ -897,13 +877,9 @@ void ipc_semaphore_down_(IPC_Semaphore * rsem,
 	  "could not write update to IPC file %s at %s:%d\n",
 	  sem->filename,
 	  __FILE__,
-	  __LINE__); 
+	  __LINE__);
     FLOCK(sem->fd, LOCK_UN);
     MUTEX_UNLOCK(&sem->internalLock);
-#if DEBUG_SEMUPDOWN
-    LOG(LOG_DEBUG,
-	"down on IPC semaphore returns\n");
-#endif
   }
 #else
 #endif
@@ -924,17 +900,24 @@ void ipc_semaphore_free_(IPC_Semaphore * rsem,
 	STRERROR(errno),
 	filename,
 	linenumber);
+#elif WINDOWS
+  if (!CloseHandle(sem->internal))
+    LOG(LOG_WARNING,
+    "CloseHandle signaled error: %i at %s:%d\n",
+    GetLastError(),
+    filename,
+    linenumber);
 #elif LINUX
   {
     int pcount;
-    
+
     if (semop(sem->internal, &op_close[0], 3) < 0)
       LOG(LOG_WARNING,
 	  "semop signaled error: %s at %s:%d\n",
 	  STRERROR(errno),
 	  filename,
 	  linenumber);
-    
+
     if ( (pcount = semctl(sem->internal, 1, GETVAL, 0)) < 0)
       LOG(LOG_WARNING,
 	  "semctl: %s at %s:%d\n",
@@ -962,16 +945,12 @@ void ipc_semaphore_free_(IPC_Semaphore * rsem,
 	    filename,
 	    linenumber);
     }
-    FREE(sem->filename);  
+    FREE(sem->filename);
   }
-#elif SOMEBSD || MINGW
+#elif SOMEBSD
   {
-    int cnt;  
-    
-#if DEBUG_SEMUPDOWN
-    LOG(LOG_DEBUG,
-	"destroying IPC semaphore\n");
-#endif
+    int cnt;
+
     MUTEX_DESTROY(&sem->internalLock);
     FLOCK(sem->fd, LOCK_EX);
     LSEEK(sem->fd, sizeof(int), SEEK_SET);
@@ -985,14 +964,9 @@ void ipc_semaphore_free_(IPC_Semaphore * rsem,
 	    __FILE__,
 	    __LINE__);
       if (ntohl(cnt) == 0) {
-#if DEBUG_SEMUPDOWN
-	LOG(LOG_DEBUG,
-	    "removing IPC file %s -- last using process is done.\n",
-	    sem->filename);
-#endif
-	UNLINK(sem->filename); 
+	UNLINK(sem->filename);
       }
-    } else 
+    } else
       LOG(LOG_WARNING,
 	  "could not read process count of IPC %s at %s:%d\n",
 	  sem->filename,
@@ -1000,7 +974,7 @@ void ipc_semaphore_free_(IPC_Semaphore * rsem,
 	  __LINE__);
     FREE(sem->filename);
     FLOCK(sem->fd, LOCK_UN);
-    CLOSE(sem->fd);
+    closefile(sem->fd);
   }
 #else
 #endif

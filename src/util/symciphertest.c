@@ -4,10 +4,12 @@
  * @file util/symciphertest.c
  */
 
-#include "gnunet_util.h"
 #include "platform.h"
+#include "gnunet_util.h"
+#include "locking_gcrypt.h"
 
 #define TESTSTRING "Hello World!"
+#define INITVALUE "InitializationVectorValue"
 
 static int testSymcipher() {
   SESSIONKEY key;
@@ -19,7 +21,7 @@ static int testSymcipher() {
   size = encryptBlock(TESTSTRING,
 		      strlen(TESTSTRING)+1,
 		      &key,
-		      INITVALUE,
+		      (const INITVECTOR*) INITVALUE,
 		      result);
   if (size == -1) {
     printf("symciphertest failed: encryptBlock returned %d\n",
@@ -29,9 +31,9 @@ static int testSymcipher() {
   size = decryptBlock(&key,
 		      result,
 		      size,
-		      INITVALUE,
+		      (const INITVECTOR*) INITVALUE,
 		      res);
-  if (strlen(TESTSTRING)+1 
+  if (strlen(TESTSTRING)+1
       != size) {
     printf("symciphertest failed: decryptBlock returned %d\n",
 	  size);
@@ -45,21 +47,13 @@ static int testSymcipher() {
     return 0;
 }
 
-#if ! USE_OPENSSL
-void initLockingGcrypt();
-void doneLockingGcrypt();
-#endif
-
 int main(int argc, char * argv[]) {
   int failureCount = 0;
-  
-#if ! USE_OPENSSL
+
+  GNUNET_ASSERT(strlen(INITVALUE) > sizeof(INITVECTOR));
   initLockingGcrypt();
-#endif
   failureCount += testSymcipher();
-#if ! USE_OPENSSL
   doneLockingGcrypt();
-#endif
 
   if (failureCount == 0)
     return 0;
@@ -67,6 +61,6 @@ int main(int argc, char * argv[]) {
     printf("%d TESTS FAILED!\n",failureCount);
     return -1;
   }
-} 
+}
 
 /* end of symciphertest.c */

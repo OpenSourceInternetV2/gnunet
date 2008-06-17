@@ -15,7 +15,7 @@
 @SET_MAKE@
 
 
-SOURCES = $(libgnunettracekit_protocol_la_SOURCES) $(gnunet_tracekit_SOURCES)
+SOURCES = $(libgnunetmodule_tracekit_la_SOURCES) $(gnunet_tracekit_SOURCES)
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -42,26 +42,27 @@ bin_PROGRAMS = gnunet-tracekit$(EXEEXT)
 subdir = src/applications/tracekit
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/m4/gettext.m4 \
-	$(top_srcdir)/m4/gtk-2.0.m4 $(top_srcdir)/m4/guile.m4 \
-	$(top_srcdir)/m4/iconv.m4 $(top_srcdir)/m4/lib-ld.m4 \
-	$(top_srcdir)/m4/lib-link.m4 $(top_srcdir)/m4/lib-prefix.m4 \
-	$(top_srcdir)/m4/libgcrypt.m4 $(top_srcdir)/m4/nls.m4 \
-	$(top_srcdir)/m4/po.m4 $(top_srcdir)/m4/progtest.m4 \
-	$(top_srcdir)/acinclude.m4 $(top_srcdir)/configure.ac
+am__aclocal_m4_deps = $(top_srcdir)/m4/ac_define_dir.m4 \
+	$(top_srcdir)/m4/gettext.m4 $(top_srcdir)/m4/gtk-2.0.m4 \
+	$(top_srcdir)/m4/guile.m4 $(top_srcdir)/m4/iconv.m4 \
+	$(top_srcdir)/m4/lib-ld.m4 $(top_srcdir)/m4/lib-link.m4 \
+	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libgcrypt.m4 \
+	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/po.m4 \
+	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/acinclude.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
 CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
-am__installdirs = "$(DESTDIR)$(libdir)" "$(DESTDIR)$(bindir)"
-libLTLIBRARIES_INSTALL = $(INSTALL)
-LTLIBRARIES = $(lib_LTLIBRARIES)
+am__installdirs = "$(DESTDIR)$(plugindir)" "$(DESTDIR)$(bindir)"
+pluginLTLIBRARIES_INSTALL = $(INSTALL)
+LTLIBRARIES = $(plugin_LTLIBRARIES)
 am__DEPENDENCIES_1 = $(top_builddir)/src/util/libgnunetutil.la
-libgnunettracekit_protocol_la_DEPENDENCIES = $(am__DEPENDENCIES_1)
-am_libgnunettracekit_protocol_la_OBJECTS = tracekit.lo
-libgnunettracekit_protocol_la_OBJECTS =  \
-	$(am_libgnunettracekit_protocol_la_OBJECTS)
+libgnunetmodule_tracekit_la_DEPENDENCIES = $(am__DEPENDENCIES_1)
+am_libgnunetmodule_tracekit_la_OBJECTS = tracekit.lo
+libgnunetmodule_tracekit_la_OBJECTS =  \
+	$(am_libgnunetmodule_tracekit_la_OBJECTS)
 binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(bin_PROGRAMS)
 am_gnunet_tracekit_OBJECTS = gnunet-tracekit.$(OBJEXT)
@@ -82,9 +83,9 @@ LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) \
 CCLD = $(CC)
 LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(libgnunettracekit_protocol_la_SOURCES) \
+SOURCES = $(libgnunetmodule_tracekit_la_SOURCES) \
 	$(gnunet_tracekit_SOURCES)
-DIST_SOURCES = $(libgnunettracekit_protocol_la_SOURCES) \
+DIST_SOURCES = $(libgnunetmodule_tracekit_la_SOURCES) \
 	$(gnunet_tracekit_SOURCES)
 ETAGS = etags
 CTAGS = ctags
@@ -113,6 +114,7 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 CYGWIN_FALSE = @CYGWIN_FALSE@
 CYGWIN_TRUE = @CYGWIN_TRUE@
+DATADIR = @DATADIR@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
 DLLTOOL = @DLLTOOL@
@@ -132,16 +134,8 @@ GTK_LIBS = @GTK_LIBS@
 GUILE = @GUILE@
 GUILE_CONFIG = @GUILE_CONFIG@
 GUILE_TOOLS = @GUILE_TOOLS@
-HAVE_BDB_DLL_FALSE = @HAVE_BDB_DLL_FALSE@
-HAVE_BDB_DLL_TRUE = @HAVE_BDB_DLL_TRUE@
-HAVE_BDB_FALSE = @HAVE_BDB_FALSE@
-HAVE_BDB_TRUE = @HAVE_BDB_TRUE@
 HAVE_CURSES_FALSE = @HAVE_CURSES_FALSE@
 HAVE_CURSES_TRUE = @HAVE_CURSES_TRUE@
-HAVE_DIRECTORY_FALSE = @HAVE_DIRECTORY_FALSE@
-HAVE_DIRECTORY_TRUE = @HAVE_DIRECTORY_TRUE@
-HAVE_GDBM_FALSE = @HAVE_GDBM_FALSE@
-HAVE_GDBM_TRUE = @HAVE_GDBM_TRUE@
 HAVE_GTK_FALSE = @HAVE_GTK_FALSE@
 HAVE_GTK_TRUE = @HAVE_GTK_TRUE@
 HAVE_GUILE_FALSE = @HAVE_GUILE_FALSE@
@@ -150,10 +144,10 @@ HAVE_IPV6_FALSE = @HAVE_IPV6_FALSE@
 HAVE_IPV6_TRUE = @HAVE_IPV6_TRUE@
 HAVE_MYSQL_FALSE = @HAVE_MYSQL_FALSE@
 HAVE_MYSQL_TRUE = @HAVE_MYSQL_TRUE@
+HAVE_PDCURSES_FALSE = @HAVE_PDCURSES_FALSE@
+HAVE_PDCURSES_TRUE = @HAVE_PDCURSES_TRUE@
 HAVE_SQLITE_FALSE = @HAVE_SQLITE_FALSE@
 HAVE_SQLITE_TRUE = @HAVE_SQLITE_TRUE@
-HAVE_TDB_FALSE = @HAVE_TDB_FALSE@
-HAVE_TDB_TRUE = @HAVE_TDB_TRUE@
 HAVE_ZLIB_FALSE = @HAVE_ZLIB_FALSE@
 HAVE_ZLIB_TRUE = @HAVE_ZLIB_TRUE@
 INSTALL_DATA = @INSTALL_DATA@
@@ -175,6 +169,7 @@ LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
+LOCALEDIR = @LOCALEDIR@
 LTDLINCL = @LTDLINCL@
 LTLIBICONV = @LTLIBICONV@
 LTLIBINTL = @LTLIBINTL@
@@ -185,6 +180,8 @@ MINGW_TRUE = @MINGW_TRUE@
 MKINSTALLDIRS = @MKINSTALLDIRS@
 MSGFMT = @MSGFMT@
 MSGMERGE = @MSGMERGE@
+MYSQL_CPPFLAGS = @MYSQL_CPPFLAGS@
+MYSQL_LDFLAGS = @MYSQL_LDFLAGS@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
@@ -201,14 +198,10 @@ SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 SOLARIS_FALSE = @SOLARIS_FALSE@
 SOLARIS_TRUE = @SOLARIS_TRUE@
+SQLITE_CPPFLAGS = @SQLITE_CPPFLAGS@
+SQLITE_LDFLAGS = @SQLITE_LDFLAGS@
 STRIP = @STRIP@
-USE_GCRYPT_FALSE = @USE_GCRYPT_FALSE@
-USE_GCRYPT_TRUE = @USE_GCRYPT_TRUE@
-USE_LIBEXTRACTOR_FALSE = @USE_LIBEXTRACTOR_FALSE@
-USE_LIBEXTRACTOR_TRUE = @USE_LIBEXTRACTOR_TRUE@
 USE_NLS = @USE_NLS@
-USE_OPENSSL_FALSE = @USE_OPENSSL_FALSE@
-USE_OPENSSL_TRUE = @USE_OPENSSL_TRUE@
 VERSION = @VERSION@
 XGETTEXT = @XGETTEXT@
 ac_ct_AR = @ac_ct_AR@
@@ -258,24 +251,25 @@ subdirs = @subdirs@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 INCLUDES = -I$(top_srcdir)/src/include
+plugindir = $(libdir)/GNUnet
 LDADD = \
   $(top_builddir)/src/util/libgnunetutil.la 
 
-lib_LTLIBRARIES = \
-  libgnunettracekit_protocol.la
+plugin_LTLIBRARIES = \
+  libgnunetmodule_tracekit.la
 
 gnunet_tracekit_SOURCES = \
   gnunet-tracekit.c \
   tracekit.h
 
-libgnunettracekit_protocol_la_SOURCES = \
+libgnunetmodule_tracekit_la_SOURCES = \
   tracekit.c \
   tracekit.h
 
-libgnunettracekit_protocol_la_LIBADD = \
+libgnunetmodule_tracekit_la_LIBADD = \
   $(LDADD)
 
-libgnunettracekit_protocol_la_LDFLAGS = \
+libgnunetmodule_tracekit_la_LDFLAGS = \
   -export-dynamic -avoid-version -module
 
 all: all-am
@@ -311,35 +305,35 @@ $(top_srcdir)/configure:  $(am__configure_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
-install-libLTLIBRARIES: $(lib_LTLIBRARIES)
+install-pluginLTLIBRARIES: $(plugin_LTLIBRARIES)
 	@$(NORMAL_INSTALL)
-	test -z "$(libdir)" || $(mkdir_p) "$(DESTDIR)$(libdir)"
-	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	test -z "$(plugindir)" || $(mkdir_p) "$(DESTDIR)$(plugindir)"
+	@list='$(plugin_LTLIBRARIES)'; for p in $$list; do \
 	  if test -f $$p; then \
 	    f="`echo $$p | sed -e 's|^.*/||'`"; \
-	    echo " $(LIBTOOL) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) '$$p' '$(DESTDIR)$(libdir)/$$f'"; \
-	    $(LIBTOOL) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) "$$p" "$(DESTDIR)$(libdir)/$$f"; \
+	    echo " $(LIBTOOL) --mode=install $(pluginLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) '$$p' '$(DESTDIR)$(plugindir)/$$f'"; \
+	    $(LIBTOOL) --mode=install $(pluginLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) "$$p" "$(DESTDIR)$(plugindir)/$$f"; \
 	  else :; fi; \
 	done
 
-uninstall-libLTLIBRARIES:
+uninstall-pluginLTLIBRARIES:
 	@$(NORMAL_UNINSTALL)
-	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	@list='$(plugin_LTLIBRARIES)'; for p in $$list; do \
 	    p="`echo $$p | sed -e 's|^.*/||'`"; \
-	  echo " $(LIBTOOL) --mode=uninstall rm -f '$(DESTDIR)$(libdir)/$$p'"; \
-	  $(LIBTOOL) --mode=uninstall rm -f "$(DESTDIR)$(libdir)/$$p"; \
+	  echo " $(LIBTOOL) --mode=uninstall rm -f '$(DESTDIR)$(plugindir)/$$p'"; \
+	  $(LIBTOOL) --mode=uninstall rm -f "$(DESTDIR)$(plugindir)/$$p"; \
 	done
 
-clean-libLTLIBRARIES:
-	-test -z "$(lib_LTLIBRARIES)" || rm -f $(lib_LTLIBRARIES)
-	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+clean-pluginLTLIBRARIES:
+	-test -z "$(plugin_LTLIBRARIES)" || rm -f $(plugin_LTLIBRARIES)
+	@list='$(plugin_LTLIBRARIES)'; for p in $$list; do \
 	  dir="`echo $$p | sed -e 's|/[^/]*$$||'`"; \
 	  test "$$dir" != "$$p" || dir=.; \
 	  echo "rm -f \"$${dir}/so_locations\""; \
 	  rm -f "$${dir}/so_locations"; \
 	done
-libgnunettracekit_protocol.la: $(libgnunettracekit_protocol_la_OBJECTS) $(libgnunettracekit_protocol_la_DEPENDENCIES) 
-	$(LINK) -rpath $(libdir) $(libgnunettracekit_protocol_la_LDFLAGS) $(libgnunettracekit_protocol_la_OBJECTS) $(libgnunettracekit_protocol_la_LIBADD) $(LIBS)
+libgnunetmodule_tracekit.la: $(libgnunetmodule_tracekit_la_OBJECTS) $(libgnunetmodule_tracekit_la_DEPENDENCIES) 
+	$(LINK) -rpath $(plugindir) $(libgnunetmodule_tracekit_la_LDFLAGS) $(libgnunetmodule_tracekit_la_OBJECTS) $(libgnunetmodule_tracekit_la_LIBADD) $(LIBS)
 install-binPROGRAMS: $(bin_PROGRAMS)
 	@$(NORMAL_INSTALL)
 	test -z "$(bindir)" || $(mkdir_p) "$(DESTDIR)$(bindir)"
@@ -493,10 +487,8 @@ distdir: $(DISTFILES)
 check-am: all-am
 check: check-am
 all-am: Makefile $(LTLIBRARIES) $(PROGRAMS)
-install-binPROGRAMS: install-libLTLIBRARIES
-
 installdirs:
-	for dir in "$(DESTDIR)$(libdir)" "$(DESTDIR)$(bindir)"; do \
+	for dir in "$(DESTDIR)$(plugindir)" "$(DESTDIR)$(bindir)"; do \
 	  test -z "$$dir" || $(mkdir_p) "$$dir"; \
 	done
 install: install-am
@@ -525,8 +517,8 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-binPROGRAMS clean-generic clean-libLTLIBRARIES \
-	clean-libtool mostlyclean-am
+clean-am: clean-binPROGRAMS clean-generic clean-libtool \
+	clean-pluginLTLIBRARIES mostlyclean-am
 
 distclean: distclean-am
 	-rm -rf ./$(DEPDIR)
@@ -544,9 +536,9 @@ info: info-am
 
 info-am:
 
-install-data-am:
+install-data-am: install-pluginLTLIBRARIES
 
-install-exec-am: install-binPROGRAMS install-libLTLIBRARIES
+install-exec-am: install-binPROGRAMS
 
 install-info: install-info-am
 
@@ -573,21 +565,21 @@ ps: ps-am
 ps-am:
 
 uninstall-am: uninstall-binPROGRAMS uninstall-info-am \
-	uninstall-libLTLIBRARIES
+	uninstall-pluginLTLIBRARIES
 
 .PHONY: CTAGS GTAGS all all-am check check-am clean clean-binPROGRAMS \
-	clean-generic clean-libLTLIBRARIES clean-libtool ctags \
+	clean-generic clean-libtool clean-pluginLTLIBRARIES ctags \
 	distclean distclean-compile distclean-generic \
 	distclean-libtool distclean-tags distdir dvi dvi-am html \
 	html-am info info-am install install-am install-binPROGRAMS \
 	install-data install-data-am install-exec install-exec-am \
-	install-info install-info-am install-libLTLIBRARIES \
-	install-man install-strip installcheck installcheck-am \
-	installdirs maintainer-clean maintainer-clean-generic \
-	mostlyclean mostlyclean-compile mostlyclean-generic \
-	mostlyclean-libtool pdf pdf-am ps ps-am tags uninstall \
-	uninstall-am uninstall-binPROGRAMS uninstall-info-am \
-	uninstall-libLTLIBRARIES
+	install-info install-info-am install-man \
+	install-pluginLTLIBRARIES install-strip installcheck \
+	installcheck-am installdirs maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-compile \
+	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
+	tags uninstall uninstall-am uninstall-binPROGRAMS \
+	uninstall-info-am uninstall-pluginLTLIBRARIES
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

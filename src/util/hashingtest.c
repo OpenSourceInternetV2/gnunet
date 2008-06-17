@@ -4,29 +4,23 @@
  * @file util/hashingtest.c
  */
 
-#include "gnunet_util.h"
 #include "platform.h"
+#include "gnunet_util.h"
+#include "locking_gcrypt.h"
 
 static int test(int number) {
-  HashCode160 h1;
-  HashCode160 h2;
+  HashCode512 h1;
+  HashCode512 h2;
   EncName enc;
 
-  memset(&h1, number, sizeof(HashCode160));
+  memset(&h1, number, sizeof(HashCode512));
   hash2enc(&h1, &enc);
   if (OK != enc2hash((char*)&enc, &h2)) {
     printf("enc2hash failed!\n");
     return 1;
   }
-    
-  if (! equalsHashCode160(&h1, &h2)) {
-    HexName hex;
-    hash2hex(&h1,
-	     &hex);
-    printf("Got: %s\n", (char*) &hex); 
-    hash2hex(&h2,
-	     &hex);
-    printf("And: %s\n", (char*) &hex);
+
+  if (! equalsHashCode512(&h1, &h2)) {
     return 1;
   }
   return 0;
@@ -42,13 +36,16 @@ static int testEncoding() {
 
 int main(int argc, char * argv[]) {
   int failureCount = 0;
-  
-  failureCount += testEncoding();
+  int i;
 
+  initLockingGcrypt();
+  for (i=0;i<10;i++)
+    failureCount += testEncoding();
+  doneLockingGcrypt();
   if (failureCount == 0)
     return 0;
-  else 
+  else
     return 1;
-} 
+}
 
 /* end of hashingtest.c */

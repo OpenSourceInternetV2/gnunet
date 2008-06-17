@@ -1,24 +1,27 @@
 INCLUDES = -I$(top_srcdir)/src/include
 
+plugindir = $(libdir)/GNUnet
 
 lib_LTLIBRARIES = \
-  libgnunetrpc_util.la \
-  libgnunetrpc_protocol.la
+  libgnunetmodule_rpc_util.la 
 
-libgnunetrpc_protocol_la_SOURCES = \
+plugin_LTLIBRARIES = \
+  libgnunetmodule_rpc.la
+
+libgnunetmodule_rpc_la_SOURCES = \
   rpc.c 
 
-libgnunetrpc_protocol_la_LIBADD = \
+libgnunetmodule_rpc_la_LIBADD = \
   $(top_builddir)/src/util/libgnunetutil.la \
-  $(top_builddir)/src/applications/rpc/libgnunetrpc_util.la
+  $(top_builddir)/src/applications/rpc/libgnunetmodule_rpc_util.la
 
-libgnunetrpc_protocol_la_LDFLAGS = \
+libgnunetmodule_rpc_la_LDFLAGS = \
   -export-dynamic -avoid-version -module
 
-libgnunetrpc_util_la_SOURCES = \
+libgnunetmodule_rpc_util_la_SOURCES = \
   parameters.c 
 
-libgnunetrpc_util_la_LIBADD = \
+libgnunetmodule_rpc_util_la_LIBADD = \
   $(top_builddir)/src/util/libgnunetutil.la 
 
 

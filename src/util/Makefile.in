@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-SOURCES = $(libgnunetutil_la_SOURCES) $(bloomtest_SOURCES) $(configtest_SOURCES) $(crctest_SOURCES) $(crontest_SOURCES) $(hashingtest_SOURCES) $(hashtest_SOURCES) $(hostkeytest_SOURCES) $(kblockkey_test_SOURCES) $(semaphoretest_SOURCES) $(shutdowntest_SOURCES) $(statetest_SOURCES) $(statuscallstest_SOURCES) $(storagetest_SOURCES) $(symciphertest_SOURCES) $(tcpiotest_SOURCES) $(timertest_SOURCES) $(vectortest_SOURCES) $(weakkeytest_SOURCES) $(xmalloctest_SOURCES)
+SOURCES = $(libgnunetutil_la_SOURCES) $(bloomtest_SOURCES) $(configtest_SOURCES) $(crctest_SOURCES) $(crontest_SOURCES) $(daemontest_SOURCES) $(hashingtest_SOURCES) $(hashtest_SOURCES) $(hostkeytest_SOURCES) $(kblockkey_test_SOURCES) $(semaphoretest_SOURCES) $(shutdowntest_SOURCES) $(statetest_SOURCES) $(statuscallstest_SOURCES) $(storagetest_SOURCES) $(symciphertest_SOURCES) $(tcpiotest_SOURCES) $(timertest_SOURCES) $(vectortest_SOURCES) $(weakkeytest_SOURCES) $(xmalloctest_SOURCES)
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -38,23 +38,24 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 host_triplet = @host@
 check_PROGRAMS = bloomtest$(EXEEXT) crctest$(EXEEXT) crontest$(EXEEXT) \
-	configtest$(EXEEXT) hashtest$(EXEEXT) hashingtest$(EXEEXT) \
-	hostkeytest$(EXEEXT) kblockkey_test$(EXEEXT) \
-	semaphoretest$(EXEEXT) shutdowntest$(EXEEXT) \
-	statetest$(EXEEXT) statuscallstest$(EXEEXT) \
-	storagetest$(EXEEXT) symciphertest$(EXEEXT) tcpiotest$(EXEEXT) \
-	timertest$(EXEEXT) vectortest$(EXEEXT) weakkeytest$(EXEEXT) \
-	xmalloctest$(EXEEXT)
+	configtest$(EXEEXT) daemontest$(EXEEXT) hashtest$(EXEEXT) \
+	hashingtest$(EXEEXT) hostkeytest$(EXEEXT) \
+	kblockkey_test$(EXEEXT) semaphoretest$(EXEEXT) \
+	shutdowntest$(EXEEXT) statetest$(EXEEXT) \
+	statuscallstest$(EXEEXT) storagetest$(EXEEXT) \
+	symciphertest$(EXEEXT) tcpiotest$(EXEEXT) timertest$(EXEEXT) \
+	vectortest$(EXEEXT) weakkeytest$(EXEEXT) xmalloctest$(EXEEXT)
 subdir = src/util
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/m4/gettext.m4 \
-	$(top_srcdir)/m4/gtk-2.0.m4 $(top_srcdir)/m4/guile.m4 \
-	$(top_srcdir)/m4/iconv.m4 $(top_srcdir)/m4/lib-ld.m4 \
-	$(top_srcdir)/m4/lib-link.m4 $(top_srcdir)/m4/lib-prefix.m4 \
-	$(top_srcdir)/m4/libgcrypt.m4 $(top_srcdir)/m4/nls.m4 \
-	$(top_srcdir)/m4/po.m4 $(top_srcdir)/m4/progtest.m4 \
-	$(top_srcdir)/acinclude.m4 $(top_srcdir)/configure.ac
+am__aclocal_m4_deps = $(top_srcdir)/m4/ac_define_dir.m4 \
+	$(top_srcdir)/m4/gettext.m4 $(top_srcdir)/m4/gtk-2.0.m4 \
+	$(top_srcdir)/m4/guile.m4 $(top_srcdir)/m4/iconv.m4 \
+	$(top_srcdir)/m4/lib-ld.m4 $(top_srcdir)/m4/lib-link.m4 \
+	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libgcrypt.m4 \
+	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/po.m4 \
+	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/acinclude.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
@@ -69,27 +70,13 @@ LTLIBRARIES = $(lib_LTLIBRARIES)
 @MINGW_TRUE@	$(top_builddir)/src/util/win/libwin.la
 libgnunetutil_la_DEPENDENCIES = $(am__DEPENDENCIES_1) \
 	$(am__DEPENDENCIES_2)
-am__libgnunetutil_la_SOURCES_DIST = bloomfilter.c checksum.c \
-	configuration.c cron.c dso.c getopt.c generate_gnunetd_conf.c \
-	generate_gnunet_conf.c hashing.c hostkey_gcrypt.c \
-	symcipher_gcrypt.c locking_gcrypt.c locking_gcrypt.h \
-	random_gcrypt.c hostkey_openssl.c symcipher_openssl.c \
-	random_openssl.c identity.c initialize.c io.c ipcheck.c \
-	kblockkey.c logging.c printhelp.c port.c semaphore.c \
-	shutdown.c state.c statistics.c statuscalls.c storage.c \
-	tcp_return.c tcpio.c timer.c vector.c xmalloc.c
-@USE_OPENSSL_FALSE@am__objects_1 = hostkey_gcrypt.lo \
-@USE_OPENSSL_FALSE@	symcipher_gcrypt.lo locking_gcrypt.lo \
-@USE_OPENSSL_FALSE@	random_gcrypt.lo
-@USE_OPENSSL_TRUE@am__objects_1 = hostkey_openssl.lo \
-@USE_OPENSSL_TRUE@	symcipher_openssl.lo random_openssl.lo
 am_libgnunetutil_la_OBJECTS = bloomfilter.lo checksum.lo \
-	configuration.lo cron.lo dso.lo getopt.lo \
-	generate_gnunetd_conf.lo generate_gnunet_conf.lo hashing.lo \
-	$(am__objects_1) identity.lo initialize.lo io.lo ipcheck.lo \
-	kblockkey.lo logging.lo printhelp.lo port.lo semaphore.lo \
-	shutdown.lo state.lo statistics.lo statuscalls.lo storage.lo \
-	tcp_return.lo tcpio.lo timer.lo vector.lo xmalloc.lo
+	configuration.lo cron.lo daemon.lo dso.lo getopt.lo hashing.lo \
+	hostkey_gcrypt.lo initialize.lo io.lo ipcheck.lo kblockkey.lo \
+	locking_gcrypt.lo logging.lo osconfig.lo printhelp.lo port.lo \
+	random.lo semaphore.lo shutdown.lo state.lo statuscalls.lo \
+	storage.lo string.lo symcipher_gcrypt.lo tcp_return.lo \
+	tcpio.lo timer.lo vector.lo xmalloc.lo
 libgnunetutil_la_OBJECTS = $(am_libgnunetutil_la_OBJECTS)
 am_bloomtest_OBJECTS = bloomtest.$(OBJEXT)
 bloomtest_OBJECTS = $(am_bloomtest_OBJECTS)
@@ -103,6 +90,9 @@ crctest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la
 am_crontest_OBJECTS = crontest.$(OBJEXT)
 crontest_OBJECTS = $(am_crontest_OBJECTS)
 crontest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la
+am_daemontest_OBJECTS = daemontest.$(OBJEXT)
+daemontest_OBJECTS = $(am_daemontest_OBJECTS)
+daemontest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la
 am_hashingtest_OBJECTS = hashingtest.$(OBJEXT)
 hashingtest_OBJECTS = $(am_hashingtest_OBJECTS)
 hashingtest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la
@@ -160,34 +150,28 @@ am__depfiles_maybe = depfiles
 @AMDEP_TRUE@	./$(DEPDIR)/configtest.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/configuration.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/crctest.Po ./$(DEPDIR)/cron.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/crontest.Po ./$(DEPDIR)/dso.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/generate_gnunet_conf.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/generate_gnunetd_conf.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/crontest.Po ./$(DEPDIR)/daemon.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/daemontest.Po ./$(DEPDIR)/dso.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/getopt.Plo ./$(DEPDIR)/hashing.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/hashingtest.Po ./$(DEPDIR)/hashtest.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/hostkey_gcrypt.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/hostkey_openssl.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/hostkeytest.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/identity.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/initialize.Plo ./$(DEPDIR)/io.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/ipcheck.Plo ./$(DEPDIR)/kblockkey.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/kblockkey_test.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/locking_gcrypt.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/logging.Plo ./$(DEPDIR)/port.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/printhelp.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/random_gcrypt.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/random_openssl.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/semaphore.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/logging.Plo ./$(DEPDIR)/osconfig.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/port.Plo ./$(DEPDIR)/printhelp.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/random.Plo ./$(DEPDIR)/semaphore.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/semaphoretest.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/shutdown.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/shutdowntest.Po ./$(DEPDIR)/state.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/statetest.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/statistics.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/statuscalls.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/statuscallstest.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/storage.Plo ./$(DEPDIR)/storagetest.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/string.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/symcipher_gcrypt.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/symcipher_openssl.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/symciphertest.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/tcp_return.Plo ./$(DEPDIR)/tcpio.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/tcpiotest.Po ./$(DEPDIR)/timer.Plo \
@@ -205,24 +189,24 @@ LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
 SOURCES = $(libgnunetutil_la_SOURCES) $(bloomtest_SOURCES) \
 	$(configtest_SOURCES) $(crctest_SOURCES) $(crontest_SOURCES) \
-	$(hashingtest_SOURCES) $(hashtest_SOURCES) \
-	$(hostkeytest_SOURCES) $(kblockkey_test_SOURCES) \
-	$(semaphoretest_SOURCES) $(shutdowntest_SOURCES) \
-	$(statetest_SOURCES) $(statuscallstest_SOURCES) \
-	$(storagetest_SOURCES) $(symciphertest_SOURCES) \
-	$(tcpiotest_SOURCES) $(timertest_SOURCES) \
-	$(vectortest_SOURCES) $(weakkeytest_SOURCES) \
-	$(xmalloctest_SOURCES)
-DIST_SOURCES = $(am__libgnunetutil_la_SOURCES_DIST) \
-	$(bloomtest_SOURCES) $(configtest_SOURCES) $(crctest_SOURCES) \
-	$(crontest_SOURCES) $(hashingtest_SOURCES) $(hashtest_SOURCES) \
-	$(hostkeytest_SOURCES) $(kblockkey_test_SOURCES) \
-	$(semaphoretest_SOURCES) $(shutdowntest_SOURCES) \
-	$(statetest_SOURCES) $(statuscallstest_SOURCES) \
-	$(storagetest_SOURCES) $(symciphertest_SOURCES) \
-	$(tcpiotest_SOURCES) $(timertest_SOURCES) \
-	$(vectortest_SOURCES) $(weakkeytest_SOURCES) \
-	$(xmalloctest_SOURCES)
+	$(daemontest_SOURCES) $(hashingtest_SOURCES) \
+	$(hashtest_SOURCES) $(hostkeytest_SOURCES) \
+	$(kblockkey_test_SOURCES) $(semaphoretest_SOURCES) \
+	$(shutdowntest_SOURCES) $(statetest_SOURCES) \
+	$(statuscallstest_SOURCES) $(storagetest_SOURCES) \
+	$(symciphertest_SOURCES) $(tcpiotest_SOURCES) \
+	$(timertest_SOURCES) $(vectortest_SOURCES) \
+	$(weakkeytest_SOURCES) $(xmalloctest_SOURCES)
+DIST_SOURCES = $(libgnunetutil_la_SOURCES) $(bloomtest_SOURCES) \
+	$(configtest_SOURCES) $(crctest_SOURCES) $(crontest_SOURCES) \
+	$(daemontest_SOURCES) $(hashingtest_SOURCES) \
+	$(hashtest_SOURCES) $(hostkeytest_SOURCES) \
+	$(kblockkey_test_SOURCES) $(semaphoretest_SOURCES) \
+	$(shutdowntest_SOURCES) $(statetest_SOURCES) \
+	$(statuscallstest_SOURCES) $(storagetest_SOURCES) \
+	$(symciphertest_SOURCES) $(tcpiotest_SOURCES) \
+	$(timertest_SOURCES) $(vectortest_SOURCES) \
+	$(weakkeytest_SOURCES) $(xmalloctest_SOURCES)
 RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
 	html-recursive info-recursive install-data-recursive \
 	install-exec-recursive install-info-recursive \
@@ -257,7 +241,8 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 CYGWIN_FALSE = @CYGWIN_FALSE@
 CYGWIN_TRUE = @CYGWIN_TRUE@
-DEFS = -DLOCALEDIR=\"$(localedir)\" @DEFS@
+DATADIR = @DATADIR@
+DEFS = @DEFS@
 DEPDIR = @DEPDIR@
 DLLTOOL = @DLLTOOL@
 ECHO = @ECHO@
@@ -276,16 +261,8 @@ GTK_LIBS = @GTK_LIBS@
 GUILE = @GUILE@
 GUILE_CONFIG = @GUILE_CONFIG@
 GUILE_TOOLS = @GUILE_TOOLS@
-HAVE_BDB_DLL_FALSE = @HAVE_BDB_DLL_FALSE@
-HAVE_BDB_DLL_TRUE = @HAVE_BDB_DLL_TRUE@
-HAVE_BDB_FALSE = @HAVE_BDB_FALSE@
-HAVE_BDB_TRUE = @HAVE_BDB_TRUE@
 HAVE_CURSES_FALSE = @HAVE_CURSES_FALSE@
 HAVE_CURSES_TRUE = @HAVE_CURSES_TRUE@
-HAVE_DIRECTORY_FALSE = @HAVE_DIRECTORY_FALSE@
-HAVE_DIRECTORY_TRUE = @HAVE_DIRECTORY_TRUE@
-HAVE_GDBM_FALSE = @HAVE_GDBM_FALSE@
-HAVE_GDBM_TRUE = @HAVE_GDBM_TRUE@
 HAVE_GTK_FALSE = @HAVE_GTK_FALSE@
 HAVE_GTK_TRUE = @HAVE_GTK_TRUE@
 HAVE_GUILE_FALSE = @HAVE_GUILE_FALSE@
@@ -294,10 +271,10 @@ HAVE_IPV6_FALSE = @HAVE_IPV6_FALSE@
 HAVE_IPV6_TRUE = @HAVE_IPV6_TRUE@
 HAVE_MYSQL_FALSE = @HAVE_MYSQL_FALSE@
 HAVE_MYSQL_TRUE = @HAVE_MYSQL_TRUE@
+HAVE_PDCURSES_FALSE = @HAVE_PDCURSES_FALSE@
+HAVE_PDCURSES_TRUE = @HAVE_PDCURSES_TRUE@
 HAVE_SQLITE_FALSE = @HAVE_SQLITE_FALSE@
 HAVE_SQLITE_TRUE = @HAVE_SQLITE_TRUE@
-HAVE_TDB_FALSE = @HAVE_TDB_FALSE@
-HAVE_TDB_TRUE = @HAVE_TDB_TRUE@
 HAVE_ZLIB_FALSE = @HAVE_ZLIB_FALSE@
 HAVE_ZLIB_TRUE = @HAVE_ZLIB_TRUE@
 INSTALL_DATA = @INSTALL_DATA@
@@ -321,6 +298,7 @@ LIBOBJS = @LIBOBJS@
 LIBS = @LIBINTL@ @LIBS@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
+LOCALEDIR = @LOCALEDIR@
 LTDLINCL = @LTDLINCL@
 LTLIBICONV = @LTLIBICONV@
 LTLIBINTL = @LTLIBINTL@
@@ -331,6 +309,8 @@ MINGW_TRUE = @MINGW_TRUE@
 MKINSTALLDIRS = @MKINSTALLDIRS@
 MSGFMT = @MSGFMT@
 MSGMERGE = @MSGMERGE@
+MYSQL_CPPFLAGS = @MYSQL_CPPFLAGS@
+MYSQL_LDFLAGS = @MYSQL_LDFLAGS@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
@@ -347,14 +327,10 @@ SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 SOLARIS_FALSE = @SOLARIS_FALSE@
 SOLARIS_TRUE = @SOLARIS_TRUE@
+SQLITE_CPPFLAGS = @SQLITE_CPPFLAGS@
+SQLITE_LDFLAGS = @SQLITE_LDFLAGS@
 STRIP = @STRIP@
-USE_GCRYPT_FALSE = @USE_GCRYPT_FALSE@
-USE_GCRYPT_TRUE = @USE_GCRYPT_TRUE@
-USE_LIBEXTRACTOR_FALSE = @USE_LIBEXTRACTOR_FALSE@
-USE_LIBEXTRACTOR_TRUE = @USE_LIBEXTRACTOR_TRUE@
 USE_NLS = @USE_NLS@
-USE_OPENSSL_FALSE = @USE_OPENSSL_FALSE@
-USE_OPENSSL_TRUE = @USE_OPENSSL_TRUE@
 VERSION = @VERSION@
 XGETTEXT = @XGETTEXT@
 ac_ct_AR = @ac_ct_AR@
@@ -404,72 +380,57 @@ subdirs = @subdirs@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 INCLUDES = -I$(top_srcdir)/src/include
-# Define a C macro LOCALEDIR indicating where catalogs will be installed.
-localedir = $(datadir)/locale
+plugindir = $(libdir)/GNUnet
+AM_CFLAGS = \
+  -DPLUGIN_PATH="\"${plugindir}\"" -DPREFIX_PATH="\"${prefix}\""
+
 @SOLARIS_TRUE@SOLFLAGS = -lrt
-@MINGW_TRUE@WINFLAGS = -Wl,--no-undefined -Wl,--export-all-symbols -lole32 -lshell32 -luuid -lstdc++ -lcomdlg32 -lgdi32
+@MINGW_TRUE@WINFLAGS = -Wl,--no-undefined -Wl,--export-all-symbols -lole32 -lshell32 -luuid -liconv -lstdc++ -lcomdlg32 -lgdi32
 @MINGW_TRUE@WINSUBDIRS = win
 @MINGW_TRUE@WINLIBADD = $(top_builddir)/src/util/win/libwin.la 
+@MINGW_FALSE@DLFLAG = -ldl
 @CYGWIN_TRUE@CYGSUBDIRS = win
 @CYGWIN_TRUE@CYGLIBADD = $(top_builddir)/src/util/win/libwin.la 
-ELIBDIR = $(libdir)
-AM_CPPFLAGS = \
- -DPLUGIN_PATH="\"${libdir}\"" \
- -DELIBDIR=\"$(ELIBDIR)\"
-
-# FIXME: ELIBDIR somehow no longer works...
 lib_LTLIBRARIES = libgnunetutil.la
-@USE_OPENSSL_FALSE@cryptofiles = hostkey_gcrypt.c symcipher_gcrypt.c locking_gcrypt.c locking_gcrypt.h random_gcrypt.c
-@USE_OPENSSL_TRUE@cryptofiles = hostkey_openssl.c symcipher_openssl.c random_openssl.c
-@USE_OPENSSL_FALSE@CRYPTLIB = -lgcrypt
-@USE_OPENSSL_TRUE@CRYPTLIB = -lcrypto
+AM_CPPFLAGS = $(LIBGCRYPT_CFLAGS)
 libgnunetutil_la_LIBADD = $(GCLIBADD) $(CYGLIBADD) $(WINLIBADD)
 SUBDIRS = $(WINSUBDIRS) $(CYGSUBDIRS) .
-EXTRA_DIST = generate \
-  testconfig.conf\
-  hostkey_gcrypt.c \
-  hostkey_openssl.c \
-  symcipher_gcrypt.c \
-  symcipher_openssl.c \
-  locking_gcrypt.c \
-  locking_gcrypt.h \
-  random_gcrypt.c \
-  random_openssl.c
+EXTRA_DIST = \
+  testconfig.conf \
+  check.conf
 
-libgnunetutil_la_LDFLAGS = -export-dynamic $(LIBLTDL) $(CRYPTLIB) $(SOLFLAGS) $(WINFLAGS) $(LIBS) -lgmp
-CLEANFILES = \
-  generate_gnunetd_conf.c \
-  generate_gnunet_conf.c
-
-BUILT_SOURCES = \
-  generate_gnunetd_conf.c \
-  generate_gnunet_conf.c
+libgnunetutil_la_LDFLAGS = \
+ -export-dynamic $(LIBLTDL) $(LIBGCRYPT_LIBS) $(SOLFLAGS) $(WINFLAGS) $(LIBS) -lgmp $(DLFLAG) \
+ -version-info 1:0:0
 
 libgnunetutil_la_SOURCES = \
  bloomfilter.c \
  checksum.c \
  configuration.c \
  cron.c \
+ daemon.c \
  dso.c \
  getopt.c \
- generate_gnunetd_conf.c \
- generate_gnunet_conf.c \
  hashing.c \
- $(cryptofiles) \
- identity.c \
+ hostkey_gcrypt.c \
  initialize.c \
  io.c \
  ipcheck.c \
  kblockkey.c \
+ locking_gcrypt.c \
+ locking_gcrypt.h \
  logging.c \
+ osconfig.c \
  printhelp.c \
  port.c \
+ random.c \
  semaphore.c \
  shutdown.c \
  state.c \
- statistics.c \
  statuscalls.c \
  storage.c \
+ string.c \
+ symcipher_gcrypt.c \
  tcp_return.c \
  tcpio.c \
  timer.c \
@@ -481,6 +442,12 @@ xmalloctest_SOURCES = \
  xmalloctest.c 
 
 xmalloctest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
+daemontest_SOURCES = \
+ daemontest.c 
+
+daemontest_LDADD = \
  $(top_builddir)/src/util/libgnunetutil.la  
 
 statetest_SOURCES = \
@@ -591,8 +558,7 @@ bloomtest_SOURCES = \
 bloomtest_LDADD = \
  $(top_builddir)/src/util/libgnunetutil.la  
 
-all: $(BUILT_SOURCES)
-	$(MAKE) $(AM_MAKEFLAGS) all-recursive
+all: all-recursive
 
 .SUFFIXES:
 .SUFFIXES: .c .lo .o .obj
@@ -673,6 +639,9 @@ crctest$(EXEEXT): $(crctest_OBJECTS) $(crctest_DEPENDENCIES)
 crontest$(EXEEXT): $(crontest_OBJECTS) $(crontest_DEPENDENCIES) 
 	@rm -f crontest$(EXEEXT)
 	$(LINK) $(crontest_LDFLAGS) $(crontest_OBJECTS) $(crontest_LDADD) $(LIBS)
+daemontest$(EXEEXT): $(daemontest_OBJECTS) $(daemontest_DEPENDENCIES) 
+	@rm -f daemontest$(EXEEXT)
+	$(LINK) $(daemontest_LDFLAGS) $(daemontest_OBJECTS) $(daemontest_LDADD) $(LIBS)
 hashingtest$(EXEEXT): $(hashingtest_OBJECTS) $(hashingtest_DEPENDENCIES) 
 	@rm -f hashingtest$(EXEEXT)
 	$(LINK) $(hashingtest_LDFLAGS) $(hashingtest_OBJECTS) $(hashingtest_LDADD) $(LIBS)
@@ -733,17 +702,15 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/crctest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cron.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/crontest.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/daemon.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/daemontest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dso.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/generate_gnunet_conf.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/generate_gnunetd_conf.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getopt.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hashing.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hashingtest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hashtest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hostkey_gcrypt.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hostkey_openssl.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hostkeytest.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/identity.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/initialize.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/io.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ipcheck.Plo@am__quote@
@@ -751,23 +718,22 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/kblockkey_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/locking_gcrypt.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/logging.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/osconfig.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/port.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/printhelp.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/random_gcrypt.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/random_openssl.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/random.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/semaphore.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/semaphoretest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/shutdown.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/shutdowntest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/state.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/statetest.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/statistics.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/statuscalls.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/statuscallstest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/storage.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/storagetest.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/string.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/symcipher_gcrypt.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/symcipher_openssl.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/symciphertest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tcp_return.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tcpio.Plo@am__quote@
@@ -1050,16 +1016,14 @@ distdir: $(DISTFILES)
 check-am: all-am
 	$(MAKE) $(AM_MAKEFLAGS) $(check_PROGRAMS)
 	$(MAKE) $(AM_MAKEFLAGS) check-TESTS
-check: $(BUILT_SOURCES)
-	$(MAKE) $(AM_MAKEFLAGS) check-recursive
+check: check-recursive
 all-am: Makefile $(LTLIBRARIES)
 installdirs: installdirs-recursive
 installdirs-am:
 	for dir in "$(DESTDIR)$(libdir)"; do \
 	  test -z "$$dir" || $(mkdir_p) "$$dir"; \
 	done
-install: $(BUILT_SOURCES)
-	$(MAKE) $(AM_MAKEFLAGS) install-recursive
+install: install-recursive
 install-exec: install-exec-recursive
 install-data: install-data-recursive
 uninstall: uninstall-recursive
@@ -1076,7 +1040,6 @@ install-strip:
 mostlyclean-generic:
 
 clean-generic:
-	-test -z "$(CLEANFILES)" || rm -f $(CLEANFILES)
 
 distclean-generic:
 	-rm -f $(CONFIG_CLEAN_FILES)
@@ -1084,7 +1047,6 @@ distclean-generic:
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
-	-test -z "$(BUILT_SOURCES)" || rm -f $(BUILT_SOURCES)
 clean: clean-recursive
 
 clean-am: clean-checkPROGRAMS clean-generic clean-libLTLIBRARIES \
@@ -1154,11 +1116,6 @@ uninstall-info: uninstall-info-recursive
 	tags tags-recursive uninstall uninstall-am uninstall-info-am \
 	uninstall-libLTLIBRARIES
 
-
-generate_gnunetd_conf.c: generate
-	./generate $(top_srcdir)/contrib/gnunet.root generate_gnunetd_conf > generate_gnunetd_conf.c
-generate_gnunet_conf.c: generate
-	./generate $(top_srcdir)/contrib/gnunet.user generate_gnunet_conf > generate_gnunet_conf.c
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

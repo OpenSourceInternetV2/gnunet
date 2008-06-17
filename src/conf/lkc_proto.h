@@ -1,15 +1,10 @@
 
 /**
  * @brief GNUnet Setup
- * @file conf/lkc_proto.h 
+ * @file conf/lkc_proto.h
  * @author Roman Zippel
  * @author Nils Durner
  **/
-
-/* confdata.c */
-P(conf_parse,void,(const char *name));
-P(conf_read,int,(const char *name));
-P(conf_write,int,(const char *name));
 
 /* menu.c */
 P(rootmenu,struct menu,);
@@ -23,8 +18,8 @@ P(menu_get_parent_menu,struct menu *,(struct menu *menu));
 P(symbol_hash,struct symbol *,[SYMBOL_HASHSIZE]);
 P(sym_change_count,int,);
 
-P(sym_lookup,struct symbol *,(const char *name, const char *sect, int isconst));
-P(sym_find,struct symbol *,(const char *name, const char *sect));
+P(sym_lookup,struct symbol *,(char *name, char *sect, int isconst));
+P(sym_find,struct symbol *,(char *name, char *sect));
 P(sym_type_name,const char *,(enum symbol_type type));
 P(sym_calc_value,void,(struct symbol *sym));
 P(sym_calc_value_ext,void,(struct symbol *sym, int returnInv));

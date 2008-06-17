@@ -10,17 +10,17 @@
       WITHOUT ANY WARRANTY; without even the implied warranty of
       MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
       General Public License for more details.
- 
+
       You should have received a copy of the GNU General Public License
       along with GNUnet; see the file COPYING.  If not, write to the
       Free Software Foundation, Inc., 59 Temple Place - Suite 330,
       Boston, MA 02111-1307, USA.
  */
- 
+
 /**
  * @file applications/dht/module/datastore_dht_master.c
- * @brief provides the implementation of the 
- * DHT_Datastore API for the DHT master table; based on
+ * @brief provides the implementation of the
+ * Blockstore API for the DHT master table; based on
  * datastore_memory.c.
  * @author Simo Viitanen, Christian Grothoff
  *
@@ -28,7 +28,11 @@
  * The main difference between this datastore and the default
  * memory-datastore is that entries have a timestamp and are
  * timed-out after a certain time of inactivity.  Also,
- * duplicate entries are removed.
+ * duplicate entries are removed.<p>
+ *
+ * The priorities are ignored, except in get where
+ * the priority is the maximum number of results to return.
+ * The number of keys specified in a GET must always be one.
  */
 
 #include "platform.h"
@@ -37,24 +41,23 @@
 #include "datastore_dht_master.h"
 
 typedef struct {
-  HashCode160 hash;
+  HashCode512 hash;
   cron_t lastRefreshTime;
 } MasterEntry;
 
 /**
- * @brief datastructure for one entry in the table. 
- */ 
+ * @brief datastructure for one entry in the table.
+ */
 typedef struct HT_Entry_t {
   struct HT_Entry_t * next;
-  HashCode160 key;
+  HashCode512 key;
   unsigned int count;
-  int flags;
   MasterEntry * values;
 } HT_Entry;
 
 /**
  * @brief the per-table data
- */ 
+ */
 typedef struct {
   Mutex lock;
   size_t max_memory;
@@ -66,39 +69,38 @@ typedef struct {
  * Lookup an item in the datastore.
  *
  * @param key the value to lookup
- * @param maxResults maximum number of results
- * @param results where to store the result; must point to
- *        an array of maxResuls containers; if the containers
- *        point to allocated memory, it will be used by lookup;
- *        otherwise lookup will allocate the data pointer;
- *        Note that dataLength must either be 0 or the
- *        size of HashCode160.
- * @return number of results, SYSERR on error
+ * @param prio is interpreted as the maximum number
+ *  of results to return
+ * @return number of results available, SYSERR on error
  */
 static int lookup(void * closure,
-		  const HashCode160 * key,
-		  unsigned int maxResults,
-		  DHT_DataContainer * results,
-		  int flags) {
+		  unsigned int type,
+		  unsigned int prio,
+		  unsigned int keyCount,
+		  const HashCode512 * keys,
+		  DataProcessor resultCallback,
+		  void * resCallbackClosure) {
   MemoryDatastore * ds = (MemoryDatastore*) closure;
   HT_Entry * pos;
   int count;
   int i;
+  DataContainer * data;
 
+  GNUNET_ASSERT(keyCount == 1);
   if (ds == NULL)
     return SYSERR;
   MUTEX_LOCK(&ds->lock);
   pos = ds->first;
   while (pos != NULL) {
-    if (equalsHashCode160(key, &pos->key)) {
+    if (equalsHashCode512(&keys[0], &pos->key)) {
       int * perm;
 
-      if (pos->count > maxResults)
-	count = maxResults;
+      if (pos->count > prio)
+	count = prio;
       else
 	count = pos->count;
-      if (count < pos->count) 
-	perm = permute(pos->count); /* randomize returned set! */
+      if (count < pos->count)
+	perm = permute(WEAK, pos->count); /* randomize returned set! */
       else
 	perm = NULL;
 
@@ -108,18 +110,17 @@ static int lookup(void * closure,
 	  j = i;
 	else
 	  j = perm[i];
-	if (results[j].dataLength > 0) {
-	  GNUNET_ASSERT(results[j].dataLength == sizeof(HashCode160));
-	  memcpy(results[j].data,
-		 &pos->values[j].hash,
-		 sizeof(HashCode160));
-	} else {
-	  results[j].dataLength = sizeof(HashCode160);
-	  results[j].data = MALLOC(sizeof(HashCode160));
-	  memcpy(results[j].data,
-		 &pos->values[j].hash,
-		 sizeof(HashCode160));
-	}
+	data = MALLOC(sizeof(DataContainer) +
+		      sizeof(HashCode512));
+	data->size = htonl(sizeof(DataContainer) +
+			   sizeof(HashCode512));
+	memcpy(&data[1],
+	       &pos->values[j].hash,
+	       sizeof(HashCode512));	
+	resultCallback(NULL,
+		       data,
+		       resCallbackClosure);
+	FREE(data);
       }
       FREENONNULL(perm);
       MUTEX_UNLOCK(&ds->lock);
@@ -130,72 +131,71 @@ static int lookup(void * closure,
   MUTEX_UNLOCK(&ds->lock);
   return 0;
 }
-  
+
 /**
  * Store an item in the datastore.
  *
  * @param key the key of the item
- * @param value the value to store, must be of size HashCode160 for 
+ * @param value the value to store, must be of size HashCode512 for
  *        the master table!
- * @param flags options for the store, MUST match the options
- *  for other entries under the same key (if key already exists)
- * @return OK if the value could be stored, DHT_ERRORCODE or SYSERR if not (i.e. out of space)
+ * @return OK if the value could be stored, SYSERR if not,
+ *         NO for out of space)
  */
 static int store(void * closure,
-		 const HashCode160 * key,
-		 const DHT_DataContainer * value,
-		 int flags) {
+		 const HashCode512 * key,
+		 const DataContainer * value,
+		 unsigned int prio) {
   MemoryDatastore * ds = (MemoryDatastore*) closure;
   HT_Entry * pos;
   int i;
 
-  if (ds == NULL)
+  if ( (ds == NULL) || (value == NULL) )
     return SYSERR;
-  if (value->dataLength != sizeof(HashCode160))
+  if (ntohl(value->size) - sizeof(DataContainer)
+      != sizeof(HashCode512))
     return SYSERR;
 
   MUTEX_LOCK(&ds->lock);
   pos = ds->first;
   while (pos != NULL) {
-    if (equalsHashCode160(key, &pos->key)) {
+    if (equalsHashCode512(key, &pos->key)) {
       for (i=0;i<pos->count;i++)
-	if (equalsHashCode160(&pos->values[i].hash,
-			      (HashCode160*)value->data)) {
+	if (equalsHashCode512(&pos->values[i].hash,
+			      (HashCode512*)&value[1])) {
 	  pos->values[i].lastRefreshTime = cronTime(NULL);
 	  MUTEX_UNLOCK(&ds->lock);
 	  return OK; /* already present */
 	}
       if (ds->max_memory < sizeof(MasterEntry)) {
 	MUTEX_UNLOCK(&ds->lock);
-	return DHT_ERRORCODES__OUT_OF_SPACE;	
+	return NO;
       }
-      ds->max_memory -= value->dataLength;
+      ds->max_memory -= sizeof(MasterEntry);
       GROW(pos->values,
 	   pos->count,
-	   pos->count+1);      
+	   pos->count+1);
       pos->values[pos->count-1].lastRefreshTime = cronTime(NULL);
       memcpy(&pos->values[pos->count-1].hash,
-	     value->data,
-	     sizeof(HashCode160));
-      MUTEX_UNLOCK(&ds->lock);  
+	     &value[1],
+	     sizeof(HashCode512));
+      MUTEX_UNLOCK(&ds->lock);
       return OK;
     } /* end key match */
     pos = pos->next;
   }
   /* no key matched, create fresh entry */
-  if (ds->max_memory < sizeof(HT_Entry) + sizeof(DHT_DataContainer) + sizeof(MasterEntry)) {
+  if (ds->max_memory < sizeof(HT_Entry) + sizeof(MasterEntry)) {
     MUTEX_UNLOCK(&ds->lock);
-    return DHT_ERRORCODES__OUT_OF_SPACE;
+    return NO;
   }
-  ds->max_memory -= sizeof(HT_Entry) + sizeof(DHT_DataContainer) + sizeof(MasterEntry);
+  ds->max_memory -= sizeof(HT_Entry) + sizeof(MasterEntry);
   pos = MALLOC(sizeof(HT_Entry));
   pos->key = *key;
   pos->count = 1;
-  pos->flags = flags;
   pos->values = MALLOC(sizeof(MasterEntry));
   memcpy(&pos->values[0].hash,
-	 value->data,
-	 sizeof(HashCode160));
+	 &value[1],
+	 sizeof(HashCode512));
   pos->values[0].lastRefreshTime = cronTime(NULL);
   pos->next = ds->first;
   ds->first = pos;
@@ -207,13 +207,11 @@ static int store(void * closure,
  * Remove an item from the datastore.
  * @param key the key of the item
  * @param value the value to remove, NULL for all values of the key
- * @param flags 
  * @return OK if the value could be removed, SYSERR if not (i.e. not present)
  */
 static int ds_remove(void * closure,
-		     const HashCode160 * key,
-		     const DHT_DataContainer * value,
-		     int flags) {
+		     const HashCode512 * key,
+		     const DataContainer * value) {
   MemoryDatastore * ds = (MemoryDatastore*) closure;
   HT_Entry * pos;
   HT_Entry * prev;
@@ -222,19 +220,20 @@ static int ds_remove(void * closure,
   if (ds == NULL)
     return SYSERR;
   if ( (value != NULL) &&
-       (value->dataLength != sizeof(HashCode160)) )
+       (ntohl(value->size) - sizeof(DataContainer)
+	!= sizeof(HashCode512)) )
     return SYSERR;
 
   MUTEX_LOCK(&ds->lock);
   prev = NULL;
   pos = ds->first;
   while (pos != NULL) {
-    if (equalsHashCode160(key, &pos->key)) {
+    if (equalsHashCode512(key, &pos->key)) {
       if (value != NULL) {
 	for (i=0;i<pos->count;i++) {
 	  if (0 == memcmp(&pos->values[i].hash,
-			  value->data,
-			  sizeof(HashCode160))) {
+			  &value[1],
+			  sizeof(HashCode512))) {
 	    pos->values[i] = pos->values[pos->count-1];
 	    GROW(pos->values,
 		 pos->count,
@@ -246,7 +245,7 @@ static int ds_remove(void * closure,
 	      else
 		prev->next = pos->next;
 	      FREE(pos);
-	      ds->max_memory += sizeof(HT_Entry);	      
+	      ds->max_memory += sizeof(HT_Entry);	
 	    }
 	    MUTEX_UNLOCK(&ds->lock);
 	    return OK;
@@ -281,18 +280,16 @@ static int ds_remove(void * closure,
  *
  * @param processor function to call on each item
  * @param cls argument to processor
- * @param flags so far without effect
  * @return number of results, SYSERR on error
  */
-static int iterate(void * closure,		 
-		   int flags,
-		   DHT_DataProcessor processor,
+static int iterate(void * closure,		
+		   DataProcessor processor,
 		   void * cls) {
   MemoryDatastore * ds = (MemoryDatastore*) closure;
   int ret;
   HT_Entry * pos;
   int i;
-  DHT_DataContainer cont;
+  DataContainer * cont;
 
   if (ds == NULL)
     return SYSERR;
@@ -300,17 +297,20 @@ static int iterate(void * closure,
   MUTEX_LOCK(&ds->lock);
   pos = ds->first;
   ret = 0;
-  cont.dataLength = 20;
+  cont = MALLOC(sizeof(HashCode512) + sizeof(DataContainer));
+  cont->size = htonl(sizeof(HashCode512) + sizeof(DataContainer));
   while (pos != NULL) {
     for (i=0;i<pos->count;i++) {
       ret++;
       if (processor != NULL) {
-	cont.data = &pos->values[i].hash;
+	memcpy(&cont[1],
+	       &pos->values[i].hash,
+	       sizeof(HashCode512));
 	if (OK != processor(&pos->key,
-			    &cont,
-			    pos->flags,
+			    cont,
 			    cls)) {
 	  MUTEX_UNLOCK(&ds->lock);
+	  FREE(cont);
 	  return ret;
 	}
       }
@@ -318,6 +318,7 @@ static int iterate(void * closure,
     pos = pos->next;
   }
   MUTEX_UNLOCK(&ds->lock);
+  FREE(cont);
   return SYSERR;
 }
 
@@ -328,7 +329,7 @@ static void expirationJob(MemoryDatastore * store) {
   cron_t now;
 
   prev = NULL;
-  MUTEX_LOCK(&store->lock);  
+  MUTEX_LOCK(&store->lock);
   cronTime(&now);
   pos = store->first;
   while (pos != NULL) {
@@ -337,7 +338,7 @@ static void expirationJob(MemoryDatastore * store) {
 	pos->values[i] = pos->values[pos->count-1];
 	GROW(pos->values,
 	     pos->count,
-	     pos->count-1);    
+	     pos->count-1);
 	store->max_memory += sizeof(MasterEntry);
       }
     }
@@ -361,8 +362,8 @@ static void expirationJob(MemoryDatastore * store) {
  * Create a DHT Datastore (in memory)
  * @param max_memory do not use more than max_memory memory.
  */
-DHT_Datastore * create_datastore_dht_master(size_t max_memory) {
-  DHT_Datastore * res;
+Blockstore * create_datastore_dht_master(size_t max_memory) {
+  Blockstore * res;
   MemoryDatastore * md;
 
   md = MALLOC(sizeof(MemoryDatastore));
@@ -370,10 +371,10 @@ DHT_Datastore * create_datastore_dht_master(size_t max_memory) {
   md->first = NULL;
   MUTEX_CREATE_RECURSIVE(&md->lock);
 
-  res = MALLOC(sizeof(DHT_Datastore));
-  res->lookup  = &lookup;
-  res->store   = &store;
-  res->remove  = &ds_remove;
+  res = MALLOC(sizeof(Blockstore));
+  res->get  = &lookup;
+  res->put   = &store;
+  res->del  = &ds_remove;
   res->iterate = &iterate;
   res->closure = md;
   addCronJob((CronJob) &expirationJob,
@@ -388,7 +389,7 @@ DHT_Datastore * create_datastore_dht_master(size_t max_memory) {
  * @param ds the Datastore to destroy; must have been
  *  created by create_datastore_memory.
  */
-void destroy_datastore_dht_master(DHT_Datastore * ds) {
+void destroy_datastore_dht_master(Blockstore * ds) {
   MemoryDatastore * md;
   HT_Entry * pos;
   HT_Entry * next;
@@ -396,7 +397,7 @@ void destroy_datastore_dht_master(DHT_Datastore * ds) {
 
   md  = ds->closure;
   icr = isCronRunning();
-  if (icr) 
+  if (icr)
     suspendCron();
   delCronJob((CronJob) &expirationJob,
 	     5 * cronMINUTES,

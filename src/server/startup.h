@@ -40,9 +40,9 @@
 void checkCompiler();
 
 /**
- * Perform option parsing from the command line. 
+ * Perform option parsing from the command line.
  **/
-int parseCommandLine(int argc, 
+int parseCommandLine(int argc,
 		     char * argv[]);
 
 /**
@@ -53,7 +53,7 @@ void initSignalHandlers();
 void doneSignalHandlers();
 
 void waitForSignalHandler();
- 
+
 /**
  * Fork and start a new session to go into the background
  * in the way a good deamon should.
@@ -79,9 +79,21 @@ void writePIDFile();
  **/
 void deletePIDFile();
 
+/**
+ * Load all of the user-specified application modules.
+ */
+void loadApplicationModules();
+
+#ifndef MINGW
+/**
+ * @brief Change user ID
+ */
+void changeUser(const char *user);
+#endif
+
 #ifdef MINGW
 BOOL WINAPI win_shutdown_gnunetd(DWORD dwCtrlType);
 #endif
 
-#endif 
+#endif
 /* end of startup.h */

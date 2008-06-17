@@ -36,16 +36,17 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 host_triplet = @host@
 subdir = src/include
-DIST_COMMON = $(include_HEADERS) $(srcdir)/Makefile.am \
+DIST_COMMON = $(gnunetinclude_HEADERS) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/m4/gettext.m4 \
-	$(top_srcdir)/m4/gtk-2.0.m4 $(top_srcdir)/m4/guile.m4 \
-	$(top_srcdir)/m4/iconv.m4 $(top_srcdir)/m4/lib-ld.m4 \
-	$(top_srcdir)/m4/lib-link.m4 $(top_srcdir)/m4/lib-prefix.m4 \
-	$(top_srcdir)/m4/libgcrypt.m4 $(top_srcdir)/m4/nls.m4 \
-	$(top_srcdir)/m4/po.m4 $(top_srcdir)/m4/progtest.m4 \
-	$(top_srcdir)/acinclude.m4 $(top_srcdir)/configure.ac
+am__aclocal_m4_deps = $(top_srcdir)/m4/ac_define_dir.m4 \
+	$(top_srcdir)/m4/gettext.m4 $(top_srcdir)/m4/gtk-2.0.m4 \
+	$(top_srcdir)/m4/guile.m4 $(top_srcdir)/m4/iconv.m4 \
+	$(top_srcdir)/m4/lib-ld.m4 $(top_srcdir)/m4/lib-link.m4 \
+	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libgcrypt.m4 \
+	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/po.m4 \
+	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/acinclude.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
@@ -59,9 +60,9 @@ RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
 	install-recursive installcheck-recursive installdirs-recursive \
 	pdf-recursive ps-recursive uninstall-info-recursive \
 	uninstall-recursive
-am__installdirs = "$(DESTDIR)$(includedir)"
-includeHEADERS_INSTALL = $(INSTALL_HEADER)
-HEADERS = $(include_HEADERS)
+am__installdirs = "$(DESTDIR)$(gnunetincludedir)"
+gnunetincludeHEADERS_INSTALL = $(INSTALL_HEADER)
+HEADERS = $(gnunetinclude_HEADERS)
 ETAGS = etags
 CTAGS = ctags
 DIST_SUBDIRS = $(SUBDIRS)
@@ -90,6 +91,7 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 CYGWIN_FALSE = @CYGWIN_FALSE@
 CYGWIN_TRUE = @CYGWIN_TRUE@
+DATADIR = @DATADIR@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
 DLLTOOL = @DLLTOOL@
@@ -109,16 +111,8 @@ GTK_LIBS = @GTK_LIBS@
 GUILE = @GUILE@
 GUILE_CONFIG = @GUILE_CONFIG@
 GUILE_TOOLS = @GUILE_TOOLS@
-HAVE_BDB_DLL_FALSE = @HAVE_BDB_DLL_FALSE@
-HAVE_BDB_DLL_TRUE = @HAVE_BDB_DLL_TRUE@
-HAVE_BDB_FALSE = @HAVE_BDB_FALSE@
-HAVE_BDB_TRUE = @HAVE_BDB_TRUE@
 HAVE_CURSES_FALSE = @HAVE_CURSES_FALSE@
 HAVE_CURSES_TRUE = @HAVE_CURSES_TRUE@
-HAVE_DIRECTORY_FALSE = @HAVE_DIRECTORY_FALSE@
-HAVE_DIRECTORY_TRUE = @HAVE_DIRECTORY_TRUE@
-HAVE_GDBM_FALSE = @HAVE_GDBM_FALSE@
-HAVE_GDBM_TRUE = @HAVE_GDBM_TRUE@
 HAVE_GTK_FALSE = @HAVE_GTK_FALSE@
 HAVE_GTK_TRUE = @HAVE_GTK_TRUE@
 HAVE_GUILE_FALSE = @HAVE_GUILE_FALSE@
@@ -127,10 +121,10 @@ HAVE_IPV6_FALSE = @HAVE_IPV6_FALSE@
 HAVE_IPV6_TRUE = @HAVE_IPV6_TRUE@
 HAVE_MYSQL_FALSE = @HAVE_MYSQL_FALSE@
 HAVE_MYSQL_TRUE = @HAVE_MYSQL_TRUE@
+HAVE_PDCURSES_FALSE = @HAVE_PDCURSES_FALSE@
+HAVE_PDCURSES_TRUE = @HAVE_PDCURSES_TRUE@
 HAVE_SQLITE_FALSE = @HAVE_SQLITE_FALSE@
 HAVE_SQLITE_TRUE = @HAVE_SQLITE_TRUE@
-HAVE_TDB_FALSE = @HAVE_TDB_FALSE@
-HAVE_TDB_TRUE = @HAVE_TDB_TRUE@
 HAVE_ZLIB_FALSE = @HAVE_ZLIB_FALSE@
 HAVE_ZLIB_TRUE = @HAVE_ZLIB_TRUE@
 INSTALL_DATA = @INSTALL_DATA@
@@ -152,6 +146,7 @@ LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
+LOCALEDIR = @LOCALEDIR@
 LTDLINCL = @LTDLINCL@
 LTLIBICONV = @LTLIBICONV@
 LTLIBINTL = @LTLIBINTL@
@@ -162,6 +157,8 @@ MINGW_TRUE = @MINGW_TRUE@
 MKINSTALLDIRS = @MKINSTALLDIRS@
 MSGFMT = @MSGFMT@
 MSGMERGE = @MSGMERGE@
+MYSQL_CPPFLAGS = @MYSQL_CPPFLAGS@
+MYSQL_LDFLAGS = @MYSQL_LDFLAGS@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
@@ -178,14 +175,10 @@ SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 SOLARIS_FALSE = @SOLARIS_FALSE@
 SOLARIS_TRUE = @SOLARIS_TRUE@
+SQLITE_CPPFLAGS = @SQLITE_CPPFLAGS@
+SQLITE_LDFLAGS = @SQLITE_LDFLAGS@
 STRIP = @STRIP@
-USE_GCRYPT_FALSE = @USE_GCRYPT_FALSE@
-USE_GCRYPT_TRUE = @USE_GCRYPT_TRUE@
-USE_LIBEXTRACTOR_FALSE = @USE_LIBEXTRACTOR_FALSE@
-USE_LIBEXTRACTOR_TRUE = @USE_LIBEXTRACTOR_TRUE@
 USE_NLS = @USE_NLS@
-USE_OPENSSL_FALSE = @USE_OPENSSL_FALSE@
-USE_OPENSSL_TRUE = @USE_OPENSSL_TRUE@
 VERSION = @VERSION@
 XGETTEXT = @XGETTEXT@
 ac_ct_AR = @ac_ct_AR@
@@ -236,20 +229,44 @@ sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 SUBDIRS = .
 EXTRA_DIST = \
+  core.h \
+  ecrs_core.h \
+  fs.h \
   gettext.h \
   platform.h \
+  plibc.h \
   winproc.h 
 
-include_HEADERS = \
-  gnunet_util.h \
+gnunetincludedir = $(includedir)/GNUnet
+gnunetinclude_HEADERS = \
+  gnunet_blockstore.h \
+  gnunet_bootstrap_service.h \
   gnunet_core.h \
+  gnunet_datastore_service.h \
   gnunet_dht.h \
+  gnunet_dht_datastore_memory.h \
   gnunet_dht_lib.h \
   gnunet_dht_service.h \
-  gnunet_dht_datastore_memory.h \
+  gnunet_ecrs_lib.h \
+  gnunet_fragmentation_service.h \
+  gnunet_fs_lib.h \
+  gnunet_fsui_lib.h \
+  gnunet_gap_service.h \
+  gnunet_getoption_lib.h \
+  gnunet_identity_service.h \
+  gnunet_pingpong_service.h \
+  gnunet_protocols.h \
   gnunet_rpc_service.h \
-  gnunet_afs_esed2.h \
-  gnunet_transport.h 
+  gnunet_session_service.h \
+  gnunet_sqstore_service.h \
+  gnunet_stats_lib.h \
+  gnunet_stats_service.h \
+  gnunet_topology_service.h \
+  gnunet_traffic_lib.h \
+  gnunet_traffic_service.h \
+  gnunet_transport.h \
+  gnunet_transport_service.h \
+  gnunet_util.h 
 
 all: all-recursive
 
@@ -293,22 +310,22 @@ clean-libtool:
 distclean-libtool:
 	-rm -f libtool
 uninstall-info-am:
-install-includeHEADERS: $(include_HEADERS)
+install-gnunetincludeHEADERS: $(gnunetinclude_HEADERS)
 	@$(NORMAL_INSTALL)
-	test -z "$(includedir)" || $(mkdir_p) "$(DESTDIR)$(includedir)"
-	@list='$(include_HEADERS)'; for p in $$list; do \
+	test -z "$(gnunetincludedir)" || $(mkdir_p) "$(DESTDIR)$(gnunetincludedir)"
+	@list='$(gnunetinclude_HEADERS)'; for p in $$list; do \
 	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
 	  f="`echo $$p | sed -e 's|^.*/||'`"; \
-	  echo " $(includeHEADERS_INSTALL) '$$d$$p' '$(DESTDIR)$(includedir)/$$f'"; \
-	  $(includeHEADERS_INSTALL) "$$d$$p" "$(DESTDIR)$(includedir)/$$f"; \
+	  echo " $(gnunetincludeHEADERS_INSTALL) '$$d$$p' '$(DESTDIR)$(gnunetincludedir)/$$f'"; \
+	  $(gnunetincludeHEADERS_INSTALL) "$$d$$p" "$(DESTDIR)$(gnunetincludedir)/$$f"; \
 	done
 
-uninstall-includeHEADERS:
+uninstall-gnunetincludeHEADERS:
 	@$(NORMAL_UNINSTALL)
-	@list='$(include_HEADERS)'; for p in $$list; do \
+	@list='$(gnunetinclude_HEADERS)'; for p in $$list; do \
 	  f="`echo $$p | sed -e 's|^.*/||'`"; \
-	  echo " rm -f '$(DESTDIR)$(includedir)/$$f'"; \
-	  rm -f "$(DESTDIR)$(includedir)/$$f"; \
+	  echo " rm -f '$(DESTDIR)$(gnunetincludedir)/$$f'"; \
+	  rm -f "$(DESTDIR)$(gnunetincludedir)/$$f"; \
 	done
 
 # This directory's subdirectories are mostly independent; you can cd
@@ -476,7 +493,7 @@ check: check-recursive
 all-am: Makefile $(HEADERS)
 installdirs: installdirs-recursive
 installdirs-am:
-	for dir in "$(DESTDIR)$(includedir)"; do \
+	for dir in "$(DESTDIR)$(gnunetincludedir)"; do \
 	  test -z "$$dir" || $(mkdir_p) "$$dir"; \
 	done
 install: install-recursive
@@ -522,7 +539,7 @@ info: info-recursive
 
 info-am:
 
-install-data-am: install-includeHEADERS
+install-data-am: install-gnunetincludeHEADERS
 
 install-exec-am:
 
@@ -548,7 +565,7 @@ ps: ps-recursive
 
 ps-am:
 
-uninstall-am: uninstall-includeHEADERS uninstall-info-am
+uninstall-am: uninstall-gnunetincludeHEADERS uninstall-info-am
 
 uninstall-info: uninstall-info-recursive
 
@@ -558,13 +575,13 @@ uninstall-info: uninstall-info-recursive
 	distclean-recursive distclean-tags distdir dvi dvi-am html \
 	html-am info info-am install install-am install-data \
 	install-data-am install-exec install-exec-am \
-	install-includeHEADERS install-info install-info-am \
+	install-gnunetincludeHEADERS install-info install-info-am \
 	install-man install-strip installcheck installcheck-am \
 	installdirs installdirs-am maintainer-clean \
 	maintainer-clean-generic maintainer-clean-recursive \
 	mostlyclean mostlyclean-generic mostlyclean-libtool \
 	mostlyclean-recursive pdf pdf-am ps ps-am tags tags-recursive \
-	uninstall uninstall-am uninstall-includeHEADERS \
+	uninstall uninstall-am uninstall-gnunetincludeHEADERS \
 	uninstall-info-am
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.

@@ -24,6 +24,7 @@
  */
 
 #include "platform.h"
+#include "gnunet_protocols.h"
 #include "gnunet_util.h"
 #include "gnunet_dht_lib.h"
 
@@ -48,7 +49,7 @@ static void printHelp() {
 
 static int parseOptions(int argc,
 			char ** argv) {
-  int c;  
+  int c;
 
   while (1) {
     int option_index = 0;
@@ -61,15 +62,15 @@ static int parseOptions(int argc,
     c = GNgetopt_long(argc,
 		      argv,
 		      "vhH:c:L:dt:T:",
-		      long_options, 
-		      &option_index);    
-    if (c == -1) 
+		      long_options,
+		      &option_index);
+    if (c == -1)
       break;  /* No more flags to process */
     if (YES == parseDefaultOptions(c, GNoptarg))
       continue;
     switch(c) {
-    case 'h': 
-      printHelp(); 
+    case 'h':
+      printHelp();
       return SYSERR;
     case 't':
       FREENONNULL(setConfigurationString("DHT-QUERY",
@@ -79,8 +80,8 @@ static int parseOptions(int argc,
      case 'T': {
       unsigned int max;
       if (1 != sscanf(GNoptarg, "%ud", &max)) {
-	LOG(LOG_FAILURE, 
-	    _("You must pass a number to the '%s' option.\n"),
+	LOG(LOG_FAILURE,
+	    _("You must pass a number to the `%s' option.\n"),
 	    "-T");
 	return SYSERR;
       } else {	
@@ -89,8 +90,8 @@ static int parseOptions(int argc,
 			    max);
       }
       break;
-    } 
-    case 'v': 
+    }
+    case 'v':
       printf("dht-query v0.0.1\n");
       return SYSERR;
     default:
@@ -101,8 +102,8 @@ static int parseOptions(int argc,
     } /* end of parsing commandline */
   } /* while (1) */
   if (argc - GNoptind == 0) {
-    LOG(LOG_WARNING, 
-	"No commands specified.\n");
+    LOG(LOG_WARNING,
+	_("No commands specified.\n"));
     printHelp();
     return SYSERR;
   }
@@ -111,61 +112,64 @@ static int parseOptions(int argc,
   return OK;
 }
 
+static int printCallback(const HashCode512 * hash,
+			 const DataContainer * data,
+			 char * key) {
+  printf("%s(%s): '%.*s'\n",
+	 "get",
+	 key,
+	 ntohl(data->size),
+	 (char*)&data[1]);
+  return OK;
+}
+
 static void do_get(GNUNET_TCP_SOCKET * sock,
 		   const char * key) {
   int ret;
-  HashCode160 hc;
-  DHT_DataContainer * results;
-  
+  HashCode512 hc;
+
   hash(key,
        strlen(key),
        &hc);
-  results = MALLOC(sizeof(DHT_DataContainer));
-  results[0].data = NULL;
-  results[0].dataLength = 0; /* unlimited */
   LOG(LOG_DEBUG,
       "Issuing '%s(%s)' command.\n",
       "get", key);
   ret = DHT_LIB_get(&table,
+		    DHT_STRING2STRING_BLOCK,
+		    1, /* prio */
+		    1, /* key count */
 		    &hc,
 		    getConfigurationInt("DHT-QUERY",
 					"TIMEOUT"),
-		    1, /* make this an option? */
-		    &results);
-  if (ret == 1) {
-    printf("%s(%s): '%.*s'\n",
+		    (DataProcessor) &printCallback,
+		    (void*) key);
+  if (ret == 0)
+    printf("%s(%s) operation returned no results.\n",
 	   "get",
-	   key,
-	   results[0].dataLength,
-	   (char*)results[0].data);
-    FREENONNULL(results[0].data);
-  } else {
-    printf("%s(%s) operation returned %d\n",
-	   "get",
-	   key,
-	   ret);
-  }
-  FREE(results);
+	   key);
 }
 
 static void do_put(GNUNET_TCP_SOCKET * sock,
 		   const char * key,
 		   char * value) {
-  DHT_DataContainer dc;
-  HashCode160 hc;
+  DataContainer * dc;
+  HashCode512 hc;
 
   hash(key, strlen(key), &hc);
-  dc.dataLength = strlen(value);
-  dc.data = value;
+  dc = MALLOC(sizeof(DataContainer)
+	      + strlen(value));
+  dc->size = htonl(strlen(value)
+		   + sizeof(DataContainer));
+  memcpy(&dc[1], value, strlen(value));
   LOG(LOG_DEBUG,
       "Issuing '%s(%s,%s)' command.\n",
       "put", key, value);
-  if (OK == DHT_LIB_put(&table,
+  if (OK == DHT_LIB_put(&table,		
 			&hc,
+			1, /* prio */
 			getConfigurationInt("DHT-QUERY",
 					    "TIMEOUT"),
-			&dc,
-			1)) { /* fixme: make flags option! */
+			dc)) {
     printf(_("'%s(%s,%s)' succeeded\n"),
 	   "put",
 	   key, value);
@@ -173,21 +177,22 @@ static void do_put(GNUNET_TCP_SOCKET * sock,
     printf(_("'%s(%s,%s)' failed.\n"),
 	   "put",
 	   key, value);
-  }	  
+  }	
+  FREE(dc);
 }
 
 static void do_remove(GNUNET_TCP_SOCKET * sock,
 		      const char * key,
 		      char * value) {
-  DHT_DataContainer dc;
-  HashCode160 hc;
+  DataContainer * dc;
+  HashCode512 hc;
 
   hash(key, strlen(key), &hc);
-  dc.dataLength = strlen(value);
-  if (strlen(value) == 0)
-    dc.data = NULL;
-  else
-    dc.data = value;
+  dc = MALLOC(sizeof(DataContainer)
+	      + strlen(value));
+  dc->size = htonl(strlen(value)
+		   + sizeof(DataContainer));
+  memcpy(&dc[1], value, strlen(value));
   LOG(LOG_DEBUG,
       "Issuing '%s(%s,%s)' command.\n",
       "remove", key, value);
@@ -195,8 +200,7 @@ static void do_remove(GNUNET_TCP_SOCKET * sock,
 			   &hc,
 			   getConfigurationInt("DHT-QUERY",
 					       "TIMEOUT"),
-			   &dc,
-			   1)) { /* fixme: make flags option! */
+			   dc)) {
     printf(_("'%s(%s,%s)' succeeded\n"),
 	   "remove",
 	   key, value);
@@ -204,11 +208,12 @@ static void do_remove(GNUNET_TCP_SOCKET * sock,
     printf(_("'%s(%s,%s)' failed.\n"),
 	   "remove",
 	   key, value);
-  }	  
+  }	
+  FREE(dc);
 }
 
 
-int main(int argc, 
+int main(int argc,
 	 char **argv) {
   char * tableName;
   int count;
@@ -216,14 +221,14 @@ int main(int argc,
   int i;
   GNUNET_TCP_SOCKET * handle;
 
-  if (SYSERR == initUtil(argc, argv, &parseOptions)) 
+  if (SYSERR == initUtil(argc, argv, &parseOptions))
     return 0;
 
   count = getConfigurationStringList(&commands);
-  tableName = getConfigurationString("DHT-QUERY", 
+  tableName = getConfigurationString("DHT-QUERY",
 				     "TABLE");
   if (tableName == NULL) {
-    printf(_("No table name specified, using '%s'.\n"),
+    printf(_("No table name specified, using `%s'.\n"),
 	   "test");
     tableName = STRDUP("test");
   }
@@ -233,27 +238,27 @@ int main(int argc,
 	 strlen(tableName),
 	 &table);
   }
-  FREE(tableName);  
+  FREE(tableName);
   DHT_LIB_init();
   handle = getClientSocket();
   if (handle == NULL) {
-    fprintf(stderr, 
-	    _("failed to connect to gnunetd\n"));
+    fprintf(stderr,
+	    _("Failed to connect to gnunetd.\n"));
     return 1;
   }
 
   for (i=0;i<count;i++) {
     if (0 == strcmp("get", commands[i])) {
-      if (i+2 > count) 
-	errexit(_("command '%s' requires an argument ('%s')\n"),
+      if (i+2 > count)
+	errexit(_("Command `%s' requires an argument (`%s').\n"),
 		"get",
 		"key");
       do_get(handle, commands[++i]);
       continue;
     }
     if (0 == strcmp("put", commands[i])) {
-      if (i+3 > count) 
-	errexit(_("command '%s' requires two arguments ('%s' and '%s')\n"),
+      if (i+3 > count)
+	errexit(_("Command `%s' requires two arguments (`%s' and `%s').\n"),
 		"put",
 		"key",
 		"value");
@@ -262,8 +267,8 @@ int main(int argc,
       continue;
     }
     if (0 == strcmp("remove", commands[i])) {
-      if (i+3 > count) 
-	errexit(_("command '%s' requires two arguments ('%s' and '%s')\n"),
+      if (i+3 > count)
+	errexit(_("Command `%s' requires two arguments (`%s' and `%s').\n"),
 		"remove",
 		"key",
 		"value");
@@ -271,7 +276,7 @@ int main(int argc,
       i+=2;
       continue;
     }
-    printf(_("Unsupported command '%s'.  Aborting.\n"),
+    printf(_("Unsupported command `%s'.  Aborting.\n"),
 	   commands[i]);
     break;
   }

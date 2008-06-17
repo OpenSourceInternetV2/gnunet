@@ -29,13 +29,13 @@
 #include "gnunet_core.h"
 
 typedef struct {
-  p2p_HEADER header;
+  P2P_MESSAGE_HEADER header;
 
   /**
    * When was this probe started? (NBO)
    */
   TIME_T timestamp;
-  
+
   /**
    * How many more hops should this probe go (NBO)
    */
@@ -55,25 +55,25 @@ typedef struct {
    * Which peer is the ultimate receiver of this
    * information?
    */
-  HostIdentity initiatorId;
+  PeerIdentity initiatorId;
 
-} TRACEKIT_p2p_PROBE;
+} P2P_tracekit_probe_MESSAGE;
 
 typedef struct {
-  p2p_HEADER header;
+  P2P_MESSAGE_HEADER header;
 
   /**
    * Which peer is the ultimate receiver of this
    * information?
    */
-  HostIdentity initiatorId;
+  PeerIdentity initiatorId;
 
   /**
    * Which peer is the ultimate responder responsible
    * for sending this reply?
    */
-  HostIdentity responderId;
-  
+  PeerIdentity responderId;
+
   /**
    * At what time was the initator sending the
    * request?
@@ -85,21 +85,21 @@ typedef struct {
    */
   unsigned int clientId;
 
-} TRACEKIT_p2p_REPLY;
+} P2P_tracekit_reply_MESSAGE;
 
 typedef struct {
-  TRACEKIT_p2p_REPLY p2p_reply;
+  P2P_tracekit_reply_MESSAGE p2p_reply;
 
   /**
    * List of peers that the responder is
    * currently connected to.
    */
-  HostIdentity peerList[1];
-} TRACEKIT_p2p_REPLY_GENERIC;
-  
+  PeerIdentity peerList[1];
+} P2P_tracekit_reply_MESSAGE_GENERIC;
+
 
 typedef struct {
-  CS_HEADER header;
+  CS_MESSAGE_HEADER header;
 
   /**
    * How many more hops should this probe go (NBO)
@@ -110,27 +110,27 @@ typedef struct {
    * How important is the probe for the sender? (NBO)
    */
   unsigned int priority;
-} TRACEKIT_CS_PROBE;
+} CS_tracekit_probe_MESSAGE;
 
 typedef struct {
-  CS_HEADER header;
+  CS_MESSAGE_HEADER header;
 
   /**
    * Which peer is the ultimate responder responsible
    * for sending this reply?
    */
-  HostIdentity responderId;
-  
-} TRACEKIT_CS_REPLY;
+  PeerIdentity responderId;
+
+} CS_tracekit_reply_MESSAGE;
 
 typedef struct {
-  TRACEKIT_CS_REPLY cs_reply;
+  CS_tracekit_reply_MESSAGE cs_reply;
 
   /**
    * List of peers that the responder is
    * currently connected to.
    */
-  HostIdentity peerList[1];
-} TRACEKIT_CS_REPLY_GENERIC;
+  PeerIdentity peerList[1];
+} CS_tracekit_reply_MESSAGE_GENERIC;
 
 #endif

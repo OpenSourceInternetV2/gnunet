@@ -1,18 +1,22 @@
 INCLUDES = -I$(top_srcdir)/src/include
 
-lib_LTLIBRARIES = \
-  libgnunetdht_datastore_memory.la \
-  libgnunetdht_protocol.la 
+plugindir = $(libdir)/GNUnet
 
-libgnunetdht_protocol_la_SOURCES = \
+plugin_LTLIBRARIES = \
+  libgnunetmodule_dht.la 
+
+lib_LTLIBRARIES = \
+  libgnunetdht_datastore_memory.la 
+
+libgnunetmodule_dht_la_SOURCES = \
   dht.c \
   datastore_dht_master.c \
   datastore_dht_master.h \
   cs.c 
-libgnunetdht_protocol_la_LIBADD = \
+libgnunetmodule_dht_la_LIBADD = \
  $(top_builddir)/src/util/libgnunetutil.la \
- $(top_builddir)/src/applications/rpc/libgnunetrpc_util.la
-libgnunetdht_protocol_la_LDFLAGS = \
+ $(top_builddir)/src/applications/rpc/libgnunetmodule_rpc_util.la
+libgnunetmodule_dht_la_LDFLAGS = \
   -export-dynamic -avoid-version -module
 
 libgnunetdht_datastore_memory_la_SOURCES = \
@@ -25,7 +29,7 @@ libgnunetdht_datastore_memory_la_LDFLAGS = \
 
 check_PROGRAMS = \
   datastore_memory_test
-# dht_test
+
 
 TESTS = $(check_PROGRAMS)
 

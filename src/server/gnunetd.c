@@ -1,6 +1,6 @@
-/* 
+/*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2004 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2004, 2005 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -28,17 +28,13 @@
  */
 
 #include "gnunet_util.h"
-
-#include "startup.h"
-#include "handler.h"
-#include "pingpong.h"
-#include "heloexchange.h"
-#include "knownhosts.h"
-#include "tcpserver.h"
+#include "gnunet_core.h"
 #include "core.h"
-#include "traffic.h"
-#include "httphelo.h"
-
+#include "connection.h"
+#include "tcpserver.h"
+#include "handler.h"
+#include "startup.h"
+#include "version.h"
 
 /**
  * This flag is set if gnunetd is not (to be) detached from the
@@ -73,19 +69,19 @@ void WINAPI ServiceCtrlHandler(DWORD dwOpcode) {
  * Main method of the windows service
  */
 void WINAPI ServiceMain(DWORD argc, LPSTR *argv) {
-  memset(&theServiceStatus, sizeof(theServiceStatus), 0);
+  memset(&theServiceStatus, 0, sizeof(theServiceStatus));
   theServiceStatus.dwServiceType = SERVICE_WIN32;
   theServiceStatus.dwControlsAccepted = SERVICE_ACCEPT_STOP;
   theServiceStatus.dwCurrentState = SERVICE_RUNNING;
-  
+
   hService = GNRegisterServiceCtrlHandler("GNUnet", ServiceCtrlHandler);
   if (! hService)
     return;
-    
+
   GNSetServiceStatus(hService, &theServiceStatus);
-  
+
   gnunet_main();
-  
+
   theServiceStatus.dwCurrentState = SERVICE_STOPPED;
   GNSetServiceStatus(hService, &theServiceStatus);
 }
@@ -104,63 +100,41 @@ void WINAPI ServiceMain(DWORD argc, LPSTR *argv) {
  */
 void gnunet_main() {
   int filedes[2]; /* pipe between client and parent */
-  int * sbit;
-  int version;
-  int firstStart;
 
-  /* version management for GNUnet core */
-  sbit = NULL;
-  if (sizeof(int) == stateReadContent("GNUNET-VERSION",
-				      (void**)&sbit)) {
-    version = *sbit;
-    FREE(sbit);
-    if (ntohl(version) != 0x0630)
-      errexit(_("You need to first run '%s'!\n"),
-	      "gnunet-update");
-    firstStart = NO;
-  } else {
-    FREENONNULL(sbit);  
-    /* first start (or garbled version number), just write version tag */
-    version = htonl(0x0630);  
-    stateWriteContent("GNUNET-VERSION",
-		      sizeof(int),
-		      &version);
-    firstStart = YES;
-  }
+  /* init 0: change user */
+#ifndef MINGW
+  char *user = getConfigurationString("GNUNETD", "USER");
+  if (user && strlen(user))
+    changeUser(user);
+  FREENONNULL(user);
+#endif
 
+  /* init 1: version management for GNUnet core,
+     essentially forces running gnunet-update
+     whenever the version OR configuration changes. */
+  if (OK != checkUpToDate())
+    errexit(_("Configuration or GNUnet version changed.  You need to run `%s'!\n"),
+	    "gnunet-update");
 
-  
   /* init 2: become deamon, initialize core subsystems */
-  if (NO == debug_flag) 
-    detachFromTerminal(filedes);  
-  LOG(LOG_MESSAGE,
-      "gnunetd starting\n");
-  initHandler(); 
-  initTCPServer();
-  initPolicy(); 
-  initTraffic();
-  initKnownhosts(); 
-  initConnection();   
-  initPingPong();
-  initCore(); 
-  initTransports();
-  initKeyService("gnunetd");
-  initHeloExchange();  
-  initHttpHelo();
+  if (NO == debug_flag)
+    detachFromTerminal(filedes);
 
-  /* init 3a: start core services */
-  startTransports();
-  startCron();
+  LOG(LOG_MESSAGE,
+      _("`%s' starting\n"),
+      "gnunetd");
+
+  initCore();
+  initConnection();   /* requires core, starts transports! */
+  loadApplicationModules(); /* still single-threaded! */
 
   /* initialize signal handler (CTRL-C / SIGTERM) */
-  if (NO == debug_flag) 
-    detachFromTerminalComplete(filedes);  
+  if (NO == debug_flag)
+    detachFromTerminalComplete(filedes);
   writePIDFile();
 
-  /* init 3b: load application services */
-  loadApplicationModules();
-  if (firstStart == YES)
-    downloadHostlist(); /* right away! */
+  startCron();
+  enableCoreProcessing();
 
   /* init 4: wait for shutdown */
   /* wait for SIGTERM, SIGTERM will set
@@ -169,32 +143,25 @@ void gnunet_main() {
      sleep */
   initSignalHandlers();
   LOG(LOG_MESSAGE,
-      _("'%s' startup complete.\n"),
+      _("`%s' startup complete.\n"),
       "gnunetd");
 
   waitForSignalHandler();
   LOG(LOG_MESSAGE,
-      _("'%s' is shutting down.\n"),
+      _("`%s' is shutting down.\n"),
       "gnunetd");
 
-  /* init 5: shutdown in inverse order */   
-  disableCoreProcessing();
-  stopCron();
-  stopTCPServer();
+  /* init 5: shutdown */
+  disableCoreProcessing(); /* calls on applications! */
+  stopCron(); /* avoid concurrency! */
+  stopTCPServer(); /* calls on applications! */
+  unloadApplicationModules(); /* requires connection+tcpserver+handler */
+
+  doneConnection();  /* requires core, stops transports! */
   doneCore();
-  deletePIDFile();
-  doneHeloExchange();  
-  doneHttpHelo(); 
-  donePingPong();
-  doneConnection();
-  doneTransports();
-  doneKeyService();
-  doneKnownhosts();
-  doneTraffic();
-  doneTCPServer();
-  doneHandler();
-  donePolicy();
+
   /* init 6: goodbye */
+  deletePIDFile();
   doneSignalHandlers();
   doneUtil();
 }
@@ -215,14 +182,14 @@ int main(int argc, char * argv[]) {
     SERVICE_TABLE_ENTRY DispatchTable[] =
       {{"GNUnet", ServiceMain}, {NULL, NULL}};
     GNStartServiceCtrlDispatcher(DispatchTable);
-    
+
     return 0;
   } else
 #endif
     gnunet_main();
 
   return 0;
-} 
+}
 
 /* You have reached the end of GNUnet. You can shutdown your
    computer and get a life now. */

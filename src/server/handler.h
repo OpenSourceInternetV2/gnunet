@@ -28,8 +28,10 @@
 #include "gnunet_util.h"
 #include "connection.h"
 
+
 /**
- * Initialize message handling module.
+ * Initialize message handling module (make ready to register
+ * handlers).
  */
 void initHandler();
 
@@ -39,31 +41,38 @@ void initHandler();
 void doneHandler();
 
 /**
- * Handle a message (that was decrypted if needed).  Checks the CRC
- * and if that's ok, processes the message by calling the registered
- * handler for each message part.
+ * Start processing messages from the transports.
  */
-void handleHelper(const char * msg,
-		  const HostIdentity * sender,
-		  const unsigned int size,
-		  const int crc);
+void enableCoreProcessing();
 
 /**
- * The actual main method of GNUnet: message dispatch/handling.
- * @param msg the message that was received. Caller frees it on return
+ * Stop processing messages from the transports.
  */
-void handleMessage(TSession * session,
-		   const HostIdentity * sender,
-		   const void * msg,
-		   const unsigned int size,
-		   int isEncrypted,
-		   const int crc);
+void disableCoreProcessing();
 
-void setPercentRandomInboundDrop(int value);
- 
+/**
+ * Handle a message (that was decrypted if needed).  Processes the
+ * message by calling the registered handler for each message part.
+ *
+ * @param wasEncrypted YES if it was encrypted,
+ *                     NO if plaintext,
+ */
+void injectMessage(const PeerIdentity * sender,
+		   const char * msg,		
+		   unsigned int size,
+		   int wasEncrypted,
+		   TSession * session);
+
+/**
+ * Processing of a message from the transport layer (receive
+ * implementation).  Detects if the message is encrypted, possibly
+ * decrypts and calls injectMessage.
+ */
+void core_receive(P2P_PACKET * mp);
+
 /**
  * Register a method as a handler for specific message
- * types. 
+ * types.
  * @param type the message type
  * @param callback the method to call if a message of
  *        that type is received, if the callback returns
@@ -73,15 +82,8 @@ void setPercentRandomInboundDrop(int value);
  *         handler for that type
  */
 int registerp2pHandler(const unsigned short type,
-		       MessagePartHandler callback); 
-/**
- * Return wheter or not there is a method handler 
- * registered for a specific p2p message type.
- * @param the message type
- * @return YES if there is a handler for the type,
- * 	NO if there isn't
- */
-int isp2pHandlerRegistered(const unsigned short type);
+		       MessagePartHandler callback);
+
 
 /**
  * Unregister a method as a handler for specific message
@@ -95,12 +97,51 @@ int isp2pHandlerRegistered(const unsigned short type);
 int unregisterp2pHandler(const unsigned short type,
 			 MessagePartHandler callback);
 
+
 /**
- * Handle a request to see if a particular p2p message 
- * is supported.
+ * Register a method as a handler for specific message types.  Note
+ * that it IS possible to register multiple handlers for the same
+ * message.  In that case, they will ALL be executed in the order of
+ * registration, unless one of them returns SYSERR in which case the
+ * remaining handlers and the rest of the message are ignored.
+ *
+ * @param type the message type
+ * @param callback the method to call if a message of
+ *        that type is received
+ * @return OK on success, SYSERR if core threads are running
+ *        and updates to the handler list are illegal!
  */
-int handlep2pMessageSupported(ClientHandle sock,
-			      const CS_HEADER * message);
+int registerPlaintextHandler(const unsigned short type,
+			     PlaintextMessagePartHandler callback);
+
+
+/**
+ * Unregister a method as a handler for specific message types. Only
+ * for plaintext messages!
+ *
+ * @param type the message type
+ * @param callback the method to call if a message of
+ *        that type is received
+ * @return OK on success, SYSERR if there is a different
+ *        handler for that type or if core threads are running
+ *        and updates to the handler list are illegal!
+ */
+int unregisterPlaintextHandler(const unsigned short type,
+			       PlaintextMessagePartHandler callback);
+
+/**
+ * Is a handler registered for messages of the given type?
+ * @param type the message type
+ * @param handlerType 0 for plaintext P2P,
+ *                    1 for ciphertext P2P,
+ *                    2 for either plaintext or ciphertext P2P,
+ *                    3 for client-server
+ *        NO for ciphertext handlers, SYSERR for either
+ * @return number of handlers registered, 0 for none,
+ *        SYSERR for invalid value of handlerType
+ */
+int isHandlerRegistered(unsigned short type,
+			unsigned short handlerType);
 
 
 #endif

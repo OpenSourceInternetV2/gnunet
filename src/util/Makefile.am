@@ -1,19 +1,23 @@
 INCLUDES = -I$(top_srcdir)/src/include
 
+plugindir = $(libdir)/GNUnet
+
+AM_CFLAGS = \
+  -DPLUGIN_PATH="\"${plugindir}\"" -DPREFIX_PATH="\"${prefix}\""
+
 # GNU Gettext support
 LIBS = @LIBINTL@ @LIBS@
-# Define a C macro LOCALEDIR indicating where catalogs will be installed.
-localedir = $(datadir)/locale
-DEFS = -DLOCALEDIR=\"$(localedir)\" @DEFS@
 
 if SOLARIS
  SOLFLAGS = -lrt
 endif
 
 if MINGW
- WINFLAGS = -Wl,--no-undefined -Wl,--export-all-symbols -lole32 -lshell32 -luuid -lstdc++ -lcomdlg32 -lgdi32
+ WINFLAGS = -Wl,--no-undefined -Wl,--export-all-symbols -lole32 -lshell32 -luuid -liconv -lstdc++ -lcomdlg32 -lgdi32
  WINSUBDIRS = win
  WINLIBADD = $(top_builddir)/src/util/win/libwin.la 
+else
+ DLFLAG = -ldl
 endif
 
 if CYGWIN
@@ -21,78 +25,49 @@ if CYGWIN
  CYGLIBADD = $(top_builddir)/src/util/win/libwin.la 
 endif
 
-ELIBDIR = $(libdir)
-
-AM_CPPFLAGS = \
- -DPLUGIN_PATH="\"${libdir}\"" \
- -DELIBDIR=\"$(ELIBDIR)\"
-# FIXME: ELIBDIR somehow no longer works...
-
 lib_LTLIBRARIES = libgnunetutil.la
 
-if USE_OPENSSL
- cryptofiles = hostkey_openssl.c symcipher_openssl.c random_openssl.c
- CRYPTLIB = -lcrypto
-else
- cryptofiles = hostkey_gcrypt.c symcipher_gcrypt.c locking_gcrypt.c locking_gcrypt.h random_gcrypt.c
- CRYPTLIB = -lgcrypt
-endif
+AM_CPPFLAGS = $(LIBGCRYPT_CFLAGS)
 
 libgnunetutil_la_LIBADD = $(GCLIBADD) $(CYGLIBADD) $(WINLIBADD)
 SUBDIRS = $(WINSUBDIRS) $(CYGSUBDIRS) .
 
-EXTRA_DIST = generate \
-  testconfig.conf\
-  hostkey_gcrypt.c \
-  hostkey_openssl.c \
-  symcipher_gcrypt.c \
-  symcipher_openssl.c \
-  locking_gcrypt.c \
-  locking_gcrypt.h \
-  random_gcrypt.c \
-  random_openssl.c
+EXTRA_DIST = \
+  testconfig.conf \
+  check.conf
 
-libgnunetutil_la_LDFLAGS = -export-dynamic $(LIBLTDL) $(CRYPTLIB) $(SOLFLAGS) $(WINFLAGS) $(LIBS) -lgmp
-
-generate_gnunetd_conf.c: generate
-	./generate $(top_srcdir)/contrib/gnunet.root generate_gnunetd_conf > generate_gnunetd_conf.c
-generate_gnunet_conf.c: generate
-	./generate $(top_srcdir)/contrib/gnunet.user generate_gnunet_conf > generate_gnunet_conf.c
-
-CLEANFILES = \
-  generate_gnunetd_conf.c \
-  generate_gnunet_conf.c
-
-BUILT_SOURCES = \
-  generate_gnunetd_conf.c \
-  generate_gnunet_conf.c
-
+libgnunetutil_la_LDFLAGS = \
+ -export-dynamic $(LIBLTDL) $(LIBGCRYPT_LIBS) $(SOLFLAGS) $(WINFLAGS) $(LIBS) -lgmp $(DLFLAG) \
+ -version-info 1:0:0
 
 libgnunetutil_la_SOURCES = \
  bloomfilter.c \
  checksum.c \
  configuration.c \
  cron.c \
+ daemon.c \
  dso.c \
  getopt.c \
- generate_gnunetd_conf.c \
- generate_gnunet_conf.c \
  hashing.c \
- $(cryptofiles) \
- identity.c \
+ hostkey_gcrypt.c \
  initialize.c \
  io.c \
  ipcheck.c \
  kblockkey.c \
+ locking_gcrypt.c \
+ locking_gcrypt.h \
  logging.c \
+ osconfig.c \
  printhelp.c \
  port.c \
+ random.c \
  semaphore.c \
  shutdown.c \
  state.c \
- statistics.c \
  statuscalls.c \
  storage.c \
+ string.c \
+ symcipher_gcrypt.c \
  tcp_return.c \
  tcpio.c \
  timer.c \
@@ -108,6 +83,7 @@ check_PROGRAMS = \
  crctest \
  crontest \
  configtest \
+ daemontest \
  hashtest \
  hashingtest \
  hostkeytest \
@@ -129,6 +105,11 @@ TESTS = $(check_PROGRAMS)
 xmalloctest_SOURCES = \
  xmalloctest.c 
 xmalloctest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
+daemontest_SOURCES = \
+ daemontest.c 
+daemontest_LDADD = \
  $(top_builddir)/src/util/libgnunetutil.la  
 
 statetest_SOURCES = \

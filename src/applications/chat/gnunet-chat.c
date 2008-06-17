@@ -19,15 +19,16 @@
 */
 
 /**
- * @file applications/chat/gnunet-chat.c 
+ * @file applications/chat/gnunet-chat.c
  * @brief Chat command line tool
  * @author Christian Grothoff
  */
 
-#include "chat.h"
 #include "platform.h"
+#include "gnunet_protocols.h"
+#include "chat.h"
 
-#define CHAT_VERSION "0.0.2"
+#define CHAT_VERSION "0.0.3"
 
 static Semaphore * doneSem;
 
@@ -35,13 +36,13 @@ static Semaphore * doneSem;
  * Parse the options, set the timeout.
  * @param argc the number of options
  * @param argv the option list (including keywords)
- * @return OK on error, SYSERR if we should exit 
+ * @return OK on error, SYSERR if we should exit
  */
 static int parseOptions(int argc,
 			char ** argv) {
   int option_index;
-  int c;  
-  
+  int c;
+
   FREENONNULL(setConfigurationString("GNUNETD",
 				     "LOGFILE",
 				     NULL));
@@ -50,14 +51,14 @@ static int parseOptions(int argc,
       LONG_DEFAULT_OPTIONS,
       { "nickname", 1, 0, 'n' },
       { 0,0,0,0 }
-    };    
+    };
     option_index=0;
     c = GNgetopt_long(argc,
-		      argv, 
-		      "vhdc:L:H:n:", 
-		      long_options, 
-		      &option_index);    
-    if (c == -1) 
+		      argv,
+		      "vhdc:L:H:n:",
+		      long_options,
+		      &option_index);
+    if (c == -1)
       break;  /* No more flags to process */
     if (YES == parseDefaultOptions(c, GNoptarg))
       continue;
@@ -67,7 +68,7 @@ static int parseOptions(int argc,
 					 "NICK",
 					 GNoptarg));
       break;
-    case 'v': 
+    case 'v':
       printf("GNUnet v%s, gnunet-chat v%s\n",
 	     VERSION,
 	     CHAT_VERSION);
@@ -87,7 +88,7 @@ static int parseOptions(int argc,
 		 help);
       return SYSERR;
     }
-    default: 
+    default:
       LOG(LOG_FAILURE,
 	  _("Use --help to get a list of options.\n"));
       return -1;
@@ -96,16 +97,17 @@ static int parseOptions(int argc,
   return OK;
 }
 
-static void * receiveThread(GNUNET_TCP_SOCKET * sock) {
-  CHAT_CS_MESSAGE * buffer;
+static void * receiveThread(void * arg) {
+  GNUNET_TCP_SOCKET * sock = arg;
+  CS_chat_MESSAGE * buffer;
 
   buffer = MALLOC(MAX_BUFFER_SIZE);
-  while (OK == readFromSocket(sock, 
-			      (CS_HEADER **)&buffer)) {
+  while (OK == readFromSocket(sock,
+			      (CS_MESSAGE_HEADER **)&buffer)) {
     char timebuf[64];
     time_t timetmp;
     struct tm * tmptr;
-	    
+	
     time(&timetmp);
     tmptr = localtime(&timetmp);
     strftime(timebuf,
@@ -113,10 +115,10 @@ static void * receiveThread(GNUNET_TCP_SOCKET * sock) {
              "%b %e %H:%M ",
              tmptr);
 			
-   if ( (ntohs(buffer->header.size) != sizeof(CHAT_CS_MESSAGE)) ||
-        (ntohs(buffer->header.tcpType) != CHAT_CS_PROTO_MSG) )
+   if ( (ntohs(buffer->header.size) != sizeof(CS_chat_MESSAGE)) ||
+        (ntohs(buffer->header.type) != CS_PROTO_chat_MSG) )
       continue;
-    buffer->nick[CHAT_NICK_LENGTH-1] = '\0'; 
+    buffer->nick[CHAT_NICK_LENGTH-1] = '\0';
     buffer->message[CHAT_MSG_LENGTH-1] = '\0';
     printf("[%s][%s]: %s",
            timebuf,
@@ -125,6 +127,7 @@ static void * receiveThread(GNUNET_TCP_SOCKET * sock) {
   }
   FREE(buffer);
   SEMAPHORE_UP(doneSem);
+  printf("CHAT receive loop ends!\n");
   return NULL;
 }
 
@@ -133,41 +136,42 @@ static void * receiveThread(GNUNET_TCP_SOCKET * sock) {
  * @param argc number of arguments from the command line
  * @param argv command line arguments
  * @return return value from gnunetsearch: 0: ok, -1: error
- */   
+ */
 int main(int argc, char ** argv) {
   GNUNET_TCP_SOCKET * sock;
   PTHREAD_T messageReceiveThread;
   void * unused;
-  CHAT_CS_MESSAGE msg;
+  CS_chat_MESSAGE msg;
   char * nick;
 
   if (SYSERR == initUtil(argc, argv, &parseOptions))
-    return 0; /* parse error, --help, etc. */ 
+    return 0; /* parse error, --help, etc. */
   sock = getClientSocket();
   if (sock == NULL)
     errexit(_("Could not connect to gnunetd.\n"));
 
   nick = getConfigurationString("GNUNET-CHAT", "NICK");
-  if (nick == NULL) 
-    errexit(_("You must specify a nickname (use option '%s').\n"),
-	    "-n");  
+  if (nick == NULL)
+    errexit(_("You must specify a nickname (use option `%s').\n"),
+	    "-n");
 
   doneSem = SEMAPHORE_NEW(0);
-  PTHREAD_CREATE(&messageReceiveThread, 
-		 (PThreadMain) &receiveThread, 
-		 sock,
-		 128 * 1024);
+  if (0 != PTHREAD_CREATE(&messageReceiveThread,
+			  &receiveThread,
+			  sock,
+			  128 * 1024))
+    DIE_STRERROR("pthread_create");
 
-  memset(&msg, 
-	 0, 
-	 sizeof(CHAT_CS_MESSAGE));
-  memcpy(&msg.message[0], 
-	 "Hi!\n", 
+  memset(&msg,
+	 0,
+	 sizeof(CS_chat_MESSAGE));
+  memcpy(&msg.message[0],
+	 "Hi!\n",
 	 strlen("Hi!\n"));
-  msg.header.size 
-    = htons(sizeof(CHAT_CS_MESSAGE));
-  msg.header.tcpType 
-    = htons(CHAT_CS_PROTO_MSG);
+  msg.header.size
+    = htons(sizeof(CS_chat_MESSAGE));
+  msg.header.type
+    = htons(CS_PROTO_chat_MSG);
   memcpy(&msg.nick[0],
 	 nick,
 	 strlen(nick));

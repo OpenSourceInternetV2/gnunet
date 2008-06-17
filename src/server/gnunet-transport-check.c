@@ -20,49 +20,68 @@
 
 /**
  * @file server/gnunet-transport-check.c
- * @brief Test for the transports.  
+ * @brief Test for the transports.
  * @author Christian Grothoff
  *
  * This utility can be used to test if a transport mechanism for
  * GNUnet is properly configured.
  */
 
+#include "platform.h"
 #include "gnunet_util.h"
-#include "transport.h"
-#include "httphelo.h"
-#include "keyservice.h"
-#include "knownhosts.h"
+#include "gnunet_protocols.h"
+#include "gnunet_transport_service.h"
+#include "gnunet_identity_service.h"
+#include "gnunet_pingpong_service.h"
+#include "gnunet_bootstrap_service.h"
+#include "core.h"
+#include "connection.h"
+#include "handler.h"
 
 #define DEBUG_TRANSPORT_CHECK NO
 
-#define TEST_CRC 25116123
 #define DEFAULT_MSG "Hello World"
 
-static char * testmsg;
-
-static MessagePack * receit;
-static CoreAPIForTransport capi;
 static Semaphore * sem;
-static int terminate;
-static cron_t timeout = 15 * cronSECONDS;
 
-static void receive(MessagePack * mp) {
-  if ( (sem == NULL) || (receit != NULL) ) {
-    FREE(mp->msg);
-    FREE(mp);
-    return; /* spurious receive or double-receive, happens */
-  }
-  if (testConfigurationString("GNUNET-TRANSPORT-CHECK",
-			      "VERBOSE",
-			      "YES")) 
-    fprintf(stderr, ".");
-  receit = mp;
+static int terminate;
+
+static cron_t timeout = 5 * cronSECONDS;
+
+static Transport_ServiceAPI * transport;
+
+static Identity_ServiceAPI * identity;
+
+static Pingpong_ServiceAPI * pingpong;
+
+static Bootstrap_ServiceAPI * bootstrap;
+
+static int ok;
+
+static char * expectedValue;
+
+static unsigned short expectedSize;
+
+static void semUp(Semaphore * sem) {
+#if DEBUG_TRANSPORT_CHECK
+  LOG(LOG_DEBUG,
+      "semUp timeout happened!\n");
+#endif
+  terminate = YES;
   SEMAPHORE_UP(sem);
 }
 
-static void semUp(Semaphore * sem) {
-  terminate = YES;
+static int noiseHandler(const PeerIdentity *peer,
+			const P2P_MESSAGE_HEADER * msg,
+			TSession * s) {
+  if ( (ntohs(msg->size) ==
+	sizeof(P2P_MESSAGE_HEADER) + expectedSize) &&
+       (0 == memcmp(expectedValue,
+		    &msg[1],
+		    expectedSize)) )
+    ok = YES;
   SEMAPHORE_UP(sem);
+  return OK;
 }
 
 /**
@@ -70,26 +89,24 @@ static void semUp(Semaphore * sem) {
  */
 static void testTAPI(TransportAPI * tapi,
 		     int * res) {
-  HELO_Message * helo;
+  P2P_hello_MESSAGE * helo;
   TSession * tsession;
   unsigned int repeat;
   cron_t start;
   cron_t end;
+  CS_MESSAGE_HEADER * noise;
 
   if (tapi == NULL)
     errexit("Could not initialize transport!\n");
-
-  helo = NULL;
-  if (OK != tapi->startTransportServer()) {
-    fprintf(stderr,
-	    _("Could not start transport server.\n"));
-    *res = SYSERR;
-    return;
+  if (tapi->protocolNumber == NAT_PROTOCOL_NUMBER) {
+    *res = OK;
+    return; /* NAT cannot be tested */
   }
-  if (OK != tapi->createHELO(&helo)) {
+  helo = tapi->createhello();
+  if (helo == NULL) {
     fprintf(stderr,
-	    _("Could not create HELO.\n"));
-    tapi->stopTransportServer();
+	    _("`%s': Could not create hello.\n"),
+	    tapi->transName);
     *res = SYSERR;
     return;
   }
@@ -97,12 +114,13 @@ static void testTAPI(TransportAPI * tapi,
   if (OK != tapi->connect(helo,
 			  &tsession)) {
     fprintf(stderr,
-	    _("Could not connect.\n"));
+	    _("`%s': Could not connect.\n"),
+	    tapi->transName);
     *res = SYSERR;
-    tapi->stopTransportServer();
     FREE(helo);
     return;
   }
+  FREE(helo);
   repeat = getConfigurationInt("TRANSPORT-CHECK",
 			       "REPEAT");
   if (repeat == 0) {
@@ -113,20 +131,25 @@ static void testTAPI(TransportAPI * tapi,
   }
   sem = SEMAPHORE_NEW(0);
   cronTime(&start);
+  noise = MALLOC(expectedSize + sizeof(P2P_MESSAGE_HEADER));
+  noise->type = htons(P2P_PROTO_noise);
+  noise->size = htons(expectedSize + sizeof(P2P_MESSAGE_HEADER));
+  memcpy(&noise[1],
+	 expectedValue,
+	 expectedSize);
   while (repeat > 0) {
     repeat--;
-    receit = NULL;
-    if (OK != tapi->send(tsession,
-			 testmsg,
-			 strlen(testmsg),
-			 NO,
-			 TEST_CRC)) {
+    ok = NO;
+    if (OK != sendPlaintext(tsession,
+			    (char*)noise,
+			    ntohs(noise->size))) {
       fprintf(stderr,
-	      _("Could not send.\n"));
+	      _("`%s': Could not send.\n"),
+	      tapi->transName);
       *res = SYSERR;
       tapi->disconnect(tsession);
-      tapi->stopTransportServer();
       SEMAPHORE_FREE(sem);
+      FREE(noise);
       return;
     }
     addCronJob((CronJob)&semUp,
@@ -137,82 +160,65 @@ static void testTAPI(TransportAPI * tapi,
     suspendCron();
     delCronJob((CronJob)&semUp,
 	       0,
-	       sem); 
+	       sem);
     resumeCron();
-    if (receit == NULL) {
-      fprintf(stderr,
-	      _("Did not receive message within %llu ms.\n"),
+    if (ok != YES) {
+      FPRINTF(stderr,
+	      _("`%s': Did not receive message within %llu ms.\n"),
+	      tapi->transName,
 	      timeout);
       *res = SYSERR;
       tapi->disconnect(tsession);
-      tapi->stopTransportServer();
       SEMAPHORE_FREE(sem);
+      FREE(noise);
       return;
     }
-    if ( (receit->crc != TEST_CRC) ||
-	 (receit->size != strlen(testmsg)) ||
-	 (receit->isEncrypted != NO) ||
-	 (0 != memcmp(capi.myIdentity,
-		      &receit->sender,
-		      sizeof(HostIdentity))) ||
-	 (0 != memcmp(receit->msg,
-		      testmsg,
-		      strlen(testmsg))) ) {
-      fprintf(stderr,
-	      _("Message received was invalid.\n"));
-      *res = SYSERR;
-      tapi->disconnect(tsession);
-      tapi->stopTransportServer();
-      SEMAPHORE_FREE(sem);
-      return;
-    }
-    FREE(receit->msg);
-    FREE(receit);
   }
+  FREE(noise);
   cronTime(&end);
   if (OK != tapi->disconnect(tsession)) {
     fprintf(stderr,
-	    _("Could not disconnect.\n"));
-    *res = SYSERR;
-    tapi->stopTransportServer();
-    SEMAPHORE_FREE(sem);
-    return;
-  }
-  if (OK != tapi->stopTransportServer()) {
-    fprintf(stderr,
-	    _("Could not stop server.\n"));
+	    _("`%s': Could not disconnect.\n"),
+	    tapi->transName);
     *res = SYSERR;
     SEMAPHORE_FREE(sem);
     return;
   }
-
   SEMAPHORE_FREE(sem);
-  printf(_("Transport OK.  It took %ums to transmit %d messages of %d bytes each.\n"),
-	 (unsigned int) ((end - start)/cronMILLIS),  
+  printf(_("`%s' transport OK.  It took %ums to transmit %d messages of %d bytes each.\n"),
+	 tapi->transName,
+	 (unsigned int) ((end - start)/cronMILLIS),
 	 getConfigurationInt("TRANSPORT-CHECK",
 			     "REPEAT"),
-	 strlen(testmsg));
+	 expectedSize);
 }
 
+static void pingCallback(void * unused) {
+#if DEBUG_TRANSPORT_CHECK
+  LOG(LOG_DEBUG,
+      "PONG callback called!\n");
+#endif
+  ok = YES;
+  SEMAPHORE_UP(sem);
+}
 
-static void testPING(HELO_Message * xhelo,
-		     int * stats) {  
+static void testPING(P2P_hello_MESSAGE * xhelo,
+		     int * stats) {
   TSession * tsession;
-  PINGPONG_Message pmsg;
-  HELO_Message * helo;
-  HELO_Message * myHelo;
+  P2P_hello_MESSAGE * helo;
+  P2P_hello_MESSAGE * myHelo;
+  P2P_MESSAGE_HEADER * ping;
   char * msg;
   int len;
-  int again;
-  int reply;
-  
+  PeerIdentity peer;
+
   if (testConfigurationString("GNUNET-TRANSPORT-CHECK",
 			      "VERBOSE",
 			      "YES")) {
     char * str;
-    str = heloToString(xhelo);
-    fprintf(stderr, 
-	    _("\nContacting '%s'."),
+    str = transport->heloToString(xhelo);
+    fprintf(stderr,
+	    _("\nContacting `%s'."),
 	    str);
     FREE(str);
   } else
@@ -221,195 +227,116 @@ static void testPING(HELO_Message * xhelo,
   memcpy(helo, xhelo, ntohs(xhelo->header.size));
 
   stats[0]++; /* one more seen */
-  if (NO == isTransportAvailable(ntohs(helo->protocol))) {
-    fprintf(stderr, 
-	    " Transport %d not available\n",
+  if (NO == transport->isAvailable(ntohs(helo->protocol))) {
+    fprintf(stderr,
+	    _(" Transport %d not available\n"),
 	    ntohs(helo->protocol));
     FREE(helo);
     return;
   }
-  myHelo = NULL;
-  if (OK != transportCreateHELO(ntohs(xhelo->protocol),
-				&myHelo)) {
+  myHelo = transport->createhello(ntohs(xhelo->protocol));
+  if (myHelo == NULL) {
     FREE(helo);
     return;
   }
   if (testConfigurationString("GNUNET-TRANSPORT-CHECK",
 			      "VERBOSE",
-			      "YES")) 
+			      "YES"))
     fprintf(stderr, ".");
 
   stats[1]++; /* one more with transport 'available' */
-
-  pmsg.header.size = htons(sizeof(PINGPONG_Message));
-  pmsg.header.requestType = htons(p2p_PROTO_PING);
-  memcpy(&pmsg.receiver,
-	 &helo->senderIdentity,
-	 sizeof(HostIdentity));
-  pmsg.challenge = rand();
- 
-  
   tsession = NULL;
-  if (OK != transportConnect(helo, 
-			     &tsession)) {
-    FREE(helo);
-    fprintf(stderr, 
-	    " Connection failed\n");
+  peer = helo->senderIdentity;
+  tsession = transport->connect(helo);
+  FREE(helo);
+  if (tsession == NULL) {
+    fprintf(stderr,
+	    _(" Connection failed\n"));
+    return;
+  }
+  if (tsession == NULL) {
+    BREAK();
+    fprintf(stderr,
+	    _(" Connection failed (bug?)\n"));
     return;
   }
   if (testConfigurationString("GNUNET-TRANSPORT-CHECK",
 			      "VERBOSE",
-			      "YES")) 
+			      "YES"))
     fprintf(stderr, ".");
-  
+
   sem = SEMAPHORE_NEW(0);
-  len = sizeof(PINGPONG_Message) + ntohs(myHelo->header.size);
+
+  ping = pingpong->pingUser(&peer,
+			    &pingCallback,
+			    NULL,
+			    YES);
+  len = ntohs(ping->size) + ntohs(myHelo->header.size);
   msg = MALLOC(len);
   memcpy(msg,
 	 myHelo,
 	 ntohs(myHelo->header.size));
   memcpy(&msg[ntohs(myHelo->header.size)],
-	 &pmsg,
-	 sizeof(PINGPONG_Message));
+	 ping,
+	 ntohs(ping->size));
   FREE(myHelo);
+  FREE(ping);
   /* send ping */
-  if (OK != transportSend(tsession,
+  ok = NO;
+#if DEBUG_TRANSPORT_CHECK
+  LOG(LOG_DEBUG,
+      "Sending PING\n");
+#endif
+  if (OK != sendPlaintext(tsession,
 			  msg,
-			  len,
-			  NO,
-			  crc32N(msg, len))) {
-    fprintf(stderr, 
-	    " Send failed.\n");
+			  len)) {
+    fprintf(stderr,
+	    "Send failed.\n");
     FREE(msg);
-    transportDisconnect(tsession);
+    transport->disconnect(tsession);
     return;
   }
   FREE(msg);
   if (testConfigurationString("GNUNET-TRANSPORT-CHECK",
 			      "VERBOSE",
-			      "YES")) 
+			      "YES"))
     fprintf(stderr, ".");
   /* check: received pong? */
+#if DEBUG_TRANSPORT_CHECK
+  LOG(LOG_DEBUG,
+      "Waiting for PONG\n");
+#endif
   terminate = NO;
   addCronJob((CronJob)&semUp,
 	     timeout,
 	     5 * cronSECONDS,
 	     sem);
-  reply = 0;
-  again = 1;
-  while (again && (terminate == NO)) {
-    again = 0;
-    SEMAPHORE_DOWN(sem);
-    if (receit != NULL) {
-      p2p_HEADER * part;
-      PINGPONG_Message * pong;      
-      unsigned int pos;
-      unsigned short plen;
-      
-      again = 1;
-      if (0 != memcmp(&receit->sender,
-		      &xhelo->senderIdentity,
-		      sizeof(HostIdentity))) {
-#if DEBUG_TRANSPORT_CHECK
-	EncName enc1, enc2;
-	hash2enc(&xhelo->senderIdentity.hashPubKey,
-		 &enc1);
-	hash2enc(&receit->sender.hashPubKey,
-		 &enc2);
-	fprintf(stderr, 
-		"%s!=%s",
-		(char*)&enc1, 
-		(char*)&enc2);
-#endif
-	FREE(receit->msg);
-	FREE(receit);
-	receit = NULL;
-	continue; /* different peer, ignore */
-      }
-      
-      reply = 1;
-      pos = 0;
-      while (pos < receit->size) {
-	part = (p2p_HEADER*) &((char*)receit->msg)[pos];
-	plen = ntohs(part->size);
-#if DEBUG_TRANSPORT_CHECK 
-	fprintf(stderr, "PRT<%d,%d>:%d@%d",
-		plen,
-		ntohs(part->requestType),
-		pos,
-		receit->size);
-#endif
-	pos += plen;
-	if ( (pos > receit->size) || (plen < sizeof(p2p_HEADER)) ) {
-	  fprintf(stderr,
-		  "!F");
-	  break; /* malformed */
-	}
+  SEMAPHORE_DOWN(sem);
 
-	if ( (plen == sizeof(PINGPONG_Message)) &&
-	     (part->requestType == htons(p2p_PROTO_PONG)) ) {	  
-	  pong = (PINGPONG_Message*) part;
-	  pong->header.requestType = htons(p2p_PROTO_PING);
-	  if (0 == memcmp(&pmsg,
-			  pong,
-			  sizeof(PINGPONG_Message))) {
-	    if (testConfigurationString("GNUNET-TRANSPORT-CHECK",
-					"VERBOSE",
-				      "YES")) 
-	      fprintf(stderr, _("OK!"));
-	    stats[2]++;
-	    reply = 2;
-	    again = 0;
-	    break;
-	  } else {
-	    if (testConfigurationString("GNUNET-TRANSPORT-CHECK",
-					"VERBOSE",
-					"YES")) 
-	      fprintf(stderr,
-		      "!"); /* invalid pong */
-	  }
-	} 
-      }
-      FREE(receit->msg);
-      FREE(receit);
-      receit = NULL;    
-    }
-  }
   if (testConfigurationString("GNUNET-TRANSPORT-CHECK",
 			      "VERBOSE",
 			      "YES")) {
-    if (reply == 1)
-      fprintf(stderr, _("No PONG received.\n"));
-    else if (reply == 0)
-      fprintf(stderr, 
+    if (ok != YES)
+      FPRINTF(stderr,
 	      _("No reply received within %llums.\n"),
 	      timeout);
   }
   suspendCron();
   delCronJob((CronJob)&semUp,
 	     5 * cronSECONDS,
-	     sem); 
+	     sem);
   resumeCron();
   SEMAPHORE_FREE(sem);
   sem = NULL;
-  if (receit != NULL) {
-    FREE(receit->msg);
-    FREE(receit);
-    receit = NULL;        
-  }
-  transportDisconnect(tsession);  
-}
-
-/* dead code to make linker happy without
-   dragging in heloexchange.c */
-int receivedHELO(p2p_HEADER * message) {
-  return OK;
+  transport->disconnect(tsession);
+  if (ok == YES)
+    stats[2]++;
 }
 
 /**
- * Perform option parsing from the command line. 
+ * Perform option parsing from the command line.
  */
-static int parser(int argc, 
+static int parser(int argc,
 		  char * argv[]) {
   int cont = OK;
   int c;
@@ -442,18 +369,18 @@ static int parser(int argc,
       { "verbose", 0, 0, 'V' },
       { 0,0,0,0 }
     };
-    
+
     c = GNgetopt_long(argc,
-		      argv, 
-		      "vhc:L:t:r:s:X:P:pVT:", 
-		      long_options, 
+		      argv,
+		      "vhc:L:t:r:s:X:P:pVT:",
+		      long_options,
 		      &option_index);
-    
-    if (c == -1) 
+
+    if (c == -1)
       break;  /* No more flags to process */
-    
+
     switch(c) {
-    case 'p': 
+    case 'p':
       FREENONNULL(setConfigurationString("TRANSPORT-CHECK",
 					 "PING",
 					 "YES"));
@@ -461,7 +388,7 @@ static int parser(int argc,
     case 'P':{
       unsigned int port;
       if (1 != sscanf(GNoptarg, "%ud", &port)) {
-	LOG(LOG_FAILURE, 
+	LOG(LOG_FAILURE,
 	    "You must pass a number to the -P option.\n");
 	return SYSERR;
       } else {
@@ -476,8 +403,8 @@ static int parser(int argc,
     case 's':{
       unsigned int size;
       if (1 != sscanf(GNoptarg, "%ud", &size)) {
-	LOG(LOG_FAILURE, 
-	    _("You must pass a number to the '%s' option.\n"),
+	LOG(LOG_FAILURE,
+	    _("You must pass a number to the `%s' option.\n"),
 	    "-s");
 	return SYSERR;
       } else {
@@ -485,18 +412,19 @@ static int parser(int argc,
 	  size = 2;
 	else
 	  size++;
-	testmsg = MALLOC(size);
-	testmsg[--size] = '\0';
+	expectedSize = size;
+	expectedValue = MALLOC(size);
+	expectedValue[--size] = '\0';
 	while (size > 0)
-	  testmsg[--size] = 'A';
+	  expectedValue[--size] = 'A';
       }
       break;
     }
     case 'r':{
       unsigned int repeat;
       if (1 != sscanf(GNoptarg, "%ud", &repeat)) {
-	LOG(LOG_FAILURE, 
-	    _("You must pass a number to the '%s' option.\n"),
+	LOG(LOG_FAILURE,
+	    _("You must pass a number to the `%s' option.\n"),
 	    "-r");
 	return SYSERR;
       } else {
@@ -509,8 +437,8 @@ static int parser(int argc,
     case 'X':{
       unsigned int repeat;
       if (1 != sscanf(GNoptarg, "%ud", &repeat)) {
-	LOG(LOG_FAILURE, 
-	    _("You must pass a number to the '%s' option.\n"),
+	LOG(LOG_FAILURE,
+	    _("You must pass a number to the `%s' option.\n"),
 	    "-X");
 	return SYSERR;
       } else {
@@ -521,9 +449,9 @@ static int parser(int argc,
       break;
     }
     case 'T':{
-      if (1 != sscanf(GNoptarg, "%llu", &timeout)) {
-	LOG(LOG_FAILURE, 
-	    _("You must pass a number to the '%s' option.\n"),
+      if (1 != SSCANF(GNoptarg, "%llu", &timeout)) {
+	LOG(LOG_FAILURE,
+	    _("You must pass a number to the `%s' option.\n"),
 	    "-T");
 	return SYSERR;
       }
@@ -539,7 +467,7 @@ static int parser(int argc,
 					 "TRANSPORTS",
 					 GNoptarg));
       break;
-    case 'v': 
+    case 'v':
       printf("gnunet-transport-check v%s\n",
 	     VERSION);
       cont = SYSERR;
@@ -570,7 +498,7 @@ static int parser(int argc,
       };
       formatHelp("gnunet-transport-check [OPTIONS]",
 		 _("Tool to test if GNUnet transport services are operational."),
-		 help);  
+		 help);
       cont = SYSERR;
       break;
     }
@@ -580,16 +508,16 @@ static int parser(int argc,
 					 GNoptarg));
       break;
     default:
-      LOG(LOG_FAILURE, 
+      LOG(LOG_FAILURE,
 	  _("Use --help to get a list of options.\n"));
-      cont = SYSERR;    
+      cont = SYSERR;
     } /* end of parsing commandline */
   }
   if (GNoptind < argc) {
-    LOG(LOG_WARNING, 
+    LOG(LOG_WARNING,
 	_("Invalid arguments: "));
     while (GNoptind < argc)
-      LOG(LOG_WARNING, 
+      LOG(LOG_WARNING,
 	  "%s ", argv[GNoptind++]);
     LOG(LOG_FATAL,
 	_("Invalid arguments. Exiting.\n"));
@@ -598,24 +526,21 @@ static int parser(int argc,
   return cont;
 }
 
-CoreAPIForTransport * getCoreAPIForTransport() {
-  return &capi;
-}
 
 int main(int argc, char *argv[]) {
   int res;
   int Xrepeat;
   char * trans;
   int ping;
-  char * url;
-  int i;
   int stats[3];
 
   if (OK != initUtil(argc, argv, &parser)) {
     return SYSERR;
   }
-  if (testmsg == NULL)
-    testmsg = STRDUP(DEFAULT_MSG);
+  if (expectedValue == NULL) {
+    expectedValue = STRDUP(DEFAULT_MSG);
+    expectedSize = strlen(DEFAULT_MSG);
+  }
 
   trans = getConfigurationString("GNUNETD",
 				 "TRANSPORTS");
@@ -649,78 +574,50 @@ int main(int argc, char *argv[]) {
 				       "BLACKLIST",
 				       NULL));
   }
-  initKnownhosts();
-  initTransports();
-  if (ping) {
-    initKeyService("gnunet-transport-check");
-  } 
+  initCore();
+  initConnection();
+  registerPlaintextHandler(P2P_PROTO_noise,
+			   &noiseHandler);
+  enableCoreProcessing();
+  identity = requestService("identity");
+  transport = requestService("transport");
+  pingpong = requestService("pingpong");
   startCron();
 
-  capi.version = 0;
-  capi.receive = &receive;
-  capi.myIdentity = &myIdentity;
   Xrepeat = getConfigurationInt("TRANSPORT-CHECK",
 				"X-REPEAT");
   if (Xrepeat == 0)
     Xrepeat = 1;
   res = OK;
   if (ping) {
-    initHttpHelo();
-    startTransports();
+    bootstrap = requestService("bootstrap");
 
     stats[0] = 0;
     stats[1] = 0;
     stats[2] = 0;
-    url = getConfigurationString("GNUNETD",
-				 "HOSTLISTURL");
-    if (url != NULL) {
-      i = strlen(url);
-      while (i > 0) {
-	i--;
-	if (url[i] == ' ') {
-#if DEBUG_TRANSPORT_CHECK
-	  fprintf(stderr,
-		  "URL: %s\n", 
-		  &url[i+1]);
-#endif
-	  downloadHostlistHelper(&url[i+1],
-				 (HELO_Callback)&testPING,
-				 &stats[0]);
-	  url[i] = '\0';
-	}
-      } 
-#if DEBUG_TRANSPORT_CHECK
-      fprintf(stderr,
-	      "URL: %s\n",
-	      &url[0]);
-#endif
-      downloadHostlistHelper(&url[0],
-			     (HELO_Callback)&testPING,
-			     &stats[0]);
-      FREE(url);
-      fprintf(stderr, "\n");
-    } else {
-      printf(_("No URL specified in configuration section '%s' under '%s'!\n"),
-	     "GNUNETD", "HOSTLISTURL");
-    }
+    bootstrap->bootstrap((hello_Callback)&testPING,
+			 &stats[0]);
     printf(_("%d out of %d peers contacted successfully (%d times transport unavailable).\n"),
 	   stats[2],
 	   stats[1],
 	   stats[0] - stats[1]);
-    doneHttpHelo();
-    stopTransports();
+    releaseService(bootstrap);
   } else {
-    while (Xrepeat-- > 0) 
-      forEachTransport((TransportCallback)&testTAPI,
-		       &res);  
+    while (Xrepeat-- > 0)
+      transport->forEach((TransportCallback)&testTAPI,
+			 &res);
   }
   stopCron();
-  doneTransports();
-  if (ping) 
-    doneKeyService();
-  doneKnownhosts();
-  FREE(testmsg);
+  releaseService(identity);
+  releaseService(transport);
+  releaseService(pingpong);
+  disableCoreProcessing();
+  unregisterPlaintextHandler(P2P_PROTO_noise,
+			     &noiseHandler);
+  doneConnection();
+  doneCore();
   doneUtil();
+  FREE(expectedValue);
   if (res == OK)
     return 0;
   else

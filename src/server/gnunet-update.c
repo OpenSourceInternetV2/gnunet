@@ -26,6 +26,18 @@
 
 #include "platform.h"
 #include "gnunet_util.h"
+#include "gnunet_core.h"
+#include "core.h"
+#include "version.h"
+
+/**
+ * We may want to change this at some point into
+ * something like libgnunet_update if we want to
+ * separate the update code from the codebase
+ * used in normal operation -- but currently I
+ * see no need / use for that.
+ */
+#define DSO_PREFIX "libgnunet"
 
 /**
  * Print a list of the options we offer.
@@ -51,9 +63,9 @@ static void printhelp() {
 static int be_verbose = NO;
 
 /**
- * Perform option parsing from the command line. 
+ * Perform option parsing from the command line.
  */
-static int parseCommandLine(int argc, 
+static int parseCommandLine(int argc,
 			    char * argv[]) {
   int c;
   int user = NO;
@@ -75,16 +87,16 @@ static int parseCommandLine(int argc,
       { "verbose", 0, 0, 'V' },
       { 0,0,0,0 }
     };
-    
+
     c = GNgetopt_long(argc,
-		      argv, 
-		      "vhdc:g:VL:", 
-		      long_options, 
-		      &option_index);    
-    if (c == -1) 
+		      argv,
+		      "vhdc:g:VL:",
+		      long_options,
+		      &option_index);
+    if (c == -1)
       break;  /* No more flags to process */
     if (YES == parseDefaultOptions(c, GNoptarg))
-      continue;    
+      continue;
     switch(c) {
     case 'g':
       FREENONNULL(setConfigurationString("GNUNET-UPDATE",
@@ -97,8 +109,8 @@ static int parseCommandLine(int argc,
 					 "LOGLEVEL",
 					 GNoptarg));
      break;
-    case 'h': 
-      printhelp(); 
+    case 'h':
+      printhelp();
       return SYSERR;
     case 'u':
       FREENONNULL(setConfigurationString("GNUNETD",
@@ -106,7 +118,7 @@ static int parseCommandLine(int argc,
 					 "NO"));
       user = YES;
       break;
-    case 'v': 
+    case 'v':
       printf("GNUnet v%s, gnunet-update 0.0.1\n",
 	     VERSION);
       return SYSERR;
@@ -119,7 +131,7 @@ static int parseCommandLine(int argc,
     } /* end of parsing commandline */
   }
   if (user && (! get)) {
-    printf(_("Option '%s' makes no sense without option '%s'."),
+    printf(_("Option `%s' makes no sense without option `%s'."),
 	   "-u", "-g");
     return SYSERR;
   }
@@ -132,7 +144,7 @@ static int parseCommandLine(int argc,
   }
   if (get == NO) {
     /* if we do not run in 'get' mode,
-       make sure we send error messages 
+       make sure we send error messages
        to the console... */
     FREENONNULL(setConfigurationString("GNUNETD",
 				       "LOGFILE",
@@ -141,156 +153,164 @@ static int parseCommandLine(int argc,
   return OK;
 }
 
-static void rename062bCallback(const char * filename,
-			       const char * dirName,
-			       void * unused) {
-  char * oldName;
-  char * newName;
-  EncName enc;
-  HashCode160 hc;
-  char * backup;
-
-  if (strlen(filename) < sizeof(HexName)-1)
-    return;
-  backup = STRDUP(&filename[sizeof(HexName)-1]);
-  oldName = MALLOC(strlen(dirName) + strlen(filename) + 10);
-  strcpy(oldName, dirName);
-  strcat(oldName, "/");
-  strcat(oldName, filename);
-
-  if (strlen(filename) != sizeof(HexName)-1) {
-    FREE(backup);
-    FREE(oldName);
-    return;
-  }
-  if (SYSERR == tryhex2hash(filename,
-			    &hc)) {  
-    FREE(backup);
-    FREE(oldName);
-    return;
-  }
-  hash2enc(&hc, &enc);
-
-  newName = MALLOC(strlen(dirName) + strlen(filename) + strlen(backup) + 10);
-  strcpy(newName, dirName);
-  strcat(newName, "/");
-  strcat(newName, (char*) &enc);
-  strcat(newName, backup);
-  FREE(backup);
-  if (YES == be_verbose)
-    printf(_("Renaming file '%s' to '%s'\n"),
-	     oldName, newName);
-  if (0 != rename(oldName, newName))
-    LOG(LOG_ERROR,
-	_("Could not rename '%s' to '%s': %s\n"),
-	oldName, newName, STRERROR(errno));
-  FREE(oldName);
-  FREE(newName);
-}
-
-#define TRUSTDIR "data/credit/"
+static char ** processed;
+static unsigned int processedCount;
+static UpdateAPI uapi;
 
 /**
- * Update from version 0.6.2b and earlier to
- * 0.6.3 (and later).
- * go over trust/ and hosts/ directories and rename files
+ * Allow the module named "pos" to update.
+ * @return OK on success, SYSERR on error
  */
-static void update062b() {
-  char * gnHome;
-  char * trustDirectory; 
-  
-  gnHome = getFileName("",
-		       "GNUNETD_HOME",
-		       _("Configuration file must specify a "
-			 "directory for GNUnet to store "
-			 "per-peer data under %s%s\n"));
-  trustDirectory = MALLOC(strlen(gnHome) + 
-			  strlen(TRUSTDIR)+2);
-  strcpy(trustDirectory, gnHome);
-  FREE(gnHome);
-  strcat(trustDirectory, "/");
-  strcat(trustDirectory, TRUSTDIR);
-  scanDirectory(trustDirectory,
-		&rename062bCallback,
-		NULL);
-  FREE(trustDirectory);
-  gnHome = getFileName("GNUNETD",
-		       "HOSTS",
-		       _("Configuration file must specify directory for "
-			 "network identities in section %s under %s.\n"));
-  scanDirectory(gnHome,
-		&rename062bCallback,
-		NULL);  
-}
+static int updateModule(const char * rpos) {
+  UpdateMethod mptr;
+  void * library;
+  char * name;
+  int i;
+  char * pos;
 
-static int work() {
-  int * sbit;
-  int version;
-  int val;
-  
-  sbit = NULL;
-  if (sizeof(int) == stateReadContent("GNUNET-VERSION",
-				      (void**)&sbit)) {
-    version = *sbit;
-    FREE(sbit);
-    switch (ntohl(version)) {
-    case 0x0630: 
-      printf(_("State is current, no update required.\n"));
-      break;
-    default:
-      printf(_("Unknown version, are you down-grading?\n"));
+  for (i=0;i<processedCount;i++)
+    if (0 == strcmp(rpos, processed[i])) {
+      return OK; /* already done */
     }
-  } else {
-    printf(_("Updating from version pre 0.6.3 (or first run)\n"));
-    printf(_("You may also want to run gnunet-check -u.\n"));
-    update062b();
-    FREENONNULL(sbit);
+  GROW(processed, processedCount, processedCount+1);
+  processed[processedCount-1] = STRDUP(rpos);
+
+  pos = getConfigurationString("MODULES",
+			       rpos);
+  if (pos == NULL)
+    pos = STRDUP(rpos);
+
+  name = MALLOC(strlen(pos) + strlen("module_") + 1);
+  strcpy(name, "module_");
+  strcat(name, pos);
+  FREE(pos);
+  library = loadDynamicLibrary(DSO_PREFIX,
+			       name);
+  if (library == NULL) {
+    FREE(name);
+    return SYSERR;
   }
-  val = htonl(0x0630);  
-  stateWriteContent("GNUNET-VERSION",
-		    sizeof(int),
-		    &val);
+  mptr = trybindDynamicMethod(library,
+			      "update_",
+			      name);
+  if (mptr == NULL) {
+    FREE(name);
+    return OK; /* module needs no updates! */
+  }
+  mptr(&uapi);
+  unloadDynamicLibrary(library);
+  FREE(name);
   return OK;
 }
 
+/**
+ * Call the update module for each of the applications
+ * in the current configuration.
+ */
+static void updateApplicationModules() {
+  char * dso;
+  char * next;
+  char * pos;
 
+  dso = getConfigurationString("GNUNETD",
+			       "APPLICATIONS");
+  if (dso == NULL) {
+    LOG(LOG_WARNING,
+	_("No applications defined in configuration!\n"));
+    return;
+  }
+  next = dso;
+  do {
+    pos = next;
+    while ( (*next != '\0') &&
+	    (*next != ' ') )
+      next++;
+    if (*next == '\0') {
+      next = NULL; /* terminate! */
+    } else {
+      *next = '\0'; /* add 0-termination for pos */
+      next++;
+    }
+    if (strlen(pos) > 0) {
+      LOG(LOG_MESSAGE,
+	  _("Updating data for module `%s'\n"),
+	  pos);
+      if (OK != updateModule(pos))
+	LOG(LOG_ERROR,
+	    _("Failed to update data for module `%s'\n"),
+	    pos);
+    }
+  } while (next != NULL);
+  FREE(dso);
+}
 
-int main(int argc, 
+static void doGet(char * get) {
+  char * sec;
+  char * ent;
+  char * val;
+
+  sec = get;
+  ent = get;
+  while ( ( (*ent) != ':') &&
+	  ( (*ent) != '\0') )
+    ent++;
+  if (*ent == ':') {
+    *ent = '\0';
+    ent++;
+  }
+  val = getConfigurationString(sec, ent);
+  if (val == NULL)
+    printf("%u\n",
+	   getConfigurationInt(sec, ent));
+  else {
+    printf("%s\n",
+	   val);
+    FREE(val);
+  }
+  FREE(get);
+}
+
+static void work() {
+  int i;
+  uapi.updateModule = &updateModule;
+  uapi.requestService = &requestService;
+  uapi.releaseService = &releaseService;
+
+  initCore();
+
+  /* force update of common modules
+     (used by core) */
+  updateModule("transport");
+  updateModule("identity");
+  updateModule("session");
+  updateModule("fragmentation");
+  updateModule("topology");
+  /* then update active application modules */
+  updateApplicationModules();
+  /* store information about update */
+  upToDate();
+
+  for (i=0;i<processedCount;i++)
+    FREE(processed[i]);
+  if (be_verbose)
+    printf(_("Updated data for %d applications.\n"),
+	   processedCount);
+  GROW(processed, processedCount, 0);
+  doneCore();
+}
+
+int main(int argc,
 	 char * argv[]) {
   char * get;
 
-  if (SYSERR == initUtil(argc, argv, &parseCommandLine))    
+  if (SYSERR == initUtil(argc, argv, &parseCommandLine))
     return 0;
   get = getConfigurationString("GNUNET-UPDATE",
 			       "GET");
-  if (get != NULL) {
-    char * sec;
-    char * ent;
-    char * val;
-    
-    sec = get;
-    ent = get;
-    while ( ( (*ent) != ':') &&
-	    ( (*ent) != '\0') )
-      ent++;
-    if (*ent == ':') {
-      *ent = '\0';
-      ent++;
-    }
-    val = getConfigurationString(sec, ent);
-    if (val == NULL) 
-      printf("%u\n",
-	     getConfigurationInt(sec, ent));
-    else {
-      printf("%s\n",
-	     val);
-      FREE(val);
-    }    
-    FREE(get);
-    doneUtil();
-    return 0;
-  }
-  work();  
+  if (get != NULL)
+    doGet(get);
+  else
+    work();
   doneUtil();
   return 0;
 }

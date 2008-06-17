@@ -28,7 +28,7 @@
 
 #include "gnunet_util.h"
 #include "gnunet_core.h"
-
+#include "gnunet_blockstore.h"
 
 /**
  * The function was called successfully and the return values
@@ -65,12 +65,12 @@
 /**
  * Type of RPC arguments.
  */
-#define RPC_Param Vector
+#define RPC_Param struct Vector
 
 /**
  * Prototype for synchronous RPC functions.
  */
-typedef void (*RPC_Function)(const HostIdentity * caller,
+typedef void (*RPC_Function)(const PeerIdentity * caller,
 			     RPC_Param * arguments,
 			     RPC_Param * results);
 
@@ -90,7 +90,7 @@ typedef void (*Async_RPC_Complete_Callback)(RPC_Param * results,
 /**
  * Prototype for asynchronous RPC functions.
  */
-typedef void (*ASYNC_RPC_Function)(const HostIdentity * caller,
+typedef void (*ASYNC_RPC_Function)(const PeerIdentity * caller,
 				   RPC_Param * arguments,
 				   Async_RPC_Complete_Callback callback,
 				   struct CallInstance * context);
@@ -99,7 +99,7 @@ typedef void (*ASYNC_RPC_Function)(const HostIdentity * caller,
 /**
  * Function to call once an asynchronous RPC completes.
  */
-typedef void (*RPC_Complete)(const HostIdentity * responder,
+typedef void (*RPC_Complete)(const PeerIdentity * responder,
 			     RPC_Param * results,
 			     void * closure);
 
@@ -107,13 +107,13 @@ struct RPC_Record;
 
 /**
  * The RPC service API.
- */ 
+ */
 typedef struct {
 
   /**
    * Perform a synchronous RPC.
    */
-  int (*RPC_execute)(const HostIdentity * receiver, 
+  int (*RPC_execute)(const PeerIdentity * receiver,
 		     const char * name,
 		     RPC_Param * request_param,
 		     RPC_Param * return_param,
@@ -125,7 +125,7 @@ typedef struct {
    */
   int (*RPC_register)(const char * name,
 		      RPC_Function func);
-  
+
   /**
    * Unregister a synchronous RPC function.
    */
@@ -155,14 +155,14 @@ typedef struct {
    * @return value required to stop the RPC (and the RPC must
    *  be explicitly stopped to free resources!)
    */
-  struct RPC_Record * (*RPC_start)(const HostIdentity * receiver,
+  struct RPC_Record * (*RPC_start)(const PeerIdentity * receiver,
 				   const char * name,
 				   RPC_Param * request_param,
 				   unsigned int importance,
 				   cron_t timeout,
 				   RPC_Complete callback,
 				   void * closure);
- 
+
   /**
    * Stop an asynchronous RPC.
    *
@@ -179,16 +179,20 @@ typedef struct {
 /**
  * RPC argument handling helper functions.
  */
-RPC_Param * RPC_paramNew();
+RPC_Param * RPC_paramNew(void);
 
 void RPC_paramFree(RPC_Param * param);
 
-unsigned int RPC_paramCount(const RPC_Param *param);
+unsigned int RPC_paramCount(RPC_Param *param);
 
-void RPC_paramAdd(RPC_Param * param, 
-		  const char * name, 
-		  unsigned int dataLength, 
+void RPC_paramAdd(RPC_Param * param,
+		  const char * name,
+		  unsigned int dataLength,
 		  const void * data);
+
+void RPC_paramAddDataContainer(RPC_Param * param,
+			       const char * name,
+			       const DataContainer * data);
 
 const char * RPC_paramName(RPC_Param * param,
 			   unsigned int i);
@@ -199,7 +203,7 @@ unsigned int RPC_paramIndex(RPC_Param * param,
 /**
  * @return OK on success, SYSERR on error
  */
-int RPC_paramValueByName(RPC_Param * param, 
+int RPC_paramValueByName(RPC_Param * param,
 			 const char * name,
 			 unsigned int * dataLength,
 			 void ** data);
@@ -207,10 +211,31 @@ int RPC_paramValueByName(RPC_Param * param,
 /**
  * @return OK on success, SYSERR on error
  */
-int RPC_paramValueByPosition(RPC_Param * param, 
+int RPC_paramValueByPosition(RPC_Param * param,
 			     unsigned int i,
 			     unsigned int * dataLength,
 			     void ** data);
+
+/**
+ * Return the value of the given parameter in the RPC parameter structure.
+ *
+ * @param param Target RPC parameter structure
+ * @param value set to the value of the parameter
+ */
+DataContainer *
+RPC_paramDataContainerByPosition(RPC_Param *param,
+				 unsigned int i);
+
+/**
+ * Return the value of the named parameter in the RPC parameter
+ * structure.
+ *
+ * @param param Target RPC parameter structure
+ * @param value set to the value of the named parameter
+ * @return SYSERR on error
+ */
+DataContainer * RPC_paramDataContainerByName(RPC_Param *param,
+					     const char *name);
 
 /**
  * Serialize the param array.  target must point to at least
@@ -228,7 +253,7 @@ RPC_Param * RPC_paramDeserialize(char * buffer,
 /**
  * How many bytes are required to serialize the param array?
  */
-size_t RPC_paramSize(RPC_Param * param); 
+size_t RPC_paramSize(RPC_Param * param);
 
 
 #endif /* GNUNET_RPC_SERVICE_H */

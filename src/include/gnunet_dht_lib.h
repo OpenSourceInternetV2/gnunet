@@ -1,5 +1,6 @@
 /*
       This file is part of GNUnet
+      (C) 2004, 2005 Christian Grothoff (and other contributing authors)
 
       GNUnet is free software; you can redistribute it and/or modify
       it under the terms of the GNU General Public License as published
@@ -24,19 +25,20 @@
  */
 
 #ifndef GNUNET_DHT_LIB_H
-#define GNUNET_DHT_LIB_H 
+#define GNUNET_DHT_LIB_H
 
+#include "gnunet_blockstore.h"
 #include "gnunet_dht_service.h"
 
 /**
  * Initialize DHT_LIB. Call first.
  */
-void DHT_LIB_init();
+void DHT_LIB_init(void);
 
 /**
- * Initialize DHT_LIB. Call after leaving all tables!
+ * Shutdown DHT_LIB. Call after leaving all tables!
  */
-void DHT_LIB_done();
+void DHT_LIB_done(void);
 
 /**
  * Join a table (start storing data for the table).  Join
@@ -45,15 +47,13 @@ void DHT_LIB_done();
  *
  * @param datastore the storage callbacks to use for the table
  * @param table the ID of the table
- * @param timeout how long to wait for other peers to respond to 
+ * @param timeout how long to wait for other peers to respond to
  *   the join request (has no impact on success or failure)
- * @param flags 
+ * @param flags
  * @return SYSERR on error, OK on success
  */
-int DHT_LIB_join(DHT_Datastore * store,
-		 DHT_TableId * table,
-		 cron_t timeout,
-		 int flags);
+int DHT_LIB_join(Blockstore * store,
+		 const DHT_TableId * table);
 
 
 /**
@@ -62,7 +62,7 @@ int DHT_LIB_join(DHT_Datastore * store,
  *
  * @param datastore the storage callbacks to use for the table
  * @param table the ID of the table
- * @param timeout how long to wait for other peers to respond to 
+ * @param timeout how long to wait for other peers to respond to
  *   the leave request (has no impact on success or failure);
  *   but only timeout time is available for migrating data, so
  *   pick this value with caution.
@@ -70,9 +70,7 @@ int DHT_LIB_join(DHT_Datastore * store,
  *   implies 'use value from gnunet.conf').
  * @return SYSERR on error, OK on success
  */
-int DHT_LIB_leave(DHT_TableId * table,
-		  cron_t timeout,
-		  unsigned int flags); 
+int DHT_LIB_leave(const DHT_TableId * table);
 
 
 /**
@@ -87,18 +85,20 @@ int DHT_LIB_leave(DHT_TableId * table,
  * The peer does not have to be part of the table!
  *
  * @param table table to use for the lookup
- * @param key the key to look up  
+ * @param keys the keys to look up
  * @param timeout how long to wait until this operation should
  *        automatically time-out
- * @param maxResults maximum number of results to obtain, size of the results array
- * @param results where to store the results (on success)
+ * @param resultCallback function to call for results
  * @return number of results on success, SYSERR on error (i.e. timeout)
  */
-int DHT_LIB_get(DHT_TableId * table,
-		HashCode160 * key,
+int DHT_LIB_get(const DHT_TableId * table,
+		unsigned int type,
+		unsigned int prio,
+		unsigned int keyCount,
+		const HashCode512 * keys,
 		cron_t timeout,
-		unsigned int maxResults,
-		DHT_DataContainer ** results);
+		DataProcessor resultCallback,
+		void * resCallbackClosure);
 	
 /**
  * Perform a synchronous put operation.   The peer does not have
@@ -109,14 +109,13 @@ int DHT_LIB_get(DHT_TableId * table,
  * @param timeout how long to wait until this operation should
  *        automatically time-out
  * @param value what to store
- * @param flags bitmask
  * @return OK on success, SYSERR on error (or timeout)
  */
-int DHT_LIB_put(DHT_TableId * table,
-		HashCode160 * key,
+int DHT_LIB_put(const DHT_TableId * table,
+		const HashCode512 * key,
+		unsigned int prio,
 		cron_t timeout,
-		DHT_DataContainer * value,
-		int flags);
+		const DataContainer * value);
 
 /**
  * Perform a synchronous remove operation.  The peer does not have
@@ -127,13 +126,11 @@ int DHT_LIB_put(DHT_TableId * table,
  * @param timeout how long to wait until this operation should
  *        automatically time-out
  * @param value what to remove; NULL for all values matching the key
- * @param flags bitmask
  * @return OK on success, SYSERR on error (or timeout)
  */
-int DHT_LIB_remove(DHT_TableId * table,
-		   HashCode160 * key,
+int DHT_LIB_remove(const DHT_TableId * table,
+		   const HashCode512 * key,
 		   cron_t timeout,
-		   DHT_DataContainer * value,
-		   int flags);
+		   const DataContainer * value);
 
 #endif /* GNUNET_DHT_LIB_H */

@@ -5,7 +5,7 @@
 
 /**
  * @brief GNUnet Setup
- * @file conf/expr.c 
+ * @file conf/expr.c
  * @author Roman Zippel
  * @author Nils Durner
  */
@@ -116,7 +116,7 @@ void expr_free(struct expr *e)
 		break;
 	case E_NOT:
 		expr_free(e->left.expr);
-		return;
+		break;
 	case E_EQUAL:
 	case E_UNEQUAL:
 		break;
@@ -616,7 +616,8 @@ struct expr *expr_eliminate_dups(struct expr *e)
 	while (1) {
 		trans_count = 0;
 		switch (e->type) {
-		case E_OR: case E_AND:
+		case E_OR:
+		case E_AND:
 			expr_eliminate_dups1(e->type, &e, &e);
 			expr_eliminate_dups2(e->type, &e, &e);
 		default:

@@ -1,5 +1,6 @@
 /*
      This file is part of GNUnet
+     (C) 2004, 2005 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -31,16 +32,104 @@
 
 /**
  * Just the version number of GNUnet-transport implementation.
- * Encoded as 
+ * Encoded as
  * 0.6.1d  => 0x00060100
  * 4.5.2   => 0x04050200
- * 
- * Note that this version number is only changed if 
+ *
+ * Note that this version number is only changed if
  * something changes in the transport API.  It follows
  * roughly the main GNUnet version scheme, but is
  * more a compatibility ID.
  */
-#define GNUNET_TRANSPORT_VERSION 0x00060105
+#define GNUNET_TRANSPORT_VERSION 0x00070000
+
+/**
+ * Type of a struct passed to receive.
+ */
+typedef struct {
+  /**
+   * The session associated with the message
+   * on the transport layer side. Maybe passed to "associate"
+   * in order to send replies on a bi-directional pipe (if
+   * possible).
+   */
+  TSession * tsession;
+
+  /**
+   * The identity of the sender node
+   */
+  PeerIdentity sender;
+
+  /**
+   * The message itself. The GNUnet core will call 'FREE' once
+   * processing of msg is complete.
+   */
+  char * msg;
+
+  /**
+   * The size of the message
+   */
+  unsigned int size;
+
+} P2P_PACKET;
+
+/**
+ * Function that is to be used to process messages
+ * received from the transport.
+ *
+ * @param mp the message, freed by the callee once processed!
+ */
+typedef void (*P2P_PACKETProcessor)(P2P_PACKET * mp);
+
+/**
+ * This header file contains a draft for the gnunetd
+ * core API. This API is used by the transport layer
+ * for communication with the GNUnet core.
+ *
+ * A pointer to an instance of this struct is passed
+ * to the init method of each Transport API.
+ */
+typedef struct {
+
+  /**
+   * The version of the CORE API. For now, always "0".
+   */
+  unsigned int version;
+
+  /**
+   * The identity of the local node.
+   */
+  PeerIdentity * myIdentity;
+
+  /**
+   * Data was received (potentially encrypted), make the core process
+   * it.
+   */
+  P2P_PACKETProcessor receive;
+
+  /**
+   * Load a service module of the given name. This function must be
+   * called while cron is suspended.  Note that the initialization and
+   * shutdown function of modules are always run while cron is
+   * disabled, so suspending cron is not necesary if modules are
+   * loaded or unloaded inside the module initialization or shutdown
+   * code.
+   */
+  void * (*requestService)(const char * name);
+
+  /**
+   * Notification that the given service is no longer required. This
+   * function must be called while cron is suspended.  Note that the
+   * initialization and shutdown function of modules are always run
+   * while cron is disabled, so suspending cron is not necesary if
+   * modules are loaded or unloaded inside the module initialization
+   * or shutdown code.
+   *
+   * @return OK if service was successfully released, SYSERR on error
+   */
+  int (*releaseService)(void * service);
+
+} CoreAPIForTransport;
 
 
 /**
@@ -74,17 +163,17 @@ typedef struct {
   /**
    * The name of the transport, set by the
    * core. Read only for the service itself!
-   */ 
+   */
   char * transName;
 
   /**
-   * This field holds a cached HELO for this
-   * transport. HELOs must be signed with RSA,
+   * This field holds a cached hello for this
+   * transport. hellos must be signed with RSA,
    * so caching the result for a while is a good
    * idea.  The field is updated by a cron job
    * periodically.
    */
-  HELO_Message * helo;
+  P2P_hello_MESSAGE * helo;
 
   /**
    * The number of the protocol that is supported by this transport
@@ -108,64 +197,63 @@ typedef struct {
   unsigned int cost;
 
   /**
-   * Verify that a HELO-Message is correct (a node
+   * Verify that a hello-Message is correct (a node
    * is potentially reachable at that address). Core
    * will only play ping pong after this verification passed.
-   * @param helo the HELO message to verify
+   * @param helo the hello message to verify
    *        (the signature/crc have been verified before)
    * @return OK if the helo is well-formed
    */
-  int (*verifyHelo)(const HELO_Message * helo);
-  
+  int (*verifyHelo)(const P2P_hello_MESSAGE * helo);
+
   /**
-   * Create a HELO-Message for the current node. The HELO is
+   * Create a hello-Message for the current node. The hello is
    * created without signature, timestamp, senderIdentity
-   * or publicKey. The GNUnet core will sign the message 
+   * or publicKey. The GNUnet core will sign the message
    * and add these other fields. The callee is only
-   * responsible for filling in the protocol number, 
+   * responsible for filling in the protocol number,
    * senderAddressSize and the senderAddress itself.
    *
-   * @param helo address where to store the pointer to the HELO
+   * @param helo address where to store the pointer to the hello
    *        message
    * @return OK on success, SYSERR on error (e.g. send-only
    *  transports return SYSERR here)
    */
-  int (*createHELO)(HELO_Message ** helo);
+  P2P_hello_MESSAGE * (*createhello)(void);
 
   /**
    * Establish a connection to a remote node.
    *
-   * @param helo the HELO-Message for the target node
+   * @param helo the hello-Message for the target node
    * @param tsession the session handle that is to be set
    * @return OK on success, SYSERR if the operation failed
    */
-  int (*connect)(HELO_Message * helo,
+  int (*connect)(const P2P_hello_MESSAGE * helo,
 		 TSession ** tsession);
 
   /**
    * Send a message to the specified remote node.
    * @param tsession an opaque session handle (e.g. a socket
-   *        or the HELO_message from connect)
+   *        or the hello_message from connect)
    * @param msg the message
    * @param size the size of the message, <= mtu
-   * @return SYSERR on error, OK on success; after any error,
+   * @return SYSERR on error, NO on temporary error (retry),
+   *         YES/OK on success; after any persistent error,
    *         the caller must call "disconnect" and not continue
    *         using the session afterwards (useful if the other
    *         side closed the connection).
    */
   int (*send)(TSession * tsession,
 	      const void * msg,
-	      const unsigned int size,
-	      int isEncrypted,
-	      const int crc);
+	      const unsigned int size);
 
   /**
-   * Send a message to the specified remote node with 
+   * Send a message to the specified remote node with
    * increased reliablility (whatever that means is
    * up to the transport).
    *
    * @param tsession an opaque session handle (e.g. a socket
-   *        or the HELO_message from connect)
+   *        or the hello_message from connect)
    * @param msg the message
    * @param size the size of the message, <= mtu
    * @return SYSERR on error, OK on success; after any error,
@@ -175,9 +263,7 @@ typedef struct {
    */
   int (*sendReliable)(TSession * tsession,
 		      const void * msg,
-		      const unsigned int size,
-		      int isEncrypted,
-		      const int crc);
+		      const unsigned int size);
 
   /**
    * A (core) Session is to be associated with a transport session. The
@@ -191,7 +277,7 @@ typedef struct {
    * for eventually freeing resources associated with the tesession). If
    * session is not NULL, the core takes responsbility for eventually
    * calling disconnect.
-   * 
+   *
    * @param tsession the session handle passed along
    *   from the call to receive that was made by the transport
    *   layer
@@ -205,7 +291,7 @@ typedef struct {
    * by either the transport layer calling "closeSession" on
    * the core API or by the core API calling "disconnect"
    * on the transport API. Neither closeSession nor
-   * disconnect should call the other method. Due to 
+   * disconnect should call the other method. Due to
    * potentially concurrent actions (both sides close the
    * connection simultaneously), either API must tolerate
    * being called from the other side.
@@ -213,7 +299,7 @@ typedef struct {
    * @param tsession the session that is to be closed
    * @return OK on success, SYSERR if the operation failed
    */
-  int (*disconnect)(TSession * tsession);  
+  int (*disconnect)(TSession * tsession);
 
   /**
    * Start the server process to receive inbound traffic.
@@ -236,7 +322,7 @@ typedef struct {
   /**
    * Convert transport address to human readable string.
    */
-  char * (*addressToString)(const HELO_Message * helo);
+  char * (*addressToString)(const P2P_hello_MESSAGE * helo);
 
 } TransportAPI;
 
@@ -247,7 +333,7 @@ typedef struct {
  * with gnunetd core services to the transport api, and getting a
  * struct with services provided by the transport api back (or null
  * on error). The return value of init is of type TransportAPI.
- *q
+ *
  * Example:
  *
  * TransportAPI * inittransport_XXX(CoreTransportAPI * api) {
@@ -262,5 +348,5 @@ typedef struct {
 typedef TransportAPI * (*TransportMainMethod)(CoreAPIForTransport *);
 
 
-/* end of transport.h */
+/* end of gnunet_transport.h */
 #endif

@@ -1,3 +1,5 @@
+THIS TRANSLATION IS OUTDATED.  PLEASE ALSO READ THE ENGLISH VERSION!
+
                      Bienvenue sous GNUnet
 
 
@@ -20,8 +22,8 @@ des utilisateurs sans expérience.
 
 Pour une description plus complète du système GNUnet visitez nos
 pages web :
-http://www.gnu.org/projects/GNUnet/
-http://www.ovmj.org/GNUnet/
+http://www.gnu.org/software/gnunet/
+http://gnunet.org/
 
 
 Comment installer GNUnet ?
@@ -31,12 +33,12 @@ La manière la plus rapide est d'utiliser les paquetages binaires RPM,
 debian, ou n'importe quel autre paquet si ceux-ci sont disponibles
 pour votre système. Pour une description plus détaillée, lisez les
 instructions d'installation sur la page web :
-http://www.ovmj.org/GNUnet/documentation.php3
+http://gnunet.org/documentation.php3?xlang=French
 
 Si vous préférez installer et compiler à partir des sources, vous
 pouvez exécuter le script d'auto-installation en saisissant :
 
-# contrib/autoinstall 
+# contrib/autoinstall
 
 après vous être placé dans le répertoire des sources. Cette procédure
 n'est pas adaptée à une installation pour un seul utilisateur, car
@@ -62,7 +64,7 @@ des informations générales au sujet du processus d'installation GNU,
 lisez le fichier INSTALL fourni avec les sources.
 
 Si vous voulez employer libextractor (en téléchargement sur
-http://ovmj.org/libextractor/) pour l'extraction automatique de
+http://gnunet.org/libextractor/) pour l'extraction automatique de
 mot-clé (recommandée car très pratique) il est possible que vous
 deviez passer le paramètre "-- with-extractor=<chemin-vers-libextractor>"
 au script ./configure. Vous devriez également vous assurer que
@@ -84,7 +86,7 @@ autoinstall). La configuration concernant les utilisateurs de GNUnet
 qui se trouve dans le fichier "contrib/gnunet.user" devrait être copiée
 dans le répertoire personnel de chaque utilisateur dans
 "~/.gnunet/gnunet.conf", et éventuellement comme modèle
-dans "/etc/skel/.gnunet/gnunet.conf". 
+dans "/etc/skel/.gnunet/gnunet.conf".
 
 Afin de démarrer un noeud "permanent", vous devriez créer un nouvel
 utilisateur "gnunet" et lancer "gnunetd" en tant que cet utilisateur
@@ -99,7 +101,7 @@ supportons actuellement MySQL, GDBM, BerkeleyDB et TDB. Vous pouvez
 également vous servir d'un simple répertoire, mais ce sera lent.
 
 autoconf >= 2.57 est recommandé pour compiler la version CVS.
-libextractor >= 0.3.6 est fortement recommandé.
+libextractor >= 0.5.3 est fortement recommandé.
 
 
 Configuration
@@ -120,7 +122,7 @@ façon pendant l'exécution (par exemple pour modifier un numéro de
 port, vous devez entièrement redémarrer gnunetd).
 
 Si vous voulez utiliser le protocole SMTP, vous devriez lire
-http://ovmj.org/GNUnet/smtp.php3 d'abord ! Notez que si vous avez
+http://gnunet.org/smtp.php3 d'abord ! Notez que si vous avez
 une adresse IP globalement accessible ou un contrôle total
 de votre NAT, les protocles TCP et UDP suffiront.
 
@@ -143,7 +145,7 @@ Si la solution avec l'URL n'est pas utilisable dans votre situation,
 vous pouvez également ajouter des serveurs manuellement. La page web
 de GNUnet propose un annuaire public de clés d'hôtes
 (hostkey, clé identifiant un noeud) sur
-http://ovmj.org/GNUnet/hosts/. Vous pouvez naturellement employer
+http://gnunet.org/hosts/. Vous pouvez naturellement employer
  n'importe quelle autre source pour ces fichiers. Copiez les clés
 d'hôtes dans "~/.gnunet/data/hosts/" (ou dans un autre répertoire,
 selon votre fichier de configuration "~/.gnunet/gnunet.conf").
@@ -158,9 +160,9 @@ $ gnunet-insert
 Si voulez utiliser une interface graphique, lancez simplement
 $ gnunet-gtk
 
-Si vous préferez passer par un shell, tapez 
+Si vous préferez passer par un shell, tapez
 $ gnunet-search <mot-clé>
-Ceci affichera une liste de résultats dans la console. Puis utilisez 
+Ceci affichera une liste de résultats dans la console. Puis utilisez
 $ gnunet-download -o <fichier> --<URI GNUnet> pour télécharger
 du contenu. L'URI GNUnet (identifiant permettant de retrouver
 le fichier) est affichée par gnunet-search avec une description.
@@ -171,7 +173,7 @@ Participer à GNUnet
 ===================
 
 Les contributions sont bienvenues, soumettez svp les bogues à
-http://ovmj.org/~mantis/. Veillez à exécuter "contrib/report.sh"
+https://gnunet.org/mantis/. Veillez à exécuter "contrib/report.sh"
 (distribué avec les sources) et à inclure les messages avec vos
 rapports de bogues.
 
@@ -183,8 +185,8 @@ Rester au courant
 
 Pages web :
 * http://www.gnu.org/software/GNUnet/
-* http://ovmj.org/GNUnet/
-* http://ovmj.org/~mantis/
+* http://gnunet.org/
+* https://gnunet.org/mantis/
 
 Listes de diffusion :
 * http://mail.gnu.org/mailman/listinfo/gnunet-developers

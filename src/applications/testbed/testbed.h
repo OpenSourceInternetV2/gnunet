@@ -27,16 +27,16 @@
 #ifndef TESTBED_TESTBED_H
 #define TESTBED_TESTBED_H
 
-#include <sys/wait.h>
+#include "platform.h"
 
 #include "gnunet_core.h"
 
 /* */
-#define TESTBED_HELO_RESPONSE   0       /* peer responds with a HELO */
+#define TESTBED_hello_RESPONSE   0       /* peer responds with a hello */
 #define TESTBED_ADD_PEER	1	/* Add a peer to a peer connection pool			*/
 #define TESTBED_DEL_PEER	2	/* Delete a peer from a peer connection pool		*/
 #define TESTBED_DEL_ALL_PEERS	3	/* Delete all peers from a peer connection pool		*/
-#define TESTBED_GET_HELO	4	/* Get the complete host information (ID, IP, ...)	*/
+#define TESTBED_GET_hello	4	/* Get the complete host information (ID, IP, ...)	*/
 #define TESTBED_SET_TVALUE	5	/* Set trust value for a peer				*/
 #define TESTBED_GET_TVALUE	6	/* Get trust value of a peer				*/
 #define TESTBED_OUTPUT_RESPONSE	7	/* Reply to GET_OUTPUT					*/
@@ -45,8 +45,8 @@
 #define TESTBED_LOAD_MODULE     10      /* load a module                                        */
 #define TESTBED_UNLOAD_MODULE   11      /* unload a module                                      */
 #define TESTBED_UPLOAD_FILE	12	/* Upload a file to a peer				*/
-#define TESTBED_DISABLE_HELO    13      /* stop sending HELOs */
-#define TESTBED_ENABLE_HELO     14      /* start sending HELOs */
+#define TESTBED_DISABLE_hello    13      /* stop sending hellos */
+#define TESTBED_ENABLE_hello     14      /* start sending hellos */
 #define TESTBED_DISABLE_AUTOCONNECT    15      /* stop automatically connecting to other peers */
 #define TESTBED_ENABLE_AUTOCONNECT     16      /* start trying to automatically connect to other peers */
 #define TESTBED_ALLOW_CONNECT   17      /* only allow connections from a certain group of peers */
@@ -72,12 +72,12 @@
  */
 
 typedef struct {
-  CS_HEADER header;  
+  CS_MESSAGE_HEADER header;
   unsigned int msgType;	/* The message types listed above	*/
 } TESTBED_CS_MESSAGE;
 
 typedef struct {
-  TESTBED_CS_MESSAGE testbed_cs_message;  
+  TESTBED_CS_MESSAGE testbed_cs_message;
   char data[1];		/* Value is dependent on the type field */
 } TESTBED_CS_MESSAGE_GENERIC;
 
@@ -89,7 +89,7 @@ typedef struct {
   TESTBED_CS_MESSAGE header;
   unsigned short proto;
   unsigned short reserved; /* for alignment */
-} TESTBED_GET_HELO_MESSAGE;
+} TESTBED_GET_hello_MESSAGE;
 
 typedef struct {
   TESTBED_CS_MESSAGE header;
@@ -99,17 +99,17 @@ typedef struct {
 
 typedef struct {
   TESTBED_CS_MESSAGE header;
-  HELO_Message helo;
-} TESTBED_HELO_MESSAGE;
+  P2P_hello_MESSAGE helo;
+} TESTBED_hello_MESSAGE;
 
 typedef struct {
   TESTBED_CS_MESSAGE header;
-  HELO_Message helo;
+  P2P_hello_MESSAGE helo;
 } TESTBED_ADD_PEER_MESSAGE;
 
 typedef struct {
     TESTBED_CS_MESSAGE header;
-    HostIdentity host;
+    PeerIdentity host;
 } TESTBED_DEL_PEER_MESSAGE;
 
 typedef struct {
@@ -118,18 +118,18 @@ typedef struct {
 
 typedef struct {
     TESTBED_CS_MESSAGE header;
-    HostIdentity otherPeer;
+    PeerIdentity otherPeer;
 } TESTBED_GET_TVALUE_MESSAGE;
 
 typedef struct {
     TESTBED_CS_MESSAGE header;
-    HostIdentity otherPeer;
+    PeerIdentity otherPeer;
     unsigned int trust;
 } TESTBED_SET_TVALUE_MESSAGE;
 
 typedef struct {
     TESTBED_CS_MESSAGE header;
-    HostIdentity otherPeer;
+    PeerIdentity otherPeer;
 } TESTBED_BLACKLIST_MESSAGE;
 
 typedef struct {
@@ -173,11 +173,11 @@ typedef struct {
 
 typedef struct {
     TESTBED_CS_MESSAGE header;
-} TESTBED_DISABLE_HELO_MESSAGE;
+} TESTBED_DISABLE_hello_MESSAGE;
 
 typedef struct {
     TESTBED_CS_MESSAGE header;
-} TESTBED_ENABLE_HELO_MESSAGE;
+} TESTBED_ENABLE_hello_MESSAGE;
 
 typedef struct {
     TESTBED_CS_MESSAGE header;
@@ -193,7 +193,7 @@ typedef struct {
 
 typedef struct {
   TESTBED_ALLOW_CONNECT_MESSAGE allow_connect_message;
-  HostIdentity peers[1];
+  PeerIdentity peers[1];
 } TESTBED_ALLOW_CONNECT_MESSAGE_GENERIC;
 
 typedef struct {
@@ -202,7 +202,7 @@ typedef struct {
 
 typedef struct {
   TESTBED_DENY_CONNECT_MESSAGE deny_connect_message;
-  HostIdentity peers[1];
+  PeerIdentity peers[1];
 } TESTBED_DENY_CONNECT_MESSAGE_GENERIC;
 
 typedef struct {

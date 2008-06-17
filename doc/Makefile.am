@@ -1,1 +1,2 @@
-SUBDIRS = man
+SUBDIRS = . man
+EXTRA_DIST = README.mysql

@@ -1,5 +1,6 @@
 /*
      This file is part of GNUnet
+     (C) 2002, 2003, 2004, 2005 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -23,8 +24,49 @@
  * @author Christian Grothoff
  */
 
-#include "gnunet_util.h"
 #include "platform.h"
+#include "gnunet_util.h"
+
+static int using_valgrind;
+
+static char * old_dlsearchpath = NULL;
+
+/* using libtool, needs init! */
+void __attribute__ ((constructor)) gnc_ltdl_init(void) {
+  int err;
+
+  err = lt_dlinit ();
+  if (err > 0)
+    {
+#if DEBUG
+      fprintf(stderr,
+	      _("Initialization of plugin mechanism failed: %s!\n"),
+	      lt_dlerror());
+#endif
+      return;
+    }
+  if (lt_dlgetsearchpath() != NULL)
+    old_dlsearchpath = strdup(lt_dlgetsearchpath());
+  if (lt_dlgetsearchpath () == NULL)
+    lt_dladdsearchdir ("/usr/lib/GNUnet");
+  else if (strstr (lt_dlgetsearchpath (), "/usr/lib/GNUnet") == NULL)
+    lt_dladdsearchdir ("/usr/lib/GNUnet");
+  if (strstr (lt_dlgetsearchpath (), "/usr/local/lib/GNUnet") == NULL)
+    lt_dladdsearchdir ("/usr/local/lib/GNUnet");
+#ifdef PLUGIN_PATH
+  if (strstr (lt_dlgetsearchpath (), PLUGIN_PATH) == NULL)
+    lt_dladdsearchdir (PLUGIN_PATH);
+#endif
+}
+
+void __attribute__ ((destructor)) gnc_ltdl_fini(void) {
+  lt_dlsetsearchpath(old_dlsearchpath);
+  if (old_dlsearchpath != NULL)
+    free(old_dlsearchpath);
+  if (0 != using_valgrind)
+    lt_dlexit ();
+}
+
 
 static char * buildLibName(const char * prefix,
 			   const char * dso) {
@@ -42,46 +84,16 @@ void * loadDynamicLibrary(const char * libprefix,
 			  const char * dsoname) {
   void * libhandle;
   char * libname;
-  static int once = 0;
 
-  if (0 != lt_dlinit()) 
+  if (0 != lt_dlinit())
     DIE_STRERROR("lt_dlinit");
-  /* add default search paths */
-  if (once == 0) {
-    char * env;
-
-    once = 1;
-    
-    if (lt_dlgetsearchpath() == NULL)
-      lt_dladdsearchdir("/usr/lib");
-    else
-      if ( strstr(lt_dlgetsearchpath(), "/usr/lib") == NULL ) 
-	lt_dladdsearchdir("/usr/lib");
-    if ( strstr(lt_dlgetsearchpath(), "/usr/local/lib") == NULL ) 
-      lt_dladdsearchdir("/usr/local/lib");   
-#ifdef LTDL_SYSSEARCHPATH
-    if ( strstr(lt_dlgetsearchpath(), LTDL_SYSSEARCHPATH) == NULL)
-      lt_dladdsearchdir(LTDL_SYSSEARCHPATH);
-#endif 
-#ifdef PLUGIN_PATH
-    if ( strstr(lt_dlgetsearchpath(), PLUGIN_PATH) == NULL)
-      lt_dladdsearchdir(PLUGIN_PATH);
-#endif
-#ifdef LTDL_SHLIBPATH_VAR
-    env = getenv(LTDL_SHLIBPATH_VAR);
-    if (env != NULL)
-      if ( strstr(lt_dlgetsearchpath(), env) == NULL)
-	lt_dladdsearchdir(env);
-#endif
-  }
-
   /* finally, load the library */
   libname = buildLibName(libprefix,
 			 dsoname);
-  libhandle = lt_dlopenext(libname); 
+  libhandle = lt_dlopenext(libname);
   if (libhandle == NULL) {
     LOG(LOG_ERROR,
-	_("'%s' failed for library '%s' at %s:%d with error: %s\n"),
+	_("`%s' failed for library `%s' at %s:%d with error: %s\n"),
 	"lt_dlopenext",
 	libname,
 	__FILE__, __LINE__,
@@ -91,41 +103,55 @@ void * loadDynamicLibrary(const char * libprefix,
   return libhandle;
 }
 
-void unloadDynamicLibrary(void * libhandle) {  
-  lt_dlclose(libhandle);
-  if (0 != lt_dlexit())
-    LOG_STRERROR(LOG_WARNING, "lt_dlexit");
+void unloadDynamicLibrary(void * libhandle) {
+  /* when valgrinding, comment out these lines
+     to get decent traces for memory leaks on exit */
+  if (0 != getConfigurationInt("GNUNETD",
+			       "VALGRIND")) {
+    lt_dlclose(libhandle);
+    if (0 != lt_dlexit())
+      LOG_STRERROR(LOG_WARNING, "lt_dlexit");
+  } else
+    using_valgrind = 1;
 }
 
-void * bindDynamicMethod(void * libhandle,
-			 const char * methodprefix,
-			 const char * dsoname) {
+void * trybindDynamicMethod(void * libhandle,
+			    const char * methodprefix,
+			    const char * dsoname) {
   char * initName;
   void * mptr;
 
   initName = MALLOC(strlen(dsoname) +
 		    strlen(methodprefix) + 2);
   initName[0] = '\0';
+  strcat(initName, "_");
   strcat(initName, methodprefix);
   strcat(initName, dsoname);
-  mptr = lt_dlsym(libhandle, initName);
+  mptr = lt_dlsym(libhandle, &initName[1]);
   if (mptr == NULL) {
     /* try again with "_" prefix; some systems use that
        variant. */
-    initName[0] = '\0';
-    strcat(initName, "_");
-    strcat(initName, methodprefix);
-    strcat(initName, dsoname);
     mptr = lt_dlsym(libhandle, initName);
-    if (mptr == NULL)
-      LOG(LOG_ERROR,
-	  _("'%s' failed to resolve method '%s' at %s:%d with error: %s\n"),
-	  "lt_dlsym",
-	  initName,
-	  __FILE__, __LINE__,
-	  lt_dlerror());
   }
   FREE(initName);
+  return mptr;
+}
+
+void * bindDynamicMethod(void * libhandle,
+			 const char * methodprefix,
+			 const char * dsoname) {
+  void * mptr;
+
+  mptr = trybindDynamicMethod(libhandle,
+			      methodprefix,
+			      dsoname);
+  if (mptr == NULL)
+    LOG(LOG_ERROR,
+	_("`%s' failed to resolve method '%s%s' at %s:%d with error: %s\n"),
+	"lt_dlsym",
+	methodprefix, dsoname,
+	__FILE__, __LINE__,
+	lt_dlerror());
   return mptr;
 }
 

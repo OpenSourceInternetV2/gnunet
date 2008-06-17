@@ -1,5 +1,6 @@
  /*
       This file is part of GNUnet
+      (C) 2004, 2005 Christian Grothoff (and other contributing authors)
 
       GNUnet is free software; you can redistribute it and/or modify
       it under the terms of the GNU General Public License as published
@@ -16,7 +17,7 @@
       Free Software Foundation, Inc., 59 Temple Place - Suite 330,
       Boston, MA 02111-1307, USA.
  */
- 
+
 /**
  * @file module/dht.c
  * @brief definition of the entry points to the module; implements
@@ -25,34 +26,19 @@
  *   on kademlia.
  * @author Marko Räihä, Christian Grothoff
  *
- * 
- * WARNING (to self): What follows is 4.000+ lines of incomplete,
+ *
+ * WARNING (to self): What follows is 3.500+ lines of incomplete,
  * crazy, recursive, asynchronous, multithreaded routing code with
  * plenty of function pointers, too little documentation and not
  * enough testing.  Pray to the C gods before venturing any further.
  *
  *
  * Todo:
- * 1) handle content migration (migrate if this peer is no longer
- *    responsible for it)
- * 2) document (lots!)
- *   
- * Issues to investigate:
- * 1) get/put/remove routing: the first step by the initiator
- *    MAY go in any direction if the peer does not participate
- *    in the table, but after that we MUST guarantee that we
- *    always only route to peers closer to key (to avoid looping);
- *    The current code does not check this. (BUG!)
- * 2) put: to ensure we hit the replication level with reasonable
- *    precision, we must only store data locally if we're in the
- *    k-best peers for the datum by our best estimate (verify!)
- * 3) put: check consistency between table-replication level
- *    and the user-specified replication level!
- * 
+ * 1) document (lots!)
+ *
  * Desirable features:
- * 1) error handling: how to communicate errors (RPC vs. DHT errors)
- * 2) security: how to pick priorities?  Access rights? 
- * 3) performance: make protocol cheaper by adding extra fields to messages
+ * 1) security: how to pick priorities?  Access rights?
+ * 2) performance: add optional hello messages
  */
 
 #include "platform.h"
@@ -76,10 +62,9 @@
 #endif
 
 /**
- * Number of replications for the master table.  At maximum since
- * that table is quite important.
+ * Number of replications / parallel requests.
  */
-#define ALPHA  (DHT_FLAGS_TABLE_REPLICATION_MASK)
+#define ALPHA 7
 
 /**
  * Frequency of the DHT maintain job (trade-off between
@@ -99,7 +84,7 @@
 /**
  * How often should we notify the master-table about our
  * bucket status?
- */ 
+ */
 #define DHT_MAINTAIN_BUCKET_FREQUENCY (5 * cronMINUTES)
 
 /**
@@ -132,7 +117,7 @@
 /**
  * What is the CURRENT target size for buckets?
  */
-#define BUCKET_TARGET_SIZE (4 + DHT_FLAGS_TABLE_REPLICATION_MASK * tablesCount)
+#define BUCKET_TARGET_SIZE (4 + ALPHA * tablesCount)
 
 
 /* ********************* STRUCTS ************************** */
@@ -153,7 +138,7 @@ typedef struct {
   cron_t lastTableRefresh;
   /**
    * What was the last time we send a PING to this peer?
-   */ 
+   */
   cron_t lastTimePingSend;
   /**
    * In which tables do we know that peer to participate in?
@@ -166,7 +151,7 @@ typedef struct {
   /**
    * What is the identity of the peer?
    */
-  HostIdentity id;
+  PeerIdentity id;
 } PeerInfo;
 
 /**
@@ -174,13 +159,13 @@ typedef struct {
  */
 typedef struct {
   /**
-   * Peers in this bucket fall into the distance-range 
+   * Peers in this bucket fall into the distance-range
    * (2^bstart to 2^bend].
    */
   unsigned int bstart;
 
   /**
-   * Peers in this bucket fall into the distance-range 
+   * Peers in this bucket fall into the distance-range
    * (2^bstart to 2^bend].
    */
   unsigned int bend;
@@ -188,7 +173,7 @@ typedef struct {
   /**
    * Peers in this bucket.  NULL is used if no peer is known.
    */
-  Vector * peers; /* contains PeerInfo instances */
+  struct Vector * peers; /* contains PeerInfo instances */
 } PeerBucket;
 
 /**
@@ -197,12 +182,11 @@ typedef struct {
  */
 typedef struct {
   DHT_TableId id;
-  DHT_Datastore * store;
-  int flags;
+  Blockstore * store;
   /**
    * What was the last time we advertised this nodes participation in
    * this table to the master table?
-   */ 
+   */
   cron_t lastMasterAdvertisement;
 
   /**
@@ -219,9 +203,9 @@ typedef struct {
 typedef struct {
   /**
    * Towards which key are we routing?
-   */ 
-  HashCode160 key;
-  
+   */
+  HashCode512 key;
+
   /**
    * In what table are we searching?
    */
@@ -241,8 +225,8 @@ typedef struct {
   /**
    * Best k matches found so far.  Of size ALPHA.
    */
-  HashCode160 * matches;
-  
+  HashCode512 * matches;
+
   /**
    * Number of RPCs transmitted so far (if it reaches
    * rpcRepliesExpected we can possibly abort before
@@ -269,7 +253,7 @@ typedef struct {
   /**
    * When do we need to be done (absolute time).
    */
-  cron_t timeout;  
+  cron_t timeout;
 
   /**
    * Lock for accessing this struct.
@@ -283,7 +267,7 @@ typedef struct {
  * @param identity the identity of the node that was found
  * @return OK to continue searching, SYSERR to abort early
  */
-typedef int (*NodeFoundCallback)(HostIdentity * identity,
+typedef int (*NodeFoundCallback)(const PeerIdentity * identity,
 				 void * closure);
 
 /**
@@ -292,9 +276,9 @@ typedef int (*NodeFoundCallback)(HostIdentity * identity,
 typedef struct {
   /**
    * Towards which key are we routing?
-   */ 
-  HashCode160 key;
-  
+   */
+  HashCode512 key;
+
   /**
    * In what table are we searching?
    */
@@ -309,7 +293,7 @@ typedef struct {
    * Number of entries found so far.
    */
   unsigned int found;
-  
+
   /**
    * Number of RPCs transmitted so far (if it reaches
    * rpcRepliesExpected we can possibly abort before
@@ -336,7 +320,7 @@ typedef struct {
   /**
    * When do we need to be done (absolute time).
    */
-  cron_t timeout;  
+  cron_t timeout;
 
   /**
    * Lock for accessing this struct.
@@ -368,10 +352,18 @@ typedef struct DHT_GET_RECORD {
    */
   DHT_TableId table;
 
+  unsigned int type;
+
+  unsigned int keyCount;
+
   /**
-   * What is the key?
+   * What are the keys?
    */
-  HashCode160 key;
+  HashCode512 * keys;
+
+  DataProcessor resultCallback;
+
+  void * resultClosure;
 
   unsigned int resultsFound;
 
@@ -380,12 +372,7 @@ typedef struct DHT_GET_RECORD {
    */
   FindKNodesContext * kfnc;
 
-  /**
-   * How many more results are we looking for?
-   */
-  unsigned int maxResults;
-
-  DHT_GET_Complete callback;
+  DHT_OP_Complete callback;
 
   void * closure;
 
@@ -423,9 +410,9 @@ typedef struct DHT_PUT_RECORD {
   /**
    * What is the key?
    */
-  HashCode160 key;
+  HashCode512 key;
 
-  DHT_DataContainer value;
+  DataContainer * value;
 
   /**
    * Context of findKNodes (async); NULL if the table was local.
@@ -433,30 +420,16 @@ typedef struct DHT_PUT_RECORD {
   FindKNodesContext * kfnc;
 
   /**
-   * How many copies should we try to make?
-   */
-  unsigned int replicationLevel;
-
-  /**
-   * The set of peers that have responded (and claim to have
-   * made a replica).
-   */
-  HostIdentity * replicas;
-
-  /**
-   * Size of the replicas array.
-   */
-  unsigned int confirmedReplicas; /* size of replicas array! */
-
-  /**
    * Callback to call upon completion.
    */
-  DHT_PUT_Complete callback;
+  DHT_OP_Complete callback;
 
   /**
    * Extra argument to callback.
    */
   void * closure;
+
+  unsigned int confirmed_stores;
 
   /**
    * Size of the RPC array.
@@ -493,12 +466,14 @@ typedef struct DHT_REMOVE_RECORD {
   /**
    * What is the key?
    */
-  HashCode160 key;
+  HashCode512 key;
 
   /**
    * Which value should be removed?
    */
-  DHT_DataContainer value;
+  DataContainer * value;
+
+  unsigned int confirmed_stores;
 
   /**
    * Context of findKNodes (async); NULL if the table was local.
@@ -506,20 +481,9 @@ typedef struct DHT_REMOVE_RECORD {
   FindKNodesContext * kfnc;
 
   /**
-   * How many copies should we try to remove? (Or: how many
-   * replicas do we expect to exist?)
-   */
-  unsigned int replicationLevel;
-
-  /**
-   * Number of remove confirmations received.
-   */
-  unsigned int confirmedReplicas;
-
-  /**
    * Callback to call upon completion.
-   */ 
-  DHT_REMOVE_Complete callback;
+   */
+  DHT_OP_Complete callback;
 
   /**
    * Extra argument to callback.
@@ -544,46 +508,8 @@ typedef struct DHT_REMOVE_RECORD {
 } DHT_REMOVE_RECORD;
 
 
-
-/**
- */
 typedef struct {
-  Semaphore * semaphore;
-  unsigned int maxResults;
-  unsigned int count;
-  DHT_DataContainer * results;
-} DHT_GET_SYNC_CONTEXT;
 
-/**
- */
-typedef struct {
-  Semaphore * semaphore;
-  unsigned int targetReplicas;
-  unsigned int confirmedReplicas;
-} DHT_PUT_SYNC_CONTEXT;
-
-/**
- */
-typedef struct {
-  Semaphore * semaphore;
-  unsigned int targetReplicas;
-  unsigned int confirmedReplicas;
-} DHT_REMOVE_SYNC_CONTEXT;
-
-typedef struct {
-  DHT_TableId table;
-  cron_t timeout; 
-  unsigned int maxPuts;
-  DHT_PUT_RECORD ** puts;
-  unsigned int putsPos;
-} MigrationClosure;
-
-
-typedef struct {
-  /**
-   * Maximum number of results for this get operation.
-   */
-  unsigned int maxResults;
   /**
    * Number of results currently received (size of the
    * results-array).
@@ -592,7 +518,7 @@ typedef struct {
   /**
    * The results received so far.
    */
-  DHT_DataContainer * results;
+  DataContainer ** results;
   /**
    * RPC callback to call with the final result set.
    */
@@ -619,19 +545,6 @@ typedef struct {
 
 typedef struct {
   /**
-   * Maximum number of replicas for this put operation.
-   */
-  unsigned int replicationLevel;
-  /**
-   * Number of results currently received (size of the
-   * results-array).
-   */
-  unsigned int count;
-  /**
-   * The peers that confirmed storing the record so far.
-   */
-  HostIdentity * peers;
-  /**
    * RPC callback to call with the final result set.
    */
   Async_RPC_Complete_Callback callback;
@@ -656,19 +569,6 @@ typedef struct {
 } RPC_DHT_store_Context;
 
 typedef struct {
-  /**
-   * Maximum number of replicas for this put operation.
-   */
-  unsigned int replicationLevel;
-  /**
-   * Number of results currently received (size of the
-   * results-array).
-   */
-  unsigned int count;
-  /**
-   * The peers that confirmed storing the record so far.
-   */
-  HostIdentity * peers;
   /**
    * RPC callback to call with the final result set.
    */
@@ -699,7 +599,7 @@ typedef struct {
 typedef struct {
   CronJob job;
   void * arg;
-} AbortEntry;
+} DHT_CronJobAbortEntry;
 
 
 /* ***************** prototypes ******************** */
@@ -709,11 +609,11 @@ typedef struct {
  * information.  Note that this is done asynchronously.
  * This is just the prototype, the function is below.
  */
-static void request_DHT_ping(const HostIdentity * identity,
+static void request_DHT_ping(const PeerIdentity * identity,
 			     FindNodesContext * fnc);
 
 static FindKNodesContext * findKNodes_start(const DHT_TableId * table,
-					    const HashCode160 * key,
+					    const HashCode512 * key,
 					    cron_t timeout,
 					    unsigned int k,
 					    NodeFoundCallback callback,
@@ -742,12 +642,12 @@ static PeerBucket * buckets;
 /**
  * Total number of active buckets.
  */
-static unsigned int bucketCount;   
+static unsigned int bucketCount;
 
 /**
  * The ID of the master table.
  */
-static HashCode160 masterTableId;
+static HashCode512 masterTableId;
 
 /**
  * List of the tables that this peer participates in.
@@ -770,14 +670,14 @@ static Mutex * lock;
  * tables (the masterTable is another DHT, this store is just the
  * part of the masterTable that is stored at this peer).
  */
-static DHT_Datastore * masterTableDatastore;
+static Blockstore * masterTableDatastore;
 
 /**
  * Table of cron-jobs (and arguments) that MUST be run
  * before the DHT module can shutdown.  All of these
  * jobs are guaranteed to be triggered during the shutdown.
  */
-static AbortEntry * abortTable;
+static DHT_CronJobAbortEntry * abortTable;
 
 static unsigned int abortTableSize;
 
@@ -811,7 +711,7 @@ static void printRoutingTable() {
 	    "[%4d: %3d-%3d]: %s with %u tables (%s, %s, %s)\n",
 	    i,
 	    buckets[i].bstart, buckets[i].bend,
-	    &enc, 
+	    &enc,
 	    pos->tableCount,
 	    &tabs[0],
 	    &tabs[1],
@@ -873,7 +773,7 @@ static void delAbortJob(CronJob job,
 static LocalTableData * getLocalTableData(const DHT_TableId * id) {
   int i;
   for (i=tablesCount-1;i>=0;i--)
-    if (equalsHashCode160(id,
+    if (equalsHashCode512(id,
 			  &tables[i].id))
       return &tables[i];
   return NULL;
@@ -885,8 +785,8 @@ static LocalTableData * getLocalTableData(const DHT_TableId * id) {
  * given key, returns YES.
  */
 static int isNotCloserThanMe(const DHT_TableId * table,
-			     const HostIdentity * peer,
-			     const HashCode160 * key) {
+			     const PeerIdentity * peer,
+			     const HashCode512 * key) {
   if (NULL == getLocalTableData(table))
     return NO;
   if (-1 == hashCodeCompareDistance(&peer->hashPubKey,
@@ -894,13 +794,13 @@ static int isNotCloserThanMe(const DHT_TableId * table,
 				    key))
     return NO;
   else
-    return YES; 
+    return YES;
 }
 
 /**
  * Find the bucket into which the given peer belongs.
  */
-static PeerBucket * findBucket(const HostIdentity * peer) {
+static PeerBucket * findBucket(const PeerIdentity * peer) {
   unsigned int index;
   int i;
   int diff;
@@ -909,21 +809,21 @@ static PeerBucket * findBucket(const HostIdentity * peer) {
   EncName enc2;
 #endif
 
-  index = sizeof(HashCode160)*8;
-  for (i = sizeof(HashCode160)*8 - 1; i >= 0; --i) {
+  index = sizeof(HashCode512)*8;
+  for (i = sizeof(HashCode512)*8 - 1; i >= 0; --i) {
     diff = getHashCodeBit(&peer->hashPubKey, i) - getHashCodeBit(&coreAPI->myIdentity->hashPubKey, i);
     if (diff != 0) {
       index = i;
       break;
     }
-  } 
+  }
 #if DEBUG_DHT
   hash2enc(&peer->hashPubKey,
 	   &enc1);
   hash2enc(&coreAPI->myIdentity->hashPubKey,
 	   &enc2);
   LOG(LOG_DEBUG,
-      "Bit-distance from '%s' to this peer '%s' is %u bit.\n",
+      "Bit-distance from `%s' to this peer `%s' is %u bit.\n",
       &enc1,
       &enc2,
       index);
@@ -933,10 +833,10 @@ static PeerBucket * findBucket(const HostIdentity * peer) {
 	  (i > 0) ) {
     i--;
   }
-  if ( (buckets[i].bstart <  index) &&  
+  if ( (buckets[i].bstart <  index) &&
        (buckets[i].bend   >= index) ) {
     return &buckets[i];
-  } else {    
+  } else {
 #if DEBUG_DHT
     LOG(LOG_WARNING,
 	"Index %d not in range for bucket %d which is [%d,%d[\n",
@@ -958,21 +858,21 @@ static PeerBucket * findBucket(const HostIdentity * peer) {
  * @param *k the current number of entries in the set
  */
 static void k_best_insert(unsigned int limit,
-			  int * k,
-			  const HashCode160 * key,
-			  HashCode160 * kbest,
-			  const HashCode160 * newValue) {
+			  unsigned int * k,
+			  const HashCode512 * key,
+			  HashCode512 * kbest,
+			  const HashCode512 * newValue) {
   int replace;
   int m;
 
   if ((*k) < limit) {
     memcpy(&kbest[*k],
 	   newValue,
-	   sizeof(HashCode160));
+	   sizeof(HashCode512));
     (*k)++;
   } else {
     replace = -1;
-    for (m=limit-1;m>=0;m--) 
+    for (m=limit-1;m>=0;m--)
       if ( (1 == hashCodeCompareDistance(&kbest[m],
 					 newValue,
 					 key)) &&
@@ -984,9 +884,9 @@ static void k_best_insert(unsigned int limit,
     if (replace != -1) {
       memcpy(&kbest[replace],
 	     newValue,
-	     sizeof(HashCode160));
+	     sizeof(HashCode512));
     }
-  }  
+  }
 }
 
 /**
@@ -994,7 +894,7 @@ static void k_best_insert(unsigned int limit,
  *
  * @return NULL if the peer is not in the RT.
  */
-static PeerInfo * findPeerInfo(const HostIdentity * peer) {
+static PeerInfo * findPeerInfo(const PeerIdentity * peer) {
   PeerBucket * bucket;
   PeerInfo * pos;
 
@@ -1003,12 +903,178 @@ static PeerInfo * findPeerInfo(const HostIdentity * peer) {
     return NULL;
   pos = vectorGetFirst(bucket->peers);
   while (pos != NULL) {
-    if (equalsHashCode160(&peer->hashPubKey,
-			  &pos->id.hashPubKey)) 
-      return pos;    
+    if (equalsHashCode512(&peer->hashPubKey,
+			  &pos->id.hashPubKey))
+      return pos;
     pos = vectorGetNext(bucket->peers);
   }
   return NULL;
+}
+
+/**
+ * We receive a message from 'responder' which may contain optional
+ *
+ * fields about the responder.  Process those fields (if present).
+ * @param results::tables list of tables the responder participates in (optional)
+ * @param results::hellos list of hellos for responder (optional)
+ */
+static void processOptionalFields(const PeerIdentity * responder,
+				  RPC_Param * results) {
+  unsigned int dataLength;
+  char * data;
+  unsigned int tableCount;
+  DHT_TableId * tables;
+  EncName enc;
+  cron_t now;
+  PeerBucket * bucket;
+  PeerInfo * pos;
+
+  if (OK == RPC_paramValueByName(results,
+				 "tables",
+				 &dataLength,
+				 (void**)&data)) {
+    tableCount = dataLength / sizeof(DHT_TableId);
+    if (tableCount * sizeof(DHT_TableId) != dataLength) {
+      IFLOG(LOG_WARNING,
+	    hash2enc(&responder->hashPubKey,
+		     &enc));
+      LOG(LOG_WARNING,
+	  _("Malformed optional field `%s' received from peer `%s'.\n"),
+	  "tables",
+	  &enc);
+      return;
+    }
+    tables = (DHT_TableId*) data;
+    cronTime(&now);
+
+#if DEBUG_DHT
+    IFLOG(LOG_DEBUG,
+	  hash2enc(&responder->hashPubKey,
+		   &enc));
+    LOG(LOG_DEBUG,
+	"updating routing table after learning about peer `%s' who provides %d tables.\n",	
+	&enc,
+	tableCount);
+#endif
+
+    /* update buckets */
+    MUTEX_LOCK(lock);
+    pos = findPeerInfo(responder);
+    bucket = findBucket(responder);
+    if (bucket == NULL) {
+      IFLOG(LOG_WARNING,
+	    hash2enc(&responder->hashPubKey,
+		     &enc));
+      LOG(LOG_WARNING,
+	  _("Could not find peer `%s' in routing table!\n"),
+	  &enc);
+    }
+    GNUNET_ASSERT(bucket != NULL);
+    if (pos == NULL) {
+      PeerInfo * oldest = NULL;
+
+      pos = vectorGetFirst(bucket->peers);
+      while (pos != NULL) {
+	if (pos->lastActivity + DHT_INACTIVITY_DEATH < now) {
+	  if (oldest == NULL)
+	    oldest = pos;
+	  else
+	    if (pos->lastActivity < oldest->lastActivity)
+	      oldest = pos;
+	}
+	if (pos->lastTableRefresh +
+	    (pos->tableCount - tableCount) * DHT_TABLE_FACTOR + DHT_HYPERACTIVE_TIME < now) {
+	  if (oldest == NULL)
+	    oldest = pos;
+	  else if (pos->lastTableRefresh +
+		   (pos->tableCount - tableCount) * DHT_TABLE_FACTOR <
+		   oldest->lastTableRefresh +
+		   (oldest->tableCount - tableCount) * DHT_TABLE_FACTOR)
+	    oldest = pos;
+	}
+	pos = vectorGetNext(bucket->peers);
+      }
+      pos = oldest;
+    }
+    if ( (vectorSize(bucket->peers) < BUCKET_TARGET_SIZE) &&
+	 (pos == NULL) ) {
+      /* create new entry */
+      pos = MALLOC(sizeof(PeerInfo));
+      pos->tables = NULL;
+      pos->tableCount = 0;
+      pos->lastTimePingSend = cronTime(NULL);
+      vectorInsertLast(bucket->peers, pos);
+    }
+    if (pos == NULL) {
+#if DEBUG_DHT
+      IFLOG(LOG_DEBUG,
+	    hash2enc(&responder->hashPubKey,
+		     &enc));
+      LOG(LOG_DEBUG,
+	  "routing table full, not adding peer `%s'.\n",	
+	  &enc);
+#endif
+    } else {
+#if DEBUG_DHT
+      IFLOG(LOG_DEBUG,
+	    hash2enc(&responder->hashPubKey,
+		     &enc));
+      LOG(LOG_DEBUG,
+	  "adding peer `%s' to routing table.\n",	
+	  &enc);
+#endif
+
+      pos->lastActivity = now;
+      pos->lastTableRefresh = now;
+      pos->id = *responder;
+      GROW(pos->tables,
+	   pos->tableCount,
+	   tableCount);
+      memcpy(pos->tables,
+	     tables,
+	     sizeof(DHT_TableId) * tableCount);
+    }
+    MUTEX_UNLOCK(lock);
+  }
+
+  /* HERE: process other optional fields (hellos) */
+
+}
+
+/**
+ * We are sending out a message and have the chance to communicate
+ * optional fields.  Add those if we feel like it.
+ *
+ * @param args the argument list to which optional fields can be added
+ */
+static void addOptionalFields(RPC_Param * args) {
+  DHT_TableId * tabs;
+  int i;
+  unsigned int tc;
+  size_t s;
+
+  MUTEX_LOCK(lock);
+  tc = tablesCount;
+  tabs = MALLOC(sizeof(DHT_TableId) * tc);
+  for (i=0;i<tc;i++)
+    tabs[i] = tables[i].id;
+  MUTEX_UNLOCK(lock);
+  s = RPC_paramSize(args) + sizeof(DHT_TableId) * tc;
+  /* always add if resulting size is less than 1k;
+     never generate messages > 32k;
+     if greater than 1k, only add with exponentially
+     decreasing probability */
+  if ( (s < 1024) ||
+       ( (s*s < randomi(32768)*randomi(32768)) &&
+	 (s*s < randomi(32768)*randomi(32768)) ) ) {
+    RPC_paramAdd(args,
+		 "tables",
+		 sizeof(DHT_TableId) * tc,
+		 tabs);
+  }
+  FREE(tabs);
+
+  /* FIXME: here: add other optional fields (hellos) */
 }
 
 /**
@@ -1017,11 +1083,11 @@ static PeerInfo * findPeerInfo(const HostIdentity * peer) {
  * to the FNC.  Trigger further create_find_nodes_rpc requests.
  *
  * @param responder the ID of the responding peer
- * @param results return values from the peer, must contain
- *   a field 'peers' which contains serialized HostIdentities
+ * @param results::peers serialized HostIdentities
+ * @param results::tables list of tables the responder participates in (optional)
  * @param fnc the context (used to continue iterative search)
  */
-static void create_find_nodes_rpc_complete_callback(const HostIdentity * responder,
+static void create_find_nodes_rpc_complete_callback(const PeerIdentity * responder,
 						    RPC_Param * results,
 						    FindNodesContext * fnc) {
   PeerInfo * info;
@@ -1031,58 +1097,59 @@ static void create_find_nodes_rpc_complete_callback(const HostIdentity * respond
   EncName enc;
 
   ENTER();
+  processOptionalFields(responder, results);
   /* update peer list */
   MUTEX_LOCK(lock);
   info = findPeerInfo(responder);
-  if (info != NULL) 
-    info->lastActivity = cronTime(NULL);   
+  if (info != NULL)
+    info->lastActivity = cronTime(NULL);
   MUTEX_UNLOCK(lock);
 
   if (OK != RPC_paramValueByName(results,
-				 "peers",
+				 "peer",
 				 &dataLength,
 				 (void**) &value)) {
     IFLOG(LOG_WARNING,
 	  hash2enc(&responder->hashPubKey,
 		   &enc));
     LOG(LOG_WARNING,
-	_("Received malformed response to '%s' from peer '%s'.\n"),
+	_("Received malformed response to `%s' from peer `%s'.\n"),
 	"DHT_findNode",
 	&enc);
     return;
   }
-  
-  /* parse value, try to DHT-ping  the new peers 
+
+  /* parse value, try to DHT-ping  the new peers
      (to add it to the table; if that succeeds
      the peer will automatically trigger the ping_reply_handler
      which will in turn trigger create_find_nodes_rpc) */
-  if ( (dataLength % sizeof(HostIdentity)) != 0) {
+  if ( (dataLength % sizeof(PeerIdentity)) != 0) {
     IFLOG(LOG_WARNING,
 	  hash2enc(&responder->hashPubKey,
 		   &enc));
     LOG(LOG_WARNING,
-	_("Received malformed response to '%s' from peer '%s'.\n"),
+	_("Received malformed response to `%s' from peer `%s'.\n"),
 	"DHT_findNode",
 	&enc);
     return;
   }
-  for (pos=0;pos<dataLength;pos+=sizeof(HostIdentity)) {
-    HostIdentity * msg;
+  for (pos=0;pos<dataLength;pos+=sizeof(PeerIdentity)) {
+    PeerIdentity * msg;
 
-    msg = (HostIdentity*) &value[pos];
+    msg = (PeerIdentity*) &value[pos];
 #if DEBUG_DHT
     IFLOG(LOG_DEBUG,
 	  hash2enc(&responder->hashPubKey,
 		   &enc));
     LOG(LOG_DEBUG,
-	"processing PeerID received from peer '%s' in response to '%s' RPC.\n",
+	"processing PeerID received from peer `%s' in response to `%s' RPC.\n",
 	&enc,
 	"DHT_findNode");
     IFLOG(LOG_DEBUG,
 	  hash2enc(&msg->hashPubKey,
 		   &enc));
     LOG(LOG_DEBUG,
-	"sending RPC '%s' to learn more about peer '%s'.\n",
+	"sending RPC `%s' to learn more about peer `%s'.\n",
 	"DHT_ping",
 	&enc);
 #endif
@@ -1098,7 +1165,7 @@ static void create_find_nodes_rpc_complete_callback(const HostIdentity * respond
  * Send a find_nodes RPC to the given peer.  Replies are
  * to be inserted into the FNC k-best table.
  */
-static void create_find_nodes_rpc(const HostIdentity * peer,
+static void create_find_nodes_rpc(const PeerIdentity * peer,
 				  FindNodesContext * fnc) {
   RPC_Param * param;
   cron_t now;
@@ -1111,7 +1178,7 @@ static void create_find_nodes_rpc(const HostIdentity * peer,
 	hash2enc(&peer->hashPubKey,
 		 &enc));
   LOG(LOG_DEBUG,
-      "sending RPC '%s' to peer '%s'.\n",
+      "sending RPC `%s' to peer `%s'.\n",
       "DHT_find_nodes",
       &enc);
 #endif
@@ -1119,8 +1186,8 @@ static void create_find_nodes_rpc(const HostIdentity * peer,
   cronTime(&now);
   param = RPC_paramNew();
   MUTEX_LOCK(&fnc->lock);
-  if (equalsHashCode160(&fnc->key,
-			&coreAPI->myIdentity->hashPubKey)) {    
+  if (equalsHashCode512(&fnc->key,
+			&coreAPI->myIdentity->hashPubKey)) {
     table = getLocalTableData(&fnc->table);
     if (table != NULL)
       table->lastFindOperation = now;
@@ -1129,10 +1196,10 @@ static void create_find_nodes_rpc(const HostIdentity * peer,
 	       "table",
 	       sizeof(DHT_TableId),
 	       &fnc->table);
-	       
+	
   RPC_paramAdd(param,
 	       "key",
-	       sizeof(HashCode160),
+	       sizeof(HashCode512),
 	       &fnc->key);
   GROW(fnc->rpc,
        fnc->rpcRepliesExpected,
@@ -1141,14 +1208,15 @@ static void create_find_nodes_rpc(const HostIdentity * peer,
     rel = fnc->timeout - now;
   else
     rel = 0;
+  addOptionalFields(param);
   fnc->rpc[fnc->rpcRepliesExpected-1]
     = rpcAPI->RPC_start(peer,
-			"DHT_findNode", 
-			param, 
-			0, 
+			"DHT_findNode",
+			param,
+			0,
 			rel,
-			(RPC_Complete) &create_find_nodes_rpc_complete_callback, 
-			fnc);  
+			(RPC_Complete) &create_find_nodes_rpc_complete_callback,
+			fnc);
   MUTEX_UNLOCK(&fnc->lock);
   RPC_paramFree(param);
 }
@@ -1157,161 +1225,43 @@ static void create_find_nodes_rpc(const HostIdentity * peer,
  * We received a reply from a peer that we ping'ed.  Update
  * the FNC's kbest list and the buckets accordingly.
  */
-static void ping_reply_handler(const HostIdentity * responder,
+static void ping_reply_handler(const PeerIdentity * responder,
 			       RPC_Param * results,
 			       FindNodesContext * fnc) {
-  PeerBucket * bucket;
-  PeerInfo * pos;
-  unsigned int tableCount;
   int i;
-  cron_t now;
-  DHT_TableId * tables;
-  unsigned int dataLength;
-  char * data;
   EncName enc;
+  PeerInfo * pos;
 
   ENTER();
   GNUNET_ASSERT(! hostIdentityEquals(responder,
 				     coreAPI->myIdentity));
-  /* verify and extract reply data */ 
-  data = NULL;
-  if (OK != RPC_paramValueByName(results,
-				 "tables",
-				 &dataLength,
-				 (void**)&data)) {
-    IFLOG(LOG_WARNING,
-	  hash2enc(&responder->hashPubKey,
-		   &enc));
-    LOG(LOG_WARNING,
-	_("Received invalid PING-reply from peer '%s'.\n"),
-	&enc);
-    return;
-  }
-  tableCount = dataLength / sizeof(DHT_TableId);
-  if (tableCount * sizeof(DHT_TableId) != dataLength) {
-    IFLOG(LOG_WARNING,
-	  hash2enc(&responder->hashPubKey,
-		   &enc));
-    LOG(LOG_WARNING,
-	_("Malformed PING-reply received from peer '%s'.\n"),
-	&enc);
-    return;
-  }
-  tables = (DHT_TableId*) data;
-  
-  cronTime(&now);
-
-#if DEBUG_DHT
-  IFLOG(LOG_DEBUG,
-	hash2enc(&responder->hashPubKey,
-		 &enc));
-  LOG(LOG_DEBUG,
-      "updating routing table after learning about peer '%s' who provides %d tables.\n",	
-      &enc,
-      tableCount);
-#endif
-
-  /* update buckets */
-  MUTEX_LOCK(lock);
-  pos = findPeerInfo(responder);
-  bucket = findBucket(responder); 
-  if (bucket == NULL) {
-    IFLOG(LOG_WARNING,
-	  hash2enc(&responder->hashPubKey,
-		   &enc));
-    LOG(LOG_WARNING,
-	_("Could not find peer '%s' in routing table!\n"),
-	&enc);
-  }
-  GNUNET_ASSERT(bucket != NULL);
-  if (pos == NULL) {
-    PeerInfo * oldest = NULL;
-
-    pos = vectorGetFirst(bucket->peers);
-    while (pos != NULL) {
-      if (pos->lastActivity + DHT_INACTIVITY_DEATH < now) {
-	if (oldest == NULL)
-	  oldest = pos;
-	else
-	  if (pos->lastActivity < oldest->lastActivity)
-	    oldest = pos;
-      }
-      if (pos->lastTableRefresh + 
-	  (pos->tableCount - tableCount) * DHT_TABLE_FACTOR + DHT_HYPERACTIVE_TIME < now) {
-	if (oldest == NULL)
-	  oldest = pos;
-	else if (pos->lastTableRefresh + 
-		 (pos->tableCount - tableCount) * DHT_TABLE_FACTOR <
-		 oldest->lastTableRefresh + 
-		 (oldest->tableCount - tableCount) * DHT_TABLE_FACTOR)
-	  oldest = pos; 
-      }
-      pos = vectorGetNext(bucket->peers);
-    }
-    pos = oldest;
-  }
-  if ( (vectorSize(bucket->peers) < BUCKET_TARGET_SIZE) &&
-       (pos == NULL) ) {
-    /* create new entry */
-    pos = MALLOC(sizeof(PeerInfo));
-    pos->tables = NULL;
-    pos->tableCount = 0;
-    pos->lastTimePingSend = cronTime(NULL);
-    vectorInsertLast(bucket->peers, pos);
-  }
-  if (pos == NULL) {
-#if DEBUG_DHT
-    IFLOG(LOG_DEBUG,
-	  hash2enc(&responder->hashPubKey,
-		   &enc));
-    LOG(LOG_DEBUG,
-	"routing table full, not adding peer '%s'.\n",	
-	&enc);
-#endif
-  } else {
-#if DEBUG_DHT
-    IFLOG(LOG_DEBUG,
-	  hash2enc(&responder->hashPubKey,
-		   &enc));
-    LOG(LOG_DEBUG,
-	"adding peer '%s' to routing table.\n",	
-	&enc);
-#endif
-    
-    pos->lastActivity = now;
-    pos->lastTableRefresh = now;
-    pos->id = *responder;
-    GROW(pos->tables,
-	 pos->tableCount,
-	 tableCount);
-    memcpy(pos->tables,
-	   tables,
-	   sizeof(DHT_TableId) * tableCount);
-  }
-  MUTEX_UNLOCK(lock);  
-
+  /* this processes the 'tables' field! */
+  processOptionalFields(responder,
+			results);
   if (fnc == NULL)
     return;
-
-  /* does the peer support the table in question? */
-  if (! equalsHashCode160(&fnc->table,
-			  &masterTableId)) {
-    for (i=tableCount-1;i>=0;i--)
-      if (equalsHashCode160(&fnc->table,
-			    &tables[i]))
-	break;
-    if (i == -1)
-      return; /* peer does not support table in question */
-  }
-  
   /* update k-best list */
   MUTEX_LOCK(&fnc->lock);
+  pos = findPeerInfo(responder);
+  /* does the peer support the table in question? */
+  if (! equalsHashCode512(&fnc->table,
+			  &masterTableId)) {
+    for (i=pos->tableCount-1;i>=0;i--)
+      if (equalsHashCode512(&fnc->table,
+			    &pos->tables[i]))
+	break;
+    if (i == -1) {
+      MUTEX_UNLOCK(&fnc->lock);
+      return; /* peer does not support table in question */
+    }
+  }
+
 #if DEBUG_DHT
   IFLOG(LOG_DEBUG,
 	hash2enc(&responder->hashPubKey,
 		 &enc));
   LOG(LOG_DEBUG,
-      "peer '%s' supports table in question, considering the peer for list of %d-best matches.\n",	
+      "peer `%s' supports table in question, considering the peer for list of %d-best matches.\n",	
       &enc,
       ALPHA);
 #endif
@@ -1331,9 +1281,9 @@ static void ping_reply_handler(const HostIdentity * responder,
  * Send an RPC 'ping' request to that node requesting DHT table
  * information.  Note that this is done asynchronously.
  */
-static void request_DHT_ping(const HostIdentity * identity,
-			     FindNodesContext * fnc) {  
-  Vector * request_param;
+static void request_DHT_ping(const PeerIdentity * identity,
+			     FindNodesContext * fnc) {
+  RPC_Param * request_param;
   PeerInfo * pos;
   cron_t now;
   cron_t rel;
@@ -1344,7 +1294,7 @@ static void request_DHT_ping(const HostIdentity * identity,
 	hash2enc(&identity->hashPubKey,
 		 &enc));
   LOG(LOG_DEBUG,
-      "sending RPC '%s' to peer '%s'.\n",
+      "sending RPC `%s' to peer `%s'.\n",
       "DHT_ping",
       &enc);
 #endif
@@ -1370,15 +1320,16 @@ static void request_DHT_ping(const HostIdentity * identity,
   request_param = vectorNew(4);
   if (fnc->timeout > now)
     rel = fnc->timeout - now;
-  else 
+  else
     rel = 0;
+  addOptionalFields(request_param);
   fnc->rpc[fnc->rpcRepliesExpected-1]
     = rpcAPI->RPC_start(identity,
 			"DHT_ping",
 			request_param,
 			0,
 			rel,
-			(RPC_Complete) &ping_reply_handler, 
+			(RPC_Complete) &ping_reply_handler,
 			fnc);
   vectorFree(request_param);
   MUTEX_UNLOCK(&fnc->lock);
@@ -1388,13 +1339,13 @@ static void request_DHT_ping(const HostIdentity * identity,
  * Find k nodes in the local buckets that are closest to the
  * given key for the given table.  Return instantly, do NOT
  * attempt to query remote peers.
- * 
+ *
  * @param hosts array with space for k hosts.
- * @return number of hosts found 
+ * @return number of hosts found
  */
 static unsigned int findLocalNodes(const DHT_TableId * table,
-				   const HashCode160 * key,
-				   HostIdentity * hosts,
+				   const HashCode512 * key,
+				   PeerIdentity * hosts,
 				   unsigned int k) {
   int i;
   int j;
@@ -1408,7 +1359,7 @@ static unsigned int findLocalNodes(const DHT_TableId * table,
 	hash2enc(table,
 		 &enc));
   LOG(LOG_DEBUG,
-      "searching local table for peers supporting table '%s'.\n",
+      "searching local table for peers supporting table `%s'.\n",
       &enc);
 #endif
   ENTER();
@@ -1420,22 +1371,22 @@ static unsigned int findLocalNodes(const DHT_TableId * table,
     pos = vectorGetFirst(bucket->peers);
     while (pos != NULL) {
       for (j=pos->tableCount-1;j>=0;j--) {
-	if (equalsHashCode160(&pos->tables[j],
+	if (equalsHashCode512(&pos->tables[j],
 			      table)) {
 #if DEBUG_DHT
 	  EncName enc;
-	  
+	
 	  IFLOG(LOG_DEBUG,
 		hash2enc(&pos->id.hashPubKey,
 			 &enc));
 	  LOG(LOG_DEBUG,
-	      "local table search showed peer '%s' is supporting the table.\n",
+	      "local table search showed peer `%s' is supporting the table.\n",
 	      &enc);
 #endif
 	  k_best_insert(k,
 			&ret,
 			key,
-			(HashCode160*) hosts,
+			(HashCode512*) hosts,
 			&pos->id.hashPubKey);
 	}
       }
@@ -1444,7 +1395,7 @@ static unsigned int findLocalNodes(const DHT_TableId * table,
   } /* end for all buckets */
   return ret;
 }
-					      
+					
 /**
  * We got a reply from the DHT-get operation.  Update the
  * record datastructures accordingly (and call the record's
@@ -1452,16 +1403,17 @@ static unsigned int findLocalNodes(const DHT_TableId * table,
  *
  * @param results::data created in rpc_DHT_findValue_abort
  */
-static void dht_findvalue_rpc_reply_callback(const HostIdentity * responder,
+static void dht_findvalue_rpc_reply_callback(const PeerIdentity * responder,
 					     RPC_Param * results,
 					     DHT_GET_RECORD * record) {
-  DHT_DataContainer value;
+  DataContainer * value;
   unsigned int i;
   unsigned int max;
   PeerInfo * pos;
-  EncName enc;      
+  EncName enc;
 
   ENTER();
+  processOptionalFields(responder, results);
   MUTEX_LOCK(lock);
   pos = findPeerInfo(responder);
   pos->lastActivity = cronTime(NULL);
@@ -1473,36 +1425,30 @@ static void dht_findvalue_rpc_reply_callback(const HostIdentity * responder,
 	hash2enc(&responder->hashPubKey,
 		 &enc));
   LOG(LOG_DEBUG,
-      "peer '%s' responded to RPC '%s' with %u results.\n",
+      "peer `%s' responded to RPC `%s' with %u results.\n",
       &enc,
       "DHT_findvalue",
       max);
 #endif
   for (i=0;i<max;i++) {
-    value.data = NULL; 
-    value.dataLength = 0;
-    if (OK != RPC_paramValueByPosition(results,
-				       i,
-				       &value.dataLength,
-				       (void**)&value.data)) {
+    value = RPC_paramDataContainerByPosition(results,
+					     i);
+    if (value == NULL) {
       hash2enc(&responder->hashPubKey,
 	       &enc);
       LOG(LOG_WARNING,
-	  _("Invalid response to '%s' from peer '%s'.\n"),
+	  _("Invalid response to `%s' from peer `%s'.\n"),
 	  "DHT_findValue",
 	  &enc);
       return;
     }
     MUTEX_LOCK(&record->lock);
-    if (record->maxResults > 0) {
-      record->maxResults--;
-      record->resultsFound++; 
-      if (record->callback != NULL) {
-	record->callback(&value,
-			 record->closure);
-      }
-    } 
+    if (record->callback != NULL)
+      record->resultCallback(record->keys,
+			     value,
+			     record->resultClosure);
     MUTEX_UNLOCK(&record->lock);
+    FREE(value);
   }
 }
 
@@ -1511,11 +1457,11 @@ static void dht_findvalue_rpc_reply_callback(const HostIdentity * responder,
  * processed by the callback in record.  The RPC async handle is to be
  * stored in the records rpc list.  Locking is not required.
  */
-static void send_dht_get_rpc(const HostIdentity * peer,
+static void send_dht_get_rpc(const PeerIdentity * peer,
 			     DHT_GET_RECORD * record) {
   RPC_Param * param;
   unsigned long long timeout;
-  unsigned int maxResults;
+  unsigned int type;
   cron_t delta;
   cron_t now;
 #if DEBUG_DHT
@@ -1526,13 +1472,13 @@ static void send_dht_get_rpc(const HostIdentity * peer,
 	hash2enc(&peer->hashPubKey,
 		 &enc));
   LOG(LOG_DEBUG,
-      "sending RPC '%s' to peer '%s'.\n",      
+      "sending RPC `%s' to peer `%s'.\n",
       "DHT_findvalue",
       &enc);
 #endif
   if (isNotCloserThanMe(&record->table,
-			peer,		     
-			&record->key))
+			peer,		
+			record->keys))
     return; /* refuse! */
   cronTime(&now);
   if (record->timeout > now)
@@ -1540,36 +1486,60 @@ static void send_dht_get_rpc(const HostIdentity * peer,
   else
     delta = 0;
   timeout = htonll(delta);
-  maxResults = htonl(record->maxResults);
+  type = htonl(record->type);
   param = RPC_paramNew();
   RPC_paramAdd(param,
 	       "table",
 	       sizeof(DHT_TableId),
 	       &record->table);
   RPC_paramAdd(param,
-	       "key",
-	       sizeof(HashCode160),
-	       &record->key);
+	       "keys",
+	       sizeof(HashCode512) * record->keyCount,
+	       record->keys);
   RPC_paramAdd(param,
 	       "timeout",
 	       sizeof(unsigned long long),
 	       &timeout);
   RPC_paramAdd(param,
-	       "maxResults",
+	       "type",
 	       sizeof(unsigned int),
-	       &maxResults);
+	       &type);
   GROW(record->rpc,
        record->rpcRepliesExpected,
        record->rpcRepliesExpected+1);
-  record->rpc[record->rpcRepliesExpected-1] 
+  addOptionalFields(param);
+  record->rpc[record->rpcRepliesExpected-1]
     = rpcAPI->RPC_start(peer,
 		        "DHT_findValue",
 			param,
 			0,
 			delta,
 			(RPC_Complete) &dht_findvalue_rpc_reply_callback,
-			record); 
+			record);
   RPC_paramFree(param);
+}
+
+/**
+ * Callback called for local results found in
+ * dht_get_async_start.  Calls the DHT_OP_Complete
+ * callback with the results found locally.
+ * A DataProcessor.
+ */
+static int getLocalResultCallback(const HashCode512 * key,
+				  const DataContainer * val,
+				  DHT_GET_RECORD * rec) {
+  int ret;
+  if ( (equalsHashCode512(&rec->table,
+			  &masterTableId)) &&
+       ((ntohl(val->size) - sizeof(DataContainer)) % sizeof(PeerIdentity) != 0) )
+    BREAK(); /* assertion failed: entry in master table malformed! */
+  ret = OK;
+  if (rec->resultCallback != NULL)
+    ret = rec->resultCallback(key,
+			      val,
+			      rec->resultClosure);
+  rec->resultsFound++;
+  return ret;
 }
 
 /**
@@ -1578,21 +1548,23 @@ static void send_dht_get_rpc(const HostIdentity * peer,
  * of the table (if so, we will attempt to locate a peer that is!)
  *
  * @param table table to use for the lookup
- * @param key the key to look up  
+ * @param key the key to look up
  * @param timeout how long to wait until this operation should
  *        automatically time-out
- * @param maxResults maximum number of results to obtain;
- *        also used to determine the level of parallelism; is that wise?
  * @param callback function to call on each result
  * @param closure extra argument to callback
  * @return handle to stop the async get
  */
-static struct DHT_GET_RECORD * dht_get_async_start(const DHT_TableId * table,
-						   const HashCode160 * key,
-						   cron_t timeout,
-						   unsigned int maxResults,
-						   DHT_GET_Complete callback,
-						   void * closure) {
+static struct DHT_GET_RECORD *
+dht_get_async_start(const DHT_TableId * table,
+		    unsigned int type,
+		    unsigned int keyCount,
+		    const HashCode512 * keys,
+		    cron_t timeout,
+		    DataProcessor resultCallback,
+		    void * cls,
+		    DHT_OP_Complete callback,
+		    void * closure) {
   int i;
   LocalTableData * ltd;
   DHT_GET_RECORD * ret;
@@ -1600,16 +1572,17 @@ static struct DHT_GET_RECORD * dht_get_async_start(const DHT_TableId * table,
 #if DEBUG_DHT
   EncName enc;
   EncName enc2;
+  int res;
 
   ENTER();
   IFLOG(LOG_DEBUG,
-	hash2enc(key,
+	hash2enc(&keys[0],
 		 &enc));
   IFLOG(LOG_DEBUG,
 	hash2enc(table,
 		 &enc2));
   LOG(LOG_DEBUG,
-      "performing '%s' operation on key '%s' and table '%s'.\n",
+      "performing `%s' operation on key `%s' and table `%s'.\n",
       "DHT_GET",
       &enc,
       &enc2);
@@ -1617,105 +1590,90 @@ static struct DHT_GET_RECORD * dht_get_async_start(const DHT_TableId * table,
 
   if (timeout > 1 * cronHOURS) {
     LOG(LOG_WARNING,
-	_("'%s' called with timeout above 1 hour (bug?)\n"),
+	_("`%s' called with timeout above 1 hour (bug?)\n"),
 	__FUNCTION__);
-    timeout = 1 * cronHOURS;    
+    timeout = 1 * cronHOURS;
   }
 
-  if (maxResults == 0)
-    maxResults = 1; /* huh? */
   ret = MALLOC(sizeof(DHT_GET_RECORD));
   ret->timeout = cronTime(NULL) + timeout;
-  ret->key = *key;
+  ret->type = type;
+  ret->keyCount = keyCount;
+  ret->keys = MALLOC(keyCount * sizeof(HashCode512));
+  memcpy(ret->keys,
+	 keys,
+	 keyCount * sizeof(HashCode512));
   ret->table = *table;
-  ret->maxResults = maxResults;
+  ret->resultCallback = resultCallback;
+  ret->resultClosure = cls;
+  ret->resultsFound = 0;
   ret->callback = callback;
   ret->closure = closure;
   MUTEX_CREATE_RECURSIVE(&ret->lock);
   ret->rpc = NULL;
   ret->rpcRepliesExpected = 0;
-  ret->resultsFound = 0;
   ret->kfnc = NULL;
   MUTEX_LOCK(lock);
 
 
   ltd = getLocalTableData(table);
   if (ltd != NULL) {
-    HostIdentity * hosts;
+    PeerIdentity * hosts;
 #if DEBUG_DHT
     IFLOG(LOG_DEBUG,
 	  hash2enc(table,
 		   &enc));
     LOG(LOG_DEBUG,
-	"I participate in the table '%s' for the '%s' operation.\n",      
+	"I participate in the table `%s' for the `%s' operation.\n",
 	&enc,
 	"DHT_GET");
 #endif
     /* We do participate in the table, it is fair to assume
        that we know the relevant peers in my neighbour set */
-    hosts = MALLOC(sizeof(HostIdentity) * maxResults);
+    hosts = MALLOC(sizeof(PeerIdentity) * ALPHA);
     count = findLocalNodes(table,
-			   key,
+			   &keys[0],
 			   hosts,
-			   maxResults);
+			   ALPHA);
     /* try adding this peer to hosts */
-    k_best_insert(maxResults,
+    k_best_insert(ALPHA,
 		  &count,
-		  key,
-		  (HashCode160*) hosts,
+		  &keys[0],
+		  (HashCode512*) hosts,
 		  &coreAPI->myIdentity->hashPubKey);
     if (count == 0) {
       BREAK();
       /* Assertion failed: I participate in a table but findLocalNodes returned 0! */
       MUTEX_UNLOCK(lock);
+      FREE(ret->keys);
+      FREE(ret);
       return NULL;
     }
     /* if this peer is in 'hosts', try local datastore lookup */
-    for (i=0;i<count;i++) 
+    for (i=0;i<count;i++)
       if (hostIdentityEquals(coreAPI->myIdentity,
 			     &hosts[i])) {
-	int res;
-	int j;
-	DHT_DataContainer * results;
-
-	results = MALLOC(sizeof(DHT_DataContainer) * maxResults);
-	for (j=0;j<maxResults;j++) {
-	  results[j].data = NULL;
-	  results[j].dataLength = 0;
-	}	  
-	res = ltd->store->lookup(ltd->store->closure,
-				 key,
-				 maxResults,
-				 results,
-				 ltd->flags);
+	res = ltd->store->get(ltd->store->closure,
+			      type,
+			      0, /* FIXME: priority */
+			      keyCount,
+			      keys,
+			      (DataProcessor)&getLocalResultCallback,
+			      ret);
 #if DEBUG_DHT
 	IFLOG(LOG_DEBUG,
-	      hash2enc(key,
+	      hash2enc(&keys[0],
 		       &enc));
 	LOG(LOG_DEBUG,
-	    "local datastore lookup for key '%s' resulted in %d results.\n",
+	    "local datastore lookup for key `%s' resulted in %d results.\n",
 	    &enc,
 	    res);
 #endif
-	if (res > 0) {
-	  for (j=0;j<res;j++) {
-	    if ( (equalsHashCode160(table,
-				    &masterTableId)) &&
-		 (results[j].dataLength % sizeof(HostIdentity) != 0) )
-		BREAK(); /* assertion failed: entry in master table malformed! */
-	    if (callback != NULL)
-	      callback(&results[j],
-		       closure);
-	    FREE(results[j].data);
-	  } 	  
-	  ret->resultsFound += res;
-	}
-	FREE(results);
 	break;
-      }  
-    
-    if (maxResults > ret->resultsFound) {
-      /* if less than maxResults replies were found, send 
+      }
+
+    if (ALPHA > ret->resultsFound) {
+      /* if less than ALPHA replies were found, send
 	 dht_get_RPC to the other peers */
       for (i=0;i<count;i++) {
 	if (! hostIdentityEquals(coreAPI->myIdentity,
@@ -1725,7 +1683,7 @@ static struct DHT_GET_RECORD * dht_get_async_start(const DHT_TableId * table,
 		hash2enc(&hosts[i].hashPubKey,
 			 &enc));
 	  LOG(LOG_DEBUG,
-	      "sending RPC '%s' to peer '%s' that also participates in the table.\n",      
+	      "sending RPC `%s' to peer `%s' that also participates in the table.\n",
 	      "DHT_GET",
 	      &enc);
 #endif
@@ -1740,24 +1698,24 @@ static struct DHT_GET_RECORD * dht_get_async_start(const DHT_TableId * table,
 	  hash2enc(table,
 		   &enc));
     LOG(LOG_DEBUG,
-	"I do not participate in the table '%s', finding %d other nodes that do.\n",
+	"I do not participate in the table `%s', finding %d other nodes that do.\n",
 	&enc,
-	maxResults);
+	ALPHA);
 #endif
-    /* We do not particpate in the table; hence we need to use 
+    /* We do not particpate in the table; hence we need to use
        findKNodes to find an initial set of peers in that
        table; findKNodes tries to find k nodes and instantly
        allows us to query each node found.  For each peer found,
        we then perform send_dht_get_rpc.
-    */   
-    ret->kfnc 
+    */
+    ret->kfnc
       = findKNodes_start(table,
-			 key,
+			 &keys[0],
 			 timeout,
-			 maxResults,
+			 ALPHA,
 			 (NodeFoundCallback) &send_dht_get_rpc,
 			 ret);
-  }  
+  }
   MUTEX_UNLOCK(lock);
   return ret;
 }
@@ -1777,14 +1735,14 @@ static int dht_get_async_stop(struct DHT_GET_RECORD * record) {
   if (record->kfnc != NULL)
     findKNodes_stop(record->kfnc);
 
-  for (i=0;i<record->rpcRepliesExpected;i++) 
+  for (i=0;i<record->rpcRepliesExpected;i++)
     rpcAPI->RPC_stop(record->rpc[i]);
   MUTEX_DESTROY(&record->lock);
   resultsFound = record->resultsFound;
-  FREE(record); 
+  FREE(record);
 #if DEBUG_DHT
   LOG(LOG_DEBUG,
-      "'%s' operation completed with %d results.\n",
+      "`%s' operation completed with %d results.\n",
       "DHT_GET",
       resultsFound);
 #endif
@@ -1801,36 +1759,40 @@ static int dht_get_async_stop(struct DHT_GET_RECORD * record) {
  * start transitive search for peers from that new peer.
  *
  * @param value should contain a set of HeloMessages corresponding
- *  to the identities of peers that support the table that we're 
+ *  to the identities of peers that support the table that we're
  *  looking for; pass those Helos to the core *and* try to ping them.
  */
-static void findnodes_dht_master_get_callback(const DHT_DataContainer * cont,
-					      FindNodesContext * fnc) {
+static int
+findnodes_dht_master_get_callback(const HashCode512 * key,
+				  const DataContainer * cont,
+				  FindNodesContext * fnc) {
   unsigned int dataLength;
-  HostIdentity * id;
+  const PeerIdentity * id;
   int i;
 
   ENTER();
-  dataLength = cont->dataLength;
+  dataLength = ntohl(cont->size) - sizeof(DataContainer);
 
-  if (dataLength % sizeof(HostIdentity) != 0) {
+  if ( (dataLength % sizeof(PeerIdentity)) != 0) {
     LOG(LOG_DEBUG,
 	"Response size was %d, expected multile of %d\n",
-	dataLength, 
-	sizeof(HostIdentity));
+	dataLength,
+	sizeof(PeerIdentity));
     LOG(LOG_WARNING,
-	_("Invalid response to '%s'.\n"),
+	_("Invalid response to `%s'.\n"),
 	"DHT_findValue");
-    return;
+    return SYSERR;
   }
-  id = (HostIdentity*) cont->data;
-  for (i=dataLength/sizeof(HostIdentity)-1;i>=0;i--) {
+  id = (const PeerIdentity*) &cont[1];
+  for (i=dataLength/sizeof(PeerIdentity)-1;i>=0;i--) {
     if (!hostIdentityEquals(&id[i],
-			    coreAPI->myIdentity)) 
+			    coreAPI->myIdentity))
       request_DHT_ping(&id[i],
-		       fnc);  
+		       fnc);
   }
+  return OK;
 }
+
 
 /**
  * In the induced sub-structure for the given 'table', find the ALPHA
@@ -1846,7 +1808,7 @@ static void findnodes_dht_master_get_callback(const DHT_DataContainer * cont,
  * GNUnet core peer discovery).
  *
  * If we learn about new nodes in this step, add them to the RT table;
- * if we run out of space in the RT, send pings to oldest entry; if 
+ * if we run out of space in the RT, send pings to oldest entry; if
  * oldest entry did not respond to PING, replace it!
  *
  * This function is used periodially for each table that we have joined
@@ -1860,7 +1822,7 @@ static void findnodes_dht_master_get_callback(const DHT_DataContainer * cont,
  * @return context for findNodes_stop
  */
 static FindNodesContext * findNodes_start(const DHT_TableId * table,
-					  const HashCode160 * key,
+					  const HashCode512 * key,
 					  cron_t timeout) {
   FindNodesContext * fnc;
   int i;
@@ -1872,26 +1834,27 @@ static FindNodesContext * findNodes_start(const DHT_TableId * table,
 	hash2enc(table,
 		 &enc));
   LOG(LOG_DEBUG,
-      "function '%s' called to look for nodes participating in table '%s'.\n",
-      __FUNCTION__,      
+      "function `%s' called to look for nodes participating in table `%s'.\n",
+      __FUNCTION__,
       &enc);
 #endif
   fnc = MALLOC(sizeof(FindNodesContext));
   fnc->key = *key;
   fnc->table = *table;
   fnc->k = 0;
-  fnc->matches = MALLOC(sizeof(HashCode160) * ALPHA);
+  fnc->matches = MALLOC(sizeof(HashCode512) * ALPHA);
   fnc->signal = SEMAPHORE_NEW(0);
   fnc->timeout = cronTime(NULL) + timeout;
   fnc->rpcRepliesExpected = 0;
   fnc->rpcRepliesReceived = 0;
+  fnc->async_handle = NULL;
   MUTEX_CREATE_RECURSIVE(&fnc->lock);
 
   /* find peers in local peer-list that participate in
      the given table */
   fnc->k = findLocalNodes(table,
 			  key,
-			  (HostIdentity*) fnc->matches,
+			  (PeerIdentity*) fnc->matches,
 			  ALPHA);
 #if DEBUG_DHT
   LOG(LOG_DEBUG,
@@ -1903,21 +1866,21 @@ static FindNodesContext * findNodes_start(const DHT_TableId * table,
        k nodes to search further (in this table, with this key,
        with this timeout).  Improve k-best node until timeout
        expires */
-    create_find_nodes_rpc((HostIdentity*) &fnc->matches[i],
-			  fnc);     		      
+    create_find_nodes_rpc((PeerIdentity*) &fnc->matches[i],
+			  fnc);     		
   }
 
   /* also search for more peers for this table? */
   fnc->async_handle = NULL;
   if (fnc->k < ALPHA) {
-    if (equalsHashCode160(table,
+    if (equalsHashCode512(table,
 			  &masterTableId)) {
 #if DEBUG_DHT
       LOG(LOG_DEBUG,
 	  "broadcasting RPC ping to find other peers for master table.\n");
 #endif
-     /* No or too few other DHT peers known, search 
-	 for more by sending a PING to all connected peers 
+     /* No or too few other DHT peers known, search
+	 for more by sending a PING to all connected peers
 	 that are not in the table already */
       coreAPI->forAllConnectedNodes((PerNodeCallback)&request_DHT_ping,
 				    fnc);
@@ -1927,7 +1890,7 @@ static FindNodesContext * findNodes_start(const DHT_TableId * table,
 	    hash2enc(table,
 		     &enc));
       LOG(LOG_DEBUG,
-	  "performing RPC '%s' to find other peers participating in table '%s'.\n",
+	  "performing RPC `%s' to find other peers participating in table `%s'.\n",
 	  "DHT_findValue",
 	  &enc);
 #endif
@@ -1935,12 +1898,14 @@ static FindNodesContext * findNodes_start(const DHT_TableId * table,
 	 the master table */
       fnc->async_handle
 	= dht_get_async_start(&masterTableId,
-			      table,
+			      0, /* type */
+			      1, /* 1 key */
+			      table, /* key */
 			      timeout,
-			      ALPHA - fnc->k, /* level of parallelism proportional to 
-						 number of peers we're looking for */
-			      (DHT_GET_Complete)&findnodes_dht_master_get_callback,
-			      fnc);
+			      (DataProcessor) &findnodes_dht_master_get_callback,
+			      fnc,
+			      NULL,
+			      NULL);
     }
   }
   return fnc;
@@ -1949,7 +1914,7 @@ static FindNodesContext * findNodes_start(const DHT_TableId * table,
 /**
  * This stops the asynchronous findNodes process.  The search is aborted
  * and the k-best results are passed to the callback.
- * 
+ *
  * @param fnc context returned from findNodes_start
  * @param callback function to call for each peer found
  * @param closure extra argument to the callback
@@ -1968,15 +1933,15 @@ static int findNodes_stop(FindNodesContext * fnc,
   }
 
   /* stop all async RPCs */
-  for (i=fnc->rpcRepliesExpected-1;i>=0;i--) 
-    rpcAPI->RPC_stop(fnc->rpc[i]);     
+  for (i=fnc->rpcRepliesExpected-1;i>=0;i--)
+    rpcAPI->RPC_stop(fnc->rpc[i]);
   SEMAPHORE_FREE(fnc->signal);
   MUTEX_DESTROY(&fnc->lock);
 
   /* Finally perform callbacks on collected k-best nodes. */
   if (callback != NULL)
     for (i=fnc->k-1;i>=0;i--)
-      callback((HostIdentity*)&fnc->matches[i], closure);
+      callback((PeerIdentity*)&fnc->matches[i], closure);
   FREE(fnc->matches);
   i = fnc->k;
   FREE(fnc);
@@ -1988,43 +1953,44 @@ static int findNodes_stop(FindNodesContext * fnc,
  * we're trying to find peers for.  Notify the caller about this peer.
  *
  * @param value should contain a set of HeloMessages corresponding
- *  to the identities of peers that support the table that we're 
+ *  to the identities of peers that support the table that we're
  *  looking for; pass those Helos to the core *and* to the callback
  *  as peers supporting the table.
  */
-static void find_k_nodes_dht_master_get_callback(const DHT_DataContainer * cont,
+static void find_k_nodes_dht_master_get_callback(const HashCode512 * key,
+						 const DataContainer * cont,
 						 FindKNodesContext * fnc) {
   unsigned int pos;
   unsigned int dataLength;
-  char * value;
+  const PeerIdentity * value;
 #if DEBUG_DHT
   EncName enc;
 #endif
 
   ENTER();
-  dataLength = cont->dataLength;
-  value = cont->data;
+  dataLength = ntohl(cont->size) - sizeof(DataContainer);
+  value = (const PeerIdentity*) &cont[1];
 
   /* parse value, try to DHT-ping the new peers
      (to add it to the table; if that succeeds
      the peer will automatically trigger the ping_reply_handler
      which will in turn trigger create_find_nodes_rpc) */
-  if ( (dataLength % sizeof(HostIdentity)) != 0) {
+  if ( (dataLength % sizeof(PeerIdentity)) != 0) {
     LOG(LOG_WARNING,
-	_("Malformed response to '%s' on master table.\n"),
+	_("Malformed response to `%s' on master table.\n"),
 	"DHT_findValue");
     return;
   }
-  for (pos = 0;pos<dataLength;pos+=sizeof(HostIdentity)) {
-    HostIdentity * msg;
+  for (pos = 0;pos<dataLength/sizeof(PeerIdentity);pos++) {
+    const PeerIdentity * msg;
 
-    msg = (HostIdentity*) &value[pos];
+    msg = &value[pos];
 #if DEBUG_DHT
     IFLOG(LOG_DEBUG,
 	  hash2enc(&msg->hashPubKey,
 		   &enc));
     LOG(LOG_DEBUG,
-	"master table returned peer '%s' in '%s' operation.\n",
+	"master table returned peer `%s' in `%s' operation.\n",
 	&enc,
 	"DHT_findValue");
 #endif
@@ -2040,14 +2006,13 @@ static void find_k_nodes_dht_master_get_callback(const DHT_DataContainer * cont,
   }
 }
 
-
 /**
  * In the induced sub-structure for the given 'table', find k nodes
  * close to the given key that participate in that table.  Any node in
  * the table will do, but preference is given to nodes that are close.
  * Still, the first k nodes that were found are returned (just the
- * search goes towards the key).  This function is used for lookups 
- * in tables in which this peer does not participate in.  
+ * search goes towards the key).  This function is used for lookups
+ * in tables in which this peer does not participate in.
  *
  * If no (zero!) participating nodes are found locally, the a set of
  * introduction nodes for this table is obtained from the master table
@@ -2056,7 +2021,7 @@ static void find_k_nodes_dht_master_get_callback(const DHT_DataContainer * cont,
  * (relying on GNUnet core peer discovery).
  *
  * If we learn about new nodes in this step, add them to the RT table;
- * if we run out of space in the RT, send pings to oldest entry; if 
+ * if we run out of space in the RT, send pings to oldest entry; if
  * oldest entry did not respond to PING, replace it!
  *
  * @param table the table which the peers must participate in,
@@ -2071,7 +2036,7 @@ static void find_k_nodes_dht_master_get_callback(const DHT_DataContainer * cont,
  * @return context for findKNodes_stop
  */
 static FindKNodesContext * findKNodes_start(const DHT_TableId * table,
-					    const HashCode160 * key,
+					    const HashCode512 * key,
 					    cron_t timeout,
 					    unsigned int k,
 					    NodeFoundCallback callback,
@@ -2079,7 +2044,7 @@ static FindKNodesContext * findKNodes_start(const DHT_TableId * table,
   FindKNodesContext * fnc;
   int i;
   int found;
-  HostIdentity * matches;
+  PeerIdentity * matches;
 #if DEBUG_DHT
   EncName enc;
 
@@ -2087,7 +2052,7 @@ static FindKNodesContext * findKNodes_start(const DHT_TableId * table,
   hash2enc(table,
 	   &enc);
   LOG(LOG_DEBUG,
-      "'%s' called to find %d nodes that participate in table '%s'.\n",
+      "`%s' called to find %d nodes that participate in table `%s'.\n",
       __FUNCTION__,
       k,
       &enc);
@@ -2103,7 +2068,7 @@ static FindKNodesContext * findKNodes_start(const DHT_TableId * table,
   fnc->rpcRepliesReceived = 0;
   fnc->found = 0;
   MUTEX_CREATE_RECURSIVE(&fnc->lock);
-  matches = MALLOC(sizeof(HostIdentity) * fnc->k);
+  matches = MALLOC(sizeof(PeerIdentity) * fnc->k);
 
   /* find peers in local peer-list that participate in
      the given table */
@@ -2112,13 +2077,13 @@ static FindKNodesContext * findKNodes_start(const DHT_TableId * table,
 			 matches,
 			 k);
   if (callback != NULL)
-    for (i=0;i<found;i++)     
+    for (i=0;i<found;i++)
       callback(&matches[i],
-	       closure); 
+	       closure);
   if (found == k) {
 #if DEBUG_DHT
     LOG(LOG_DEBUG,
-	"'%s' found %d nodes in local table, no remote requests needed.\n",
+	"`%s' found %d nodes in local table, no remote requests needed.\n",
 	__FUNCTION__,
 	k);
 #endif
@@ -2126,20 +2091,20 @@ static FindKNodesContext * findKNodes_start(const DHT_TableId * table,
     return fnc; /* no need for anything else, we've found
 		   all we care about! */
   }
-  fnc->k -= found;  
+  fnc->k -= found;
   fnc->found = found;
   FREE(matches);
 
   /* also do 'get' to find for more peers for this table */
   fnc->async_handle = NULL;
-  if (equalsHashCode160(table,
+  if (equalsHashCode512(table,
 			  &masterTableId)) {
     BREAK();
     /* findKNodes_start called for masterTable.  That should not happen! */
   } else {
  #if DEBUG_DHT
     LOG(LOG_DEBUG,
-	"'%s' sends request to find %d in master table.\n",
+	"`%s' sends request to find %d in master table.\n",
 	__FUNCTION__,
 	k);
 #endif
@@ -2147,20 +2112,22 @@ static FindKNodesContext * findKNodes_start(const DHT_TableId * table,
        the master table */
     fnc->async_handle
       = dht_get_async_start(&masterTableId,
-			    table,
+			    0, /* type */
+			    1, /* key count */
+			    table, /* keys */
 			    timeout,
-			    fnc->k, /* level of parallelism proportional to 
-				       number of peers we're looking for */
-			    (DHT_GET_Complete)&find_k_nodes_dht_master_get_callback,
-			    fnc);
-  }  
+			    (DataProcessor)&find_k_nodes_dht_master_get_callback,
+			    fnc,
+			    NULL,
+			    NULL);
+  }
   return fnc;
 }
 
 /**
- * This stops the asynchronous find-k-Nodes process. 
+ * This stops the asynchronous find-k-Nodes process.
  * The search is aborted.
- * 
+ *
  * @param fnc context returned from findNodes_start
  * @return number of peers found, SYSERR on error
  */
@@ -2174,8 +2141,8 @@ static int findKNodes_stop(FindKNodesContext * fnc) {
   }
 
   /* stop all async RPCs */
-  for (i=fnc->rpcRepliesExpected-1;i>=0;i--) 
-    rpcAPI->RPC_stop(fnc->rpc[i]);     
+  for (i=fnc->rpcRepliesExpected-1;i>=0;i--)
+    rpcAPI->RPC_stop(fnc->rpc[i]);
   MUTEX_DESTROY(&fnc->lock);
 
   i = fnc->found;
@@ -2183,96 +2150,6 @@ static int findKNodes_stop(FindKNodesContext * fnc) {
   return i;
 }
 
-
-/**
- * The get operation found some reply value.  Add it to the
- * context.  If we have collected the maximum number of replies,
- * signal dht_get to continue (before the timeout).
- */
-static void dht_get_sync_callback(const DHT_DataContainer * value,
-				  DHT_GET_SYNC_CONTEXT * context) {
-  ENTER();
-  MUTEX_LOCK(lock);
-  if (context->count >= context->maxResults) {
-    MUTEX_UNLOCK(lock);
-    return;
-  }
-  if (context->results[context->count].dataLength > 0) {
-    if (context->results[context->count].dataLength > 
-	value->dataLength)
-      context->results[context->count].dataLength = value->dataLength;
-    memcpy(context->results[context->count].data,
-	   value->data,
-	   context->results[context->count].dataLength);
-  } else {
-    context->results[context->count].dataLength = value->dataLength;
-    context->results[context->count].data = MALLOC(value->dataLength);
-    memcpy(context->results[context->count].data,
-	   value->data,
-	   value->dataLength);
-  }
-  context->count++;
-  if (context->count == context->maxResults)
-    SEMAPHORE_UP(context->semaphore); /* done early! */
-  MUTEX_UNLOCK(lock);
-}
-
-
-/**
- * Perform a synchronous GET operation on the DHT identified by
- * 'table' using 'key' as the key; store the result in 'result'.  If
- * result->dataLength == 0 the result size is unlimited and
- * result->data needs to be allocated; otherwise result->data refers
- * to dataLength bytes and the result is to be stored at that
- * location; dataLength is to be set to the actual size of the
- * result.
- *
- * The peer does not have to be part of the table!  This method
- * must not be called from within a cron-job!
- *
- * @param table table to use for the lookup
- * @param key the key to look up  
- * @param timeout how long to wait until this operation should
- *        automatically time-out
- * @param maxResults maximum number of results to obtain, size of the results array
- * @param results where to store the results (on success)
- * @return number of results on success, SYSERR on error (i.e. timeout)
- */
-static int dht_get(const DHT_TableId * table,
-		   const HashCode160 * key,
-		   cron_t timeout,
-		   unsigned int maxResults,
-		   DHT_DataContainer * results) {
-  DHT_GET_RECORD * rec;
-  DHT_GET_SYNC_CONTEXT context;
-  int ret;
-
-  ENTER();
-  context.results = results;
-  context.maxResults = maxResults;
-  context.count = 0;
-  context.semaphore = SEMAPHORE_NEW(0);
-  rec = dht_get_async_start(table,
-			    key,
-			    timeout,
-			    maxResults,
-			    (DHT_GET_Complete) &dht_get_sync_callback,
-			    &context);
-  addCronJob((CronJob) &semaphore_up_,
-	     timeout,
-	     0,
-	     &context.semaphore);
-  SEMAPHORE_DOWN(context.semaphore);
-  ret = dht_get_async_stop(rec);
-  suspendCron();
-  delCronJob((CronJob) &semaphore_up_,
-	     0,
-	     &context.semaphore);
-  resumeCron();
-  SEMAPHORE_FREE(context.semaphore);
-  return ret;
-}
-					      
 /**
  * We got a reply from the DHT_store operation.  Update the
  * record datastructures accordingly (and call the record's
@@ -2280,54 +2157,41 @@ static int dht_get(const DHT_TableId * table,
  *
  * @param results::peer created in rpc_DHT_store_abort
  */
-static void dht_put_rpc_reply_callback(const HostIdentity * responder,
+static void dht_put_rpc_reply_callback(const PeerIdentity * responder,
 				       RPC_Param * results,
 				       DHT_PUT_RECORD * record) {
-  HostIdentity * peer;
+  PeerIdentity * peer;
   unsigned int dataLength;
   PeerInfo * pos;
   unsigned int i;
   unsigned int max;
-  unsigned int j;
 
   ENTER();
+  processOptionalFields(responder, results);
   MUTEX_LOCK(&record->lock);
   pos = findPeerInfo(responder);
   pos->lastActivity = cronTime(NULL);
-  
+
   max = RPC_paramCount(results);
   for (i=0;i<max;i++) {
+    if (0 != strcmp("peer",
+		    RPC_paramName(results, i)))
+      continue; /* ignore */
     if ( (OK != RPC_paramValueByPosition(results,
 					 i,
 					 &dataLength,
 					 (void**)&peer)) ||
-	 (dataLength != sizeof(HostIdentity)) ) {
+	 (dataLength != sizeof(PeerIdentity)) ) {
       EncName enc;
-      
+
       MUTEX_UNLOCK(&record->lock);
       hash2enc(&responder->hashPubKey,
 	       &enc);
       LOG(LOG_WARNING,
-	  _("Invalid response to '%s' from '%s'\n"),
+	  _("Invalid response to `%s' from `%s'\n"),
 	  "DHT_put",
 	  &enc);
       return;
-    }
-    /* ensure we don't count duplicates! */
-    for (j=0;j<record->confirmedReplicas;j++)
-      if (hostIdentityEquals(peer,
-			     &record->replicas[j])) {
-	peer = NULL;
-	break;
-      }
-    if (peer != NULL) {
-      GROW(record->replicas,
-	   record->confirmedReplicas,
-	   record->confirmedReplicas+1);
-      record->replicas[record->confirmedReplicas-1] = *peer;
-      if (record->callback != NULL)
-	record->callback(peer,
-			 record->closure);
     }
   }
   MUTEX_UNLOCK(&record->lock);
@@ -2338,7 +2202,7 @@ static void dht_put_rpc_reply_callback(const HostIdentity * responder,
  * processed by the callback in record.  The RPC async handle is to be
  * stored in the records rpc list.  Locking is not required.
  */
-static void send_dht_put_rpc(const HostIdentity * peer,
+static void send_dht_put_rpc(const PeerIdentity * peer,
 			     DHT_PUT_RECORD * record) {
   RPC_Param * param;
   unsigned long long timeout;
@@ -2351,13 +2215,13 @@ static void send_dht_put_rpc(const HostIdentity * peer,
 	hash2enc(&peer->hashPubKey,
 		 &enc));
   LOG(LOG_DEBUG,
-      "sending RPC '%s' to peer '%s'.\n",
+      "sending RPC `%s' to peer `%s'.\n",
       "DHT_store",
       &enc);
 #endif
   ENTER();
   if (isNotCloserThanMe(&record->table,
-			peer,		     
+			peer,		
 			&record->key))
     return;
   cronTime(&now);
@@ -2373,27 +2237,27 @@ static void send_dht_put_rpc(const HostIdentity * peer,
 	       &record->table);
   RPC_paramAdd(param,
 	       "key",
-	       sizeof(HashCode160),
+	       sizeof(HashCode512),
 	       &record->key);
   RPC_paramAdd(param,
 	       "timeout",
 	       sizeof(unsigned long long),
 	       &timeout);
-  RPC_paramAdd(param,
-	       "value",
-	       record->value.dataLength,
-	       record->value.data);
+  RPC_paramAddDataContainer(param,
+			    "value",
+			    record->value);
   GROW(record->rpc,
        record->rpcRepliesExpected,
        record->rpcRepliesExpected+1);
-  record->rpc[record->rpcRepliesExpected-1] 
+  addOptionalFields(param);
+  record->rpc[record->rpcRepliesExpected-1]
     = rpcAPI->RPC_start(peer,
 		        "DHT_store",
 			param,
 			0,
 			delta,
 			(RPC_Complete) &dht_put_rpc_reply_callback,
-			record); 
+			record);
   RPC_paramFree(param);
 }
 
@@ -2405,21 +2269,20 @@ static void send_dht_put_rpc(const HostIdentity * peer,
  * peer that is!)
  *
  * @param table table to use for the lookup
- * @param key the key to look up  
+ * @param key the key to look up
  * @param timeout how long to wait until this operation should
  *        automatically time-out
- * @param replicationLevel how many copies should we make?
  * @param callback function to call on successful completion
  * @param closure extra argument to callback
  * @return handle to stop the async put
  */
-static struct DHT_PUT_RECORD * dht_put_async_start(const DHT_TableId * table,
-						   const HashCode160 * key,
-						   cron_t timeout,
-						   const DHT_DataContainer * value,
-						   unsigned int replicationLevel,
-						   DHT_PUT_Complete callback,
-						   void * closure) {
+static struct DHT_PUT_RECORD *
+dht_put_async_start(const DHT_TableId * table,
+		    const HashCode512 * key,
+		    cron_t timeout,
+		    const DataContainer * value,
+		    DHT_OP_Complete callback,
+		    void * closure) {
   int i;
   LocalTableData * ltd;
   DHT_PUT_RECORD * ret;
@@ -2427,6 +2290,11 @@ static struct DHT_PUT_RECORD * dht_put_async_start(const DHT_TableId * table,
 #if DEBUG_DHT
   EncName enc;
   EncName enc2;
+
+  if (value == NULL) {
+    BREAK();
+    return NULL;
+  }
 
   ENTER();
   IFLOG(LOG_DEBUG,
@@ -2436,61 +2304,58 @@ static struct DHT_PUT_RECORD * dht_put_async_start(const DHT_TableId * table,
 	hash2enc(table,
 		 &enc2));
   LOG(LOG_DEBUG,
-      "performing '%s' operation on key '%s' and table '%s'.\n",      
+      "performing `%s' operation on key `%s' and table `%s'.\n",
       "DHT_PUT",
       &enc,
       &enc2);
 #endif
   if (timeout > 1 * cronHOURS) {
     LOG(LOG_WARNING,
-	_("'%s' called with timeout above 1 hour (bug?)\n"),
+	_("`%s' called with timeout above 1 hour (bug?)\n"),
 	__FUNCTION__);
-    timeout = 1 * cronHOURS;    
+    timeout = 1 * cronHOURS;
   }
-
-  if (replicationLevel == 0)
-    replicationLevel = 1;
   ret = MALLOC(sizeof(DHT_PUT_RECORD));
   ret->timeout = cronTime(NULL) + timeout;
   ret->key = *key;
   ret->table = *table;
   ret->callback = callback;
   ret->closure = closure;
-  ret->replicationLevel = replicationLevel;
-  ret->value = *value;
+  ret->value = MALLOC(ntohl(value->size));
+  memcpy(ret->value,
+	 value,
+	 ntohl(value->size));
   MUTEX_CREATE_RECURSIVE(&ret->lock);
   ret->rpc = NULL;
   ret->rpcRepliesExpected = 0;
-  ret->confirmedReplicas = 0;
-  ret->replicas = NULL;
   ret->kfnc = NULL;
   MUTEX_LOCK(lock);
 
 
   ltd = getLocalTableData(table);
   if (ltd != NULL) {
-    HostIdentity * hosts;
+    PeerIdentity * hosts;
 #if DEBUG_DHT
     IFLOG(LOG_DEBUG,
 	  hash2enc(table,
 		   &enc));
     LOG(LOG_DEBUG,
-	"I participate in the table '%s' for the '%s' operation.\n",      
+	"I participate in the table `%s' for the `%s' operation.\n",
 	&enc,
 	"DHT_PUT");
 #endif
     /* We do participate in the table, it is fair to assume
        that we know the relevant peers in my neighbour set */
-    hosts = MALLOC(sizeof(HostIdentity) * replicationLevel);
+    hosts = MALLOC(sizeof(PeerIdentity) * ALPHA);
     count = findLocalNodes(table,
 			   key,
 			   hosts,
-			   replicationLevel);
+			   ALPHA);
     /* try adding this peer to hosts */
-    k_best_insert(replicationLevel,
+    k_best_insert(ALPHA,
 		  &count,
 		  key,
-		  (HashCode160*) hosts,
+		  (HashCode512*) hosts,
 		  &coreAPI->myIdentity->hashPubKey);
     if (count == 0) {
       BREAK();
@@ -2502,49 +2367,38 @@ static struct DHT_PUT_RECORD * dht_put_async_start(const DHT_TableId * table,
     for (i=0;i<count;i++) {
       if (hostIdentityEquals(coreAPI->myIdentity,
 			     &hosts[i])) {
-	if (OK == ltd->store->store(ltd->store->closure,
-				    key,
-				    value,
-				    ltd->flags)) {
-	  if (callback != NULL)
-	    callback(coreAPI->myIdentity,
-		     closure); 
-	  ret->confirmedReplicas++;
-	  if (replicationLevel == 1) {
-	    /* that's it then */
-	    MUTEX_UNLOCK(lock);
-	    return ret;
-	  }
-	} else {
-	  /* warning?  How to communicate errors? */
-	}
+	if (OK == ltd->store->put(ltd->store->closure,
+				  key,
+				  value,
+				  0 /* FIXME: priority */))
+	  ret->confirmed_stores++;
 	break;
-      }  
+      }
     }
 
-    if (ret->replicationLevel > 0) {
-      /* send dht_put_RPC to the other peers */
-      for (i=0;i<count;i++) 
-	if (! hostIdentityEquals(coreAPI->myIdentity,
-				 &hosts[i]))
-	  send_dht_put_rpc(&hosts[i],
-			   ret);
-    }
+    /* send dht_put_RPC to the other peers */
+    for (i=0;i<count;i++)
+      if (! hostIdentityEquals(coreAPI->myIdentity,
+			       &hosts[i]))
+	send_dht_put_rpc(&hosts[i],
+			 ret);
   } else {
-    /* We do not particpate in the table; hence we need to use 
+    /* We do not particpate in the table; hence we need to use
        findKNodes to find an initial set of peers in that
        table; findKNodes tries to find k nodes and instantly
        allows us to query each node found.  For each peer found,
        we then perform send_dht_put_rpc.
-    */   
-    ret->kfnc 
+    */
+    ret->kfnc
       = findKNodes_start(table,
 			 key,
 			 timeout,
-			 replicationLevel,
+			 ALPHA,
 			 (NodeFoundCallback) &send_dht_put_rpc,
 			 ret);
-  }  
+  }
+  /* FIXME: ensure we call OP_Complete callback
+     after timeout! */
   MUTEX_UNLOCK(lock);
   return ret;
 }
@@ -2564,14 +2418,12 @@ static int dht_put_async_stop(struct DHT_PUT_RECORD * record) {
   if (record->kfnc != NULL)
     findKNodes_stop(record->kfnc);
 
-  for (i=0;i<record->rpcRepliesExpected;i++) 
+  for (i=0;i<record->rpcRepliesExpected;i++)
     rpcAPI->RPC_stop(record->rpc[i]);
   MUTEX_DESTROY(&record->lock);
-  i = record->confirmedReplicas;
-  GROW(record->replicas,
-       record->confirmedReplicas,
-       0);
-  FREE(record); 
+  i = record->confirmed_stores;
+  FREE(record->value);
+  FREE(record);
   if (i > 0)
     return OK;
   else
@@ -2579,114 +2431,48 @@ static int dht_put_async_stop(struct DHT_PUT_RECORD * record) {
 }
 
 /**
- * The put operation found a peer willing to store. 
- * If we have collected the maximum number of replicas,
- * signal dht_get to continue (before the timeout).
- */
-static void dht_put_sync_callback(const DHT_DataContainer * value,
-				  DHT_PUT_SYNC_CONTEXT * context) {
-  ENTER();
-  MUTEX_LOCK(lock);
-  if (context->confirmedReplicas >= context->targetReplicas) {
-    MUTEX_UNLOCK(lock);
-    return;
-  }
-  context->confirmedReplicas++;
-  if (context->confirmedReplicas == context->targetReplicas)
-    SEMAPHORE_UP(context->semaphore); /* done early! */
-  MUTEX_UNLOCK(lock);
-}
-
-/**
- * Perform a synchronous put operation.   The peer does not have
- * to be part of the table!
- *
- * @param table table to use for the lookup
- * @param key the key to store
- * @param timeout how long to wait until this operation should
- *        automatically time-out
- * @param value what to store
- * @param flags bitmask
- * @return OK on success, SYSERR on error (or timeout)
- */
-static int dht_put(const DHT_TableId * table,
-		   const HashCode160 * key,
-		   cron_t timeout,
-		   const DHT_DataContainer * value,
-		   int flags) {
-  DHT_PUT_SYNC_CONTEXT context;
-  DHT_PUT_RECORD * rec;
-  int ret;
-
-  ENTER();
-  context.confirmedReplicas = 0;
-  context.targetReplicas = flags & DHT_FLAGS_TABLE_REPLICATION_MASK;
-  context.semaphore = SEMAPHORE_NEW(0);
-  rec = dht_put_async_start(table,
-			    key,
-			    timeout,
-			    value,
-			    context.targetReplicas,
-			    (DHT_PUT_Complete) &dht_put_sync_callback,
-			    &context);
-  addCronJob((CronJob) &semaphore_up_,
-	     timeout,
-	     0,
-	     &context.semaphore);
-  SEMAPHORE_DOWN(context.semaphore);
-  ret = dht_put_async_stop(rec);
-  suspendCron();
-  delCronJob((CronJob) &semaphore_up_,
-	     0,
-	     &context.semaphore);
-  resumeCron();
-  SEMAPHORE_FREE(context.semaphore);
-  return ret;
-}
-				      
-/**
  * We got a reply from the DHT_remove operation.  Update the
  * record datastructures accordingly (and call the record's
  * callback).
  *
  * @param results::peer created in rpc_DHT_store_abort
  */
-static void dht_remove_rpc_reply_callback(const HostIdentity * responder,
+static void dht_remove_rpc_reply_callback(const PeerIdentity * responder,
 					  RPC_Param * results,
 					  DHT_REMOVE_RECORD * record) {
-  HostIdentity * peer;
+  PeerIdentity * peer;
   unsigned int dataLength;
   PeerInfo * pos;
   unsigned int i;
   unsigned int max;
 
   ENTER();
+  processOptionalFields(responder, results);
   MUTEX_LOCK(&record->lock);
   pos = findPeerInfo(responder);
   pos->lastActivity = cronTime(NULL);
-
   max = RPC_paramCount(results);
   for (i=0;i<max;i++) {
+    if (0 != strcmp("peer",
+		    RPC_paramName(results, i)))
+      continue; /* ignore */
     if ( (OK != RPC_paramValueByPosition(results,
 					 i,
 					 &dataLength,
 					 (void**)&peer)) ||
-	 (dataLength != sizeof(HostIdentity)) ) {
+	 (dataLength != sizeof(PeerIdentity)) ) {
       EncName enc;
-      
+
       MUTEX_UNLOCK(&record->lock);
       hash2enc(&responder->hashPubKey,
 	       &enc);
       LOG(LOG_WARNING,
-	  _("Invalid response to '%s' from '%s'\n"),
+	  _("Invalid response to `%s' from `%s'\n"),
 	  "DHT_remove",
 	  &enc);
       return;
     }
-    record->confirmedReplicas++;
-    if (record->callback != NULL)
-      record->callback(peer,
-		       record->closure);       
+    record->confirmed_stores++;
   }
   MUTEX_UNLOCK(&record->lock);
 }
@@ -2696,7 +2482,7 @@ static void dht_remove_rpc_reply_callback(const HostIdentity * responder,
  * processed by the callback in record.  The RPC async handle is to be
  * stored in the records rpc list.  Locking is not required.
  */
-static void send_dht_remove_rpc(const HostIdentity * peer,
+static void send_dht_remove_rpc(const PeerIdentity * peer,
 				DHT_REMOVE_RECORD * record) {
   RPC_Param * param;
   unsigned long long timeout;
@@ -2710,12 +2496,12 @@ static void send_dht_remove_rpc(const HostIdentity * peer,
 	hash2enc(&peer->hashPubKey,
 		 &enc));
   LOG(LOG_DEBUG,
-      "sending RPC '%s' to peer '%s'.\n",
+      "sending RPC `%s' to peer `%s'.\n",
       "DHT_remove",
       &enc);
 #endif
   if (isNotCloserThanMe(&record->table,
-			peer,		     
+			peer,		
 			&record->key))
     return; /* refuse! */
   cronTime(&now);
@@ -2731,28 +2517,28 @@ static void send_dht_remove_rpc(const HostIdentity * peer,
 	       &record->table);
   RPC_paramAdd(param,
 	       "key",
-	       sizeof(HashCode160),
+	       sizeof(HashCode512),
 	       &record->key);
   RPC_paramAdd(param,
 	       "timeout",
 	       sizeof(unsigned long long),
 	       &timeout);
-  if (record->value.dataLength > 0)
-    RPC_paramAdd(param,
-		 "value",
-		 record->value.dataLength,
-		 record->value.data);
+  if (record->value != NULL)
+    RPC_paramAddDataContainer(param,
+			      "value",
+			      record->value);
   GROW(record->rpc,
        record->rpcRepliesExpected,
        record->rpcRepliesExpected+1);
-  record->rpc[record->rpcRepliesExpected-1] 
+  addOptionalFields(param);
+  record->rpc[record->rpcRepliesExpected-1]
     = rpcAPI->RPC_start(peer,
 		        "DHT_remove",
 			param,
 			0,
 			delta,
 			(RPC_Complete) &dht_remove_rpc_reply_callback,
-			record); 
+			record);
   RPC_paramFree(param);
 }
 
@@ -2763,32 +2549,30 @@ static void send_dht_remove_rpc(const HostIdentity * peer,
  * peer that is!)
  *
  * @param table table to use for the lookup
- * @param key the key to look up  
+ * @param key the key to look up
  * @param timeout how long to wait until this operation should
  *        automatically time-out (relative time)
- * @param replicationLevel how many copies should we make?
  * @param callback function to call on successful completion
  * @param closure extra argument to callback
  * @return handle to stop the async remove
  */
-static struct DHT_REMOVE_RECORD * 
+static struct DHT_REMOVE_RECORD *
 dht_remove_async_start(const DHT_TableId * table,
-		       const HashCode160 * key,
+		       const HashCode512 * key,
 		       cron_t timeout,
-		       const DHT_DataContainer * value,
-		       unsigned int replicationLevel,
-		       DHT_REMOVE_Complete callback,
+		       const DataContainer * value,
+		       DHT_OP_Complete callback,
 		       void * closure) {
   int i;
   LocalTableData * ltd;
   DHT_REMOVE_RECORD * ret;
   unsigned int count;
-  
+
   if (timeout > 1 * cronHOURS) {
     LOG(LOG_WARNING,
-	_("'%s' called with timeout above 1 hour (bug?)\n"),
+	_("`%s' called with timeout above 1 hour (bug?)\n"),
 	__FUNCTION__);
-    timeout = 1 * cronHOURS;    
+    timeout = 1 * cronHOURS;
   }
   ENTER();
   ret = MALLOC(sizeof(DHT_REMOVE_RECORD));
@@ -2797,35 +2581,37 @@ dht_remove_async_start(const DHT_TableId * table,
   ret->table = *table;
   ret->callback = callback;
   ret->closure = closure;
-  ret->replicationLevel = replicationLevel;
   if (value == NULL) {
-    ret->value.dataLength = 0;
-    ret->value.data = NULL;
-  } else
-    ret->value = *value;
+    ret->value = NULL;
+  } else {
+    ret->value = MALLOC(ntohl(value->size));
+    memcpy(ret->value,
+	   value,
+	   ntohl(value->size));
+  }
   MUTEX_CREATE_RECURSIVE(&ret->lock);
   ret->rpc = NULL;
   ret->rpcRepliesExpected = 0;
-  ret->confirmedReplicas = 0;
+  ret->confirmed_stores = 0;
   ret->kfnc = NULL;
   MUTEX_LOCK(lock);
 
 
   ltd = getLocalTableData(table);
   if (ltd != NULL) {
-    HostIdentity * hosts;
+    PeerIdentity * hosts;
     /* We do participate in the table, it is fair to assume
        that we know the relevant peers in my neighbour set */
-    hosts = MALLOC(sizeof(HostIdentity) * replicationLevel);
+    hosts = MALLOC(sizeof(PeerIdentity) * ALPHA);
     count = findLocalNodes(table,
 			   key,
 			   hosts,
-			   replicationLevel);
+			   ALPHA);
     /* try adding this peer to hosts */
-    k_best_insert(replicationLevel,
+    k_best_insert(ALPHA,
 		  &count,
 		  key,
-		  (HashCode160*) hosts,
+		  (HashCode512*) hosts,
 		  &coreAPI->myIdentity->hashPubKey);
     if (count == 0) {
       BREAK();
@@ -2837,49 +2623,35 @@ dht_remove_async_start(const DHT_TableId * table,
     for (i=0;i<count;i++) {
       if (hostIdentityEquals(coreAPI->myIdentity,
 			     &hosts[i])) {
-	if (OK == ltd->store->remove(ltd->store->closure,
-				     key,
-				     value,
-				     ltd->flags)) {
-	  if (callback != NULL)
-	    callback(coreAPI->myIdentity,
-		     closure); 
-	  ret->confirmedReplicas++;
-	  if (replicationLevel == 1) {
-	    /* that's it then */
-	    MUTEX_UNLOCK(lock);
-	    return ret;
-	  }
-	} else {
-	  /* warning?  How to communicate errors? */
-	}
+	if (OK == ltd->store->del(ltd->store->closure,
+				  key,
+				  value))
+	  ret->confirmed_stores++;
 	break;
-      }  
+      }
     }
 
-    if (ret->replicationLevel > 0) {
-      /* send dht_remove_RPC to the other peers */
-      for (i=0;i<count;i++) 
-	if (! hostIdentityEquals(coreAPI->myIdentity,
-				 &hosts[i]))
-	  send_dht_remove_rpc(&hosts[i],
-			   ret);
-    }
+    /* send dht_remove_RPC to the other peers */
+    for (i=0;i<count;i++)
+      if (! hostIdentityEquals(coreAPI->myIdentity,
+			       &hosts[i]))
+	send_dht_remove_rpc(&hosts[i],
+			    ret);
   } else {
-    /* We do not particpate in the table; hence we need to use 
+    /* We do not particpate in the table; hence we need to use
        findKNodes to find an initial set of peers in that
        table; findKNodes tries to find k nodes and instantly
        allows us to query each node found.  For each peer found,
        we then perform send_dht_remove_rpc.
-    */   
-    ret->kfnc 
+    */
+    ret->kfnc
       = findKNodes_start(table,
 			 key,
 			 timeout,
-			 replicationLevel,
+			 ALPHA,
 			 (NodeFoundCallback) &send_dht_remove_rpc,
 			 ret);
-  }  
+  }
   MUTEX_UNLOCK(lock);
   return ret;
 }
@@ -2899,83 +2671,17 @@ static int dht_remove_async_stop(struct DHT_REMOVE_RECORD * record) {
   if (record->kfnc != NULL)
     findKNodes_stop(record->kfnc);
 
-  for (i=0;i<record->rpcRepliesExpected;i++) 
+  for (i=0;i<record->rpcRepliesExpected;i++)
     rpcAPI->RPC_stop(record->rpc[i]);
   MUTEX_DESTROY(&record->lock);
-  i = record->confirmedReplicas;
-  FREE(record); 
+  i = record->confirmed_stores;
+  FREE(record->value);
+  FREE(record);
   if (i > 0)
     return OK;
   else
     return SYSERR;
 }
-
-/**
- * The remove operation found a peer containing the value.
- * If we have removed the maximum number of replicas,
- * signal dht_remove to continue (before the timeout).
- */
-static void dht_remove_sync_callback(const DHT_DataContainer * value,
-				     DHT_REMOVE_SYNC_CONTEXT * context) {
-  ENTER();
-  MUTEX_LOCK(lock);
-  if (context->confirmedReplicas >= context->targetReplicas) {
-    MUTEX_UNLOCK(lock);
-    return;
-  }
-  context->confirmedReplicas++;
-  if (context->confirmedReplicas == context->targetReplicas)
-    SEMAPHORE_UP(context->semaphore); /* done early! */
-  MUTEX_UNLOCK(lock);
-}
-
-/**
- * Perform a synchronous remove operation.  The peer does not have
- * to be part of the table!
- *
- * @param table table to use for the lookup
- * @param key the key to store
- * @param timeout how long to wait until this operation should
- *        automatically time-out
- * @param value what to remove; NULL for all values matching the key
- * @param flags bitmask
- * @return OK on success, SYSERR on error (or timeout)
- */
-static int dht_remove(const DHT_TableId * table,
-		      const HashCode160 * key,
-		      cron_t timeout,
-		      const DHT_DataContainer * value,
-		      int flags) {
-  DHT_REMOVE_SYNC_CONTEXT context;
-  DHT_REMOVE_RECORD * rec;
-  int ret;
-
-  ENTER();
-  context.confirmedReplicas = 0;
-  context.targetReplicas = flags & DHT_FLAGS_TABLE_REPLICATION_MASK;
-  context.semaphore = SEMAPHORE_NEW(0);
-  rec = dht_remove_async_start(table,
-			       key,
-			       timeout,
-			       value,
-			       context.targetReplicas,
-			       (DHT_REMOVE_Complete) &dht_remove_sync_callback,
-			       &context);
-  addCronJob((CronJob) &semaphore_up_,
-	     timeout,
-	     0,
-	     &context.semaphore);
-  SEMAPHORE_DOWN(context.semaphore);
-  ret = dht_remove_async_stop(rec);
-  suspendCron();
-  delCronJob((CronJob) &semaphore_up_,
-	     0,
-	     &context.semaphore);
-  resumeCron();
-  SEMAPHORE_FREE(context.semaphore);
-  return ret;
-}
-
 
 /**
  * Join a table (start storing data for the table).  Join
@@ -2985,13 +2691,10 @@ static int dht_remove(const DHT_TableId * table,
  * @param datastore the storage callbacks to use for the table
  * @param table the ID of the table
  * @param timeout NOT USED.  Remove?
- * @param flags options for the table (i.e. replication)
  * @return SYSERR on error, OK on success
  */
-static int dht_join(DHT_Datastore * datastore,
-		    const DHT_TableId * table,
-		    cron_t timeout,
-		    int flags) {
+static int dht_join(Blockstore * datastore,
+		    const DHT_TableId * table) {
   int i;
 
   ENTER();
@@ -3007,66 +2710,25 @@ static int dht_join(DHT_Datastore * datastore,
        tablesCount+1);
   tables[tablesCount-1].id = *table;
   tables[tablesCount-1].store = datastore;
-  tables[tablesCount-1].flags = flags;
   MUTEX_UNLOCK(lock);
   return OK;
 }
 
-
-/**
- * Callback function to migrate content to other peers.
- */
-static int dht_migrate(const HashCode160 * key,
-		       const DHT_DataContainer * value,
-		       int flags,
-		       MigrationClosure * cls) {
-  ENTER();
-  if (cls->puts[cls->putsPos] != NULL) 
-    dht_put_async_stop(cls->puts[cls->putsPos]);
-  cls->puts[cls->putsPos] 
-    = dht_put_async_start(&cls->table,
-			  key,
-			  cls->timeout,
-			  value,
-			  flags,
-			  NULL,
-			  NULL);
-  cls->putsPos = (cls->putsPos + 1) % cls->maxPuts;  
-  gnunet_util_sleep(cls->timeout / cls->maxPuts);
-  return OK;
-}
-
-  
 /**
  * Leave a table (stop storing data for the table).  Leave
- * fails if the node is not joint with the table.  Blocks 
+ * fails if the node is not joint with the table.  Blocks
  * for at most timeout ms to migrate content elsewhere.
  *
  * @param datastore the storage callbacks to use for the table
  * @param table the ID of the table
- * @param timeout how long to wait for other peers to respond to 
- *   the leave request (has no impact on success or failure);
- *   but only timeout time is available for migrating data, so
- *   pick this value with caution.
- * @param flags  maximum number of parallel puts for migration (0
- *   implies 'use value from gnunet.conf').
  * @return SYSERR on error, OK on success
  */
-static int dht_leave(const DHT_TableId * table,
-		     cron_t timeout,
-		     unsigned int flags) {
+static int dht_leave(const DHT_TableId * table) {
   int i;
   int idx;
   LocalTableData old;
-  MigrationClosure cls;
   DHT_REMOVE_RECORD * remRec;
 
-  if (timeout > 1 * cronHOURS) {
-    LOG(LOG_WARNING,
-	_("'%s' called with timeout above 1 hour (bug?)\n"),
-	__FUNCTION__);
-    timeout = 1 * cronHOURS;    
-  }
   ENTER();
   MUTEX_LOCK(lock);
   idx = -1;
@@ -3086,62 +2748,27 @@ static int dht_leave(const DHT_TableId * table,
        tablesCount,
        tablesCount-1);
   MUTEX_UNLOCK(lock);
-  if (! equalsHashCode160(&masterTableId,
+  if (! equalsHashCode512(&masterTableId,
 			  table)) {
     /* issue dht_remove to remove this peer
        from the master table for this table;
        not needed/possible if we quit the DHT
        altogether... */
-    DHT_DataContainer value;
-    
-    value.dataLength = sizeof(HostIdentity);
-    value.data = coreAPI->myIdentity;
+    DataContainer * value;
+
+    value = MALLOC(sizeof(PeerIdentity) + sizeof(DataContainer));
+    value->size = htonl(sizeof(PeerIdentity) + sizeof(DataContainer));
+    memcpy(&value[1],
+	   coreAPI->myIdentity,
+	   sizeof(PeerIdentity));
     remRec = dht_remove_async_start(&masterTableId,
 				    table,
-				    timeout,
-				    &value,
-				    ALPHA,
+				    0,
+				    value,
 				    NULL,
 				    NULL);
-  } else {
-    remRec = NULL;
-  }
-
-  /* migrate content if applicable! */
-  if ((flags & DHT_FLAGS_TABLE_MIGRATION_FLAG) > 0) {
-    unsigned int count;
-
-    count = old.store->iterate(old.store->closure, 0,
-			       NULL, NULL);
-    cls.table = *table;
-    if (flags != 0) {
-      cls.maxPuts = flags;
-    } else {
-      cls.maxPuts = getConfigurationInt("DHT",
-					"MAX-MIGRATION-PARALLELISM");
-      if (cls.maxPuts == 0)
-	cls.maxPuts = 16;
-    }
-    /* migration time for each entry:
-       total time times parallelism by count */
-    cls.timeout = timeout * cls.maxPuts / count;
-    cls.puts = MALLOC(sizeof(DHT_PUT_RECORD*)*cls.maxPuts);
-    memset(cls.puts, 0, sizeof(DHT_PUT_RECORD*)*cls.maxPuts);
-    cls.putsPos = 0;
-    old.store->iterate(old.store->closure,
-		       0,
-		       (DHT_DataProcessor) &dht_migrate,
-		       &cls);
-    for (i=0;i<cls.maxPuts;i++)
-      if (cls.puts[i] != NULL) {
-	dht_put_async_stop(cls.puts[i]);
-	cls.puts[i] = NULL;
-      }
-    FREE(cls.puts);
-  }
-  /* clean up! */
-  if (remRec != NULL)
     dht_remove_async_stop(remRec);
+  }
   return OK;
 }
 
@@ -3151,13 +2778,11 @@ static int dht_leave(const DHT_TableId * table,
  *
  * @param arguments do we need any?
  * @param results::tables the tables we participate in (DHT_TableIds)
- * @param helos::HELOs for this peer (optional, not implemented)
+ * @param helos::hellos for this peer (optional)
  */
-static void rpc_DHT_ping(const HostIdentity * sender,
+static void rpc_DHT_ping(const PeerIdentity * sender,
 			 RPC_Param * arguments,
 			 RPC_Param * results) {
-  DHT_TableId * tabs;
-  int i;
 #if DEBUG_DHT
   EncName enc;
 
@@ -3165,22 +2790,16 @@ static void rpc_DHT_ping(const HostIdentity * sender,
 	hash2enc(&sender->hashPubKey,
 		 &enc));
   LOG(LOG_DEBUG,
-      "Received RPC '%s' from peer '%s'.\n",
+      "Received RPC `%s' from peer `%s'.\n",
       "DHT_ping",
       &enc);
 #endif
   ENTER();
-  MUTEX_LOCK(lock);
-  tabs = MALLOC(sizeof(DHT_TableId) * tablesCount);
-  for (i=0;i<tablesCount;i++)
-    tabs[i] = tables[i].id;
-  MUTEX_UNLOCK(lock);
-  RPC_paramAdd(results,
-	       "tables",
-	       sizeof(DHT_TableId) * tablesCount,
-	       tabs);
-  FREE(tabs);
-  /* OPTIMIZE-ME: optionally add helos here */
+  processOptionalFields(sender, arguments);
+  /* processes 'tables' */
+  addOptionalFields(results);
+  /* adds 'tables' (with very high probability since there's nothing else,
+     except if we participate in over 50 tables, which would be bad...) */
 }
 
 /**
@@ -3190,51 +2809,51 @@ static void rpc_DHT_ping(const HostIdentity * sender,
  * @param arguments::key the key to route towards
  * @param arguments::table the id of the table
  * @param results::peers list of peers found to participate in the given table with ID close to key;
- *    peers consists of HostIdentities one after the other. See 
+ *    peers consists of HostIdentities one after the other. See
  *    create_find_nodes_rpc_complete_callback for the parser of the reply.
- * @param results::list of tables that this peer participates in (optional,
- *    not implemented)
+ * @param results::tables list of tables that this peer participates in (optional)
  */
-static void rpc_DHT_findNode(const HostIdentity * sender,
+static void rpc_DHT_findNode(const PeerIdentity * sender,
 			     RPC_Param * arguments,
 			     RPC_Param * results) {
-  HashCode160 * key;
+  HashCode512 * key;
   DHT_TableId * table;
   unsigned int dataLength;
   unsigned int count;
   unsigned int k;
-  HostIdentity * peers;
+  PeerIdentity * peers;
 
   ENTER();
+  processOptionalFields(sender, arguments);
   key = NULL;
   table = NULL;
   if ( (OK != RPC_paramValueByName(arguments,
 				   "key",
 				   &dataLength,
 				   (void**) &key)) ||
-       (dataLength != sizeof(HashCode160)) ||
+       (dataLength != sizeof(HashCode512)) ||
        (OK != RPC_paramValueByName(arguments,
 				   "table",
 				   &dataLength,
 				   (void**) &table)) ||
-       (dataLength != sizeof(DHT_TableId)) ) {    
+       (dataLength != sizeof(DHT_TableId)) ) {
     LOG(LOG_WARNING,
-	_("Received invalid RPC '%s'.\n"),
+	_("Received invalid RPC `%s'.\n"),
 	"DHT_findNode");
     return;
   }
   k = ALPHA; /* optionally obtain k from arguments??? */
-  peers = MALLOC(sizeof(HostIdentity) * k);
+  peers = MALLOC(sizeof(PeerIdentity) * k);
   count = findLocalNodes(table,
 			 key,
 			 peers,
 			 k);
   RPC_paramAdd(results,
-	       "peers",
-	       count * sizeof(HostIdentity),
+	       "peer",
+	       count * sizeof(PeerIdentity),
 	       peers);
-  FREE(peers);  
-  /* OPTIMIZE-ME: optionally add table list here */
+  FREE(peers);
+  addOptionalFields(results);
 }
 
 /**
@@ -3247,37 +2866,27 @@ static void rpc_DHT_findNode(const HostIdentity * sender,
  */
 static void rpc_DHT_findValue_abort(RPC_DHT_FindValue_Context * fw) {
   RPC_Param * results;
-  int errorCode;
-  int i;
 
   ENTER();
-  delAbortJob((CronJob) &rpc_DHT_findValue_abort, 
+  delAbortJob((CronJob) &rpc_DHT_findValue_abort,
 	      fw);
   MUTEX_LOCK(&fw->lock);
   if (fw->done == YES) {
     MUTEX_UNLOCK(&fw->lock);
     return;
   }
-  dht_get_async_stop(fw->get_record); 
+  dht_get_async_stop(fw->get_record);
   fw->get_record = NULL;
 
-  /* build RPC reply, call RPC callback */ 
-  results = RPC_paramNew();
-  if (fw->count > 0) {
-    errorCode = RPC_ERROR_OK;
-    for (i=fw->count-1;i>=0;i--) 
-      RPC_paramAdd(results,
-		   "data",
-		   fw->results[i].dataLength,
-		   fw->results[i].data);
-  } else {
-    errorCode = RPC_ERROR_TIMEOUT;
-  }
-  if (fw->callback != NULL)
+  /* build RPC reply, call RPC callback */
+  if (fw->callback != NULL) {
+    results = RPC_paramNew();
+    addOptionalFields(results);
     fw->callback(results,
-		 errorCode,
+		 OK,
 		 fw->rpc_context);
-  RPC_paramFree(results);
+    RPC_paramFree(results);
+  }
   fw->done = YES;
   MUTEX_UNLOCK(&fw->lock);
 }
@@ -3288,61 +2897,60 @@ static void rpc_DHT_findValue_abort(RPC_DHT_FindValue_Context * fw) {
  * been accumulated this will also stop the cron-job and trigger
  * sending the cummulative reply via RPC.
  */
-static void rpc_dht_findValue_callback(const DHT_DataContainer * value,
-				       RPC_DHT_FindValue_Context * fw) {
-  int stop;
-
+static int rpc_dht_findValue_callback(const HashCode512 * key,
+				      const DataContainer * value,
+				      RPC_DHT_FindValue_Context * fw) {
   ENTER();
   MUTEX_LOCK(&fw->lock);
   GROW(fw->results,
        fw->count,
        fw->count+1);
-  fw->results[fw->count-1].dataLength = value->dataLength;
-  fw->results[fw->count-1].data = MALLOC(value->dataLength);
-  memcpy(fw->results[fw->count-1].data,
-	 value->data,
-	 value->dataLength);
-  stop = fw->count == fw->maxResults;
+  fw->results[fw->count-1] = MALLOC(ntohl(value->size));
+  memcpy(fw->results[fw->count-1],
+	 value,
+	 ntohl(value->size));
   MUTEX_UNLOCK(&fw->lock);
-  if (stop) {
-    /* don't wait for timeout, run now! */
-    advanceCronJob((CronJob) &rpc_DHT_findValue_abort,
-		   0,
-		   fw);
-  }
+  return OK;
+}
+
+static void rpc_dht_findValue_complete(RPC_DHT_FindValue_Context * ctx) {
+  /* FIXME! */
+
 }
 
 /**
  * Asynchronous RPC function called for 'findValue' RPC.
  *
- * @param arguments::key the key to search for
+ * @param arguments::keys the keys to search for
  * @param arguments::table the table to search in
  * @param arguments::timeout how long to wait at most
- * @param arguments::maxResults how many replies to send at most
+ * @param arguments::type type of the request (block type)
  * @param callback function to call with results when done
  * @param context additional argument to callback
  * @param results::data the result of the get operation
  * @param results::tables optional argument describing the tables
- *   that this peer participates in (not implemented)
+ *   that this peer participates in
  */
-static void rpc_DHT_findValue(const HostIdentity * sender,
+static void rpc_DHT_findValue(const PeerIdentity * sender,
 			      RPC_Param * arguments,
 			      Async_RPC_Complete_Callback callback,
 			      struct CallInstance * rpc_context) {
-  HashCode160 * key;
+  HashCode512 * keys;
   DHT_TableId * table;
   unsigned long long * timeout;
-  unsigned int * maxResults;
+  unsigned int * type;
+  unsigned int keysLength;
   unsigned int dataLength;
   RPC_DHT_FindValue_Context * fw_context;
-  
+
   ENTER();
+  processOptionalFields(sender, arguments);
   /* parse arguments */
   if ( (OK != RPC_paramValueByName(arguments,
-				   "key",
-				   &dataLength,
-				   (void**) &key)) ||
-       (dataLength != sizeof(HashCode160)) ||
+				   "keys",
+				   &keysLength,
+				   (void**) &keys)) ||
+       (0 != (keysLength % sizeof(HashCode512))) ||
        (OK != RPC_paramValueByName(arguments,
 				   "table",
 				   &dataLength,
@@ -3354,38 +2962,41 @@ static void rpc_DHT_findValue(const HostIdentity * sender,
 				   (void**) &timeout)) ||
        (dataLength != sizeof(unsigned long long)) ||
        (OK != RPC_paramValueByName(arguments,
-				   "maxResults",
+				   "type",
 				   &dataLength,
-				   (void**) &maxResults)) ||
-       (dataLength != sizeof(unsigned int)) ) {    
+				   (void**) &type)) ||
+       (dataLength != sizeof(unsigned int)) ) {
     LOG(LOG_WARNING,
-	_("Received invalid RPC '%s'.\n"),
+	_("Received invalid RPC `%s'.\n"),
 	"DHT_findValue");
     return;
-  }   
+  }
 
-  fw_context 
+  fw_context
     = MALLOC(sizeof(RPC_DHT_FindValue_Context));
   MUTEX_CREATE_RECURSIVE(&fw_context->lock);
-  fw_context->maxResults
-    = ntohl(*maxResults);
   fw_context->count
     = 0;
   fw_context->done
     = NO;
-  fw_context->results 
+  fw_context->results
     = NULL;
   fw_context->callback
     = callback;
   fw_context->rpc_context
     = rpc_context;
-  fw_context->get_record 
+  fw_context->get_record
     = dht_get_async_start(table,
-			  key,
+			  ntohl(*type),
+			  keysLength / sizeof(HashCode512),
+			  keys,
 			  ntohll(*timeout),
-			  ntohl(*maxResults),
-			  (DHT_GET_Complete) &rpc_dht_findValue_callback,
+			  (DataProcessor) &rpc_dht_findValue_callback,
+			  fw_context,
+			  (DHT_OP_Complete) &rpc_dht_findValue_complete,
 			  fw_context);
+  /* FIXME: manage abort properly, also fix
+     rpc_dht_findValue_complete! */
   addAbortJob((CronJob)&rpc_DHT_findValue_abort,
 	      fw_context);
   addCronJob((CronJob)&rpc_DHT_findValue_abort,
@@ -3404,8 +3015,6 @@ static void rpc_DHT_findValue(const HostIdentity * sender,
  */
 static void rpc_DHT_store_abort(RPC_DHT_store_Context * fw) {
   RPC_Param * results;
-  int errorCode;
-  int i;
 
   ENTER();
   delAbortJob((CronJob) &rpc_DHT_store_abort,
@@ -3418,23 +3027,15 @@ static void rpc_DHT_store_abort(RPC_DHT_store_Context * fw) {
   dht_put_async_stop(fw->put_record);
   fw->put_record = NULL;
 
-  /* build RPC reply, call RPC callback */ 
-  results = RPC_paramNew();
-  if (fw->count > 0) {
-    errorCode = RPC_ERROR_OK;
-    for (i=fw->count-1;i>=0;i--) 
-      RPC_paramAdd(results,
-		   "peer",
-		   sizeof(HostIdentity),
-		   &fw->peers[i]);
-  } else {
-    errorCode = RPC_ERROR_TIMEOUT;
-  }
-  if (fw->callback != NULL)
+  /* build RPC reply, call RPC callback */
+  if (fw->callback != NULL) {
+    results = RPC_paramNew();
+    addOptionalFields(results);
     fw->callback(results,
-		 errorCode,
+		 OK,
 		 fw->rpc_context);
-  RPC_paramFree(results);
+    RPC_paramFree(results);
+  }
   fw->done = YES;
   MUTEX_UNLOCK(&fw->lock);
 }
@@ -3445,44 +3046,30 @@ static void rpc_DHT_store_abort(RPC_DHT_store_Context * fw) {
  * the value, this will also stop the cron-job and trigger
  * sending the cummulative reply via RPC.
  */
-static void rpc_dht_store_callback(const HostIdentity * store,
-				   RPC_DHT_store_Context * fw) {
-  int stop;
-
-  MUTEX_LOCK(&fw->lock);
-  GROW(fw->peers,
-       fw->count,
-       fw->count+1);
-  fw->peers[fw->count-1] = *store;
-  stop = fw->count == fw->replicationLevel;
-  MUTEX_UNLOCK(&fw->lock);
-  if (stop) {
-    /* don't wait for timeout, run now! */
-    advanceCronJob((CronJob) &rpc_DHT_store_abort,
-		   0,
-		   fw);
-  }
+static void rpc_dht_store_callback(RPC_DHT_store_Context * fw) {
+  /* FIXME: shutdown coordination! */
 }
 
-static void rpc_DHT_store(const HostIdentity * sender,
+static void rpc_DHT_store(const PeerIdentity * sender,
 			  RPC_Param * arguments,
 			  Async_RPC_Complete_Callback callback,
 			  struct CallInstance * rpc_context) {
-  HashCode160 * key;
+  HashCode512 * key;
   DHT_TableId * table;
   unsigned int dataLength;
-  DHT_DataContainer value;
+  DataContainer * value;
   unsigned long long * timeout;
   RPC_DHT_store_Context * fw_context;
   LocalTableData * ltd;
-  
+
   ENTER();
+  processOptionalFields(sender, arguments);
   /* parse arguments */
   if ( (OK != RPC_paramValueByName(arguments,
 				   "key",
 				   &dataLength,
 				   (void**) &key)) ||
-       (dataLength != sizeof(HashCode160)) ||
+       (dataLength != sizeof(HashCode512)) ||
        (OK != RPC_paramValueByName(arguments,
 				   "table",
 				   &dataLength,
@@ -3493,54 +3080,47 @@ static void rpc_DHT_store(const HostIdentity * sender,
 				   &dataLength,
 				   (void**) &timeout)) ||
        (dataLength != sizeof(unsigned long long)) ||
-       (OK != RPC_paramValueByName(arguments,
-				   "value",
-				   &value.dataLength,
-				   (void**) &value.data)) ) {
+       ((NULL == (value = RPC_paramDataContainerByName(arguments,
+						       "value")))) ) {
     LOG(LOG_WARNING,
-	_("Received invalid RPC '%s'.\n"),
+	_("Received invalid RPC `%s'.\n"),
 	"DHT_store");
     return;
-  }   
+  }
 
-  fw_context 
+  fw_context
     = MALLOC(sizeof(RPC_DHT_store_Context));
   MUTEX_CREATE_RECURSIVE(&fw_context->lock);
   MUTEX_LOCK(lock);
   ltd = getLocalTableData(table);
-  if (ltd == NULL) {    
+  if (ltd == NULL) {
     LOG(LOG_WARNING,
-	"RPC for DHT_store received for table that we do not participate in!\n");
-    fw_context->replicationLevel = 1; /* or 0?  Well, for now we'll just try to 
-					 find another peer anyway */
-  } else {
-    fw_context->replicationLevel = ltd->flags & DHT_FLAGS_TABLE_REPLICATION_MASK;
+	_("RPC for `%s' received for table that we do not participate in!\n"),
+	"DHT_store");
   }
   MUTEX_UNLOCK(lock);
-  fw_context->count
-    = 0;
   fw_context->done
     = NO;
-  fw_context->peers
-    = NULL;
   fw_context->callback
     = callback;
   fw_context->rpc_context
     = rpc_context;
-  fw_context->put_record 
+  fw_context->put_record
     = dht_put_async_start(table,
 			  key,
 			  ntohll(*timeout),
-			  &value,
-			  fw_context->replicationLevel,
-			  (DHT_PUT_Complete) &rpc_dht_store_callback,
+			  value,
+			  (DHT_OP_Complete) &rpc_dht_store_callback,
 			  fw_context);
+  /* FIXME: fix shutdown
+     (also fix rpc_dht_store_callback) */
   addAbortJob((CronJob)&rpc_DHT_store_abort,
 	      fw_context);
   addCronJob((CronJob)&rpc_DHT_store_abort,
 	     ntohll(*timeout),
 	     0,
 	     fw_context);
+  FREE(value);
 }
 
 /**
@@ -3553,8 +3133,6 @@ static void rpc_DHT_store(const HostIdentity * sender,
  */
 static void rpc_DHT_remove_abort(RPC_DHT_remove_Context * fw) {
   RPC_Param * results;
-  int errorCode;
-  int i;
 
   ENTER();
   delAbortJob((CronJob) &rpc_DHT_remove_abort,
@@ -3567,21 +3145,12 @@ static void rpc_DHT_remove_abort(RPC_DHT_remove_Context * fw) {
   dht_remove_async_stop(fw->remove_record);
   fw->remove_record = NULL;
 
-  /* build RPC reply, call RPC callback */ 
+  /* build RPC reply, call RPC callback */
   results = RPC_paramNew();
-  if (fw->count > 0) {
-    errorCode = RPC_ERROR_OK;
-    for (i=fw->count-1;i>=0;i--) 
-      RPC_paramAdd(results,
-		   "peer",
-		   sizeof(HostIdentity),
-		   &fw->peers[i]);
-  } else {
-    errorCode = RPC_ERROR_TIMEOUT;
-  }
+  addOptionalFields(results);
   if (fw->callback != NULL)
     fw->callback(results,
-		 errorCode,
+		 OK,
 		 fw->rpc_context);
   RPC_paramFree(results);
   fw->done = YES;
@@ -3594,24 +3163,8 @@ static void rpc_DHT_remove_abort(RPC_DHT_remove_Context * fw) {
  * number of replicas this will also stop the cron-job and trigger
  * sending the cummulative reply via RPC.
  */
-static void rpc_dht_remove_callback(const HostIdentity * store,
-				    RPC_DHT_remove_Context * fw) {
-  int stop;
-  
-  ENTER();
-  MUTEX_LOCK(&fw->lock);
-  GROW(fw->peers,
-       fw->count,
-       fw->count+1);
-  fw->peers[fw->count-1] = *store;
-  stop = fw->count == fw->replicationLevel;
-  MUTEX_UNLOCK(&fw->lock);
-  if (stop) {
-    /* don't wait for timeout, run now! */
-    advanceCronJob((CronJob) &rpc_DHT_remove_abort,
-		   0,
-		   fw);
-  }
+static void rpc_dht_remove_callback(RPC_DHT_remove_Context * fw) {
+  /* FIXME: shutdown sequence! */
 }
 
 /**
@@ -3625,25 +3178,26 @@ static void rpc_dht_remove_callback(const HostIdentity * store,
  * @param callback RPC service function to call once we are done
  * @param rpc_context extra argument to callback
  */
-static void rpc_DHT_remove(const HostIdentity * sender,
+static void rpc_DHT_remove(const PeerIdentity * sender,
 			   RPC_Param * arguments,
 			   Async_RPC_Complete_Callback callback,
 			   struct CallInstance * rpc_context) {
-  HashCode160 * key;
+  HashCode512 * key;
   DHT_TableId * table;
   unsigned int dataLength;
-  DHT_DataContainer value;
+  DataContainer * value;
   unsigned long long * timeout;
   RPC_DHT_remove_Context * fw_context;
   LocalTableData * ltd;
-  
+
   ENTER();
+  processOptionalFields(sender, arguments);
   /* parse arguments */
   if ( (OK != RPC_paramValueByName(arguments,
 				   "key",
 				   &dataLength,
 				   (void**) &key)) ||
-       (dataLength != sizeof(HashCode160)) ||
+       (dataLength != sizeof(HashCode512)) ||
        (OK != RPC_paramValueByName(arguments,
 				   "table",
 				   &dataLength,
@@ -3655,55 +3209,45 @@ static void rpc_DHT_remove(const HostIdentity * sender,
 				   (void**) &timeout)) ||
        (dataLength != sizeof(unsigned long long)) ) {
     LOG(LOG_WARNING,
-	_("Received invalid RPC '%s'.\n"),
-	"DHT_store");
+	_("Received invalid RPC `%s'.\n"),
+	"DHT_remove");
     return;
-  }   
-    
-  if (OK != RPC_paramValueByName(arguments,
-				 "value",
-				 &value.dataLength,
-				 (void**) &value.data))
-    value.dataLength = 0;
+  }
 
-  fw_context 
+  value = RPC_paramDataContainerByName(arguments,
+				       "value");
+  fw_context
     = MALLOC(sizeof(RPC_DHT_remove_Context));
   MUTEX_CREATE_RECURSIVE(&fw_context->lock);
   MUTEX_LOCK(lock);
   ltd = getLocalTableData(table);
-  if (ltd == NULL) {    
+  if (ltd == NULL) {
     LOG(LOG_DEBUG,
-	"RPC for DHT_removed received for table that we do not participate in!\n");
-    fw_context->replicationLevel = 1; /* or 0?  Well, for now we'll just try to 
-					 find another peer anyway */
-  } else {
-    fw_context->replicationLevel = ltd->flags & DHT_FLAGS_TABLE_REPLICATION_MASK;
+	_("RPC for `%s' received for table that we do not participate in!\n"),
+	"DHT_removed");
   }
   MUTEX_UNLOCK(lock);
-  fw_context->count
-    = 0;
   fw_context->done
     = NO;
-  fw_context->peers
-    = NULL;
   fw_context->callback
     = callback;
   fw_context->rpc_context
     = rpc_context;
-  fw_context->remove_record 
+  fw_context->remove_record
     = dht_remove_async_start(table,
 			     key,
 			     ntohll(*timeout),
-			     (value.dataLength==0) ? NULL : &value,
-			     fw_context->replicationLevel,
-			     (DHT_REMOVE_Complete) &rpc_dht_remove_callback,
+			     value,
+			     (DHT_OP_Complete) &rpc_dht_remove_callback,
 			     fw_context);
+  /* FIXME: shutdown sequence! */
   addAbortJob((CronJob)&rpc_DHT_remove_abort,
 	      fw_context);
   addCronJob((CronJob)&rpc_DHT_remove_abort,
 	     ntohll(*timeout),
 	     0,
 	     fw_context);
+  FREE(value);
 }
 
 /**
@@ -3715,7 +3259,7 @@ static void rpc_DHT_remove(const HostIdentity * sender,
  * to free the associated resources.  The point is chosen such
  * that the cron-job will not allocate new resources (since all
  * tables and all buckets are empty at that point).
- */ 
+ */
 static void dhtMaintainJob(void * shutdownFlag) {
   static struct RPC_Record ** pingRecords = NULL;
   static cron_t * pingTimes = NULL;
@@ -3730,11 +3274,11 @@ static void dhtMaintainJob(void * shutdownFlag) {
   static unsigned int findRecordsSize = 0;
   static unsigned int findTimesSize = 0;
   int i;
-  Vector * request_param;
+  RPC_Param * request_param;
   PeerBucket * bucket;
   PeerInfo * pos;
   cron_t now;
-  DHT_DataContainer value;
+  DataContainer * value;
 
   ENTER();
   MUTEX_LOCK(lock);
@@ -3742,7 +3286,7 @@ static void dhtMaintainJob(void * shutdownFlag) {
   printRoutingTable();
   /* first, free resources from ASYNC calls started last time */
   LOG(LOG_CRON,
-      "'%s' stops async requests from last cron round.\n",
+      "`%s' stops async requests from last cron round.\n",
       __FUNCTION__);
 #endif
   cronTime(&now);
@@ -3752,10 +3296,10 @@ static void dhtMaintainJob(void * shutdownFlag) {
       dht_put_async_stop(putRecords[i]);
       putRecords[i] = putRecords[putRecordsSize-1];
       putTimes[i] = putTimes[putRecordsSize-1];
-      GROW(putRecords, 
+      GROW(putRecords,
 	   putRecordsSize,
 	   putRecordsSize-1);
-      GROW(putRecords, 
+      GROW(putRecords,
 	   putTimesSize,
 	   putTimesSize-1);
     }
@@ -3791,7 +3335,7 @@ static void dhtMaintainJob(void * shutdownFlag) {
     }
   }
   if (shutdownFlag != NULL) {
-    MUTEX_UNLOCK(lock);    
+    MUTEX_UNLOCK(lock);
     return;
   }
 
@@ -3799,18 +3343,21 @@ static void dhtMaintainJob(void * shutdownFlag) {
 
   /* for all of our tables, do a PUT on the master table */
   request_param = vectorNew(4);
-  value.dataLength = sizeof(HostIdentity);
-  value.data = coreAPI->myIdentity;
+  value = MALLOC(sizeof(PeerIdentity) + sizeof(DataContainer));
+  value->size = htonl(sizeof(PeerIdentity) + sizeof(DataContainer));
+  memcpy(&value[1],
+	 coreAPI->myIdentity,
+	 sizeof(PeerIdentity));
 #if DEBUG_DHT
   LOG(LOG_CRON,
-      "'%s' issues DHT_PUTs to advertise tables this peer participates in.\n",
+      "`%s' issues DHT_PUTs to advertise tables this peer participates in.\n",
       __FUNCTION__);
 #endif
-    
+
   for (i=0;i<tablesCount;i++) {
     if (tables[i].lastMasterAdvertisement + DHT_MAINTAIN_BUCKET_FREQUENCY < now) {
       tables[i].lastMasterAdvertisement = now;
-      if (equalsHashCode160(&tables[i].id, 
+      if (equalsHashCode512(&tables[i].id,
 			    &masterTableId))
 	continue;
       GROW(putRecords,
@@ -3819,25 +3366,25 @@ static void dhtMaintainJob(void * shutdownFlag) {
       GROW(putTimes,
 	   putTimesSize,
 	   putTimesSize+1);
-      putRecords[putRecordsSize-1] 
+      putRecords[putRecordsSize-1]
 	= dht_put_async_start(&masterTableId,
 			      &tables[i].id,
 			      DHT_MAINTAIN_BUCKET_FREQUENCY,
-			      &value,
-			      ALPHA,
+			      value,
 			      NULL,
 			      NULL);
-      putTimes[putTimesSize-1] = now;    
+      putTimes[putTimesSize-1] = now;
     }
   }
   vectorFree(request_param);
-  
+  FREE(value);
+
   /*
     for each table that we have joined gather OUR neighbours
   */
 #if DEBUG_DHT
   LOG(LOG_CRON,
-      "'%s' issues findNodes for each table that we participate in.\n",
+      "`%s' issues findNodes for each table that we participate in.\n",
       __FUNCTION__);
 #endif
   for (i=0;i<tablesCount;i++) {
@@ -3849,21 +3396,21 @@ static void dhtMaintainJob(void * shutdownFlag) {
       GROW(findTimes,
 	   findTimesSize,
 	   findTimesSize+1);
-      findRecords[findRecordsSize-1] 
+      findRecords[findRecordsSize-1]
 	= findNodes_start(&tables[i].id,
 			  &coreAPI->myIdentity->hashPubKey,
 			  DHT_MAINTAIN_FIND_FREQUENCY);
       findTimes[findTimesSize-1] = now;
     }
   }
-  /* 
+  /*
      for all peers in RT:
      a) if lastTableRefresh is very old, send ping
      b) if lastActivity is very very old, drop
   */
 #if DEBUG_DHT
   LOG(LOG_CRON,
-      "'%s' issues put to advertise tables that we participate in.\n",
+      "`%s' issues put to advertise tables that we participate in.\n",
       __FUNCTION__);
 #endif
   request_param = vectorNew(4);
@@ -3892,7 +3439,7 @@ static void dhtMaintainJob(void * shutdownFlag) {
 	      hash2enc(&pos->id.hashPubKey,
 		       &enc));
 	LOG(LOG_DEBUG,
-	    "sending RPC '%s' to peer '%s'.\n",
+	    "sending RPC `%s' to peer `%s'.\n",
 	    "DHT_ping",
 	    &enc);
 #endif
@@ -3909,24 +3456,24 @@ static void dhtMaintainJob(void * shutdownFlag) {
 			      request_param,
 			      0,
 			      DHT_PING_FREQUENCY,
-			      (RPC_Complete) &ping_reply_handler, 
+			      (RPC_Complete) &ping_reply_handler,
 			      NULL);
-	pingTimes[pingTimesSize-1] 
+	pingTimes[pingTimesSize-1]
 	  = now;
-      }   
+      }
       pos = vectorGetNext(bucket->peers);
     }
   } /* end for all buckets */
   vectorFree(request_param);
 
-  /* 
+  /*
      OPTIMIZE-ME:
      for all content in all tables:
      check if this peer should still be responsible for
      it, if not, migrate!
   */
   MUTEX_UNLOCK(lock);
-} 
+}
 
 /**
  * Provide the DHT service.  The DHT service depends on the RPC
@@ -3935,10 +3482,10 @@ static void dhtMaintainJob(void * shutdownFlag) {
  * @param capi the core API
  * @return NULL on errors, DHT_API otherwise
  */
-DHT_ServiceAPI * provide_dht_protocol(CoreAPIForApplication * capi) {
+DHT_ServiceAPI * provide_module_dht(CoreAPIForApplication * capi) {
   static DHT_ServiceAPI api;
   unsigned int i;
-  
+
   ENTER();
   coreAPI = capi;
   rpcAPI = capi->requestService("rpc");
@@ -3946,17 +3493,17 @@ DHT_ServiceAPI * provide_dht_protocol(CoreAPIForApplication * capi) {
     return NULL;
   i = getConfigurationInt("DHT",
 			  "BUCKETCOUNT");
-  if ( (i == 0) || (i > 160) )
-    i = 160;
+  if ( (i == 0) || (i > 512) )
+    i = 512;
   GROW(buckets,
        bucketCount,
        i);
   for (i=0;i<bucketCount;i++) {
-    buckets[i].bstart = 160 * i / bucketCount;
-    buckets[i].bend = 160 * (i+1) / bucketCount;
+    buckets[i].bstart = 512 * i / bucketCount;
+    buckets[i].bend = 512 * (i+1) / bucketCount;
     buckets[i].peers = vectorNew(4);
   }
-  
+
   rpcAPI->RPC_register("DHT_ping",
 		       &rpc_DHT_ping);
   rpcAPI->RPC_register("DHT_findNode",
@@ -3968,9 +3515,6 @@ DHT_ServiceAPI * provide_dht_protocol(CoreAPIForApplication * capi) {
   rpcAPI->RPC_register_async("DHT_remove",
 			     &rpc_DHT_remove);
   lock = coreAPI->getConnectionModuleLock();
-  api.get = &dht_get;
-  api.put = &dht_put;
-  api.remove = &dht_remove;
   api.join = &dht_join;
   api.leave = &dht_leave;
   api.get_start = &dht_get_async_start;
@@ -3980,18 +3524,16 @@ DHT_ServiceAPI * provide_dht_protocol(CoreAPIForApplication * capi) {
   api.remove_start = &dht_remove_async_start;
   api.remove_stop = &dht_remove_async_stop;
 
-  memset(&masterTableId, 0, sizeof(HashCode160));
+  memset(&masterTableId, 0, sizeof(HashCode512));
   /* join the master table */
   i = getConfigurationInt("DHT",
 			  "MASTER-TABLE-SIZE");
   if (i == 0)
     i = 65536; /* 64k memory should suffice */
-  masterTableDatastore 
+  masterTableDatastore
     = create_datastore_dht_master(i);
   dht_join(masterTableDatastore,
-	   &masterTableId,
-	   0,
-	   ALPHA); /* replication level = ALPHA! */
+	   &masterTableId);
   addCronJob(&dhtMaintainJob,
 	     0,
 	     DHT_MAINTAIN_FREQUENCY,
@@ -4002,7 +3544,7 @@ DHT_ServiceAPI * provide_dht_protocol(CoreAPIForApplication * capi) {
 /**
  * Shutdown DHT service.
  */
-int release_dht_protocol() {
+int release_module_dht() {
   unsigned int i;
   PeerInfo * bucket;
 
@@ -4028,15 +3570,13 @@ int release_dht_protocol() {
     abortTable[0].job(abortTable[0].arg);
   }
   /* leave the master table */
-  dht_leave(&masterTableId,
-	    0,
-	    0);  
+  dht_leave(&masterTableId);
   for (i=0;i<bucketCount;i++) {
     bucket = (PeerInfo*) vectorGetFirst(buckets[i].peers);
     while (bucket != NULL) {
       GROW(bucket->tables,
 	   bucket->tableCount,
-	   0); 
+	   0);
       bucket = (PeerInfo*) vectorGetNext(buckets[i].peers);
     }
     vectorFree(buckets[i].peers);

@@ -27,9 +27,9 @@
 #define DUMP(v) fprintf(stderr, "At %d: \n", __LINE__); vectorDump(v);
 
 static int test(int size) {
-  Vector * v;
-   
-  v = vectorNew(size);   
+  struct Vector * v;
+
+  v = vectorNew(size);
   if (0 != vectorSize(v))
     { DUMP(v); return 1; }
   if (OK != vectorInsertAt(v, "first", 0))
@@ -81,15 +81,15 @@ static int test(int size) {
 
 static int test2(int size) {
   int i;
-  Vector * v;
+  struct Vector * v;
 
-  v = vectorNew(size);   
-  
+  v = vectorNew(size);
+
   for (i=0;i<500;i++)
     if (OK != vectorInsertAt(v, (void*)i, 0))
       { DUMP(v); return 1; }
   if (500 != vectorSize(v))
-    { DUMP(v); return 1; } 
+    { DUMP(v); return 1; }
   for (i=0;i<500;i++)
     if (499 - i != (int) vectorGetAt(v, i))
       { DUMP(v); return 1; }
@@ -106,7 +106,7 @@ static int test2(int size) {
       { DUMP(v); return 1; }
   for (i=251;i<499;i++)
     if (i != (int) vectorGetPrevious(v))
-      { DUMP(v); return 1; }    
+      { DUMP(v); return 1; }
 
   vectorFree(v);
   return 0;

@@ -1,5 +1,6 @@
 /*
      This file is part of GNUnet
+     (C) 2002, 2003, 2004, 2005 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -24,84 +25,78 @@
  */
 
 #include "gnunet_util.h"
+#include "gnunet_protocols.h"
 #include "gnunet_transport.h"
+#include "gnunet_stats_service.h"
 #include "platform.h"
+#include "ip.h"
 
 #define DEBUG_TCP NO
 
 /**
  * after how much time of the core not being associated with a tcp
- * connection anymore do we close it? 
+ * connection anymore do we close it?
  */
-#define TCP_TIMEOUT 30 * cronSECONDS
+#define TCP_TIMEOUT (30 * cronSECONDS)
+
+#define TARGET_BUFFER_SIZE 4092
 
 /**
  * Host-Address in a TCP network.
  */
 typedef struct {
   /**
-   * claimed IP of the sender, network byte order 
-   */  
+   * claimed IP of the sender, network byte order
+   */
   IPaddr ip;
 
   /**
-   * claimed port of the sender, network byte order 
+   * claimed port of the sender, network byte order
    */
-  unsigned short port; 
+  unsigned short port;
 
   /**
-   * reserved (set to 0 for signature verification) 
+   * reserved (set to 0 for signature verification)
    */
-  unsigned short reserved; 
+  unsigned short reserved;
 
 } HostAddress;
 
 /**
- * TCP Message-Packet header. 
+ * TCP Message-Packet header.
  */
 typedef struct {
   /**
-   * size of the message, in bytes, including this header; 
-   * max 65536-header (network byte order) 
+   * size of the message, in bytes, excluding this header;
+   * max 65535; we do NOT want to make this field an int
+   * because then a malicious peer could cause us to allocate
+   * lots of memory -- this bounds it by 64k/peer.
+   * Field is in network byte order.
    */
   unsigned short size;
 
   /**
-   * reserved, must be 0 (network byte order) 
+   * For alignment, always 0.
    */
-  unsigned short isEncrypted;
+  unsigned short reserved;
 
   /**
-   * CRC checksum of the packet  (network byte order)
-   */ 
-  int checkSum;
-  
-  /**
-   * This struct is followed by MESSAGE_PARTs - until size is reached 
+   * This struct is followed by MESSAGE_PARTs - until size is reached
    * There is no "end of message".
    */
-  p2p_HEADER parts[0];
-} TCPMessagePack;
+} TCPP2P_PACKET;
 
 /**
  * Initial handshake message. Note that the beginning
- * must match the CS_HEADER since we are using tcpio.
+ * must match the CS_MESSAGE_HEADER since we are using tcpio.
  */
 typedef struct {
-  /**
-   * size of the handshake message, in nbo, value is 24 
-   */    
-  unsigned short size;
+  TCPP2P_PACKET header;
 
   /**
-   * "message type", TCP version number, always 0.
+   * Identity of the node connecting (TCP client)
    */
-  unsigned short version;
-
-  /**
-   * Identity of the node connecting (TCP client) 
-   */
-  HostIdentity clientIdentity;
+  PeerIdentity clientIdentity;
 } TCPWelcome;
 
 /**
@@ -109,12 +104,12 @@ typedef struct {
  */
 typedef struct {
   /**
-   * the tcp socket 
+   * the tcp socket
    */
   int sock;
 
   /**
-   * number of users of this session 
+   * number of users of this session
    */
   int users;
 
@@ -124,7 +119,7 @@ typedef struct {
   cron_t lastUse;
 
   /**
-   * mutex for synchronized access to 'users' 
+   * mutex for synchronized access to 'users'
    */
   Mutex lock;
 
@@ -132,7 +127,7 @@ typedef struct {
    * To whom are we talking to (set to our identity
    * if we are still waiting for the welcome message)
    */
-  HostIdentity sender;
+  PeerIdentity sender;
 
   /**
    * Are we still expecting the welcome? (YES/NO)
@@ -142,12 +137,12 @@ typedef struct {
   /**
    * Current read position in the buffer.
    */
-  unsigned int pos;  
+  unsigned int pos;
 
   /**
-   * Current size of the buffer.
+   * Current size of the read buffer.
    */
-  unsigned int size;
+  unsigned int rsize;
 
   /**
    * The read buffer.
@@ -164,19 +159,32 @@ typedef struct {
    */
   char * wbuff;
 
+  /**
+   * Size of the write buffer
+   */
+  unsigned int wsize;
+
 } TCPSession;
 
 /* *********** globals ************* */
 
 /**
- * apis (our advertised API and the core api ) 
+ * apis (our advertised API and the core api )
  */
 static CoreAPIForTransport * coreAPI;
 static TransportAPI tcpAPI;
 
+static Stats_ServiceAPI * stats;
+
+static int stat_bytesReceived;
+
+static int stat_bytesSent;
+
+static int stat_bytesDropped;
+
 /**
  * one thread for listening for new connections,
- * and for reading on all open sockets 
+ * and for reading on all open sockets
  */
 static PTHREAD_T listenThread;
 
@@ -194,20 +202,14 @@ static int tcp_sock;
 static int tcp_pipe[2];
 
 /**
- * Array of currently active TCP sessions. 
+ * Array of currently active TCP sessions.
  */
 static TSession ** tsessions = NULL;
-static int tsessionCount;
-static int tsessionArrayLength;
-
-/**
- * handles for statistics 
- */
-static int stat_octets_total_tcp_in;
-static int stat_octets_total_tcp_out;
+static unsigned int tsessionCount;
+static unsigned int tsessionArrayLength;
 
 /* configuration */
-static CIDRNetwork * filteredNetworks_;
+static struct CIDRNetwork * filteredNetworks_;
 
 /**
  * Lock for access to mutable state of the module,
@@ -257,7 +259,7 @@ static void signalSelect() {
   ret = WRITE(tcp_pipe[1],
 	      &i,
 	      sizeof(char));
-  if (ret != sizeof(char)) 
+  if (ret != sizeof(char))
     LOG_STRERROR(LOG_ERROR, "write");
 }
 
@@ -285,6 +287,7 @@ static int tcpDisconnect(TSession * tsession) {
     MUTEX_DESTROY(&tcpsession->lock);
     FREE(tcpsession->rbuff);
     FREENONNULL(tcpsession->wbuff);
+    tcpsession->wbuff = NULL;
     FREE(tcpsession);
   }
   FREE(tsession);
@@ -304,14 +307,14 @@ static int tcpDisconnect(TSession * tsession) {
  *
  * @param i index to the session handle
  */
-static void destroySession(int i) {  
+static void destroySession(int i) {
   TCPSession * tcpSession;
 
   tcpSession = tsessions[i]->internal;
   if (tcpSession->sock != -1)
     if (0 != SHUTDOWN(tcpSession->sock, SHUT_RDWR))
       LOG_STRERROR(LOG_EVERYTHING, "shutdown");
-  CLOSE(tcpSession->sock);
+  closefile(tcpSession->sock);
   tcpSession->sock = -1;
   tcpDisconnect(tsessions[i]);
   tsessions[i] = tsessions[--tsessionCount];
@@ -320,7 +323,7 @@ static void destroySession(int i) {
 
 /**
  * Get the GNUnet UDP port from the configuration,
- * or from /etc/services if it is not specified in 
+ * or from /etc/services if it is not specified in
  * the config file.
  */
 static unsigned short getGNUnetTCPPort() {
@@ -330,8 +333,8 @@ static unsigned short getGNUnetTCPPort() {
   port = (unsigned short) getConfigurationInt("TCP",
 					      "PORT");
   if (port == 0) { /* try lookup in services */
-    if ((pse = getservbyname("gnunet", "tcp"))) 
-      port = htons(pse->s_port);      
+    if ((pse = getservbyname("gnunet", "tcp")))
+      port = htons(pse->s_port);
   }
   return port;
 }
@@ -348,7 +351,7 @@ static unsigned short getGNUnetTCPPort() {
  * for eventually freeing resources associated with the tesession). If
  * session is not NULL, the core takes responsbility for eventually
  * calling disconnect.
- * 
+ *
  * @param tsession the session handle passed along
  *   from the call to receive that was made by the transport
  *   layer
@@ -371,7 +374,7 @@ static int tcpAssociate(TSession * tsession) {
 
 /**
  * The socket of session i has data waiting, process!
- * 
+ *
  * This function may only be called if the tcplock is
  * already held by the caller.
  */
@@ -380,16 +383,26 @@ static int readAndProcess(int i) {
   TCPSession * tcpSession;
   unsigned int len;
   int ret;
-  TCPMessagePack * pack;
-  MessagePack * mp;
+  TCPP2P_PACKET * pack;
+  P2P_PACKET * mp;
 
   tsession = tsessions[i];
   if (SYSERR == tcpAssociate(tsession))
     return SYSERR;
   tcpSession = tsession->internal;
+  if (tcpSession->rsize == tcpSession->pos) {
+    /* read buffer too small, grow */
+    GROW(tcpSession->rbuff,
+	 tcpSession->rsize,
+	 tcpSession->rsize * 2);
+  }
   ret = READ(tcpSession->sock,
 	     &tcpSession->rbuff[tcpSession->pos],
-	     tcpSession->size - tcpSession->pos);
+	     tcpSession->rsize - tcpSession->pos);
+  if ( (ret > 0) &&
+       (stats != NULL) )
+    stats->change(stat_bytesReceived,
+		  ret);
   cronTime(&tcpSession->lastUse);
   if (ret == 0) {
     tcpDisconnect(tsession);
@@ -402,12 +415,12 @@ static int readAndProcess(int i) {
   }
   if (ret < 0) {
     if ( (errno == EINTR) ||
-	 (errno == EAGAIN) ) { 
+	 (errno == EAGAIN) ) {
 #if DEBUG_TCP
       LOG_STRERROR(LOG_DEBUG, "read");
 #endif
       tcpDisconnect(tsession);
-      return OK;    
+      return OK;
     }
 #if DEBUG_TCP
     LOG_STRERROR(LOG_INFO, "read");
@@ -416,104 +429,112 @@ static int readAndProcess(int i) {
     return SYSERR;
   }
   incrementBytesReceived(ret);
-  statChange(stat_octets_total_tcp_in,
-	     ret);
   tcpSession->pos += ret;
-  len = ntohs(((TCPMessagePack*)&tcpSession->rbuff[0])->size);
-  if (len > tcpSession->size) /* if MTU larger than expected, grow! */
-    GROW(tcpSession->rbuff,
-	 tcpSession->size,
-	 len);
+
+  while (tcpSession->pos > 2) {
+    len = ntohs(((TCPP2P_PACKET*)&tcpSession->rbuff[0])->size)
+      + sizeof(TCPP2P_PACKET);
+    if (len > tcpSession->rsize) /* if message larger than read buffer, grow! */
+      GROW(tcpSession->rbuff,
+	   tcpSession->rsize,
+	   len);
 #if DEBUG_TCP
-  LOG(LOG_DEBUG,
-      "Read %d bytes on socket %d, expecting %d for full message\n",
-      tcpSession->pos,
-      tcpSession->sock, 
-      len);
+    LOG(LOG_DEBUG,
+	"Read %d bytes on socket %d, expecting %d for full message\n",
+	tcpSession->pos,
+	tcpSession->sock,
+	len);
 #endif
-  if ( (tcpSession->pos < 2) ||
-       (tcpSession->pos < len) ) {
-    tcpDisconnect(tsession);
-    return OK;
-  }
- 
-  /* complete message received, let's check what it is */
-  if (YES == tcpSession->expectingWelcome) {
-    TCPWelcome * welcome;
+    if (tcpSession->pos < len) {
+      tcpDisconnect(tsession);
+      return OK;
+    }
+
+    /* complete message received, let's check what it is */
+    if (YES == tcpSession->expectingWelcome) {
+      TCPWelcome * welcome;
 #if DEBUG_TCP
-    EncName enc;
+      EncName enc;
 #endif
-    
-    welcome = (TCPWelcome*) &tcpSession->rbuff[0];
-    if ( (ntohs(welcome->version) != 0) ||
-	 (ntohs(welcome->size) != sizeof(TCPWelcome)) ) {
+
+      welcome = (TCPWelcome*) &tcpSession->rbuff[0];
+      if ( (ntohs(welcome->header.reserved) != 0) ||
+	   (ntohs(welcome->header.size)
+	    != sizeof(TCPWelcome) - sizeof(TCPP2P_PACKET)) ) {
+	LOG(LOG_WARNING,
+	    _("Expected welcome message on tcp connection, "
+	      "got garbage (%u, %u). Closing.\n"),
+	    ntohs(welcome->header.reserved),
+	    ntohs(welcome->header.size));
+	tcpDisconnect(tsession);
+	return SYSERR;
+      }
+      tcpSession->expectingWelcome = NO;
+      tcpSession->sender = welcome->clientIdentity;
+#if DEBUG_TCP
+      IFLOG(LOG_DEBUG,
+	    hash2enc(&tcpSession->sender.hashPubKey,
+		     &enc));
+      LOG(LOG_DEBUG,
+	  "tcp welcome message from `%s' received\n",
+	  &enc);
+#endif
+      memmove(&tcpSession->rbuff[0],
+	      &tcpSession->rbuff[sizeof(TCPWelcome)],
+	      tcpSession->pos - sizeof(TCPWelcome));
+      tcpSession->pos -= sizeof(TCPWelcome);
+      len = ntohs(((TCPP2P_PACKET*)&tcpSession->rbuff[0])->size)
+	+ sizeof(TCPP2P_PACKET);
+    }
+    if ( (tcpSession->pos < 2) ||
+	 (tcpSession->pos < len) ) {
+      tcpDisconnect(tsession);
+      return OK;
+    }
+
+    pack = (TCPP2P_PACKET*)&tcpSession->rbuff[0];
+    /* send msg to core! */
+    if (len <= sizeof(TCPP2P_PACKET)) {
       LOG(LOG_WARNING,
-	  _("Expected welcome message on tcp connection, got garbage. Closing.\n"));
+	  _("Received malformed message (size %u)"
+	    " from tcp-peer connection. Closing.\n"),
+	  len);
       tcpDisconnect(tsession);
       return SYSERR;
     }
-    tcpSession->expectingWelcome = NO;
-    memcpy(&tcpSession->sender,
-	   &welcome->clientIdentity,
-	   sizeof(HostIdentity));     
+    mp      = MALLOC(sizeof(P2P_PACKET));
+    mp->msg = MALLOC(len - sizeof(TCPP2P_PACKET));
+    memcpy(mp->msg,
+	   &pack[1],
+	   len - sizeof(TCPP2P_PACKET));
+    mp->sender   = tcpSession->sender;
+    mp->size     = len - sizeof(TCPP2P_PACKET);
+    mp->tsession = tsession;
 #if DEBUG_TCP
-    IFLOG(LOG_DEBUG,
-	  hash2enc(&tcpSession->sender.hashPubKey,
-		   &enc));
+  {
+    EncName enc;
+    
+    hash2enc(&mp->sender.hashPubKey, &enc);
+    
     LOG(LOG_DEBUG,
-	"tcp welcome message from %s received\n",
-	&enc);
+      "tcp transport received %u bytes from %s (CRC %u), forwarding to core\n",
+      mp->size, &enc, crc32N(tcpSession->rbuff, tcpSession->pos));
+  }
 #endif
+    coreAPI->receive(mp);
+    /* finally, shrink buffer adequately */
     memmove(&tcpSession->rbuff[0],
-	    &tcpSession->rbuff[sizeof(TCPWelcome)],
-	    tcpSession->pos - sizeof(TCPWelcome));
-    tcpSession->pos -= sizeof(TCPWelcome); 
-    len = ntohs(((TCPMessagePack*)&tcpSession->rbuff[0])->size);
-  } 
-  if ( (tcpSession->pos < 2) ||
-       (tcpSession->pos < len) ) {
-    tcpDisconnect(tsession);
-    return OK;
+	    &tcpSession->rbuff[len],
+	    tcpSession->pos - len);
+    tcpSession->pos -= len;
+    if ( (tcpSession->pos * 4 < tcpSession->rsize) &&
+	 (tcpSession->rsize > 4 * 1024) ) {
+      /* read buffer far too large, shrink! */
+      GROW(tcpSession->rbuff,
+	   tcpSession->rsize,
+	   tcpSession->pos + 1024);
+    }
   }
-     
-  pack = (TCPMessagePack*)&tcpSession->rbuff[0];
-  /* send msg to core! */
-  if ((unsigned int)len <= sizeof(TCPMessagePack)) {
-    LOG(LOG_WARNING,
-	_("Received malformed message from tcp-peer connection. Closing.\n"));
-    tcpDisconnect(tsession);
-    return SYSERR;
-  }
-  mp      = MALLOC(sizeof(MessagePack));
-  mp->msg = MALLOC(len);
-  memcpy(mp->msg,
-	 &pack->parts[0],
-	 len - sizeof(TCPMessagePack));
-  memcpy(&mp->sender,
-	 &tcpSession->sender,
-	 sizeof(HostIdentity));
-  mp->crc         = ntohl(pack->checkSum);
-  mp->isEncrypted = ntohs(pack->isEncrypted);
-  mp->size        = len - sizeof(TCPMessagePack);
-  mp->tsession    = tsession;
-#if DEBUG_TCP
-  LOG(LOG_DEBUG,
-      "tcp transport received %d bytes, forwarding to core\n",
-      mp->size);
-#endif
-  coreAPI->receive(mp);
-
-  if (tcpSession->pos < len) { 
-    BREAK();
-    tcpDisconnect(tsession);
-    return SYSERR;
-  }
-  /* finally, shrink buffer adequately */
-  memmove(&tcpSession->rbuff[0],
-	  &tcpSession->rbuff[len],
-	  tcpSession->pos - len);
-  tcpSession->pos -= len;	   
-  
   tcpDisconnect(tsession);
   return OK;
 }
@@ -525,11 +546,11 @@ static int readAndProcess(int i) {
  * calling.  It is ok to call this function without holding tcplock if
  * the return value is ignored.
  */
-static int addTSession(TSession * tsession) {
-  int i;
+static unsigned int addTSession(TSession * tsession) {
+  unsigned int i;
 
   MUTEX_LOCK(&tcplock);
-  if (tsessionCount == tsessionArrayLength) 
+  if (tsessionCount == tsessionArrayLength)
     GROW(tsessions,
 	 tsessionArrayLength,
 	 tsessionArrayLength * 2);
@@ -550,16 +571,15 @@ static void createNewSession(int sock) {
 
   tcpSession = MALLOC(sizeof(TCPSession));
   tcpSession->pos = 0;
-  tcpSession->size = tcpAPI.mtu + sizeof(TCPMessagePack);
-  tcpSession->rbuff = MALLOC(tcpSession->size);
+  tcpSession->rsize = 2 * 1024 + sizeof(TCPP2P_PACKET);
+  tcpSession->rbuff = MALLOC(tcpSession->rsize);
   tcpSession->wpos = 0;
   tcpSession->wbuff = NULL;
+  tcpSession->wsize = 0;
   tcpSession->sock = sock;
-  /* fill in placeholder identity to mark that we 
+  /* fill in placeholder identity to mark that we
      are waiting for the welcome message */
-  memcpy(&tcpSession->sender,
-	 coreAPI->myIdentity,
-	 sizeof(HostIdentity));
+  tcpSession->sender = *(coreAPI->myIdentity);
   tcpSession->expectingWelcome = YES;
   MUTEX_CREATE_RECURSIVE(&tcpSession->lock);
   tcpSession->users = 1; /* us only, core has not seen this tsession! */
@@ -568,7 +588,7 @@ static void createNewSession(int sock) {
   tsession->ttype = TCP_PROTOCOL_NUMBER;
   tsession->internal = tcpSession;
   addTSession(tsession);
-}					 
+}					
 
 /**
  * Main method for the thread listening on the tcp socket and all tcp
@@ -583,13 +603,14 @@ static void * tcpListenMain() {
   fd_set errorSet;
   fd_set writeSet;
   struct stat buf;
-  int lenOfIncomingAddr;
+  socklen_t lenOfIncomingAddr;
   int i;
   int max;
   int ret;
-  
+
   if (tcp_sock != -1)
-    LISTEN(tcp_sock, 5);
+    if (0 != LISTEN(tcp_sock, 5))
+      LOG_STRERROR(LOG_ERROR, "listen");
   SEMAPHORE_UP(serverSignal); /* we are there! */
   MUTEX_LOCK(&tcplock);
   while (tcp_shutdown == NO) {
@@ -604,6 +625,11 @@ static void * tcpListenMain() {
 	tcp_sock = -1; /* prevent us from error'ing all the time */
       }
     }
+#if DEBUG_TCP
+    else
+      LOG(LOG_DEBUG,
+	  "TCP server socket not open!\n");
+#endif
     if (tcp_pipe[0] != -1) {
       if (-1 != FSTAT(tcp_pipe[0], &buf)) {
 	FD_SET(tcp_pipe[0], &readSet);
@@ -634,13 +660,13 @@ static void * tcpListenMain() {
       }
       if (sock > max)
 	max = sock;
-    }    
+    }
     MUTEX_UNLOCK(&tcplock);
-    ret = SELECT(max+1, &readSet, &writeSet, &errorSet, NULL);    
+    ret = SELECT(max+1, &readSet, &writeSet, &errorSet, NULL);
     MUTEX_LOCK(&tcplock);
     if ( (ret == -1) &&
-	 ( (errno == EAGAIN) || (errno == EINTR) ) ) 
-      continue;    
+	 ( (errno == EAGAIN) || (errno == EINTR) ) )
+      continue;
     if (ret == -1) {
       if (errno == EBADF) {
 	LOG_STRERROR(LOG_ERROR, "select");
@@ -652,14 +678,14 @@ static void * tcpListenMain() {
       if (FD_ISSET(tcp_sock, &readSet)) {
 	int sock;
 	
-	lenOfIncomingAddr = sizeof(clientAddr);               
-	sock = ACCEPT(tcp_sock, 
-		      (struct sockaddr *)&clientAddr, 
+	lenOfIncomingAddr = sizeof(clientAddr);
+	sock = ACCEPT(tcp_sock,
+		      (struct sockaddr *)&clientAddr,
 		      &lenOfIncomingAddr);
-	if (sock != -1) {	  
+	if (sock != -1) {	
 	  /* verify clientAddr for eligibility here (ipcheck-style,
 	     user should be able to specify who is allowed to connect,
-	     otherwise we just close and reject the communication! */  
+	     otherwise we just close and reject the communication! */
 
 	  IPaddr ipaddr;
 	  GNUNET_ASSERT(sizeof(struct in_addr) == sizeof(IPaddr));
@@ -669,16 +695,19 @@ static void * tcpListenMain() {
 
 	  if (YES == isBlacklisted(ipaddr)) {
 	    LOG(LOG_INFO,
-		_("Rejected blacklisted connection from %u.%u.%u.%u.\n"),
+		_("%s: Rejected connection from blacklisted "
+		  "address %u.%u.%u.%u.\n"),
+		"TCP",
 		PRIP(ntohl(*(int*)&clientAddr.sin_addr)));
-	    CLOSE(sock);
+	    SHUTDOWN(sock, 2);
+	    closefile(sock);
 	  } else {
 #if DEBUG_TCP
 	    LOG(LOG_INFO,
 		"Accepted connection from %u.%u.%u.%u.\n",
 		PRIP(ntohl(*(int*)&clientAddr.sin_addr)));	
 #endif
-	    createNewSession(sock);      
+	    createNewSession(sock);
 	  }
 	} else {
 	  LOG_STRERROR(LOG_INFO, "accept");
@@ -688,12 +717,11 @@ static void * tcpListenMain() {
     if (FD_ISSET(tcp_pipe[0], &readSet)) {
       /* allow reading multiple signals in one go in case we get many
 	 in one shot... */
-
 #define MAXSIG_BUF 128
       char buf[MAXSIG_BUF];
       /* just a signal to refresh sets, eat and continue */
-      if (0 >= READ(tcp_pipe[0], 
-		    &buf[0], 
+      if (0 >= READ(tcp_pipe[0],
+		    &buf[0],
 		    MAXSIG_BUF)) {
 	LOG_STRERROR(LOG_WARNING, "read");
       }
@@ -709,14 +737,20 @@ static void * tcpListenMain() {
 	}
       }
       if (FD_ISSET(sock, &writeSet)) {
-	int ret, success;
+	size_t ret;
+	int success;
 
-try_again_1:	
+try_again_1:
+#if DEBUG_TCP
+	LOG(LOG_DEBUG,
+	    "TCP: trying to send %u bytes\n",
+	    tcpSession->wpos);
+#endif
 	success = SEND_NONBLOCKING(sock,
-			       tcpSession->wbuff,
-			       tcpSession->wpos,
-			       &ret);
-	if (success == SYSERR) {
+				   tcpSession->wbuff,
+				   tcpSession->wpos,
+				   &ret);
+	if ( (success == SYSERR) || (ret == (size_t) -1) ) {
 	  LOG_STRERROR(LOG_WARNING, "send");
 	  destroySession(i);
 	  i--;
@@ -728,7 +762,15 @@ try_again_1:
   	  gnunet_util_sleep(20);
   	  goto try_again_1;
         }
-        
+	if (stats != NULL)
+	  stats->change(stat_bytesSent,
+			ret);
+
+#if DEBUG_TCP
+	LOG(LOG_DEBUG,
+	    "TCP: transmitted %u bytes\n",
+	    ret);
+#endif
 	if (ret == 0) {
           /* send only returns 0 on error (other side closed connection),
 	   * so close the session */
@@ -736,10 +778,11 @@ try_again_1:
 	  i--;
 	  continue;
 	}
-	if ((unsigned int)ret == tcpSession->wpos) {
+	if (ret == tcpSession->wpos) {
 	  FREENONNULL(tcpSession->wbuff);
 	  tcpSession->wbuff = NULL;
-	  tcpSession->wpos = 0;
+	  tcpSession->wpos  = 0;
+	  tcpSession->wsize = 0;
 	} else {
 	  memmove(tcpSession->wbuff,
 		  &tcpSession->wbuff[ret],
@@ -762,11 +805,11 @@ try_again_1:
   }
   /* shutdown... */
   if (tcp_sock != -1) {
-    CLOSE(tcp_sock);
+    closefile(tcp_sock);
     tcp_sock = -1;
   }
   /* close all sessions */
-  while (tsessionCount > 0) 
+  while (tsessionCount > 0)
     destroySession(0);
   MUTEX_UNLOCK(&tcplock);
   SEMAPHORE_UP(serverSignal); /* we are there! */
@@ -780,15 +823,33 @@ try_again_1:
  * @param tcpSession the session to use for sending
  * @param mp the message to send
  * @param ssize the size of the message
- * @return OK if message send or queued, SYSERR if queue is full and
- * message was dropped.
+ * @return OK if message send or queued, NO if queue is full and
+ * message was dropped, SYSERR on error
  */
 static int tcpDirectSend(TCPSession * tcpSession,
 			 void * mp,
 			 unsigned int ssize) {
-  int ok;
-  int ret, success;
+  size_t ret;
+  int success;
 
+#if DEBUG_TCP
+  {
+    EncName enc;
+    
+    hash2enc(&tcpSession->sender.hashPubKey, &enc);
+    
+    LOG(LOG_DEBUG,
+        "tcpDirectSend called to transmit %u bytes to %s (CRC %u).\n",
+        ssize, &enc, crc32N(mp, ssize));
+  }
+#endif	
+  if (tcp_shutdown == YES) {
+#if DEBUG_TCP
+    LOG(LOG_DEBUG,
+        "tcpDirectSend called while TCP transport is shutdown.\n");		
+#endif	
+    return SYSERR;
+  }
   if (tcpSession->sock == -1) {
 #if DEBUG_TCP
     LOG(LOG_INFO,
@@ -800,59 +861,63 @@ static int tcpDirectSend(TCPSession * tcpSession,
     BREAK(); /* size 0 not allowed */
     return SYSERR;
   }
-  if (ssize > tcpAPI.mtu + sizeof(TCPMessagePack)) {
-    BREAK(); /* size > mtu */
-    return SYSERR;
-  }
-  ok = SYSERR;
   MUTEX_LOCK(&tcplock);
   if (tcpSession->wpos > 0) {
     /* select already pending... */
-    ret = 0;
-    success = NO;
-  } else {
-    success = SEND_NONBLOCKING(tcpSession->sock,
-			       mp,
-			       ssize,
-			       &ret);
+#if DEBUG_TCP
+    LOG(LOG_DEBUG,
+	"write already pending, will not take additional message.\n");
+#endif
+    if (stats != NULL)
+      stats->change(stat_bytesDropped,
+		    ssize);
+    MUTEX_UNLOCK(&tcplock);
+    return NO;
   }
+#if DEBUG_TCP
+  LOG(LOG_DEBUG,
+      "TCP: trying to send %u bytes\n",
+      ssize);
+#endif
+  success = SEND_NONBLOCKING(tcpSession->sock,
+			     mp,
+			     ssize,
+			     &ret);
   if (success == SYSERR) {
+#if DEBUG_TCP
     LOG_STRERROR(LOG_INFO, "send");
+#endif
     MUTEX_UNLOCK(&tcplock);
     return SYSERR;
-  } else if (success == NO)
-    ret = 0;
-  if ((unsigned int)ret <= ssize) { /* some bytes send or blocked */
-    if ((unsigned int)ret < ssize) {
-      if (tcpSession->wbuff == NULL) {
-	tcpSession->wbuff = MALLOC(tcpAPI.mtu + sizeof(TCPMessagePack));
-	tcpSession->wpos = 0;
-      }
-      if (ssize + tcpSession->wpos > tcpAPI.mtu + sizeof(TCPMessagePack) + ret) {
-	ssize = 0;
-	ok = SYSERR; /* buffer full, drop */
-      } else {
-	memcpy(&tcpSession->wbuff[tcpSession->wpos],
-	       mp,
-	       ssize - ret);
-	tcpSession->wpos += ssize - ret;
-	if (tcpSession->wpos == ssize - ret)
-	  signalSelect(); /* select set changed! */
-	ok = OK; /* all buffered */
-      }      
-    } else 
-      ok = OK; /* all written */
-  } else {
-    LOG_STRERROR(LOG_WARNING, "send");
-    ssize = 0;
-    ok = SYSERR; /* write failed for real */
   }
-  MUTEX_UNLOCK(&tcplock);
+  if (success == NO)
+    ret = 0;
+  if (stats != NULL)
+    stats->change(stat_bytesSent,
+		  ret);
+
+#if DEBUG_TCP
+  LOG(LOG_DEBUG,
+      "TCP: transmitted %u bytes\n",
+      ret);
+#endif
+
+  if (ret < ssize) {/* partial send */
+    if (tcpSession->wsize < ssize - ret) {
+      GROW(tcpSession->wbuff,
+	   tcpSession->wsize,
+	   ssize - ret);
+    }
+    memcpy(tcpSession->wbuff,
+	   mp + ret,
+	   ssize - ret);
+    tcpSession->wpos = ssize - ret;
+    signalSelect(); /* select set changed! */
+  }
   cronTime(&tcpSession->lastUse);
+  MUTEX_UNLOCK(&tcplock);
   incrementBytesSent(ssize);
-  statChange(stat_octets_total_tcp_out,
-	     ssize);
-  return ok;
+  return OK;
 }
 
 /**
@@ -862,14 +927,32 @@ static int tcpDirectSend(TCPSession * tcpSession,
  * @param tcpSession the session to use for sending
  * @param mp the message to send
  * @param ssize the size of the message
- * @return OK if message send or queued, SYSERR if queue is full and
- * message was dropped.
+ * @return OK if message send or queued, NO if queue is full and
+ * message was dropped, SYSERR on error
  */
 static int tcpDirectSendReliable(TCPSession * tcpSession,
 				 void * mp,
 				 unsigned int ssize) {
   int ok;
 
+#if DEBUG_TCP
+  {
+    EncName enc;
+    
+    hash2enc(&tcpSession->sender.hashPubKey, &enc);
+    
+    LOG(LOG_DEBUG,
+        "tcpDirectSendReliable called to transmit %u bytes to %s (CRC %u).\n",
+        ssize, &enc, crc32N(mp, ssize));
+  }
+#endif	
+  if (tcp_shutdown == YES) {
+#if DEBUG_TCP
+    LOG(LOG_INFO,
+	"tcpDirectSendReliable called, but TCP service is shutdown\n");
+#endif
+    return SYSERR;
+  }
   if (tcpSession->sock == -1) {
 #if DEBUG_TCP
     LOG(LOG_INFO,
@@ -881,20 +964,21 @@ static int tcpDirectSendReliable(TCPSession * tcpSession,
     BREAK();
     return SYSERR;
   }
-  if (ssize > tcpAPI.mtu + sizeof(TCPMessagePack)) {
-    BREAK();
-    return SYSERR;
-  }
   MUTEX_LOCK(&tcplock);
   if (tcpSession->wpos > 0) {
     unsigned int old = tcpSession->wpos;
-    /* reliable: grow send-buffer above limit! */
     GROW(tcpSession->wbuff,
-	 tcpSession->wpos,
+	 tcpSession->wsize,
 	 tcpSession->wpos + ssize);
+    tcpSession->wpos += ssize;
     memcpy(&tcpSession->wbuff[old],
 	   mp,
-	   ssize);    
+	   ssize);
+#if DEBUG_TCP
+    LOG(LOG_DEBUG,
+	"tcpDirectSendReliable appended message to send buffer.\n");
+#endif	
+
     ok = OK;
   } else {
     ok = tcpDirectSend(tcpSession,
@@ -906,21 +990,60 @@ static int tcpDirectSendReliable(TCPSession * tcpSession,
 }
 
 /**
- * Verify that a HELO-Message is correct (a node
+ * Send a message to the specified remote node with
+ * increased reliability (i.e. grow TCP send buffer
+ * above one frame if needed).
+ *
+ * @param tsession the P2P_hello_MESSAGE identifying the remote node
+ * @param msg the message
+ * @param size the size of the message
+ * @return SYSERR on error, OK on success, NO on temporary error
+ */
+static int tcpSendReliable(TSession * tsession,
+			   const void * msg,
+			   const unsigned int size) {
+  TCPP2P_PACKET * mp;
+  int ok;
+
+  if (size >= MAX_BUFFER_SIZE)
+    return SYSERR;
+  if (tcp_shutdown == YES)
+    return SYSERR;
+  if (size == 0) {
+    BREAK();
+    return SYSERR;
+  }
+  if (((TCPSession*)tsession->internal)->sock == -1)
+    return SYSERR; /* other side closed connection */
+  mp = MALLOC(sizeof(TCPP2P_PACKET) + size);
+  memcpy(&mp[1],
+	 msg,
+	 size);
+  mp->size = htons(size);
+  mp->reserved = 0;
+  ok = tcpDirectSendReliable(tsession->internal,
+			     mp,
+			     size + sizeof(TCPP2P_PACKET));
+  FREE(mp);
+  return ok;
+}
+
+/**
+ * Verify that a Hello-Message is correct (a node
  * is reachable at that address). Since the reply
  * will be asynchronous, a method must be called on
- * success. 
- * @param helo the HELO message to verify
+ * success.
+ * @param helo the Hello message to verify
  *        (the signature/crc have been verified before)
  * @return OK on success, SYSERR on error
  */
-static int verifyHelo(const HELO_Message * helo) {
+static int verifyHelo(const P2P_hello_MESSAGE * helo) {
   HostAddress * haddr;
 
-  haddr = (HostAddress*) &((HELO_Message_GENERIC*)helo)->senderAddress[0];
+  haddr = (HostAddress*) &helo[1];
   if ( (ntohs(helo->senderAddressSize) != sizeof(HostAddress)) ||
-       (ntohs(helo->header.size) != HELO_Message_size(helo)) ||
-       (ntohs(helo->header.requestType) != p2p_PROTO_HELO) ||
+       (ntohs(helo->header.size) != P2P_hello_MESSAGE_size(helo)) ||
+       (ntohs(helo->header.type) != p2p_PROTO_hello) ||
        (ntohs(helo->protocol) != TCP_PROTOCOL_NUMBER) ||
        (YES == isBlacklisted(haddr->ip)) )
     return SYSERR; /* obviously invalid */
@@ -929,51 +1052,55 @@ static int verifyHelo(const HELO_Message * helo) {
 }
 
 /**
- * Create a HELO-Message for the current node. The HELO is
+ * Create a hello-Message for the current node. The hello is
  * created without signature and without a timestamp. The
- * GNUnet core will sign the message and add an expiration time. 
+ * GNUnet core will sign the message and add an expiration time.
  *
- * @param helo address where to store the pointer to the HELO
- *        message
- * @return OK on success, SYSERR on error
+ * @return hello on success, NULL on error
  */
-static int createHELO(HELO_Message ** helo) {
-  HELO_Message * msg;
+static P2P_hello_MESSAGE * createhello() {
+  P2P_hello_MESSAGE * msg;
   HostAddress * haddr;
   unsigned short port;
 
   port = getGNUnetTCPPort();
   if (0 == port) {
-    LOG(LOG_DEBUG,
-	"TCP port is 0, will only send using TCP.\n");
-    return SYSERR; /* TCP transport is configured SEND-only! */
+    static int once = 0;
+    if (once == 0) {
+      once = 1;
+      LOG(LOG_DEBUG,
+	  "TCP port is 0, will only send using TCP.\n");
+    }
+    return NULL; /* TCP transport is configured SEND-only! */
   }
-  msg = (HELO_Message *) MALLOC(sizeof(HELO_Message) + sizeof(HostAddress));
-  haddr = (HostAddress*) &((HELO_Message_GENERIC*)msg)->senderAddress[0];
+  msg = (P2P_hello_MESSAGE *) MALLOC(sizeof(P2P_hello_MESSAGE) + sizeof(HostAddress));
+  haddr = (HostAddress*) &msg[1];
 
   if (SYSERR == getPublicIPAddress(&haddr->ip)) {
     FREE(msg);
     LOG(LOG_WARNING,
 	_("Could not determine my public IP address.\n"));
-    return SYSERR;
+    return NULL;
   }
-  haddr->port = htons(port); 
+  LOG(LOG_DEBUG,
+      "TCP uses IP address %u.%u.%u.%u.\n",
+      PRIP(ntohl(*(int*)&haddr->ip)));
+  haddr->port = htons(port);
   haddr->reserved = htons(0);
   msg->senderAddressSize = htons(sizeof(HostAddress));
   msg->protocol = htons(TCP_PROTOCOL_NUMBER);
   msg->MTU = htonl(tcpAPI.mtu);
-  *helo = msg;
-  return OK;
+  return msg;
 }
 
 /**
  * Establish a connection to a remote node.
  *
- * @param helo the HELO-Message for the target node
+ * @param helo the hello-Message for the target node
  * @param tsessionPtr the session handle that is set
  * @return OK on success, SYSERR if the operation failed
  */
-static int tcpConnect(HELO_Message * helo,
+static int tcpConnect(const P2P_hello_MESSAGE * helo,
 		      TSession ** tsessionPtr) {
   int i;
   HostAddress * haddr;
@@ -982,31 +1109,25 @@ static int tcpConnect(HELO_Message * helo,
   TSession * tsession;
   TCPSession * tcpSession;
   struct sockaddr_in soaddr;
-#if DEBUG_TCP
-  EncName enc;
-#endif
 
   if (tcp_shutdown == YES)
     return SYSERR;
-  haddr = (HostAddress*) &((HELO_Message_GENERIC*)helo)->senderAddress[0];
+  haddr = (HostAddress*) &helo[1];
 #if DEBUG_TCP
-  hash2enc(&coreAPI->myIdentity->hashPubKey,
-	   &enc);
   LOG(LOG_DEBUG,
-      "Creating TCP connection to %u.%u.%u.%u:%u from %s.\n",
-      PRIP(ntohl(*(int*)&haddr->ip.addr)), 
-      ntohs(haddr->port),
-      &enc);
+      "Creating TCP connection to %u.%u.%u.%u:%u.\n",
+      PRIP(ntohl(*(int*)&haddr->ip.addr)),
+      ntohs(haddr->port));
 #endif
   sock = SOCKET(PF_INET,
-		SOCK_STREAM, 
+		SOCK_STREAM,
 		6); /* 6: TCP */
   if (sock == -1) {
     LOG_STRERROR(LOG_FAILURE, "socket");
     return SYSERR;
   }
   if (0 != setBlocking(sock, NO)) {
-    CLOSE(sock);
+    closefile(sock);
     LOG_STRERROR(LOG_FAILURE, "setBlocking");
     return SYSERR;
   }
@@ -1020,7 +1141,7 @@ static int tcpConnect(HELO_Message * helo,
 	 &haddr->ip,
 	 sizeof(IPaddr));
   soaddr.sin_port = haddr->port;
-  i = CONNECT(sock, 
+  i = CONNECT(sock,
 	      (struct sockaddr*)&soaddr,
 	      sizeof(soaddr));
   if ( (i < 0) &&
@@ -1030,15 +1151,21 @@ static int tcpConnect(HELO_Message * helo,
 	PRIP(ntohl(*(int*)&haddr->ip)),
 	ntohs(haddr->port),
 	STRERROR(errno));
-    CLOSE(sock);
+    closefile(sock);
     return SYSERR;
-  }  
+  }
+  if (0 != setBlocking(sock, NO)) {
+    LOG_STRERROR(LOG_FAILURE, "setBlocking");
+    closefile(sock);
+    return SYSERR;
+  }
   tcpSession = MALLOC(sizeof(TCPSession));
   tcpSession->sock = sock;
   tcpSession->wpos = 0;
   tcpSession->wbuff = NULL;
-  tcpSession->size = tcpAPI.mtu + sizeof(TCPMessagePack);
-  tcpSession->rbuff = MALLOC(tcpSession->size);
+  tcpSession->wsize = 0;
+  tcpSession->rsize = 2 * 1024 + sizeof(TCPP2P_PACKET);
+  tcpSession->rbuff = MALLOC(tcpSession->rsize);
   tsession = MALLOC(sizeof(TSession));
   tsession->internal = tcpSession;
   tsession->ttype = tcpAPI.protocolNumber;
@@ -1046,20 +1173,19 @@ static int tcpConnect(HELO_Message * helo,
   tcpSession->users = 2; /* caller + us */
   tcpSession->pos = 0;
   cronTime(&tcpSession->lastUse);
-  memcpy(&tcpSession->sender,
-	 &helo->senderIdentity,
-	 sizeof(HostIdentity));
+  tcpSession->sender = helo->senderIdentity;
   tcpSession->expectingWelcome = NO;
   MUTEX_LOCK(&tcplock);
   i = addTSession(tsession);
 
   /* send our node identity to the other side to fully establish the
      connection! */
-  welcome.size = htons(sizeof(TCPWelcome));
-  welcome.version = htons(0);
-  memcpy(&welcome.clientIdentity,
-	 coreAPI->myIdentity,
-	 sizeof(HostIdentity));
+  welcome.header.size
+    = htons(sizeof(TCPWelcome) - sizeof(TCPP2P_PACKET));
+  welcome.header.reserved
+    = htons(0);
+  welcome.clientIdentity
+    = *(coreAPI->myIdentity);
   if (SYSERR == tcpDirectSend(tcpSession,
 			      &welcome,
 			      sizeof(TCPWelcome))) {
@@ -1070,96 +1196,75 @@ static int tcpConnect(HELO_Message * helo,
   }
   MUTEX_UNLOCK(&tcplock);
   signalSelect();
-  
+
   *tsessionPtr = tsession;
-  FREE(helo);
   return OK;
 }
 
 /**
  * Send a message to the specified remote node.
  *
- * @param tsession the HELO_Message identifying the remote node
+ * @param tsession the P2P_hello_MESSAGE identifying the remote node
  * @param msg the message
  * @param size the size of the message
- * @param isEncrypted is the message encrypted (YES/NO)
- * @param crc CRC32 of the plaintext
  * @return SYSERR on error, OK on success
  */
 static int tcpSend(TSession * tsession,
 		   const void * msg,
-		   const unsigned int size,
-		   int isEncrypted,
-		   const int crc) {
-  TCPMessagePack * mp;
+		   const unsigned int size) {
+  TCPP2P_PACKET * mp;
   int ok;
-  int ssize;
-  
-  if (tcp_shutdown == YES)
-    return SYSERR;
-  if ( (size == 0) || (size > tcpAPI.mtu) ) {
-    BREAK();
-    return SYSERR;
-  }
-  if (((TCPSession*)tsession->internal)->sock == -1) 
-    return SYSERR; /* other side closed connection */
-  mp = MALLOC(sizeof(TCPMessagePack) + size);
-  mp->checkSum = htonl(crc);
-  mp->isEncrypted = htons(isEncrypted);
-  memcpy(&mp->parts[0],
-	 msg,
-	 size);
-  ssize = size + sizeof(TCPMessagePack);
-  mp->size = htons(ssize);
-  
-  ok = tcpDirectSend(tsession->internal,
-		     mp,
-		     ssize);
-  FREE(mp);
-  return ok;
-}
 
-/**
- * Send a message to the specified remote node with
- * increased reliability (i.e. grow TCP send buffer
- * above one frame if needed).
- *
- * @param tsession the HELO_Message identifying the remote node
- * @param msg the message
- * @param size the size of the message
- * @param isEncrypted is the message encrypted (YES/NO)
- * @param crc CRC32 of the plaintext
- * @return SYSERR on error, OK on success
- */
-static int tcpSendReliable(TSession * tsession,
-			   const void * msg,
-			   const unsigned int size,
-			   int isEncrypted,
-			   const int crc) {
-  TCPMessagePack * mp;
-  int ok;
-  int ssize;
-  
-  if (tcp_shutdown == YES)
-    return SYSERR;
-  if ( (size == 0) || (size > tcpAPI.mtu) ) {
+#if DEBUG_TCP
+  LOG(LOG_DEBUG,
+      "tcpSend called to transmit %u bytes.\n",
+      size);
+#endif	
+  if (size >= MAX_BUFFER_SIZE) {
     BREAK();
     return SYSERR;
   }
-  if (((TCPSession*)tsession->internal)->sock == -1)
+
+  if (tcp_shutdown == YES) {
+#if DEBUG_TCP
+    LOG(LOG_DEBUG,
+	"tcpSend called while TCP is shutdown.\n");
+#endif	
+    if (stats != NULL)
+      stats->change(stat_bytesDropped,
+		    size);
+    return SYSERR;
+  }
+  if (size == 0) {
+    BREAK();
+    return SYSERR;
+  }
+  if (((TCPSession*)tsession->internal)->sock == -1) {
+#if DEBUG_TCP
+    LOG(LOG_DEBUG,
+	"tcpSend called after other side closed connection.\n");
+#endif
+    if (stats != NULL)
+      stats->change(stat_bytesDropped,
+		    size);
     return SYSERR; /* other side closed connection */
-  mp = MALLOC(sizeof(TCPMessagePack) + size);
-  mp->checkSum = htonl(crc);
-  mp->isEncrypted = htons(isEncrypted);
-  memcpy(&mp->parts[0],
+  }
+  mp = MALLOC(sizeof(TCPP2P_PACKET) + size);
+  memcpy(&mp[1],
 	 msg,
 	 size);
-  ssize = size + sizeof(TCPMessagePack);
-  mp->size = htons(ssize);
-  
-  ok = tcpDirectSendReliable(tsession->internal,
-			     mp,
-			     ssize);
+  mp->size = htons(size);
+  mp->reserved = 0;
+  /* if we would have less than TARGET_BUFFER_SIZE in buffers,
+     do reliable send */
+  if (((TCPSession*)tsession->internal)->wpos + size < TARGET_BUFFER_SIZE)
+    ok = tcpDirectSendReliable(tsession->internal,
+			       mp,
+			       size + sizeof(TCPP2P_PACKET));
+  else
+    ok = tcpDirectSend(tsession->internal,
+		       mp,
+		       size + sizeof(TCPP2P_PACKET));
   FREE(mp);
   return ok;
 }
@@ -1172,33 +1277,42 @@ static int startTransportServer(void) {
   struct sockaddr_in serverAddr;
   const int on = 1;
   unsigned short port;
-  
+
   if (serverSignal != NULL) {
     BREAK();
     return SYSERR;
   }
-    
+  serverSignal = SEMAPHORE_NEW(0);
+  tcp_shutdown = NO;
+
   if (0 != PIPE(tcp_pipe)) {
     LOG_STRERROR(LOG_ERROR, "pipe");
     return SYSERR;
   }
   setBlocking(tcp_pipe[1], NO);
-  
-  serverSignal = SEMAPHORE_NEW(0);
-  tcp_shutdown = NO;
 
   port = getGNUnetTCPPort();
   if (port != 0) { /* if port == 0, this is a read-only
 		      business! */
-    tcp_sock = SOCKET(PF_INET, SOCK_STREAM, 0);
-    if (tcp_sock < 0) 
-      DIE_STRERROR("socket");
+    tcp_sock = SOCKET(PF_INET,
+		      SOCK_STREAM,
+		      0);
+    if (tcp_sock < 0) {
+      LOG_STRERROR(LOG_FAILURE, "socket");
+      closefile(tcp_pipe[0]);
+      closefile(tcp_pipe[1]);
+      SEMAPHORE_FREE(serverSignal);
+      serverSignal = NULL;
+      tcp_shutdown = YES;
+      return SYSERR;
+    }
     if (SETSOCKOPT(tcp_sock,
-		   SOL_SOCKET, 
-		   SO_REUSEADDR, 
-		   &on, sizeof(on)) < 0 ) 
+		   SOL_SOCKET,
+		   SO_REUSEADDR,
+		   &on,
+		   sizeof(on)) < 0 )
       DIE_STRERROR("setsockopt");
-    memset((char *) &serverAddr, 
+    memset((char *) &serverAddr,
 	   0,
 	   sizeof(serverAddr));
     serverAddr.sin_family      = AF_INET;
@@ -1206,17 +1320,18 @@ static int startTransportServer(void) {
     serverAddr.sin_port        = htons(getGNUnetTCPPort());
 #if DEBUG_TCP
     LOG(LOG_INFO,
-	"starting tcp peer server on port %d\n",
+	"starting %s peer server on port %d\n",
+	"tcp",
 	ntohs(serverAddr.sin_port));
 #endif
-    if (BIND(tcp_sock, 
+    if (BIND(tcp_sock,
 	     (struct sockaddr *) &serverAddr,
 	     sizeof(serverAddr)) < 0) {
       LOG_STRERROR(LOG_ERROR, "bind");
       LOG(LOG_ERROR,
 	  _("Failed to start transport service on port %d.\n"),
 	  getGNUnetTCPPort());
-      CLOSE(tcp_sock);
+      closefile(tcp_sock);
       tcp_sock = -1;
       SEMAPHORE_FREE(serverSignal);
       serverSignal = NULL;
@@ -1224,15 +1339,15 @@ static int startTransportServer(void) {
     }
   } else
     tcp_sock = -1;
-  if (0 == PTHREAD_CREATE(&listenThread, 
+  if (0 == PTHREAD_CREATE(&listenThread,
 			  (PThreadMain) &tcpListenMain,
 			  NULL,
-			  2048)) {
+			  4092)) {
     SEMAPHORE_DOWN(serverSignal); /* wait for server to be up */
   } else {
-    LOG_STRERROR(LOG_ERROR, 
+    LOG_STRERROR(LOG_ERROR,
 		 "pthread_create");
-    CLOSE(tcp_sock);
+    closefile(tcp_sock);
     SEMAPHORE_FREE(serverSignal);
     serverSignal = NULL;
     return SYSERR;
@@ -1247,8 +1362,10 @@ static int startTransportServer(void) {
 static int stopTransportServer() {
   void * unused;
   int haveThread;
-  
-  tcp_shutdown = YES;  
+
+  if (tcp_shutdown == YES)
+    return OK;
+  tcp_shutdown = YES;
   signalSelect();
   if (serverSignal != NULL) {
     haveThread = YES;
@@ -1256,11 +1373,11 @@ static int stopTransportServer() {
     SEMAPHORE_FREE(serverSignal);
   } else
     haveThread = NO;
-  serverSignal = NULL; 
-  CLOSE(tcp_pipe[1]);
-  CLOSE(tcp_pipe[0]);
+  serverSignal = NULL;
+  closefile(tcp_pipe[1]);
+  closefile(tcp_pipe[0]);
   if (tcp_sock != -1) {
-    CLOSE(tcp_sock);
+    closefile(tcp_sock);
     tcp_sock = -1;
   }
   if (haveThread == YES)
@@ -1291,32 +1408,33 @@ static void reloadConfiguration(void) {
 /**
  * Convert TCP address to a string.
  */
-static char * addressToString(const HELO_Message * helo) {
+static char * addressToString(const P2P_hello_MESSAGE * helo) {
   char * ret;
   HostAddress * haddr;
   size_t n;
-  
-  haddr = (HostAddress*) &((HELO_Message_GENERIC*)helo)->senderAddress[0];  
+
+  haddr = (HostAddress*) &helo[1];
   n = 4*4+6+6;
   ret = MALLOC(n);
   SNPRINTF(ret,
 	   n,
 	   "%u.%u.%u.%u:%u (TCP)",
-	   PRIP(ntohl(*(int*)&haddr->ip.addr)), 
+	   PRIP(ntohl(*(int*)&haddr->ip.addr)),
 	   ntohs(haddr->port));
   return ret;
 }
 
- 
+
 /* ******************** public API ******************** */
- 
+
 /**
  * The exported method. Makes the core api available
  * via a global and returns the udp transport API.
- */ 
+ */
 TransportAPI * inittransport_tcp(CoreAPIForTransport * core) {
-  int mtu;
-
+  GNUNET_ASSERT(sizeof(HostAddress) == 8);
+  GNUNET_ASSERT(sizeof(TCPP2P_PACKET) == 4);
+  GNUNET_ASSERT(sizeof(TCPWelcome) == 68);
   MUTEX_CREATE_RECURSIVE(&tcplock);
   reloadConfiguration();
   tsessionCount = 0;
@@ -1325,24 +1443,20 @@ TransportAPI * inittransport_tcp(CoreAPIForTransport * core) {
        tsessionArrayLength,
        32);
   coreAPI = core;
-  stat_octets_total_tcp_in 
-    = statHandle(_("# bytes received via tcp"));
-  stat_octets_total_tcp_out 
-    = statHandle(_("# bytes sent via tcp"));
-  mtu = getConfigurationInt("TCP",
-			    "MTU");
-  if (mtu == 0)
-    mtu = 1460;
-  if (mtu < 1200)
-    LOG(LOG_ERROR,
-	_("MTU for '%s' is probably too low (fragmentation not implemented!)\n"),
-	"TCP");
- 
+  stats = coreAPI->requestService("stats");
+  if (stats != NULL) {
+    stat_bytesReceived
+      = stats->create(gettext_noop("# bytes received via TCP"));
+    stat_bytesSent
+      = stats->create(gettext_noop("# bytes sent via TCP"));
+    stat_bytesDropped
+      = stats->create(gettext_noop("# bytes dropped by TCP (outgoing)"));
+  }
   tcpAPI.protocolNumber       = TCP_PROTOCOL_NUMBER;
-  tcpAPI.mtu                  = mtu - sizeof(TCPMessagePack);
+  tcpAPI.mtu                  = 0;
   tcpAPI.cost                 = 20000; /* about equal to udp */
   tcpAPI.verifyHelo           = &verifyHelo;
-  tcpAPI.createHELO           = &createHELO;
+  tcpAPI.createhello           = &createhello;
   tcpAPI.connect              = &tcpConnect;
   tcpAPI.associate            = &tcpAssociate;
   tcpAPI.send                 = &tcpSend;
@@ -1358,13 +1472,14 @@ TransportAPI * inittransport_tcp(CoreAPIForTransport * core) {
 
 void donetransport_tcp() {
   int i;
-  for (i=tsessionCount-1;i>=0;i--) 
-    destroySession(i); 
-  GROW(tsessions, 
+
+  coreAPI->releaseService(stats);
+  stats = NULL;
+  for (i=tsessionCount-1;i>=0;i--)
+    destroySession(i);
+  GROW(tsessions,
        tsessionArrayLength,
        0);
-  tsessions = NULL;
-  tsessionArrayLength = 0;
   FREENONNULL(filteredNetworks_);
   MUTEX_DESTROY(&tcplock);
 }

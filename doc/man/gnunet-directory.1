@@ -1,59 +1,44 @@
-.TH gnunet-directory "1" "30 Mar 2004" "GNUnet"
+.TH gnunet-directory "1" "15 Dec 2004" "GNUnet"
 .SH NAME
-gnunet-directory \- display directories and show or delete lists of encountered file identifiers
+gnunet\-directory \- display directories and show or delete lists of encountered file identifiers
 
 .SH SYNOPSIS
-.B gnunet-directory
+.B gnunet\-directory
 [\fIOPTIONS\fR] FILENAMES
 .SH DESCRIPTION
 .PP
-gnunet-directory lists the contents of a GNUnet directory.  It also can be used to manipulate the file-identifier database which is used by GNUnet for building directories.
+gnunet\-directory lists the contents of a GNUnet directory.  It also can be used to manipulate the file identifier database which is used by GNUnet for building directories.
 .PP
-gnunet-directory will always list the contents of the GNUnet directories that are passed as filenames.
+gnunet\-directory will always list the contents of the GNUnet directories that are passed as filenames.
 .PP
-Manipulating the file-identifier database is done by passing additional options to gnunet-directory.  Note that by default GNUnet does not build the file-identifier database and the database will thus always be empty.  You need to edit your configuration before the database is used.  The reason is that storing file identifiers in plaintext in the database can compromise your privacy if your machine should fall under the control of an adversary.
+Manipulating the file identifier database is done by passing additional options to gnunet\-directory.  Note that by default GNUnet does not build the file identifier database and the database will thus always be empty.  You need to run gnunet\-directory with the -\t option to enable tracking of file identifiers.  The reason is that storing file identifiers in plaintext in the database can compromise your privacy if your machine should fall under the control of an adversary.
 
-.TP
-\fB\-a, \fB\-\-list-all\fR
-display all entries from the file-identifier database
-.TP
-\fB\-A, \fB\-\-kill-all\fR
-delete all entries from the file-identifier database
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 print help page
 .TP
-\fB\-i, \fB\-\-list-insert\fR
-display entries from the insertion category in the file-identifier database
+\fB\-k, \fB\-\-kill\fR
+delete all entries from the file identifier database and stop tracking file identifiers
 .TP
-\fB\-I, \fB\-\-kill-insert\fR
-delete all entries from the insertion category in the file-identifier database
+\fB\-l, \fB\-\-list\fR
+display entries from the file identifier database
 .TP
 \fB\-L \fILOGLEVEL\fR, \fB\-\-loglevel=LOGLEVEL\fR
 change the loglevel. Possible values for LOGLEVEL are NOTHING, FATAL, ERROR, FAILURE, WARNING, MESSAGE, INFO, DEBUG, CRON and EVERYTHING.
 .TP
-\fB\-s, \fB\-\-list-search\fR
-display entries from the search-result category in the file-identifier database
-.TP
-\fB\-S, \fB\-\-kill-search\fR
-delete all entries from the search-result category in the file-identifier database
-.TP
-\fB\-x, \fB\-\-list-directory\fR
-display entries from the directory-contents category in the file-identifier databae
-.TP
-\fB\-X, \fB\-\-kill-directory\fR
-delete all entries from the directory-contents category in the file-identifier databae
+\fB\-t, \fB\-\-track\fR
+start tracking file identifiers
 .SH NOTES
 
-In order to allow users maximum flexibility when building directories, GNUnet collects file-identifiers of files that the clients encounter in the file-identifier database.  The file-identifiers are classified into four categories (search, insert, directory, namespace) according to how they were obtained (as search results, by insertion of that file, as part of a directory that was downloaded).  When a user uses gnunet-gtk to build a directory, he can build the directory using a subset of the file-identifiers stored in the file-identifier database.
+The options are evaluated in the order \-l, \-k and then \-t.  Thus specifying \-klt will first list all identifiers that were in the database previously, then delete all of those identifiers from the database and then continue (or start to) collect identifiers.  The order in which the options are specified on the command line is not important.
 
-A GNUnet directory is a file containing a list of keys.  The keys can point to files, other directories or files in namespaces.  In other words, a GNUnet directory is similar to UNIX directories.  The difference to tar and zip is that GNUnet directory does not contain the actual files, just symbolic (links), similar to directories with symbolic links in UNIX filesystems.  The benefit is that the individual files can be retrieved separately (if desired) and if some of the files are inserted to another node in GNUnet, this just increases their availability but does not produce useless duplicates (for example, it is a better idea to publish a collection of pictures or compressed sound files using a GNUnet directory instead of processing them with archivers such as tar or zip first).
+A GNUnet directory is a file containing a list of GNUnet URIs and meta data.  The keys can point to files, other directories or files in namespaces.  In other words, a GNUnet directory is similar to UNIX directories.  The difference to tar and zip is that GNUnet directory does not contain the actual files, just symbolic (links), similar to directories with symbolic links in UNIX filesystems.  The benefit is that the individual files can be retrieved separately (if desired) and if some of the files are inserted to another node in GNUnet, this just increases their availability but does not produce useless duplicates (for example, it is a better idea to publish a collection of pictures or compressed sound files using a GNUnet directory instead of processing them with archivers such as tar or zip first).  Directories can contain arbitrary meta data for each file.
 
-Directories can be created at the moment by \fBgnunet\-gtk\fP and \fBgnunet\-insert\fP.  They can point to content created by the user or content inserted by others.  Just like ordinary files, a directory can be published under a pseudonym-signed namespace.  A directory can also contain links to files in namespaces.
+At the moment, directories can be created by \fBgnunet\-gtk\fP and \fBgnunet\-insert\fP.  They can point to content created by the user or content inserted by others.  Just like ordinary files, a directory can be published in a namespace.
 
-GNUnet-directories use the (unregistered) mimetype \fBapplication/gnunet\-directory\fP.  They can show up among normal search results or be pointed-to by sblocks. The directory file can be downloaded to disk by \fBgnunet\-download\fP(1) for later processing or be handled more directly by \fBgnunet\-gtk\fP(1).
+GNUnet directories use the (unregistered) mimetype \fBapplication/gnunet\-directory\fP.  They can show up among normal search results.  The directory file can be downloaded to disk by \fBgnunet\-download\fP(1) for later processing or be handled more directly by \fBgnunet\-gtk\fP(1).
 
 .SH "REPORTING BUGS"
-Report bugs by using mantis <http://www.ovmj.org/~mantis/> or by sending electronic mail to <gnunet-developers@gnu.org>
+Report bugs by using mantis <https://gnunet.org/mantis/> or by sending electronic mail to <gnunet-developers@gnu.org>
 .SH "SEE ALSO"
 \fBgnunet\-gtk\fP(1), \fBgnunet\-insert\fP(1), \fBgnunet\-search\fP(1), \fBgnunet\-download\fP(1), \fBgnunetd\fP(1)

@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -21,8 +21,8 @@
  * @file util/configuration.c
  * @brief high-level configuration managment (with command-line overrides)
  * @author Christian Grothoff
- * @author Gerd Knorr <kraxel@bytesex.org> 
- * 
+ * @author Gerd Knorr <kraxel@bytesex.org>
+ *
  * Configuration file parsing, taken from xawtv (GPL).
  *
  * This file provides code to parse a configuration file and access
@@ -35,13 +35,13 @@
 #include "platform.h"
 
 struct CFG_ENTRIES {
-  int  ent_count;
+  unsigned int ent_count;
   char **ent_names;
   char **ent_values;
 };
 
 struct CFG_SECTIONS {
-  int                 sec_count;
+  unsigned int          sec_count;
   char                **sec_names;
   struct CFG_ENTRIES  **sec_entries;
 };
@@ -73,15 +73,15 @@ static struct CFG_ENTRIES * cfg_init_entries() {
   return e;
 }
 
-static struct CFG_ENTRIES * cfg_find_section(struct CFG_SECTIONS *c, 
+static struct CFG_ENTRIES * cfg_find_section(struct CFG_SECTIONS *c,
 					     const char * name) {
   struct CFG_ENTRIES * e;
-  int i;
-  
+  unsigned int i;
+
   for (i=0; i<c->sec_count; i++)
     if (0 == strcasecmp(c->sec_names[i], name))
       return c->sec_entries[i];
-  
+
   /* 404 not found => create a new one */
   if ((c->sec_count % ALLOC_SIZE) == (ALLOC_SIZE-1)) {
     i = c->sec_count+1;
@@ -96,15 +96,15 @@ static struct CFG_ENTRIES * cfg_find_section(struct CFG_SECTIONS *c,
   e = cfg_init_entries();
   c->sec_names[c->sec_count]   = STRDUP(name);
   c->sec_entries[c->sec_count] = e;
-  c->sec_count++;    
+  c->sec_count++;
   return e;
 }
 
-static void cfg_set_entry(struct CFG_ENTRIES * e, 
-			  const char * name, 
+static void cfg_set_entry(struct CFG_ENTRIES * e,
+			  const char * name,
 			  const char * value) {
-  int i;
-  
+  unsigned int i;
+
   for (i=0; i<e->ent_count; i++)
     if (0 == strcasecmp(e->ent_names[i],
 			name))
@@ -123,33 +123,38 @@ static void cfg_set_entry(struct CFG_ENTRIES * e,
 	   i+ALLOC_SIZE);
     }
     i = e->ent_count;
-    e->ent_count++;    
+    e->ent_count++;
   } else {
     /* free old values, will be replaced! */
     FREENONNULL(e->ent_names[i]);
     FREENONNULL(e->ent_values[i]);
-  }      
+  }
   e->ent_names[i]  = STRDUP(name);
-  e->ent_values[i] = STRDUP(value);
+  if (value && *value)
+  	e->ent_values[i] = STRDUP(value);
+  else
+  	e->ent_values[i] = NULL;
 }
 
-static int cfg_parse_file(char *filename) {
+static int cfg_parse_file(const char *filename) {
   struct CFG_ENTRIES * e = NULL;
-  char line[256],tag[64],value[192];
+  char line[256];
+  char tag[64];
+  char value[192];
   FILE *fp;
   int nr;
   int i;
   int emptyline;
-  
+
   if (NULL == c)
     c = cfg_init_sections();
   if (NULL == (fp = FOPEN(filename,"r")))
     return -1;
-  
-  memset(line, 
-	 0, 
+
+  memset(line,
+	 0,
 	 256);
-  
+
   nr = 0;
   while (NULL != fgets(line,255,fp)) {
     nr++;
@@ -167,18 +172,18 @@ static int cfg_parse_file(char *filename) {
     if (line[0] == '\n' || line[0] == '#' || line[0] == '%' ||
 	line[0] == '\r')
       continue;
-    for (i=strlen(line)-2 ; 
+    for (i=strlen(line)-2 ;
 	 (i>=0) && (line[i] == ' ' || line[i] == '\t' ) ;
 	 i--)
       line[i] = 0;
     if (1 == sscanf(line, "@INLINE@ %191[^\n]", value) ) {
       char * expanded = expandFileName(value);
       LOG(LOG_DEBUG,
-	  _("inlining configration file '%s'\n"),
+	  _("inlining configration file `%s'\n"),
 	  expanded);
       if (cfg_parse_file(expanded) != 0)
 	LOG(LOG_WARNING,
-	    _("Could not parse configuration file '%s'.\n"),
+	    _("Could not parse configuration file `%s'.\n"),
 	    value);
     } else if (1 == sscanf(line,"[%99[^]]]", value)) {
       /* [section] */
@@ -186,11 +191,11 @@ static int cfg_parse_file(char *filename) {
     } else if (2 == sscanf(line," %63[^= ] = %191[^\n]",tag,value)) {
       /* foo = bar */
       if (NULL == e) /* no section defined so far: put in "global" section (change by CG) */
-	e = cfg_find_section(c, "");  
+	e = cfg_find_section(c, "");
       i=0;
       if (value[0] == '"') {
 	i=1;
-	while ( (value[i] != '\0') && 
+	while ( (value[i] != '\0') &&
 		(value[i] != '"') )
 	  i++;
 	if (value[i] == '"') {
@@ -200,17 +205,21 @@ static int cfg_parse_file(char *filename) {
 	  i=0;
       }
 #ifdef MINGW
+    {
+      int i2;
+
       /* Strip LF */
-      nr = strlen(value) - 1;
-      if (nr >= 0 && value[nr] == '\r')
-	value[nr] = 0;
+      i2 = strlen(value) - 1;
+      if (i2 >= 0 && value[i2] == '\r')
+        value[i2] = 0;
+    }
 #endif
       cfg_set_entry(e, tag, &value[i]);
-      
+
     } else {
       /* Huh ? */
       LOG(LOG_ERROR,
-	  _("Syntax error in configuration file '%s' at line %d.\n"),
+	  _("Syntax error in configuration file `%s' at line %d.\n"),
 	  filename, nr);
     }
   }
@@ -220,14 +229,15 @@ static int cfg_parse_file(char *filename) {
 
 /* ------------------------------------------------------------------------ */
 
-static char * cfg_get_str(const char * sec, 
+static char * cfg_get_str(const char * sec,
 			  const char * ent) {
   struct CFG_ENTRIES * e = NULL;
   int i;
-  
-  for (i = 0; i < c->sec_count; i++)
-    if (0 == strcasecmp(c->sec_names[i],sec))
-      e = c->sec_entries[i];
+
+  if (c)
+    for (i = 0; i < c->sec_count; i++)
+      if (0 == strcasecmp(c->sec_names[i],sec))
+	e = c->sec_entries[i];
   if (NULL == e)
     return NULL;
   for (i = 0; i < e->ent_count; i++)
@@ -237,11 +247,36 @@ static char * cfg_get_str(const char * sec,
   return NULL;
 }
 
-static int cfg_get_signed_int(const char *sec, 
+/**
+ * @brief Checks if a setting exists
+ * @return YES or NO
+ */
+static int cfg_exists(const char *sec,
+						const char *ent)
+{
+	struct CFG_ENTRIES *e = NULL;
+	int i;
+
+	if(c)
+		for(i = 0; i < c->sec_count; i++)
+			if(0 == strcasecmp(c->sec_names[i], sec))
+				e = c->sec_entries[i];
+				
+	if(NULL == e)
+		return NO;
+		
+	for(i = 0; i < e->ent_count; i++)
+		if(0 == strcasecmp(e->ent_names[i], ent))
+			return YES;
+		
+	return NO;
+}
+
+static int cfg_get_signed_int(const char *sec,
 			      const char *ent) {
   char *val;
 
-  val = cfg_get_str(sec, ent);    
+  val = cfg_get_str(sec, ent);
   if (NULL == val)
     return 0;
   return atoi(val);
@@ -252,13 +287,13 @@ static void doneParseConfig() {
   int j;
 
   if (c == NULL)
-    return;	      
+    return;	
   for (i=0;i<c->sec_count;i++) {
     if (c->sec_entries[i] != NULL) {
       for (j=0;j<c->sec_entries[i]->ent_count;j++) {
 	FREENONNULL(c->sec_entries[i]->ent_names[j]);
 	FREENONNULL(c->sec_entries[i]->ent_values[j]);
-      }    
+      }
       FREENONNULL(c->sec_entries[i]->ent_names);
       FREENONNULL(c->sec_entries[i]->ent_values);
     }
@@ -308,7 +343,7 @@ static UserConf * userconfig = NULL;
 
 /**
  * The command line strings (rest)
- */ 
+ */
 static char ** values;
 static int valuesCount;
 
@@ -318,12 +353,12 @@ static int valuesCount;
  * either in the current section or
  * globally FOO is set to DIRECTORY.
  */
-static char * expandDollar(const char * section,
-			   char * orig) {
+char * expandDollar(const char * section,
+		    char * orig) {
   int i;
   char * prefix;
   char * result;
-  
+
   i=0;
   while ( (orig[i] != '/') &&
       (orig[i] != '\\') &&
@@ -335,19 +370,24 @@ static char * expandDollar(const char * section,
   prefix = getConfigurationString(section,
 				  &orig[1]);
   if (prefix == NULL)
+    prefix = getConfigurationString("GNUNETD", &orig[1]);
+  if (prefix == NULL)
+    prefix = getConfigurationString("GNUNET", &orig[1]);
+  if (prefix == NULL)
     prefix = getConfigurationString("", &orig[1]);
+  if (prefix == NULL) {
+    const char * env = getenv(&orig[1]);
+    if (env != NULL)
+      prefix = STRDUP(env);
+  }
   if (prefix == NULL) {
     orig[i] = DIR_SEPARATOR;
     return orig;
   }
-  result = MALLOC(strlen(prefix) + 
+  result = MALLOC(strlen(prefix) +
 		  strlen(&orig[i+1]) + 2);
   strcpy(result, prefix);
-#ifndef MINGW
-  strcat(result, "/");
-#else
-  strcat(result, "\\");
-#endif
+  strcat(result, DIR_SEPARATOR_STR);
   strcat(result, &orig[i+1]);
   FREE(prefix);
   FREE(orig);
@@ -357,7 +397,7 @@ static char * expandDollar(const char * section,
 /**
  * Obtain a filename from the given section and option.  If the
  * filename is not specified, die with the given error message (do not
- * die if errMsg == NULL). 
+ * die if errMsg == NULL).
  *
  * @param section from which section, may not be NULL
  * @param option which option, may not be NULL
@@ -371,10 +411,10 @@ static char * expandDollar(const char * section,
 char * getFileName(const char * section,
 		   const char * option,
 		   const char * errMsg) {
-  char * fn;  
+  char * fn;
   char * fnExpand;
 
-  fn = getConfigurationString(section, 
+  fn = getConfigurationString(section,
 			      option);
   if (fn == NULL) {
     if (errMsg == NULL)
@@ -384,13 +424,27 @@ char * getFileName(const char * section,
 	      section,
 	      option);
   }
-  fnExpand = expandFileName(fn);   
+  fnExpand = expandFileName(fn);
   FREE(fn);
   return fnExpand;
 }
 
-void generate_gnunetd_conf(FILE * f);
-void generate_gnunet_conf(FILE * f);
+/**
+ * @brief Read a specific configuration file. The previous configuration
+ *        will NOT be discarded if this method is invoked twice.
+ * @param fn the file to read
+ * @return YES on success, NO otherwise
+ */
+int readConfigFile(const char *fn) {
+  if (0 != cfg_parse_file(fn))
+  	return NO;
+
+  parseConfigInit = YES;
+
+  setConfigurationString("Meta", "DATADIR", DATADIR);
+
+  return YES;
+}
 
 /**
  * Read the configuration file.  The previous configuration will be
@@ -400,6 +454,7 @@ void readConfiguration() {
   /* getFileName aquires the mutex, so we better do this first */
   char * cfgName;
   char * expCfgName;
+  char * eName = NULL;
 
   cfgName = getConfigurationString("FILES",
 				   "gnunet.conf");
@@ -407,13 +462,33 @@ void readConfiguration() {
     if (testConfigurationString("GNUNETD",
 				"_MAGIC_",
 				"YES")) {
+      eName = expandFileName(HOME_DAEMON_CONFIG_FILE);
       expCfgName = getenv("GNUNETD_CONFIG");
-      if (expCfgName == NULL)
+      if (expCfgName == NULL) {
+	/* pick default, but try to pick it so
+	   that we can write there (if it does not
+	   exist) */
 	expCfgName = DEFAULT_DAEMON_CONFIG_FILE;
+	if (ACCESS(expCfgName, R_OK)) {
+	  expCfgName = VAR_DAEMON_CONFIG_FILE;
+	  if (ACCESS(expCfgName, R_OK)) {
+	    expCfgName = eName;
+	    if (ACCESS(expCfgName, R_OK)) {
+	      if (0 == ACCESS(DEFAULT_DAEMON_CONFIG_FILE, W_OK))
+		expCfgName = DEFAULT_DAEMON_CONFIG_FILE;
+	      if (0 == ACCESS(VAR_DAEMON_CONFIG_FILE, W_OK))
+		expCfgName = VAR_DAEMON_CONFIG_FILE;
+	      if (0 == ACCESS(eName, W_OK))
+		expCfgName = eName;
+	    }
+	  }
+	}	
+      }
     } else {
+      eName = expandFileName(DEFAULT_CLIENT_CONFIG_FILE);
       expCfgName = getenv("GNUNET_CONFIG");
       if (expCfgName == NULL)
-	expCfgName = DEFAULT_CLIENT_CONFIG_FILE;
+	expCfgName = eName;
     }
     expCfgName = expandFileName(expCfgName);
     setConfigurationString("FILES",
@@ -422,8 +497,8 @@ void readConfiguration() {
   } else {
     expCfgName = expandFileName(cfgName);
   }
+  FREENONNULL(eName);
   if (0 == assertIsFile(expCfgName)) {
-    FILE * f;
     char * c;
     int p;
 
@@ -437,24 +512,25 @@ void readConfiguration() {
     FREE(c);
     /* try generating a configuration file */
     LOG(LOG_WARNING,
-	_("Configuration file '%s' not found. I will try to create the default configuration file at that location.\n"),
+	_("Configuration file `%s' not found.  Run gnunet-setup!\n"),
 	expCfgName);
-    f = FOPEN(expCfgName,
-	      "a+");
-    if (f != NULL) {
-      if (testConfigurationString("GNUNETD",
-				  "_MAGIC_",
-				  "YES")) {
-	generate_gnunetd_conf(f);
-      } else {
-	generate_gnunet_conf(f);
-      }	
-      fclose(f);
-    }
+    if (! testConfigurationString("GNUNETD",
+            "_MAGIC_",
+            "YES"))
+#ifdef WINDOWS
+      MessageBox(0, _("Configuration file not found. Please run GNUnet Setup "
+        "(Client Configuration) first."), _("Error"), MB_ICONSTOP | MB_OK);
+#else
+      errexit(_("Configuration file `%s' not found.  Run gnunet-setup!\n"),
+        expCfgName);
+#endif
+    else
+      errexit(_("Configuration file `%s' not found.  Run `gnunet-setup -d'!\n"),
+  	    expCfgName);
   }
-  if (0 == assertIsFile(expCfgName)) 
-    errexit(_("Cannot open configuration file '%s'\n"),
-	    expCfgName); 
+  if (0 == assertIsFile(expCfgName))
+    errexit(_("Cannot open configuration file `%s'.\n"),
+	    expCfgName);
   FREENONNULL(cfgName);
 
   FREENONNULL(setConfigurationString("FILES",
@@ -463,20 +539,20 @@ void readConfiguration() {
   MUTEX_LOCK(&configLock);
   FREENONNULL(configuration_filename);
   configuration_filename = expCfgName;
-  
+
   if (parseConfigInit == YES) {
     doneParseConfig();
     parseConfigInit = NO;
   }
-  if (0 != cfg_parse_file(configuration_filename))
-    errexit("Failed to parse configuration file '%s'.\n",
+  if (!readConfigFile(configuration_filename))
+    errexit("Failed to parse configuration file `%s'.\n",
 	    configuration_filename);
-  parseConfigInit = YES;
+
   MUTEX_UNLOCK(&configLock);
 }
 
 static NotifyConfigurationUpdateCallback * cbl = NULL;
-static int cbCnt = 0;
+static unsigned int cbCnt = 0;
 
 /**
  * Register a callback that is called when the configuration
@@ -495,7 +571,7 @@ void registerConfigurationUpdateCallback(NotifyConfigurationUpdateCallback cb) {
 
 void unregisterConfigurationUpdateCallback(NotifyConfigurationUpdateCallback cb) {
   int i;
-  
+
   MUTEX_LOCK(&configLock);
   for (i=0;i<cbCnt;i++)
     if (cbl[i] == cb)
@@ -575,7 +651,7 @@ char * getConfigurationString(const char * section,
       if (pos->stringValue != NULL)
 	retval = STRDUP(pos->stringValue);
       else
-	retval = NULL; 
+	retval = NULL;
       MUTEX_UNLOCK(&configLock);
       if (retval != NULL)
 	if (retval[0] == '$') {
@@ -590,12 +666,41 @@ char * getConfigurationString(const char * section,
   if (parseConfigInit == YES)
     retval = cfg_get_str(section, option);
   if (retval != NULL)
-    retval = STRDUP(retval);  
+    retval = STRDUP(retval);
   MUTEX_UNLOCK(&configLock);
   if (retval != NULL)
-    if (retval[0] == '$') 
-      retval = expandDollar(section, retval);    
+    if (retval[0] == '$')
+      retval = expandDollar(section, retval);
   return retval;
+}
+
+/**
+ * @brief Check if a setting was specified in a .conf file
+ * @return YES or NO
+ */
+int isConfigurationItemSet(const char *section, const char *option)
+{
+	UserConf *pos;
+	int found = NO;
+
+	GNUNET_ASSERT((section != NULL) && (option != NULL));
+	MUTEX_LOCK(&configLock);
+	pos = userconfig;
+	while(pos != NULL) {
+		if((strcmp(section, pos->section) == 0) &&
+			 (strcmp(option, pos->option) == 0)) {
+			 	found = YES;
+			 	break;
+		}
+		pos = pos->next;
+	}
+
+	if (! found && parseConfigInit == YES)
+		found = cfg_exists(section, option);
+
+  MUTEX_UNLOCK(&configLock);
+
+	return found;
 }
 
 /**
@@ -647,7 +752,7 @@ unsigned int getConfigurationInt(const char * section,
 				 const char * option) {
   UserConf * pos;
   unsigned int retval;
-
+  
   GNUNET_ASSERT( (section != NULL) && (option != NULL) );
   MUTEX_LOCK(&configLock);
   pos = userconfig;
@@ -661,7 +766,7 @@ unsigned int getConfigurationInt(const char * section,
     pos = pos->next;
   }
   retval = 0;
-  if (parseConfigInit == YES) 
+  if (parseConfigInit == YES)
     retval = cfg_get_signed_int(section, option);
   MUTEX_UNLOCK(&configLock);
   return retval;
@@ -679,7 +784,7 @@ char * setConfigurationString(const char * section,
 			      const char * option,
 			      const char * value) {
   UserConf * pos;
-  UserConf * prev; 
+  UserConf * prev;
   char * res;
 
   GNUNET_ASSERT( (section != NULL) && (option != NULL) );
@@ -711,7 +816,7 @@ char * setConfigurationString(const char * section,
   pos->option = STRDUP(option);
   if (value != NULL)
     pos->stringValue = STRDUP(value);
-  else 
+  else
     pos->stringValue = NULL;
   pos->intValue = 0;
   pos->next = NULL;
@@ -722,7 +827,7 @@ char * setConfigurationString(const char * section,
       res = STRDUP(res);
   }
   MUTEX_UNLOCK(&configLock);
-  return res;    
+  return res;
 }
 
 /**
@@ -736,7 +841,7 @@ unsigned int setConfigurationInt(const char * section,
 				 const char * option,
 				 const unsigned int value) {
   UserConf * pos;
-  UserConf * prev; 
+  UserConf * prev;
   unsigned int res;
 
   GNUNET_ASSERT( (section != NULL) && (option != NULL) );
@@ -770,7 +875,7 @@ unsigned int setConfigurationInt(const char * section,
   if (parseConfigInit == YES)
     res = cfg_get_signed_int(section, option);
   MUTEX_UNLOCK(&configLock);
-  return res; 
+  return res;
 }
 
 /**
@@ -795,7 +900,7 @@ int getConfigurationStringList(char *** value) {
  * Set the list of command line options (remainder after getopt style
  * parsing).
  *
- * @param value the values 
+ * @param value the values
  + @param count the number of values
  */
 void setConfigurationStringList(char ** value,

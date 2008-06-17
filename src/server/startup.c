@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2004 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2004, 2005 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -32,9 +32,12 @@
  * @author Christian Grothoff
  */
 
+#include "platform.h"
 #include "gnunet_util.h"
-#include "transport.h"
+#include "gnunet_protocols.h"
+
 #include "tcpserver.h"
+#include "core.h"
 
 extern int debug_flag, win_service;
 #ifdef MINGW
@@ -63,11 +66,11 @@ static void reread_config_helper(void * unused) {
 
 /**
  * Signal handler for SIGHUP.
- * Re-reads the configuration file. 
+ * Re-reads the configuration file.
  */
 static void reread_config(int signum) {
   addCronJob(&reread_config_helper,
-	     1 * cronSECONDS, 
+	     1 * cronSECONDS,
 	     0,
 	     NULL);
 }
@@ -76,7 +79,7 @@ static void reread_config(int signum) {
  * Try a propper shutdown of gnunetd.
  */
 static void shutdown_gnunetd(int signum) {
-  
+
 #ifdef MINGW
 if (win_service)
 {
@@ -86,7 +89,7 @@ if (win_service)
   if (signum != SERVICE_CONTROL_STOP)
   {
     SERVICE_STATUS theStat;
-    
+
     /* Init proper shutdown through the SCM */
     if (GNControlService(hService, SERVICE_CONTROL_STOP, &theStat))
     {
@@ -101,7 +104,7 @@ if (win_service)
        but we don't care.
        Just shut the gnunetd process down. */
   }
-  
+
   /* Acknowledge the shutdown request */
   theServiceStatus.dwCurrentState = SERVICE_STOP_PENDING;
   GNSetServiceStatus(hService, &theServiceStatus);
@@ -112,18 +115,18 @@ if (win_service)
 }
 
 static int shutdownHandler(ClientHandle client,
-                           const CS_HEADER * msg) {
+                           const CS_MESSAGE_HEADER * msg) {
   int ret;
-  
-  if (ntohs(msg->size) != sizeof(CS_HEADER)) {
+
+  if (ntohs(msg->size) != sizeof(CS_MESSAGE_HEADER)) {
     LOG(LOG_WARNING,
-        _("The '%s' request received from client is malformed.\n"),
+        _("The `%s' request received from client is malformed.\n"),
 	"shutdown");
     return SYSERR;
   }
-  LOG(LOG_INFO, 
+  LOG(LOG_INFO,
       "shutdown request accepted from client\n");
-  
+
   if (SYSERR == unregisterCSHandler(CS_PROTO_SHUTDOWN_REQUEST,
                                     &shutdownHandler))
     GNUNET_ASSERT(0);
@@ -145,7 +148,7 @@ BOOL WINAPI win_shutdown_gnunetd(DWORD dwCtrlType)
     case SERVICE_CONTROL_STOP:
       shutdown_gnunetd(dwCtrlType);
   }
-  
+
   return TRUE;
 }
 #endif
@@ -168,11 +171,11 @@ void initSignalHandlers() {
   sig.sa_flags = SA_INTERRUPT; /* SunOS */
 #else
   sig.sa_flags = SA_RESTART;
-#endif    
+#endif
   sigaction(SIGINT,  &sig, &oldsig);
   sigaction(SIGTERM, &sig, &oldsig);
   sigaction(SIGQUIT, &sig, &oldsig);
-  
+
   sig.sa_handler = &reread_config;
   sigaction(SIGHUP, &sig, &oldsig);
 #else
@@ -202,7 +205,7 @@ void doneSignalHandlers() {
 #else
   SetConsoleCtrlHandler(&win_shutdown_gnunetd, TRUE);
 #endif
-  SEMAPHORE_FREE(doShutdown);  
+  SEMAPHORE_FREE(doShutdown);
 }
 
 /**
@@ -225,16 +228,16 @@ void waitForSignalHandler() {
 	       0,
 	       doShutdown);
 #if 0
-  /* If Valgrind is used to debug memory leaks, some sort of mechanism 
-     is needed to make gnunetd exit without using any signal -IW*/ 
+  /* If Valgrind is used to debug memory leaks, some sort of mechanism
+     is needed to make gnunetd exit without using any signal -IW*/
   FILE *fp;
-  
+
   while(1) {
     fp=FOPEN("/tmp/quitgn", "r");
     if(fp) {
       fprintf(stderr, "QUITTING...\n");
       fclose(fp);
-      return;  
+      return;
     }
     sleep(1);
   }
@@ -253,12 +256,8 @@ void waitForSignalHandler() {
  * Check if the compiler did a decent job aligning the structs...
  */
 void checkCompiler() {
-  if (sizeof(HELO_Message) != 556)
-    errexit("sizeof HELO Message wrong! (%d != 556)",
-	    sizeof(HELO_Message));
-  if (sizeof(p2p_HEADER) != 4)
-    errexit("sizeof p2p_HEADER wrong! (%d != 4)",
-	    sizeof(p2p_HEADER));
+  GNUNET_ASSERT(sizeof(P2P_hello_MESSAGE) == 600);
+  GNUNET_ASSERT(sizeof(P2P_MESSAGE_HEADER) == 4);
 }
 
 /* *********** PID file handling *************** */
@@ -267,7 +266,7 @@ static char * getPIDFile() {
   return getFileName("GNUNETD",
 		     "PIDFILE",
 		     _("You must specify a name for the PID file in section"
-		       " '%s' under '%s'.\n"));
+		       " `%s' under `%s'.\n"));
 }
 
 /**
@@ -276,12 +275,12 @@ static char * getPIDFile() {
 void writePIDFile() {
   FILE * pidfd;
   char * pif;
-  
+
   pif = getPIDFile();
   pidfd = FOPEN(pif, "w");
   if (pidfd == NULL) {
-    LOG(LOG_WARNING, 
-	_("Could not write PID to file '%s': %s.\n"), 
+    LOG(LOG_WARNING,
+	_("Could not write PID to file `%s': %s.\n"),
 	pif,
 	STRERROR(errno));
   } else {
@@ -293,7 +292,7 @@ void writePIDFile() {
 
 void deletePIDFile() {
   char * pif = getPIDFile();
-  UNLINK(pif);    
+  UNLINK(pif);
   FREE(pif);
 }
 
@@ -311,7 +310,7 @@ void detachFromTerminal(int * filedes) {
   pid_t pid;
   int nullfd;
 #endif
-  
+
   /* Don't hold the wrong FS mounted */
   if (CHDIR("/") < 0) {
     perror("chdir");
@@ -328,32 +327,32 @@ void detachFromTerminal(int * filedes) {
   if (pid) {  /* Parent */
     int ok;
     char c;
-    
-    CLOSE(filedes[1]); /* we only read */
+
+    closefile(filedes[1]); /* we only read */
     ok = SYSERR;
     while (0 < READ(filedes[0], &c, sizeof(char))) {
-      if (c == '.') 
+      if (c == '.')
 	ok = OK;
-    }      
+    }
     fflush(stdout);
     if (ok == OK)
-      exit(0);   
+      exit(0);
     else
       exit(1); /* child reported error */
   }
-  CLOSE(filedes[0]); /* we only write */
-  nullfd = OPEN("/dev/null",
+  closefile(filedes[0]); /* we only write */
+  nullfd = fileopen("/dev/null",
 		O_CREAT | O_RDWR | O_APPEND);
   if (nullfd < 0) {
     perror("/dev/null");
     exit(1);
-  }   
+  }
   /* child - close fds linking to invoking terminal, but
    * close usual incoming fds, but redirect them somewhere
    * useful so the fds don't get reallocated elsewhere.
    */
-  if (dup2(nullfd,0) < 0 || 
-      dup2(nullfd,1) < 0 || 
+  if (dup2(nullfd,0) < 0 ||
+      dup2(nullfd,1) < 0 ||
       dup2(nullfd,2) < 0) {
     perror("dup2"); /* Should never happen */
     exit(1);
@@ -368,7 +367,7 @@ void detachFromTerminalComplete(int * filedes) {
 #ifndef MINGW
   char c = '.';
   WRITE(filedes[1], &c, sizeof(char)); /* signal success */
-  CLOSE(filedes[1]);
+  closefile(filedes[1]);
 #endif
 }
 
@@ -400,18 +399,39 @@ static void printhelp() {
 	     help);
 }
 
+#ifndef MINGW
+/**
+ * @brief Change user ID
+ */
+void changeUser(const char *user) {
+  struct passwd * pws;
+
+  pws = getpwnam(user);
+  if(pws == NULL) {
+    LOG(LOG_WARNING,
+        _("User `%s' not known, cannot change UID to it.\n"), user);
+    return;
+  }
+  if((0 != setgid(pws->pw_gid)) ||
+     (0 != setegid(pws->pw_gid)) ||
+     (0 != setuid(pws->pw_uid)) || (0 != seteuid(pws->pw_uid))) {
+    if((0 != setregid(pws->pw_gid, pws->pw_gid)) ||
+       (0 != setreuid(pws->pw_uid, pws->pw_uid)))
+      LOG(LOG_WARNING,
+          _("Cannot change user/group to `%s': %s\n"),
+          user, STRERROR(errno));
+  }
+}
+#endif
 
 /**
- * Perform option parsing from the command line. 
+ * Perform option parsing from the command line.
  */
-int parseCommandLine(int argc, 
+int parseCommandLine(int argc,
 		     char * argv[]) {
   int cont = OK;
   int c;
-#ifndef MINGW
-  struct passwd * pws;
-#endif
-  
+
   /* set the 'magic' code that indicates that
      this process is 'gnunetd' (and not any of
      the tools).  This can be used by code
@@ -425,7 +445,7 @@ int parseCommandLine(int argc,
     static struct GNoption long_options[] = {
       { "loglevel",1, 0, 'L' },
       { "config",  1, 0, 'c' },
-      { "version", 0, 0, 'v' },      
+      { "version", 0, 0, 'v' },
       { "help",    0, 0, 'h' },
       { "user",    1, 0, 'u' },
       { "debug",   0, 0, 'd' },
@@ -434,40 +454,40 @@ int parseCommandLine(int argc,
       { "win-service", 0, 0, '@' },
       { 0,0,0,0 }
     };
-    
+
     c = GNgetopt_long(argc,
-		      argv, 
-		      "vhdc:u:L:lp:@", 
-		      long_options, 
+		      argv,
+		      "vhdc:u:L:lp:@",
+		      long_options,
 		      &option_index);
-    
-    if (c == -1) 
+
+    if (c == -1)
       break;  /* No more flags to process */
-    
+
     switch(c) {
     case 'p':
       FREENONNULL(setConfigurationString("GNUNETD-EXPERIMENTAL",
 					 "PADDING",
 					 GNoptarg));
-      break;      
+      break;
     case 'l':
       addCronJob(&printDot,
-		 1 * cronSECONDS, 
-		 1 * cronSECONDS, 
+		 1 * cronSECONDS,
+		 1 * cronSECONDS,
 		 NULL);
       break;
-    case 'c': 
+    case 'c':
       FREENONNULL(setConfigurationString("FILES",
 					 "gnunet.conf",
 					 GNoptarg));
       break;
-    case 'v': 
+    case 'v':
       printf("GNUnet v%s\n",
 	     VERSION);
       cont = SYSERR;
       break;
-    case 'h': 
-      printhelp(); 
+    case 'h':
+      printhelp();
       cont = SYSERR;
       break;
     case 'L':
@@ -483,24 +503,7 @@ int parseCommandLine(int argc,
       break;
 #ifndef MINGW	/* not supported */
     case 'u':
-      pws = getpwnam(GNoptarg);
-      if (pws == NULL) {
-        LOG(LOG_WARNING, 
-	    _("User '%s' not known, cannot change UID to it."),
-	    GNoptarg);
-        break;
-      }
-      if ( (0 != setgid(pws->pw_gid)) ||
-	   (0 != setegid(pws->pw_gid)) ||
-	   (0 != setuid(pws->pw_uid)) ||
-	   (0 != seteuid(pws->pw_uid)) ) {  
-	if ( (0 != setregid(pws->pw_gid, pws->pw_gid)) || 
-	     (0 != setreuid(pws->pw_uid, pws->pw_uid)) )
-	  LOG(LOG_WARNING, 
-	      _("Cannot change user/group to '%s': %s"),
-	      GNoptarg,
-	      STRERROR(errno));
-      }
+      changeUser(GNoptarg);
       break;
 #endif
 #ifdef MINGW
@@ -509,27 +512,26 @@ int parseCommandLine(int argc,
       break;
 #endif
     default:
-      LOG(LOG_FAILURE, 
+      LOG(LOG_FAILURE,
 	  _("Use --help to get a list of options.\n"));
-      cont = SYSERR;    
+      cont = SYSERR;
     } /* end of parsing commandline */
   }
   if (GNoptind < argc) {
-    LOG(LOG_WARNING, 
+    LOG(LOG_WARNING,
 	_("Invalid command-line arguments:\n"));
     while (GNoptind < argc) {
-      LOG(LOG_WARNING, 
-	  _("Argument %d: '%s'\n"), 
+      LOG(LOG_WARNING,
+	  _("Argument %d: `%s'\n"),
 	  GNoptind+1,
 	  argv[GNoptind]);
       GNoptind++;
-    }    
+    }
     LOG(LOG_FATAL,
 	_("Invalid command-line arguments.\n"));
     return SYSERR;
   }
   return cont;
 }
-
 
 /* end of startup.c */

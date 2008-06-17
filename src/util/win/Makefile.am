@@ -2,26 +2,15 @@ INCLUDES = -I$(top_srcdir)/src/include
 
 noinst_LTLIBRARIES = libwin.la
 
-if HAVE_BDB_DLL
- BDB_DLL = bdb_dll_wrapper.c
-else
- BDB_DLL = 
-endif
-
 if MINGW
   libwin_la_SOURCES = \
      winproc.c \
-     winselect.c \
-     winstrptime.c \
-     win.cc \
-     inet_pton.c \
-     $(BDB_DLL)
+     win.cc
 endif
 
 if CYGWIN
   libwin_la_SOURCES = \
-     winproc.c \
-     $(BDB_DLL)
+     winproc.c
 endif
 
 if MINGW

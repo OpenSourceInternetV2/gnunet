@@ -1,13 +1,15 @@
 INCLUDES = -I$(top_srcdir)/src/include
 
+plugindir = $(libdir)/GNUnet
+
 LDADD =  \
   $(top_builddir)/src/util/libgnunetutil.la 
 
 bin_PROGRAMS = \
   gnunet-tracekit
 
-lib_LTLIBRARIES = \
-  libgnunettracekit_protocol.la
+plugin_LTLIBRARIES = \
+  libgnunetmodule_tracekit.la
 
 
 gnunet_tracekit_SOURCES = \
@@ -15,12 +17,12 @@ gnunet_tracekit_SOURCES = \
   tracekit.h
 
 
-libgnunettracekit_protocol_la_SOURCES = \
+libgnunetmodule_tracekit_la_SOURCES = \
   tracekit.c \
   tracekit.h
 
-libgnunettracekit_protocol_la_LIBADD = \
+libgnunetmodule_tracekit_la_LIBADD = \
   $(LDADD)
 
-libgnunettracekit_protocol_la_LDFLAGS = \
+libgnunetmodule_tracekit_la_LDFLAGS = \
   -export-dynamic -avoid-version -module

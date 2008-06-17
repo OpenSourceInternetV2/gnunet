@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -20,11 +20,11 @@
 
 /**
  * @file include/gnunet_util.h
- * @brief public interface to libgnunet_util
+ * @brief public interface to libgnunetutil
  *
  * @author Christian Grothoff
  * @author Krista Bennett
- * @author Gerd Knorr <kraxel@bytesex.org> 
+ * @author Gerd Knorr <kraxel@bytesex.org>
  * @author Ioana Patrascu
  * @author Tzvetan Horozov
  */
@@ -32,8 +32,11 @@
 #ifndef GNUNET_UTIL_H
 #define GNUNET_UTIL_H
 
-#ifdef __cplusplus
-extern "C" {
+#ifdef MINGW
+  #include <windows.h>
+  #include <iphlpapi.h>
+  #include <Ntsecapi.h>
+  #include <lm.h>
 #endif
 
 /* we need size_t, and since it can be both unsigned int
@@ -43,13 +46,15 @@ extern "C" {
 #include <stdlib.h>
 
 
+/* **************** constants ****************** */
+
 /* do not turn this on unless you know what you
    are doing, you'll get a ton of output... */
 #define DEBUG_LOCKING 0
 
 /**
  * Just the version number of GNUnet-util implementation.
- * Encoded as 
+ * Encoded as
  * 0.6.1-4 => 0x00060104
  * 4.5.2   => 0x04050200
  *
@@ -57,508 +62,487 @@ extern "C" {
  * something changes GNUnet-util.  It does not have
  * to match exactly with the GNUnet version number;
  * especially the least significant bits may change
- * frequently, even between different CVS versions.
+ * frequently, even between different SVN versions.
  */
-
-#define GNUNET_UTIL_VERSION 0x00060200
-
-typedef struct {
-  void * internal;
-} Hostkey__;
-
-typedef Hostkey__ * Hostkey;
+#define GNUNET_UTIL_VERSION 0x00070001
 
 /**
- * We use an unsigned short in the protocol header, thus: 
+ * We use an unsigned short in the protocol header, thus:
  */
 #define MAX_BUFFER_SIZE 65536
 
-/* ********* transport protocol numbers ************* */
+/**
+ * Highest legal priority or trust value
+ */
+#define MAX_PRIO 0x7FFFFFFF
 
 /**
- * These are the protocol numbers for the underlying GNUnet
- * protocols. They are typically taken to hint at a well-known
- * protocol, but they are not used in the same way. They just indicate
- * _internally_ to GNUnet which protocol from the TCP/IP suite to use
- * to run GNUnet over.
+ * Named constants for return values.  The following
+ * invariants hold: "NO == 0" (to allow "if (NO)")
+ * "OK != SYSERR", "OK != NO", "NO != SYSERR"
+ * and finally "YES != NO".
  */
-   
-/**
- * protocol number for "unspecified"
- */
-#define ANY_PROTOCOL_NUMBER 0
+#define OK      1
+#define SYSERR -1
+#define YES     1
+#define NO      0
 
-/**
- * protocol number for 'NAT'.  Used as the advertisements for peers behind
- * a NAT box.
- */
-#define NAT_PROTOCOL_NUMBER 1
+#define STRONG YES
+#define WEAK NO
 
 /**
- * protocol number of TCP. Do NEVER change, also used in other context! 
+ * @brief constants to specify time
  */
-#define TCP_PROTOCOL_NUMBER 6
+#define cronMILLIS ((cron_t)1)
+#define cronSECONDS ((cron_t)(1000 * cronMILLIS))
+#define cronMINUTES ((cron_t) (60 * cronSECONDS))
+#define cronHOURS ((cron_t)(60 * cronMINUTES))
+#define cronDAYS ((cron_t)(24 * cronHOURS))
+#define cronWEEKS ((cron_t)(7 * cronDAYS))
+#define cronMONTHS ((cron_t)(30 * cronDAYS))
+#define cronYEARS ((cron_t)(365 * cronDAYS))
 
 /**
- * protocol number for HTTP (80 is too big, so 8 will have to do)
+ * @brief log levels
  */
-#define HTTP_PROTOCOL_NUMBER 8
+typedef enum LOG_Level {
+  LOG_NOTHING = 0,
+  LOG_FATAL,
+  LOG_ERROR,
+  LOG_FAILURE,
+  LOG_WARNING,
+  LOG_MESSAGE,
+  LOG_INFO,
+  LOG_DEBUG,
+  LOG_CRON,
+  LOG_EVERYTHING,
+} LOG_Level;
 
 /**
- * Protocol number for TCP on IPv6 (TCP+6)
+ * @brief length of the sessionkey in bytes (256 BIT sessionkey)
  */
-#define TCP6_PROTOCOL_NUMBER 12
+#define SESSIONKEY_LEN (256/8)
 
 /**
- * protocol number of UDP. Do NEVER change, also used in other context! 
+ * @brief Default names of the configuration files.
  */
-#define UDP_PROTOCOL_NUMBER 17
+#define DEFAULT_CLIENT_CONFIG_FILE "~/.gnunet/gnunet.conf"
+#define DEFAULT_DAEMON_DIR "/etc"
+#define DEFAULT_DAEMON_CONFIG_FILE "/etc/gnunetd.conf"
+#define VAR_DIRECTORY       "/var/lib"
+#define VAR_DAEMON_DIRECTORY       "/var/lib/GNUnet"
+#define VAR_DAEMON_CONFIG_FILE     "/var/lib/GNUnet/gnunetd.conf"
+#define HOME_DAEMON_CONFIG_FILE    "~/.gnunet/gnunetd.conf"
+#define GNUNET_HOME_DIRECTORY    "~/.gnunet/"
 
 /**
- * Protocol number for UDP on IPv6 (UDP+6)
+ * @brief Length of RSA encrypted data (2048 bit)
+ *
+ * We currently do not handle encryption of data
+ * that can not be done in a single call to the
+ * RSA methods (read: large chunks of data).
+ * We should never need that, as we can use
+ * the hash for larger pieces of data for signing,
+ * and for encryption, we only need to encode sessionkeys!
  */
-#define UDP6_PROTOCOL_NUMBER 23
+#define RSA_ENC_LEN 256
 
 /**
- * protocol number for SMTP 
+ * Length of an RSA KEY (d,e,len), 2048 bit (=256 octests) key d, 2 byte e
  */
-#define SMTP_PROTOCOL_NUMBER 25
+#define RSA_KEY_LEN 258
 
 
-
-/* ********* client-server protocol (over TCP) ********** */
-/* ********* CS infrastructure messages ********** */
+#define HELP_HELP \
+  { 'h', "help", NULL,				\
+    gettext_noop("print this help") }
+#define HELP_LOGLEVEL \
+  { 'L', "loglevel", "LEVEL",			\
+    gettext_noop("set verbosity to LEVEL") }
+#define HELP_CONFIG \
+  { 'c', "config", "FILENAME",			\
+    gettext_noop("use configuration file FILENAME") }
+#define HELP_HOSTNAME \
+  { 'H', "host", "HOSTNAME",			\
+    gettext_noop("specify host on which gnunetd is running") }
+#define HELP_VERSION \
+  { 'v', "version", NULL,			\
+    gettext_noop("print the version number") }
+#define HELP_VERBOSE \
+  { 'V', "verbose", NULL,			\
+    gettext_noop("be verbose") }
+#define HELP_END \
+    { 0, NULL, NULL, NULL, }
 
 /**
- * return value for remote calls 
+ * Default "long" version of the options, use
+ * "vhdc:L:H:" in the short option argument
+ * to getopt_long for now.
  */
-#define CS_PROTO_RETURN_VALUE 0
+#define LONG_DEFAULT_OPTIONS \
+      { "config",        1, 0, 'c' }, \
+      { "version",       0, 0, 'v' }, \
+      { "help",          0, 0, 'h' }, \
+      { "debug",         0, 0, 'd' }, \
+      { "loglevel",      1, 0, 'L' }, \
+      { "host",          1, 0, 'H' }
+
+/* **************** structs ****************** */
 
 /**
- * client to gnunetd: to how many nodes are we connected? 
- * reply is a CS_RETURN_VALUE message. 
+ * The private information of an RSA key pair.
  */
-#define CS_PROTO_CLIENT_COUNT 1
-
-/**
- * Client to gnunetd: how much traffic do we have at the moment?
- */
-#define CS_PROTO_TRAFFIC_QUERY 2
-
-/**
- * gnunetd to client: traffic statistics 
- */
-#define CS_PROTO_TRAFFIC_INFO 3
-
-/* *********** messages for statistics ************* */
-
-/**
- * client to gnunetd: request statistics 
- */
-#define STATS_CS_PROTO_GET_STATISTICS 4
-
-/**
- * gnunetd to client: statistics 
- */
-#define STATS_CS_PROTO_STATISTICS 5
-
-/**
- * client to gnunetd: is client server message supported
- */
-#define STATS_CS_PROTO_GET_CS_MESSAGE_SUPPORTED 6
-
-/**
- * client to gnunetd: is p2p message supported
- */
-#define STATS_CS_PROTO_GET_P2P_MESSAGE_SUPPORTED 7
-
-/* ********** CS AFS application messages ********** */
-
-/**
- * client to gnunetd: send queries
- * */
-#define AFS_CS_PROTO_QUERY 8
-
-/**
- * gnunetd to client: here is your answer (3-hash-content) 
- */
-#define AFS_CS_PROTO_RESULT_3HASH 9
-
-/**
- * gnunetd to client: here is your answer (CHK-content) 
- */
-#define AFS_CS_PROTO_RESULT_CHK 10
-
-/**
- * client to gnunetd: insert CHK content (no index) 
- */
-#define AFS_CS_PROTO_INSERT_CHK 11
-
-/**
- * client to gnunetd: insert 3HASH content (no index) 
- */
-#define AFS_CS_PROTO_INSERT_3HASH 12
-
-/**
- * client to gnunetd: index content 
- */
-#define AFS_CS_PROTO_INDEX_BLOCK 13
-
-/**
- * client to gnunetd: get an index for a file
- */
-#define AFS_CS_PROTO_INDEX_FILE 14
-
-/**
- * client to gnunetd: index super-block
- */
-#define AFS_CS_PROTO_INDEX_SUPER 15
-
-/**
- * client to gnunetd: delete CHK content (no index) 
- */
-#define AFS_CS_PROTO_DELETE_CHK 16
-
-/**
- * client to gnunetd: delete 3HASH content (no index) 
- * Not used so far!
- */
-#define AFS_CS_PROTO_DELETE_3HASH 17
-
-/**
- * client to gnunetd: unindex content (remove)
- */
-#define AFS_CS_PROTO_UNINDEX_BLOCK 18
-
-/**
- * client to gnunetd: remove an file from the indexed list
- */
-#define AFS_CS_PROTO_UNINDEX_FILE 19
-
-/**
- * client to gnunetd: unindex super-block
- */
-#define AFS_CS_PROTO_UNINDEX_SUPER 20
-
-/**
- * client to gnunetd: issue namespace query
- */
-#define AFS_CS_PROTO_NSQUERY 21
-
-/**
- * client to gnunetd: store SBlock
- */
-#define AFS_CS_PROTO_INSERT_SBLOCK 22
-
-/**
- * gnuentd to client: SBlock found
- */
-#define AFS_CS_PROTO_RESULT_SBLOCK 23
-
-/**
- * client to gnunetd: bits of file to upload (indexing)
- */
-#define AFS_CS_PROTO_UPLOAD_FILE 24
-
-/**
- * Client to gnunetd: try using a link for the file
- */
-#define AFS_CS_PROTO_LINK_FILE 25
-
-/**
- * Client to gnunetd: what is the average priority of entries
- * in the routing table?
- */
-#define AFS_CS_PROTO_GET_AVG_PRIORITY 26
-
-/* ********** CS CHAT application messages ********** */
-
-#define CHAT_CS_PROTO_MSG 32
-
-/* ********** CS TRACEKIT application messages ********* */
-
-#define TRACEKIT_CS_PROTO_PROBE 36
-
-#define TRACEKIT_CS_PROTO_REPLY 37
-
-/* ********** CS TBENCH application messages ********** */
-
-#define TBENCH_CS_PROTO_REQUEST	40
-#define TBENCH_CS_PROTO_REPLY	41
-
-/* ********** CS TESTBED application messages ********** */
-
-#define TESTBED_CS_PROTO_REQUEST 50
-#define TESTBED_CS_PROTO_REPLY   51
-
-/* ************ additional common CS messages *************** */
-
-/** 
- * client to gnunetd: shutdown
- */
-#define CS_PROTO_SHUTDOWN_REQUEST 64
-
-/** 
- * client to gnunetd: get configuration option
- */
-#define CS_PROTO_GET_OPTION_REQUEST 65
-
-/**
- * gnunetd to client: option value
- */
-#define CS_PROTO_GET_OPTION_REPLY 66
-
-/* ********** CS DHT application messages ********** */
-                                        
-/**
- * client to CS: join table        
-*/
-#define DHT_CS_PROTO_REQUEST_JOIN     72
-
-/**
- * client to CS: leave table       
- */
-#define DHT_CS_PROTO_REQUEST_LEAVE    73
-
-/**
- * Client to CS or CS to client: get from table   
- */
-#define DHT_CS_PROTO_REQUEST_GET      74
-
-/**
- * Client to CS or CS to client: put into table    
- */
-#define DHT_CS_PROTO_REQUEST_PUT      75 
-
-/**
- * Client to CS or CS to client: remove from table
- */
-#define DHT_CS_PROTO_REQUEST_REMOVE   76 
-
-/**
- * Client to CS or CS to client: results from get
- */
-#define DHT_CS_PROTO_REPLY_GET        77
-
-/**
- * Client to CS or CS to client: confirmed
- */
-#define DHT_CS_PROTO_REPLY_ACK        78
-
-/**
- * Client to CS: iterate over table
- */
-#define DHT_CS_PROTO_REQUEST_ITERATE   79
-
-
-/* **************** common structs ******************* */
+struct PrivateKey;
 
 /**
  * Header for all Client-Server communications.
  */
 typedef struct {
   /**
-   * The length of the struct (in bytes, including the length field itself) 
+   * The length of the struct (in bytes, including the length field itself)
    */
   unsigned short size;
 
   /**
-   * The type of the message (XX_CS_PROTO_XXXX) 
+   * The type of the message (XX_CS_PROTO_XXXX)
    */
-  unsigned short tcpType;
+  unsigned short type;
 
-} CS_HEADER;
-
-/**
- * Generic version of CS_HEADER with field for accessing end of struct (use the
- * other version for allocation).
- */
-typedef struct {
-  /**
-   * actual header
-   */
-  CS_HEADER cs_header;
-
-  /**
-   * This is followed by a requestType specific data block, consisting
-   * of size bytes.
-   */
-  char data[1];
-
-} CS_HEADER_GENERIC;
+} CS_MESSAGE_HEADER;
 
 /**
  * CS communication: simple return value
  */
 typedef struct {
   /**
-   * The CS header (values: sizeof(CS_RETURN_VALUE), CS_PROTO_RETURN_VALUE)
-   */ 
-  CS_HEADER header;
+   * The CS header (values: sizeof(CS_returnvalue_MESSAGE), CS_PROTO_RETURN_VALUE)
+   */
+  CS_MESSAGE_HEADER header;
 
   /**
-   * The return value (network byte order) 
+   * The return value (network byte order)
    */
   int return_value;
-} CS_RETURN_VALUE;
-
-
-/* ******** node-to-node (p2p) messages (over anything) ********* */
-
-/* ********* p2p infrastructure messages *********** */
-
-/**
- * announcement of public key 
- */
-#define p2p_PROTO_HELO 0
-
-/**
- * session key exchange, session key is encrypted with hostkey 
- */
-#define p2p_PROTO_SKEY 1
-
-/**
- * PING 
- */
-#define p2p_PROTO_PING 2
-
-/**
- * PONG (response to PING) 
- */
-#define p2p_PROTO_PONG 3
-
-/**
- * timestamp (until when is the packet valid) 
- */
-#define p2p_PROTO_TIMESTAMP 4
-
-/**
- * sequence number (discard packet if sequence number
- * is not higher than previously received number) 
- */
-#define p2p_PROTO_SEQUENCE 5
-
-/**
- * noise, used to fill packets to sizes >1k.
- */
-#define p2p_PROTO_NOISE 6
-
-/**
- * termination of connection (other host is nice
- * and tells us, there is NO requirement to do so!) 
- */
-#define p2p_PROTO_HANGUP 7
-
-/**
- * Advertise capability (or limitation).
- */
-#define p2p_PROTO_CAPABILITY 8
-
-/**
- * Fragmented message.
- */
-#define p2p_PROTO_FRAGMENT 9
-
-/* ************* p2p AFS application messages *********** */
-
-/**
- * Query for content. 
- */
-#define AFS_p2p_PROTO_QUERY 16
-
-/**
- * receive content 
- */
-#define AFS_p2p_PROTO_3HASH_RESULT 17
-
-/**
- * receive CHK content 
- */
-#define AFS_p2p_PROTO_CHK_RESULT 18
-
-/**
- * Request namespace entry
- */
-#define AFS_p2p_PROTO_NSQUERY 19
-
-/**
- * Received namespace entry
- */
-#define AFS_p2p_PROTO_SBLOCK_RESULT 20
-
-
-/* ************** p2p CHAT application messages *********** */
-
-/**
- * chat message 
- */
-#define CHAT_p2p_PROTO_MSG 32
-
-/* *************** p2p TRACEKIT application messages ******** */
-
-#define TRACEKIT_p2p_PROTO_PROBE 36
-
-#define TRACEKIT_p2p_PROTO_REPLY 37
-
-/* ********** p2p TBENCH application messages ********** */
-
-/**
- * benchmark message: send back reply asap 
- */
-#define TBENCH_p2p_PROTO_REQUEST 40
-#define TBENCH_p2p_PROTO_REPLY 	 41
-
-/************** p2p RPC/DHT application messages ************/
-                                                                                
-#define RPC_p2p_PROTO_REQ 42
-#define RPC_p2p_PROTO_RES 43
-#define RPC_p2p_PROTO_ACK 44
-
-#define MAX_p2p_PROTO_USED 45
-
-/* ************** common structs ********************* */
+} CS_returnvalue_MESSAGE;
 
 /**
  * p2p message part header
  */
 typedef struct {
   /**
-   * size of this MESSAGE_PART (network byte order) 
+   * size of this MESSAGE_PART (network byte order)
    */
   unsigned short size;
 
   /**
-   * type of the request, XX_p2p_PROTO_XXX (network byte order) 
+   * type of the request, XX_p2p_PROTO_XXX (network byte order)
    */
-  unsigned short requestType; 
-} p2p_HEADER;
+  unsigned short type;
+} P2P_MESSAGE_HEADER;
 
+typedef void (*NotifyConfigurationUpdateCallback)(void);
 
 /**
- * Generic version of p2p_HEADER with field for accessing end of struct (use 
- * the other version for allocation).
+ * Type of a cron-job method.
+ */
+typedef void (*CronJob)(void *);
+
+/**
+ * Time for absolute times used by cron (64 bit)
+ */
+typedef unsigned long long cron_t;
+
+/**
+ * 32-bit timer value.
+ */
+typedef unsigned int TIME_T;
+
+/* Describe the long-named options requested by the application.
+   The LONG_OPTIONS argument to getopt_long or getopt_long_only is a vector
+   of `struct GNoption' terminated by an element containing a name which is
+   zero.
+
+   The field `has_arg' is:
+   no_argument		(or 0) if the option does not take an argument,
+   required_argument	(or 1) if the option requires an argument,
+   optional_argument 	(or 2) if the option takes an optional argument.
+
+   If the field `flag' is not NULL, it points to a variable that is set
+   to the value given in the field `val' when the option is found, but
+   left unchanged if the option is not found.
+
+   To have a long-named option do something other than set an `int' to
+   a compiled-in constant, such as set a value from `GNoptarg', set the
+   option's `flag' field to zero and its `val' field to a nonzero
+   value (the equivalent single-letter option character, if there is
+   one).  For long options that have a zero `flag' field, `getopt'
+   returns the contents of the `val' field.  */
+
+struct GNoption {
+  const char *name;
+  /* has_arg can't be an enum because some compilers complain about
+     type mismatches in all the code that assumes it is an int.  */
+  int has_arg;
+  int *flag;
+  int val;
+};
+
+/**
+ * @brief an IPv4 address
  */
 typedef struct {
-  p2p_HEADER p2p_header;
-
-  /**
-   * this is followed by a requestType specific data block,
-   * consisting of size bytes. 
-   */
-  char data[1];
-} p2p_HEADER_GENERIC;
+  unsigned int addr; /* struct in_addr */
+} IPaddr;
 
 /**
- * Named constants for return values.
+ * @brief IPV4 network in CIDR notation.
  */
+struct CIDRNetwork;
+
+/**
+ * @brief an IPV6 address.
+ */
+typedef struct {
+  unsigned int addr[4]; /* struct in6_addr addr; */
+} IP6addr;
+
+/**
+ * @brief IPV6 network in CIDR notation.
+ */
+struct CIDR6Network;
+
+/**
+ * Callback that performs logging.
+ */
+typedef void (*TLogProc)(const char *txt);
+
+/**
+ * Main method of a thread.
+ */
+typedef void * (*PThreadMain)(void*);
+
+/**
+ * Encapsulation of a pthread handle.
+ */
+typedef struct PTHREAD_T {
+  void * internal;
+} PTHREAD_T;
+
+/**
+ * @brief 512-bit hashcode
+ */
+typedef struct {
+  unsigned int bits[512 / 8 / sizeof(unsigned int)]; /* = 16 */
+} HashCode512;
+
+/**
+ * The identity of the host (basically the RIPE160 hashcode of
+ * it's public key).
+ */
+typedef struct {
+  HashCode512 hashPubKey;
+} PeerIdentity;
+
+/**
+ * @brief 0-terminated ASCII encoding of a HashCode512.
+ */
+typedef struct {
+  unsigned char encoding[104];
+} EncName;
+
+/**
+ * GNUnet mandates a certain format for the encoding
+ * of private RSA key information that is provided
+ * by the RSA implementations.  This format is used
+ * to serialize a private RSA key (typically when
+ * writing it to disk).
+ */
+typedef struct {
+  /**
+   * Total size of the structure, in bytes, in big-endian!
+   */
+  unsigned short len;
+  unsigned short sizen;/*  in big-endian! */
+  unsigned short sizee;/*  in big-endian! */
+  unsigned short sized;/*  in big-endian! */
+  unsigned short sizep;/*  in big-endian! */
+  unsigned short sizeq;/*  in big-endian! */
+  unsigned short sizedmp1;/*  in big-endian! */
+  unsigned short sizedmq1;/*  in big-endian! */
+  /* followed by the actual values */
+} PrivateKeyEncoded;
+
+/**
+ * @brief an RSA signature
+ */
+typedef struct {
+  unsigned char sig[RSA_ENC_LEN];
+} Signature;
+
+/**
+ * @brief A public key.
+ */
+typedef struct {
+  /**
+   * In big-endian, must be RSA_KEY_LEN+2
+   */
+  unsigned short len;
+  /**
+   * Size of n in key; in big-endian!
+   */
+  unsigned short sizen;
+  /**
+   * The key itself, contains n followed by e.
+   */
+  unsigned char key[RSA_KEY_LEN];
+  /**
+   * Padding (must be 0)
+   */
+  unsigned short padding;
+} PublicKey;
+
+/**
+ * RSA Encrypted data.
+ */
+typedef struct {
+  unsigned char encoding[RSA_ENC_LEN];
+} RSAEncryptedData;
 
 
-#define OK 1
-#define SYSERR -1
+/**
+ * @brief Structure for MUTual EXclusion (Mutex).
+ *
+ * Essentially a wrapper around pthread_mutex_t.
+ */
+typedef struct Mutex {
+  void * internal;
+} Mutex;
 
-#define YES 1
-#define NO 0
+/**
+ * @brief Semaphore abstraction implemented with pthreads
+ */
+typedef struct Semaphore {
+  int v;
+  Mutex mutex;
+  /**
+   * Wrapper for pthread condition variable.
+   */
+  void * cond;
+} Semaphore;
 
+/**
+ * @brief Inter-process semaphore.
+ */
+typedef struct IPC_Semaphore{
+  void * platform;
+} IPC_Semaphore;
+
+/**
+ * Struct to refer to a GNUnet TCP connection.
+ * This is more than just a socket because if the server
+ * drops the connection, the client automatically tries
+ * to reconnect (and for that needs connection information).
+ */
+typedef struct GNUNET_TCP_SOCKET {
+
+  /**
+   * the socket handle, -1 if invalid / not life
+   */
+  int socket;
+
+  /**
+   * the following is the IP for the remote host for client-sockets,
+   * as returned by gethostbyname("hostname"); server sockets should
+   * use 0.
+   */
+  IPaddr ip;
+
+  /**
+   * the port number, in host byte order
+   */
+  unsigned short port;
+
+  /**
+   * Write buffer length for non-blocking writes.
+   */
+  unsigned int outBufLen;
+
+  /**
+   * Write buffer for non-blocking writes.
+   */
+  void * outBufPending;
+
+  Mutex readlock;
+  Mutex writelock;
+
+} GNUNET_TCP_SOCKET;
+
+/**
+ * @brief type for session keys
+ */
+typedef struct {
+  unsigned char key[SESSIONKEY_LEN];
+  int crc32; /* checksum! */
+} SESSIONKEY;
+
+/**
+ * @brief IV for sym cipher
+ *
+ * NOTE: must be smaller (!) in size than the
+ * HashCode512.
+ */
+typedef struct {
+  unsigned char iv[SESSIONKEY_LEN/2];
+} INITVECTOR;
+
+/**
+ * Method to parse the command line. The results
+ * are to be stored in the configuration module.
+ * @param argc the number of arguments
+ * @param argv the command line arguments
+ * @return OK on success, SYSERR if we should abort the
+ *   initialization sequence and exit the program
+ */
+typedef int (*CommandLineParser)(int argc, char * argv[]);
+
+/**
+ * Function called on each file in a directory.
+ * @return OK to continue to iterate,
+ *  SYSERR to abort iteration with error!
+ */
+typedef int (*DirectoryEntryCallback)(const char * filename,
+				      const char * dirName,
+				      void * data);
+
+/**
+ * @brief description of a command line option (helptext)
+ */
+typedef struct {
+  char shortArg;
+  char * longArg;
+  char * mandatoryArg;
+  char * description;
+} Help;
+
+/**
+ * @brief bloomfilter representation (opaque)
+ */
+struct Bloomfilter;
+
+/**
+ * Iterator over all HashCodes stored in a Bloomfilter.
+ */
+typedef HashCode512 * (*ElementIterator)(void * arg);
+
+/**
+ * @brief a Vector (ordered variable size set of elements), opaque
+ */
+struct Vector;
+
+
+
+
+/* **************** Functions and Macros ************* */
 
 /**
  * Compute the CRC32 checksum for the first len
@@ -566,7 +550,7 @@ typedef struct {
  *
  * @param buf the data over which we're taking the CRC
  * @param len the length of the buffer in bytes
- * @return the resulting CRC32 checksum 
+ * @return the resulting CRC32 checksum
  */
 int crc32N(const void * buf, int len);
 
@@ -574,7 +558,7 @@ int crc32N(const void * buf, int len);
  * Produce a random value.
  *
  * @param i the upper limit (exclusive) for the random number
- * @return a random value in the interval [0,i[. 
+ * @return a random value in the interval [0,i[.
  */
 unsigned int randomi(unsigned int i);
 
@@ -587,10 +571,19 @@ unsigned long long randomi64(unsigned long long u);
 /**
  * Get an array with a random permutation of the
  * numbers 0...n-1.
+ * @param mode STRONG if the strong (but expensive) PRNG should be used, WEAK otherwise
  * @param n the size of the array
  * @return the permutation array (allocated from heap)
  */
-int * permute(int n);
+int * permute(int mode, int n);
+
+/**
+ * Produce a cryptographically weak random value.
+ *
+ * @param i the upper limit (exclusive) for the random number
+ * @return a random value in the interval [0,i[.
+ */
+unsigned int weak_randomi(unsigned int i);
 
 /**
  * Convert a long-long to host-byte-order.
@@ -606,11 +599,15 @@ unsigned long long ntohll(unsigned long long n);
  */
 unsigned long long htonll(unsigned long long n);
 
-
 /**
- * GNU gettext support macro.
+ * Convert the len characters long character sequence
+ * given in input that is in the given charset
+ * to UTF-8.
+ * @return the converted string (0-terminated)
  */
-#define _(String) gettext (String)
+char * convertToUtf8(const char * input,
+		     size_t len,
+		     const char * charset);
 
 /**
  * Macro for assertions in GNUnet.  Use liberally and instead
@@ -627,25 +624,10 @@ unsigned long long htonll(unsigned long long n);
 
 #define GNUNET_ASSERT_FL(cond, f, l)  do { if (! (cond)) errexit(_("Assertion failed at %s:%d.\n"), f, l); } while(0);
 
-/**
- * Configuration management.
- */
-
-/* ****************** config values **************** */
-
-/**
- * Default names of the configuration files.
- */
-#define DEFAULT_CLIENT_CONFIG_FILE "~/.gnunet/gnunet.conf"
-#define DEFAULT_DAEMON_CONFIG_FILE "/etc/gnunet.conf"
-
-/* *******************API *********************** */
-
-typedef void (*NotifyConfigurationUpdateCallback)();
 
 void registerConfigurationUpdateCallback
 (NotifyConfigurationUpdateCallback cb);
-  
+
 void unregisterConfigurationUpdateCallback
 (NotifyConfigurationUpdateCallback cb);
 
@@ -653,27 +635,43 @@ void unregisterConfigurationUpdateCallback
  * Call all registered configuration update callbacks,
  * the configuration has changed.
  */
-void triggerGlobalConfigurationRefresh();
+void triggerGlobalConfigurationRefresh(void);
+
+/**
+ * @brief Read a specific configuration file. The previous configuration
+ *        will NOT be discarded if this method is invoked twice.
+ * @param fn the file to read
+ * @return YES on success, NO otherwise
+ */
+int readConfigFile(const char *fn);
 
 /**
  * Read the specified configuration file. The previous
- * configuration will be discarded if this method is 
+ * configuration will be discarded if this method is
  * invoked twice. The configuration file that is read
- * can be set using setConfigurationString on 
+ * can be set using setConfigurationString on
  * section "FILES" and option "gnunet.conf".
- * 
+ *
  * This method should be invoked after the options have
  * been parsed (and eventually the configuration filename
  * default has been overriden) and if gnunetd receives
  * a SIGHUP.
  */
-void readConfiguration();
+void readConfiguration(void);
 
+/**
+ * Expand an expression of the form
+ * "$FOO/BAR" to "DIRECTORY/BAR" where
+ * either in the current section or
+ * globally FOO is set to DIRECTORY.
+ */
+char * expandDollar(const char * section,
+         char * orig);
 
 /**
  * Obtain a filename from the given section and option.  If the
  * filename is not specified, die with the given error message (do not
- * die if errMsg == NULL). 
+ * die if errMsg == NULL).
  *
  * @param section from which section, may not be NULL
  * @param option which option, may not be NULL
@@ -757,55 +755,27 @@ int getConfigurationStringList(char *** value);
  * Set the list of command line options (remainder after getopt style
  * parsing).
  *
- * @param value the values 
+ * @param value the values
  + @param count the number of values
  */
 void setConfigurationStringList(char ** value,
 				int count);
 
 /**
- * @brief Module to run background jobs.
+ * @brief Check if a setting was specified in a .conf file
+ * @return YES or NO
  */
-
-/* use these constants to specify timeings */
-#define cronMILLIS 1
-#define cronSECONDS (1000 * cronMILLIS)
-#define cronMINUTES (60 * cronSECONDS)
-#define cronHOURS (60 * cronMINUTES)
-#define cronDAYS (24 * cronHOURS)
-#define cronWEEKS (7 * cronDAYS)
-#define cronMONTHS (30 * cronDAYS)
-#define cronYEARS (365 * cronDAYS)
-
-/**
- * Time for absolute times used by cron.
- */
-typedef unsigned long long cron_t;  
-
-/**
- * Type of a cron-job method.
- */
-typedef void (*CronJob)(void *);
-
-/**
- * Initialize controlThread.
- */
-void initCron();
-
-/**
- * Make sure to call stopCron before calling this method!
- */
-void doneCron();
+int isConfigurationItemSet(const char *section, const char *option);
 
 /**
  * Start the cron jobs.
  */
-void startCron();
+void startCron(void);
 
 /**
  * Stop the cron service.
  */
-void stopCron();
+void stopCron(void);
 
 /**
  * Stop running cron-jobs for a short time.  This method may only be
@@ -813,35 +783,35 @@ void stopCron();
  * a deadlock if this method is called from within a cron-job.
  * Use with caution.
  */
-void suspendCron();
+void suspendCron(void);
 
 /**
  * Resume running cron-jobs.
  */
-void resumeCron();
+void resumeCron(void);
 
 /**
  * Is the cron-thread currently running?
  */
-int isCronRunning();
+int isCronRunning(void);
 
 /**
  * Like suspendCron, but does nothing if called from
  * within a cron-job.
  */
-void suspendIfNotCron();
+void suspendIfNotCron(void);
 
 /**
  * Like resumeCron, but does nothing if called from
  * within a cron-job.
  */
-void resumeIfNotCron();
+void resumeIfNotCron(void);
 
 /**
  * Get the current time (works just as "time", just
  * that we use the unit of time that the cron-jobs use).
  * @param setme will set the current time if non-null
- * @return the current time 
+ * @return the current time
  */
 cron_t cronTime(cron_t * setme);
 
@@ -857,7 +827,6 @@ void addCronJob(CronJob method,
 		unsigned int delta,
 		unsigned int deltaRepeat,
 		void * data);
-
 
 /**
  * If the specified cron-job exists in th delta-list, move it to the
@@ -883,7 +852,7 @@ void advanceCronJob(CronJob method,
  * running job and may return before the running job has terminated).
  *
  * @param method which method is listed?
- * @param repeat which repeat factor was chosen? 
+ * @param repeat which repeat factor was chosen?
  * @param data what was the data given to the method
  * @return the number of jobs removed
  */
@@ -902,15 +871,18 @@ int delCronJob(CronJob method,
 int gnunet_util_sleep(cron_t delay);
 
 /**
- * Support for loading dynamic libraries.
+ * Load dynamic library
  */
-
 void * loadDynamicLibrary(const char * libprefix,
 			  const char * dsoname);
 
 void * bindDynamicMethod(void * libhandle,
 			 const char * methodprefix,
 			 const char * dsoname);
+
+void * trybindDynamicMethod(void * libhandle,
+			    const char * methodprefix,
+			    const char * dsoname);
 
 void unloadDynamicLibrary(void * libhandle);
 
@@ -945,66 +917,13 @@ extern int GNopterr;
 
 extern int GNoptopt;
 
-/* Describe the long-named options requested by the application.
-   The LONG_OPTIONS argument to getopt_long or getopt_long_only is a vector
-   of `struct GNoption' terminated by an element containing a name which is
-   zero.
 
-   The field `has_arg' is:
-   no_argument		(or 0) if the option does not take an argument,
-   required_argument	(or 1) if the option requires an argument,
-   optional_argument 	(or 2) if the option takes an optional argument.
-
-   If the field `flag' is not NULL, it points to a variable that is set
-   to the value given in the field `val' when the option is found, but
-   left unchanged if the option is not found.
-
-   To have a long-named option do something other than set an `int' to
-   a compiled-in constant, such as set a value from `GNoptarg', set the
-   option's `flag' field to zero and its `val' field to a nonzero
-   value (the equivalent single-letter option character, if there is
-   one).  For long options that have a zero `flag' field, `getopt'
-   returns the contents of the `val' field.  */
-
-struct GNoption {
-  const char *name;
-  /* has_arg can't be an enum because some compilers complain about
-     type mismatches in all the code that assumes it is an int.  */
-  int has_arg;
-  int *flag;
-  int val;
-};
-
-/* Names for the values of the `has_arg' field of `struct GNoption'.  */
-
-#define	no_argument		0
-#define required_argument	1
-#define optional_argument	2
-
-int GNgetopt_long (int argc, 
-		   char *const *argv, 
+int GNgetopt_long (int argc,
+		   char *const *argv,
 		   const char *shortopts,
 		   const struct GNoption *longopts,
 		   int *longind);
 
-/**
- * @brief check IP addresses against a blacklist
- */
-
-/**
- * @brief an IPv4 address
- */ 
-typedef struct {
-  unsigned int addr; /* struct in_addr */
-} IPaddr;
-
-/**
- * @brief IPV4 network in CIDR notation.
- */
-typedef struct {
-  IPaddr network;
-  IPaddr netmask;
-} CIDRNetwork;
 
 /**
  * Parse a network specification. The argument specifies
@@ -1017,43 +936,27 @@ typedef struct {
  * @param routeList a string specifying the forbidden networks
  * @return the converted list, NULL if the synatx is flawed
  */
-CIDRNetwork * parseRoutes(const char * routeList);
+struct CIDRNetwork * parseRoutes(const char * routeList);
 
 
 /**
- * Check if the given IP address is in the list of 
+ * Check if the given IP address is in the list of
  * IP addresses.
  * @param list a list of networks
  * @param ip the IP to check (in network byte order)
  * @return NO if the IP is not in the list, YES if it it is
  */
-int checkIPListed(const CIDRNetwork * list,
+int checkIPListed(const struct CIDRNetwork * list,
 		  IPaddr ip);
 
 /**
- * @brief an IPV6 address.
- */
-typedef struct {
-  unsigned int addr[4]; /* struct in6_addr addr; */
-} IP6addr;
-
-/**
- * @brief network in CIDR notation for IPV6.
- */
-typedef struct {
-  IP6addr network;
-  IP6addr netmask;
-} CIDR6Network;
-
-
-/**
- * Check if the given IP address is in the list of 
+ * Check if the given IP address is in the list of
  * IP addresses.
  * @param list a list of networks
  * @param ip the IP to check (in network byte order)
  * @return NO if the IP is not in the list, YES if it it is
  */
-int checkIP6Listed(const CIDR6Network * list,
+int checkIP6Listed(const struct CIDR6Network * list,
 		   const IP6addr * ip);
 
 /**
@@ -1067,170 +970,27 @@ int checkIP6Listed(const CIDR6Network * list,
  * @param routeList a string specifying the forbidden networks
  * @return the converted list, NULL if the synatx is flawed
  */
-CIDR6Network * parseRoutes6(const char * routeList);
-
-
-
-/**
- * This type is for messages that we send.
- */
-#define TC_SENT      0x8000
-
-/**
- * This type is for messages that we receive.
- */
-#define TC_RECEIVED  0x4000
-
-#define TC_TYPE_MASK (TC_RECEIVED|TC_SENT)
-
-/**
- * From/To how many different peers did we receive/send
- * messages of this type? (bitmask)
- */
-#define TC_DIVERSITY_MASK 0xFFF
-
-/**
- * Counter for traffic.
- */
-typedef struct {
-
-  /**
-   * Flags. See TC_XXXX definitions.
-   */
-  unsigned short flags;
-
-  /**
-   * What was the number of messages of this type that the peer
-   * processed in the last n time units?
-   */
-  unsigned short count;
-
-  /**
-   * What is the message type that this counter is concerned with?
-   */
-  unsigned short type;
-
-  /**
-   * What is the average size of the last "count" messages that
-   * the peer processed?
-   */
-  unsigned short avrg_size;
-
-  /**
-   * In which of the last 32 time units did the peer receive or send a
-   * message of this type? The lowest bit (1) corresponds to -31
-   * seconds ago, the highest bit (2^31) corresponds to the current
-   * second.
-   */
-  unsigned int time_slots;
-} TRAFFIC_COUNTER;
-
-/**
- * Format of the reply-message to a CS_TRAFFIC_QUERY.
- * A message of this format is send back to the client
- * if it sends a CS_TRAFFIC_QUERY to gnunetd.
- */
-typedef struct {
-  CS_HEADER header;
-
-  /**
-   * The number of different message types we have seen
-   * in the last time.
-   */
-  unsigned int count;
-
-} CS_TRAFFIC_INFO;
-
-/**
- * Generic version of CS_TRAFFIC_INFO with field for accessing end of struct 
- * (use the other version for allocation).
- */
-typedef struct {
-  CS_TRAFFIC_INFO cs_traffic_info;
-
-  /**
-   * "count" traffic counters.
-   */
-  TRAFFIC_COUNTER counters[1];
-
-} CS_TRAFFIC_INFO_GENERIC;
-
-/**
- * Request for CS_TRAFFIC_INFO.
- */
-typedef struct {
-  CS_HEADER header;
-
-  /**
-   * How many time units back should the statistics returned contain? 
-   * (in network byte order) Must be smaller or equal to HISTORY_SIZE.
-   */
-  unsigned int timePeriod;
-
-} CS_TRAFFIC_REQUEST;
-
-/**
- * What is the unit of time (in cron_t) for the traffic module? This
- * constant essentially specifies the resolution of the distribution
- * function that is applied for sampling traffic. Default is 1s.
- */ 
-#define TRAFFIC_TIME_UNIT cronSECONDS
-
-#define CS_GET_OPTION_REQUEST_OPT_LEN 32
-
-/**
- * Request for option value.
- */
-typedef struct {
-  CS_HEADER header;
-  char section[CS_GET_OPTION_REQUEST_OPT_LEN];
-  char option[CS_GET_OPTION_REQUEST_OPT_LEN];
-} CS_GET_OPTION_REQUEST;
-
-
-/**
- * Reply with option value.
- */
-typedef struct {
-  CS_HEADER header;
-  char value[1];
-} CS_GET_OPTION_REPLY;
-
-
-
-
-/* ************** log levels *********** */
-
-#define LOG_NOTHING    0
-#define LOG_FATAL      1
-#define LOG_ERROR      2
-#define LOG_FAILURE    3
-#define LOG_WARNING    4
-#define LOG_MESSAGE    5
-#define LOG_INFO       6
-#define LOG_DEBUG      7
-#define LOG_CRON       8
-#define LOG_EVERYTHING 9
+struct CIDR6Network * parseRoutes6(const char * routeList);
 
 /* use IFLOG(LOG_XXX, statement(s)) for statements
    that should only be executed if we are at the
    right loglevel */
 #define IFLOG(a,b) {if (getLogLevel() >= a) {b;} }
 
+void LOGHASH(size_t size,
+	     const void * data);
+
 #define PRIP(ip) (unsigned int)(((unsigned int)(ip))>>24), (unsigned int)((((unsigned)(ip)))>>16 & 255), (unsigned int)((((unsigned int)(ip)))>>8 & 255), (unsigned int)((((unsigned int)(ip))) & 255)
-
-
-typedef void (*TLogProc)(const char *txt);
 
 /**
  * Get the current loglevel.
  */
-int getLogLevel();
+LOG_Level getLogLevel(void);
 
 /**
  * Return the logfile
  */
-void *getLogfile();
+void *getLogfile(void);
 
 /**
  * errexit - log an error message and exit.
@@ -1252,7 +1012,7 @@ void setCustomLogProc(TLogProc proc);
  * @param minLogLevel the minimum loglevel that we must be at
  * @param format the format string describing the message
  */
-void LOG(int minLogLevel,
+void LOG(LOG_Level minLogLevel,
 	 const char * format,
 	 ...);
 
@@ -1265,32 +1025,32 @@ void LOG(int minLogLevel,
  * a failure of the command 'cmd' with the message given
  * by strerror(errno).
  */
-#define LOG_STRERROR(level, cmd) do { LOG(level, _("'%s' failed at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, STRERROR(errno)); } while(0);
+#define LOG_STRERROR(level, cmd) do { LOG(level, _("`%s' failed at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, STRERROR(errno)); } while(0);
 
 /**
  * Die with an error message that indicates
  * a failure of the command 'cmd' with the message given
  * by strerror(errno).
  */
-#define DIE_STRERROR(cmd) do { errexit(_("'%s' failed at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, STRERROR(errno)); } while(0);
+#define DIE_STRERROR(cmd) do { errexit(_("`%s' failed at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, STRERROR(errno)); } while(0);
 
-#define DIE_STRERROR_FL(cmd, f, l) do { errexit(_("'%s' failed at %s:%d with error: %s\n"), cmd, f, l, STRERROR(errno)); } while(0);
+#define DIE_STRERROR_FL(cmd, f, l) do { errexit(_("`%s' failed at %s:%d with error: %s\n"), cmd, f, l, STRERROR(errno)); } while(0);
 
 /**
  * Log an error message at log-level 'level' that indicates
  * a failure of the command 'cmd' on file 'filename'
  * with the message given by strerror(errno).
  */
-#define LOG_FILE_STRERROR(level, cmd, filename) do { LOG(level, _("'%s' failed on file '%s' at %s:%d with error: %s\n"), cmd, filename, __FILE__, __LINE__, STRERROR(errno)); } while(0);
+#define LOG_FILE_STRERROR(level, cmd, filename) do { LOG(level, _("`%s' failed on file `%s' at %s:%d with error: %s\n"), cmd, filename, __FILE__, __LINE__, STRERROR(errno)); } while(0);
 
-#define LOG_FILE_STRERROR_FL(level, cmd, filename, f, l) do { LOG(level, _("'%s' failed on file '%s' at %s:%d with error: %s\n"), cmd, filename, f, l, STRERROR(errno)); } while(0);
+#define LOG_FILE_STRERROR_FL(level, cmd, filename, f, l) do { LOG(level, _("`%s' failed on file `%s' at %s:%d with error: %s\n"), cmd, filename, f, l, STRERROR(errno)); } while(0);
 
 /**
  * Die with an error message that indicates
  * a failure of the command 'cmd' on file 'filename'
  * with the message given by strerror(errno).
  */
-#define DIE_FILE_STRERROR(cmd, filename) do { errexit(_("'%s' failed on file '%s' at %s:%d with error: %s\n"), cmd, filename, __FILE__, __LINE__, STRERROR(errno)); } while(0);
+#define DIE_FILE_STRERROR(cmd, filename) do { errexit(_("`%s' failed on file `%s' at %s:%d with error: %s\n"), cmd, filename, __FILE__, __LINE__, STRERROR(errno)); } while(0);
 
 /**
  * gdb breakpoint
@@ -1304,7 +1064,7 @@ void breakpoint_(const char * filename,
  * memory is available.  Don't use xmalloc_ directly. Use the
  * MALLOC macro.
  */
-void * xmalloc_(size_t size, 
+void * xmalloc_(size_t size,
 		const char * filename,
 		const int linenumber);
 
@@ -1314,7 +1074,7 @@ void * xmalloc_(size_t size,
  * allocations larger than 40 MB.  If you don't expect the
  * possibility of very large allocations, use MALLOC instead.
  */
-void * xmalloc_unchecked_(size_t size, 
+void * xmalloc_unchecked_(size_t size,
 			  const char * filename,
 			  const int linenumber);
 
@@ -1326,11 +1086,28 @@ void * xmalloc_unchecked_(size_t size,
 #define MALLOC(size) xmalloc_(size, __FILE__,__LINE__)
 
 /**
+ * Reallocate memory. Checks the return value, aborts if no more
+ * memory is available.
+ */
+void * xrealloc_(void * ptr,
+		 const size_t n,
+		 const char * filename,
+		 const int linenumber);
+
+/**
+ * Wrapper around realloc. Rellocates size bytes of memory.
+ * @param ptr the pointer to reallocate
+ * @param size the number of bytes to reallocate
+ * @return pointer to size bytes of memory
+ */
+#define REALLOC(ptr, size) xrealloc_(ptr, size, __FILE__,__LINE__)
+
+/**
  * Free memory. Merely a wrapper for the case that we
  * want to keep track of allocations.  Don't use xfree_
  * directly. Use the FREE macro.
  */
-void xfree_(void * ptr, 
+void xfree_(void * ptr,
 	    const char * filename,
 	    const int linenumber);
 
@@ -1340,7 +1117,7 @@ void xfree_(void * ptr,
  * allocated with GROW using GROW(mem, size, 0) instead of FREE.
  *
  * @param ptr location where to free the memory. ptr must have
- *     been returned by STRDUP, MALLOC or GROW earlier. 
+ *     been returned by STRDUP, MALLOC or GROW earlier.
  */
 #define FREE(ptr) xfree_(ptr, __FILE__, __LINE__)
 
@@ -1360,7 +1137,7 @@ char * xstrdup_(const char * str,
 
 /**
  * Wrapper around STRDUP.  Makes a copy of the zero-terminated string
- * pointed to by a. 
+ * pointed to by a.
  * @param a pointer to a zero-terminated string
  * @return a copy of the string including zero-termination
  */
@@ -1382,7 +1159,7 @@ char * xstrndup_(const char * str,
 
 /**
  * Wrapper around STRNDUP.  Makes a copy of the zero-terminated string
- * pointed to by a. 
+ * pointed to by a.
  * @param a pointer to a zero-terminated string
  * @param n the maximum number of characters to copy (+1 for 0-termination)
  * @return a copy of the string including zero-termination
@@ -1412,7 +1189,7 @@ void xgrow_(void ** old,
 /**
  * Grow a well-typed (!) array.  This is a convenience
  * method to grow a vector <tt>arr</tt> of size <tt>size</tt>
- * to the new (target) size <tt>tsize</tt>. 
+ * to the new (target) size <tt>tsize</tt>.
  * <p>
  *
  * Example (simple, well-typed stack):
@@ -1420,7 +1197,7 @@ void xgrow_(void ** old,
  * <pre>
  * static struct foo * myVector = NULL;
  * static int myVecLen = 0;
- * 
+ *
  * static void push(struct foo * elem) {
  *   GROW(myVector, myVecLen, myVecLen+1);
  *   memcpy(&myVector[myVecLen-1], elem, sizeof(struct foo));
@@ -1439,19 +1216,10 @@ void xgrow_(void ** old,
  *        not the size in bytes
  * @param size the number of elements in the existing vector (number
  *        of elements to copy over)
- * @param tsize the target size for the resulting vector, use 0 to 
+ * @param tsize the target size for the resulting vector, use 0 to
  *        free the vector (then, arr will be NULL afterwards).
  */
 #define GROW(arr,size,tsize) xgrow_((void**)&arr, sizeof(arr[0]), &size, tsize, __FILE__, __LINE__)
-
-/**
- * @brief wrapper around time calls
- */
-
-/**
- * 32-bit timer value.
- */
-typedef unsigned int TIME_T;
 
 /**
  * TIME prototype. "man time".
@@ -1459,34 +1227,21 @@ typedef unsigned int TIME_T;
 TIME_T TIME(TIME_T * t);
 
 /**
- * "man ctime".
+ * "man ctime_r".
+ * @return character sequence describing the time,
+ *  must be freed by caller
  */
 char * GN_CTIME(const TIME_T * t);
 
 /**
- * @brief sym encrypt/decrypt operations
+ * Give relative time in human-readable fancy format.
  */
+char * timeIntervalToFancyString(cron_t delta);
 
-/** length of the sessionkey in bytes
-   (128 BIT sessionkey) */
-#define SESSIONKEY_LEN (128/8)
-
-/** size of blowfish key in bytes */
-#define BF_KEYSIZE 16
-
-/** this unsigned short is 64 bit, blowfish */
-#define BLOWFISH_BLOCK_LENGTH 8 
-
-/** value for the IV in the streamcipher for the
-    link-to-link encryption */
-#define INITVALUE "GNUnet!!"
-
-/** 
- * type for session keys 
+/**
+ * Convert a given filesize into a fancy human-readable format.
  */
-typedef struct {
-  unsigned char key[SESSIONKEY_LEN];
-} SESSIONKEY;
+char * fileSizeToFancyString(unsigned long long size);
 
 /**
  * Create a new Session key.
@@ -1503,10 +1258,10 @@ void makeSessionkey(SESSIONKEY * key);
  *        for streams.
  * @returns the size of the encrypted block, -1 for errors
  */
-int encryptBlock(const void * block, 
+int encryptBlock(const void * block,
 		 unsigned short len,
 		 const SESSIONKEY * sessionkey,
-		 const unsigned char * iv,
+		 const INITVECTOR * iv,
 		 void * result);
 
 /**
@@ -1514,48 +1269,21 @@ int encryptBlock(const void * block,
  * @param sessionkey the key used to decrypt
  * @param block the data to decrypt, encoded as returned by encrypt
  * @param size how big is the block?
- * @param iv the initialization vector to use, use INITVALUE
- *        for streams.
+ * @param iv the initialization vector to use
  * @param result address to store the result at
  * @return -1 on failure, size of decrypted block on success
  */
-int decryptBlock(const SESSIONKEY * sessionkey, 
+int decryptBlock(const SESSIONKEY * sessionkey,
 		 const void * block,
 		 unsigned short size,
-		 const unsigned char * iv,
+		 const INITVECTOR * iv,
 		 void * result);
-
-
-/**
- * @brief Structure for MUTual EXclusion (Mutex).  
- *
- * Essentially a wrapper around pthread_mutex_t.
- */ 
-typedef struct Mutex {
-  void * internal;
-} Mutex;
-
-/**
- * @brief Semaphore abstraction implemented with pthreads
- */
-typedef struct Semaphore {
-  int v;
-  Mutex mutex;
-  /**
-   * Wrapper for pthread condition variable.
-   */
-  void * cond;
-} Semaphore;
-
-/* ************** Semaphore operations ************* */
 
 #define SEMAPHORE_NEW(value) semaphore_new_(value, __FILE__, __LINE__)
 #define SEMAPHORE_FREE(s) semaphore_free_(s, __FILE__, __LINE__)
 #define SEMAPHORE_DOWN(s) semaphore_down_(s, __FILE__, __LINE__)
 #define SEMAPHORE_DOWN_NONBLOCKING(s) semaphore_down_nonblocking_(s, __FILE__, __LINE__)
 #define SEMAPHORE_UP(s) semaphore_up_(s, __FILE__, __LINE__)
-
-/* ************** MUTEX OPERATIONS ***************** */
 
 #if DEBUG_LOCKING
 #define MUTEX_CREATE(a) do { \
@@ -1601,15 +1329,6 @@ while (0)
 #define MUTEX_DESTROY(a) destroy_mutex_(a)
 #endif
 
-
-/* *************** thread handling ************* */
-
-typedef void * (*PThreadMain)(void*);
-
-typedef struct {
-  void * internal;
-} PTHREAD_T;
-
 /**
  * Returns YES if pt is the handle for THIS thread.
  */
@@ -1633,10 +1352,10 @@ void PTHREAD_REL_SELF(PTHREAD_T * pt);
  * @param handle handle to the pthread (for detaching, join)
  * @param main the main method of the thread
  * @param arg the argument to main
- * @param stackSize the size of the stack of the thread in bytes. 
- *        Note that if the stack overflows, some OSes (seen under BSD) 
+ * @param stackSize the size of the stack of the thread in bytes.
+ *        Note that if the stack overflows, some OSes (seen under BSD)
  *        will just segfault and gdb will give a messed-up stacktrace.
- * @return see pthread_create 
+ * @return see pthread_create
  */
 int PTHREAD_CREATE(PTHREAD_T * handle,
 		   PThreadMain main,
@@ -1651,18 +1370,10 @@ void PTHREAD_KILL(PTHREAD_T * handle,
 
 void PTHREAD_DETACH(PTHREAD_T * handle);
 
-
-
-/* ********************** IPC ********************* */
-
 #define IPC_SEMAPHORE_NEW(name,value) ipc_semaphore_new_(name, value, __FILE__, __LINE__)
 #define IPC_SEMAPHORE_FREE(s) ipc_semaphore_free_(s, __FILE__, __LINE__)
 #define IPC_SEMAPHORE_DOWN(s) ipc_semaphore_down_(s, __FILE__, __LINE__)
 #define IPC_SEMAPHORE_UP(s) ipc_semaphore_up_(s, __FILE__, __LINE__)
-
-typedef struct {
-  void * platform;
-} IPC_Semaphore;
 
 IPC_Semaphore * ipc_semaphore_new_(const char * basename,
 				   const unsigned int initialValue,
@@ -1682,26 +1393,22 @@ void ipc_semaphore_free_(IPC_Semaphore * sem,
 			 const char * filename,
 			 const int linenumber);
 
-
-
-/* ***************** internal methods ************* */
-
 /**
  * While we must define these globally to make the
  * compiler happy, always use the macros in the sources
- * instead! 
+ * instead!
  */
 void create_mutex_(Mutex * mutex);
 void create_recursive_mutex_(Mutex * mutex);
 void create_fast_mutex_(Mutex * mutex);
 void destroy_mutex_(Mutex * mutex);
-void mutex_lock_(Mutex * mutex, 
+void mutex_lock_(Mutex * mutex,
 		 const char * filename,
 		 const int linenumber);
-void mutex_unlock_(Mutex * mutex, 
+void mutex_unlock_(Mutex * mutex,
 		   const char * filename,
 		   const int linenumber);
-Semaphore * semaphore_new_(int value, 
+Semaphore * semaphore_new_(int value,
 			   const char * filename,
 			   const int linenumber);
 void semaphore_free_(Semaphore * s,
@@ -1715,46 +1422,7 @@ int semaphore_down_nonblocking_(Semaphore * s,
 				const int linenumber);
 int semaphore_up_(Semaphore * s,
 		  const char * filename,
-		  const int linenumber);		    
-
-/**
- * @brief Hashing and hash conversion methods.
- */
-
-/**
- * A 160-bit hashcode
- */
-typedef struct {
-  int a;
-  int b;
-  int c;
-  int d;
-  int e;
-} HashCode160;
-
-/**
- * The identity of the host (basically the RIPE160 hashcode of
- * it's public key).
- */
-typedef struct {
-  HashCode160 hashPubKey;
-} HostIdentity;
-
-
-/**
- * Hash2Hex: filename, consisting of 32 bytes [0-9A-Z] plus
- * null-termination.
- */
-typedef struct {
-  unsigned char data[sizeof(HashCode160)*2+1];
-} HexName;
-
-/**
- * ASCII encoding of a HashCode160.
- */
-typedef struct {
-  unsigned char encoding[33];
-} EncName;
+		  const int linenumber);		
 
 /**
  * Convert hash to ASCII encoding.
@@ -1762,17 +1430,17 @@ typedef struct {
  * @param result where to store the encoding (EncName can be
  *  safely cast to char*, a '\0' termination is set).
  */
-void hash2enc(const HashCode160 * block,
+void hash2enc(const HashCode512 * block,
 	      EncName * result);
 
 /**
  * Convert ASCII encoding back to hash
  * @param enc the encoding
- * @param result where to store the hash code 
+ * @param result where to store the hash code
  * @return OK on success, SYSERR if result has the wrong encoding
  */
 int enc2hash(const char * enc,
-	     HashCode160 * result);
+	     HashCode512 * result);
 
 /**
  * Compute the distance between 2 hashcodes.
@@ -1781,48 +1449,14 @@ int enc2hash(const char * enc,
  * be somewhat consistent. And of course, the
  * result should be a positive number.
  */
-int distanceHashCode160(const HashCode160 * a, 
-			const HashCode160 * b);
- 
+int distanceHashCode512(const HashCode512 * a,
+			const HashCode512 * b);
+
 /**
  * compare two hashcodes.
  */
-int equalsHashCode160(const HashCode160 * a, 
-		      const HashCode160 * b);
- 
-/**
- * Convert (hash) block to hex (= filename)
- * @param block the sequence to convert
- * @param result where to store thestring (\0-terminated), hex-encoding
- */
-void hash2hex(const HashCode160 * block,
-	      HexName * result);
-
-/**
- * Convert hex (filename) to the hostIdentity
- * @param hex the filename
- * @param hash is set to the correspoinding host identity
- */
-void hex2hash(const HexName * hex,
-	      HashCode160 * hash);
-
-  /**
- * Convert ch to a hex sequence.  If ch is a HexName, the hex is
- * converted back to a HashCode.  If ch is NULL or an empty string, a
- * random Id is generated.  Otherwise, the hash of the string "ch" is
- * used.
- */
-void tryhex2hashOrHashString(const char * ch,
-			     HashCode160 * hc);
-
-/**
- * Try converting a hex to a hash.
- * @param ch the hex sequence
- * @param hash the resulting hash code
- * @return OK on success, SYSERR on error
- */
-int tryhex2hash(const char * ch,
-		HashCode160 * hash);
+int equalsHashCode512(const HashCode512 * a,
+		      const HashCode512 * b);
 
 /**
  * Hash block of given size.
@@ -1830,8 +1464,8 @@ int tryhex2hash(const char * ch,
  * @param ret pointer to where to write the hashcode
  */
 void hash(const void * block,
-	  int size,
-	  HashCode160 * ret);
+	  unsigned int size,
+	  HashCode512 * ret);
 
 
 /**
@@ -1839,7 +1473,7 @@ void hash(const void * block,
  * @return OK on success, SYSERR on error
  */
 int getFileHash(const char * filename,
-     	        HashCode160 * ret);
+     	        HashCode512 * ret);
 
 /**
  * Check if 2 hosts are the same (returns 1 if yes)
@@ -1847,32 +1481,32 @@ int getFileHash(const char * filename,
  * @param second the second host
  * @returns 1 if the hosts are the same, 0 otherwise
  */
-int hostIdentityEquals(const HostIdentity * first, 
-		       const HostIdentity * second);
- 
-void makeRandomId(HashCode160 * result);
+int hostIdentityEquals(const PeerIdentity * first,
+		       const PeerIdentity * second);
+
+void makeRandomId(HashCode512 * result);
 
 /* compute result(delta) = b - a */
-void deltaId(const HashCode160 * a,
-	     const HashCode160 * b,
-	     HashCode160 * result);
+void deltaId(const HashCode512 * a,
+	     const HashCode512 * b,
+	     HashCode512 * result);
 
 /* compute result(b) = a + delta */
-void addHashCodes(const HashCode160 * a,
-		  const HashCode160 * delta,
-		  HashCode160 * result);
+void addHashCodes(const HashCode512 * a,
+		  const HashCode512 * delta,
+		  HashCode512 * result);
 
 /* compute result = a ^ b */
-void xorHashCodes(const HashCode160 * a,
-		  const HashCode160 * b,
-		  HashCode160 * result);
+void xorHashCodes(const HashCode512 * a,
+		  const HashCode512 * b,
+		  HashCode512 * result);
 
 /**
  * Convert a hashcode into a key.
  */
-void hashToKey(const HashCode160 * hc,
+void hashToKey(const HashCode512 * hc,
 	       SESSIONKEY * skey,
-	       unsigned char * iv);
+	       INITVECTOR * iv);
 
 /**
  * Obtain a bit from a hashcode.
@@ -1880,7 +1514,7 @@ void hashToKey(const HashCode160 * hc,
  * @param bit index into the hashcode, [0...159]
  * @return Bit \a bit from hashcode \a code, -1 for invalid index
  */
-int getHashCodeBit(const HashCode160 * code, 
+int getHashCodeBit(const HashCode512 * code,
 		   unsigned int bit);
 
 /**
@@ -1888,105 +1522,40 @@ int getHashCodeBit(const HashCode160 * code,
  * of all hashcodes.
  * @return 1 if h1 > h2, -1 if h1 < h2 and 0 if h1 == h2.
  */
-int hashCodeCompare(const HashCode160 * h1,
-		    const HashCode160 * h2);
+int hashCodeCompare(const HashCode512 * h1,
+		    const HashCode512 * h2);
 
 /**
  * Find out which of the two hash codes is closer to target
  * in the XOR metric (Kademlia).
  * @return -1 if h1 is closer, 1 if h2 is closer and 0 if h1==h2.
  */
-int hashCodeCompareDistance(const HashCode160 * h1,
-			    const HashCode160 * h2,
-			    const HashCode160 * target);
-  
-
-/**
- * @brief Hostkey - management of the node's main identity.
- */
-
-/**
- * We currently do not handle encryption of data
- * that can not be done in a single call to the
- * RSA methods (read: large chunks of data).
- * We should never need that, as we can use
- * the hash for larger pieces of data for signing,
- * and for encryption, we only need to encode sessionkeys!
- */
-
-/**
- * Length of RSA encrypted data (2048 bit)
- */
-#define RSA_ENC_LEN 256
-
-/**
- * Length of an RSA KEY (d,e,len), 2048 bit (=256 octests) key d, 2 byte e
- */
-#define RSA_KEY_LEN 258
-
-typedef struct {
-  unsigned short len; /*  in big-endian! */
-  unsigned short sizen;/*  in big-endian! */
-  unsigned short sizee;/*  in big-endian! */
-  unsigned short sized;/*  in big-endian! */
-  unsigned short sizep;/*  in big-endian! */
-  unsigned short sizeq;/*  in big-endian! */
-  unsigned short sizedmp1;/*  in big-endian! */
-  unsigned short sizedmq1;/*  in big-endian! */
-} HostKeyEncoded;
-
-/**
- * Generic version of HostKeyEncoded with field for accessing the end of
- * the data structure (use the other version for allocation)
- */
-typedef struct {
-  HostKeyEncoded host_key_encoded;
-
-  /**
-   * Address of this field used for finding the end of the structure
-   */
-  unsigned char key[1];
-} HostKeyEncoded_GENERIC;
-
-typedef struct {
-  unsigned char sig[RSA_ENC_LEN]; 
-} Signature;
-
-typedef struct {
-  unsigned short len; /*  in big-endian, must be RSA_KEY_LEN+2 */
-  unsigned short sizen;  /*  in big-endian! */ 
-  unsigned char key[RSA_KEY_LEN];
-  unsigned short padding; /* padding (must be 0) */
-} PublicKey;
-
-typedef struct {
-  unsigned char encoding[RSA_ENC_LEN];
-} RSAEncryptedData;
-
-
+int hashCodeCompareDistance(const HashCode512 * h1,
+			    const HashCode512 * h2,
+			    const HashCode512 * target);
 
 /**
  * create a new hostkey. Callee must free return value.
  */
-Hostkey makeHostkey(); 
+struct PrivateKey * makePrivateKey(void);
 
 /**
  * Deterministically (!) create a hostkey using only the
  * given HashCode as input to the PRNG.
  */
-Hostkey makeKblockKey(const HashCode160 * input);
+struct PrivateKey * makeKblockKey(const HashCode512 * input);
 
 /**
  * Free memory occupied by hostkey
  * @param hostkey pointer to the memory to free
  */
-void freeHostkey(Hostkey hostkey); 
+void freePrivateKey(struct PrivateKey * hostkey);
 
 /**
  * Extract the public key of the host.
  * @param result where to write the result.
  */
-void getPublicKey(const Hostkey hostkey,
+void getPublicKey(const struct PrivateKey * hostkey,
 		  PublicKey * result);
 
 /**
@@ -1995,7 +1564,7 @@ void getPublicKey(const Hostkey hostkey,
  * @param hostkey the hostkey to use
  * @returns encoding of the private key.
  */
-HostKeyEncoded * encodeHostkey(const Hostkey hostkey);
+PrivateKeyEncoded * encodePrivateKey(const struct PrivateKey * hostkey);
 
 /**
  * Decode the private key from the file-format back
@@ -2003,44 +1572,46 @@ HostKeyEncoded * encodeHostkey(const Hostkey hostkey);
  * @param encoded the encoded hostkey
  * @returns the decoded hostkey
  */
-Hostkey decodeHostkey(const HostKeyEncoded * encoding);
+struct PrivateKey * decodePrivateKey(const PrivateKeyEncoded * encoding);
 
 /**
- * Encrypt a block with the public key of another
- * host that uses the same cyper.
+ * Encrypt a block with the public key of another host that uses the
+ * same cyper.
+ *
  * @param block the block to encrypt
  * @param size the size of block
  * @param publicKey the encoded public key used to encrypt
  * @param target where to store the encrypted block
  * @returns SYSERR on error, OK if ok
  */
-int encryptHostkey(const void * block, 
-		   unsigned short size,
-		   const PublicKey * publicKey,
-		   RSAEncryptedData * target);
+int encryptPrivateKey(const void * block,
+		      unsigned short size,
+		      const PublicKey * publicKey,
+		      RSAEncryptedData * target);
 
 /**
- * Decrypt a given block with the hostkey. 
- * @param hostkey the hostkey to use
+ * Decrypt a given block with the hostkey.
+ *
+ * @param key the key to use
  * @param block the data to decrypt, encoded as returned by encrypt, not consumed
  * @param result pointer to a location where the result can be stored
- * @param max the maximum number of bits to store for the result, if
- *        the decrypted block is bigger, an error is returned
- * @returns the size of the decrypted block, -1 on error
+ * @param size how many bytes of a result are expected? Must be exact.
+ * @returns the size of the decrypted block (that is, size) or -1 on error
  */
-int decryptHostkey(const Hostkey hostkey, 
-		   const RSAEncryptedData * block,
-		   void * result,
-		   unsigned int max);
+int decryptPrivateKey(const struct PrivateKey * key,
+		      const RSAEncryptedData * block,
+		      void * result,
+		      unsigned short size);
 
 /**
  * Sign a given block.
+ *
  * @param block the data to sign, first unsigned short_SIZE bytes give length
  * @param size how many bytes to sign
  * @param result where to write the signature
  * @return SYSERR on error, OK on success
  */
-int sign(const Hostkey hostkey, 
+int sign(const struct PrivateKey * key,
 	 unsigned short size,
 	 const void * block,
 	 Signature * result);
@@ -2048,34 +1619,18 @@ int sign(const Hostkey hostkey,
 /**
  * Verify signature.
  * @param block the signed data
- * @param len the length of the block 
+ * @param len the length of the block
  * @param sig signature
  * @param publicKey public key of the signer
  * @returns OK if ok, SYSERR if invalid
  */
 int verifySig(const void * block,
 	      unsigned short len,
-	      const Signature * sig,	      
+	      const Signature * sig,	
 	      const PublicKey * publicKey);
 
-
 /**
- * Methods for initializing things in util in
- * the right order.
- */
-
-/**
- * Method to parse the command line. The results
- * are to be stored in the configuration module.
- * @param argc the number of arguments
- * @param argv the command line arguments
- * @return OK on success, SYSERR if we should abort the
- *   initialization sequence and exit the program
- */
-typedef int (*CommandLineParser)(int argc, char * argv[]);
-
-/**
- * Initialize the util module. 
+ * Initialize the util module.
  * @param argc the number of arguments
  * @param argv the command line arguments
  * @param parser parser to call at the right moment
@@ -2091,73 +1646,23 @@ int initUtil(int argc,
  * util modules should check if it has
  * changed for them.
  */
-void resetUtil();
+void resetUtil(void);
 
 /**
  * Shutdown the util services in proper order.
  */
-void doneUtil();
-
-/**
- * Common methods for GNUnet clients.
- */
+void doneUtil(void);
 
 /**
  * Configuration: get the GNUnet port for the client to
  * connect to (via TCP).
  */
-unsigned short getGNUnetPort();
-
-/**
- * Configuration: get the GNUnetd host where the client
- * should connect to (via TCP)
- */
-char * getGNUnetdHost();
-
-/**
- * Struct to refer to a GNUnet TCP connection. 
- * This is more than just a socket because if the server
- * drops the connection, the client automatically tries
- * to reconnect (and for that needs connection information).
- */
-typedef struct {
-
-  /**
-   * the socket handle, -1 if invalid / not life 
-   */
-  int socket;
-
-  /**
-   * the following is the IP for the remote host for client-sockets,
-   * as returned by gethostbyname("hostname"); server sockets should
-   * use 0.
-   */
-  IPaddr ip;
-  
-  /**
-   * the port number, in host byte order 
-   */
-  unsigned short port;
-
-  /**
-   * Write buffer length for non-blocking writes.
-   */ 
-  unsigned int outBufLen;
-
-  /**
-   * Write buffer for non-blocking writes.
-   */ 
-  void * outBufPending;
-
-  Mutex readlock; 
-  Mutex writelock;
-
-} GNUNET_TCP_SOCKET;
+unsigned short getGNUnetPort(void);
 
 /**
  * Get a GNUnet TCP socket that is connected to gnunetd.
  */
-GNUNET_TCP_SOCKET * getClientSocket();
+GNUNET_TCP_SOCKET * getClientSocket(void);
 
 /**
  * Free a Client socket.
@@ -2165,21 +1670,13 @@ GNUNET_TCP_SOCKET * getClientSocket();
 void releaseClientSocket(GNUNET_TCP_SOCKET * sock);
 
 /**
- * Directory based implementation of a tiny, stateful database
- * to keep track of GNUnet _internal_ configuration parameters
- * that users are not supposed to see (e.g. *previous* quota,
- * previous database type for AFS, etc.)
- */
-
-
-/**
  * Read the contents of a bucket to a buffer.
  *
  * @param fn the hashcode representing the entry
- * @param result the buffer to write the result to 
+ * @param result the buffer to write the result to
  *        (*result should be NULL, sufficient space is allocated)
  * @return the number of bytes read on success, -1 on failure
- */ 
+ */
 int stateReadContent(const char * name,
 		     void ** result);
 
@@ -2196,7 +1693,7 @@ int stateAppendContent(const char * name,
 		       const void * block);
 
 /**
- * Write content to a file. 
+ * Write content to a file.
  *
  * @param fn the key for the entry
  * @param len the number of bytes in block
@@ -2209,25 +1706,14 @@ int stateWriteContent(const char * name,
 
 /**
  * Free space in the database by removing one file
- * @param name the hashcode representing the name of the file 
+ * @param name the hashcode representing the name of the file
  *        (without directory)
  */
 int stateUnlinkFromDB(const char * name);
 
 /**
- * Generic TCP code. This module is used to receive or send records
- * (!) from a TCP stream. The code automatically attempts to
- * re-connect if the other side closes the connection.<br>
- *
- * The code can be used on the server- or the client side, just in
- * case of the server the reconnect can of course not be used. The TCP
- * stream is broken into records of maximum length MAX_BUFFER_SIZE,
- * each preceeded by an unsigned short giving the length of the
- * following record.<p>
- */
-
-/**
  * Initialize a GNUnet client socket.
+ *
  * @param port the portnumber in host byte order
  * @param hostname the name of the host to connect to
  * @param result the SOCKET (filled in)
@@ -2239,6 +1725,7 @@ int initGNUnetClientSocket(unsigned short port,
 
 /**
  * Initialize a GNUnet client socket.
+ *
  * @param port the portnumber in host byte order
  * @param ip IP of the host to connect to
  * @param result the SOCKET (filled in)
@@ -2282,7 +1769,7 @@ int checkSocket(GNUNET_TCP_SOCKET * sock);
  *         to re-establish the connection [temporary error]).
  */
 int readFromSocket(GNUNET_TCP_SOCKET * sock,
-		   CS_HEADER ** buffer);
+		   CS_MESSAGE_HEADER ** buffer);
 
 /**
  * Write to a GNUnet TCP socket.
@@ -2291,7 +1778,7 @@ int readFromSocket(GNUNET_TCP_SOCKET * sock,
  * @return OK if the write was sucessful, otherwise SYSERR.
  */
 int writeToSocket(GNUNET_TCP_SOCKET * sock,
-		  const CS_HEADER * buffer);
+		  const CS_MESSAGE_HEADER * buffer);
 
 /**
  * Write to a GNUnet TCP socket non-blocking.
@@ -2301,7 +1788,7 @@ int writeToSocket(GNUNET_TCP_SOCKET * sock,
  *         otherwise SYSERR.
  */
 int writeToSocketNonBlocking(GNUNET_TCP_SOCKET * sock,
-			     const CS_HEADER * buffer);
+			     const CS_MESSAGE_HEADER * buffer);
 
 /**
  * Close a GNUnet TCP socket for now (use to temporarily close
@@ -2341,195 +1828,13 @@ int readTCPResult(GNUNET_TCP_SOCKET * sock,
 int sendTCPResult(GNUNET_TCP_SOCKET * sock,
 		  int ret);
 
-
-/**
- * Obtain option from a peer.
- * @return NULL on error
- */   
-char * getConfigurationOptionValue(GNUNET_TCP_SOCKET * sock,
-				   const char * section,
-				   const char * option);
-
-/**
- * @brief Determine the (external) IP of the local machine.
- *
- * We have many ways to get that IP:
- * a) from the interface (ifconfig)
- * b) via DNS from our HOSTNAME (environment)
- * c) from the configuration (HOSTNAME specification or static IP)
- *
- * Which way applies depends on the OS, the configuration
- * (dynDNS? static IP? NAT?) and at the end what the user 
- * needs.
- */
-
-
-
-/**
- * Get the IP address for the local machine.
- * @return SYSERR on error, OK on success
- */
-int getPublicIPAddress(IPaddr  * address);
-
-/**
- * Get the IP address for the local machine.
- * @return SYSERR on error, OK on success
- */
-int getPublicIP6Address(IP6addr  * address);
-
-
-/**
- * GNUnet statistics module.
- */
-
-
-/**
- * Get a handle to a statistical entity.
- * @param name a description of the entity
- * @return a handle for updating the associated value
- */
-int statHandle(const char * name);
-
-/**
- * Manipulate statistics.
- * Sets the core-statistics associated with
- * the handle to value.
- * @param handle the handle for the value to change
- * @param value to what the value should be set
- */
-void statSet(const int handle,
-	     const unsigned long long value);
-
-/**
- * Manipulate statistics.
- * Changes the core-statistics associated with
- * the value by delta.
- * @param handle the handle for the value to change
- * @param delta by how much should the value be changed
- */
-void statChange(const int handle,
-		const int delta);
-
-/**
- * Opaque handle for client connections passed by
- * the core to the CSHandlers.
- */
-typedef struct ClientH * ClientHandle;
-
-/**
- * Send a message to the client identified by the handle.  Note that
- * the core will typically buffer these messages as much as possible
- * and only return SYSERR if it runs out of buffers.  Returning OK
- * on the other hand does NOT confirm delivery since the actual
- * transfer happens asynchronously.
- */
-typedef int (*SendToClientCallback)(ClientHandle handle,
-				    const CS_HEADER * message);
-
-/**
- * Send statistics to a TCP socket.
- */
-int sendStatistics(ClientHandle sock,
-		   const CS_HEADER * message,
-		   SendToClientCallback callback);
-
-
-/* ********************* types ************** */
-
-/**
- * Statistics message. Contains the timestamp and an aribtrary
- * (bounded by the maximum CS message size!) number of statistical
- * numbers. If needed, several messages are used.
- */
-typedef struct {
-  CS_HEADER header;
-  /**
-   * For 64-bit alignment...
-   */
-  int reserved;
-  /* timestamp  (network byte order)*/
-  cron_t startTime;
-  /* total number of statistical counters */
-  int totalCounters;
-  /* number of statistical counters in this message */
-  int statCounters;
-
-} STATS_CS_MESSAGE;
-
-/**
- * Generic version of STATS_CS_MESSAGE with field for finding the end
- * of the struct. Use the other version for allocation.
- */
-typedef struct {
-  STATS_CS_MESSAGE stats_cs_message;
-
-  /* values[statCounters] */
-  unsigned long long values[1];
-
-  /* description for each of the values,
-     separated by '\0'-terminators; the
-     last description is also terminated 
-     by a '\0'; again statCounters entries */
-  /* char descriptions[0]; */
-} STATS_CS_MESSAGE_GENERIC;
-
-/**
- * Query protocol supported message.  Contains the type of
- * the message we are requesting the status of.
- */
-typedef struct {
-  CS_HEADER header;
-
-  /**
-   * For 64-bit alignment...
-   */
-  int reserved;
-
-  /**
-   * The type of the message (XX_CS_PROTO_XXXX) 
-   * we want to know the status of.
-   */
-  unsigned short tcpType;
-
-} STATS_CS_GET_MESSAGE_SUPPORTED;
-
-
-/** 
- * Status calls implementation.  Usage is how much we are using
- * (relative to what is available). Load is what we are using relative
- * to what we are allowed to use.
- */
-
-/**
- * The following routine returns the percentage of available used
- * bandwidth.  A number from 0-100 is returned.  Example: If 81 is
- * returned this means that 81% of the network bandwidth of the host
- * is consumed.
- */
-int networkUsageUp();
-
-/**
- * The following routine returns the percentage of available used
- * bandwidth. A number from 0-100 is returned.  Example: If 81 is
- * returned this means that 81% of the network bandwidth of the host
- * is consumed.
- */
-int networkUsageDown();
-
-/**
- * The following routine returns a positive number which indicates
- * the percentage CPU usage. 100 corresponds to one runnable process
- * on average.
- */
-int cpuUsage();
-
 /**
  * Get the load of the CPU relative to what is allowed.
- * 
+ *
  * @return the CPU load as a percentage of allowed
  *        (100 is equivalent to full load)
  */
-int getCPULoad();
+int getCPULoad(void);
 
 /**
  * Get the load of the network relative to what is allowed.
@@ -2539,7 +1844,7 @@ int getCPULoad();
  * @return the network load as a percentage of allowed
  *        (100 is equivalent to full load)
  */
-int getNetworkLoadUp();
+int getNetworkLoadUp(void);
 
 /**
  * Get the load of the network relative to what is allowed.
@@ -2549,7 +1854,7 @@ int getNetworkLoadUp();
  * @return the network load as a percentage of allowed
  *        (100 is equivalent to full load)
  */
-int getNetworkLoadDown();
+int getNetworkLoadDown(void);
 
 /**
  * Tell statuscalls to increment the number of bytes sent
@@ -2562,20 +1867,22 @@ void incrementBytesSent(unsigned long long delta);
 void incrementBytesReceived(unsigned long long delta);
 
 /**
- * Storage - management of the node's files.
- */
-
-/**
  * Get the size of the file (or directory)
  * of the given file (in bytes).
+ *
+ * @return OK on success, SYSERR on error
  */
-unsigned long long getFileSize(const char * filename);
+int getFileSize(const char * filename,
+		unsigned long long * size);
 
 /**
  * Get the size of the file (or directory) without
  * counting symlinks.
+ *
+ * @return OK on success, SYSERR on error
  */
-unsigned long long getFileSizeWithoutSymlinks(const char * filename);
+int getFileSizeWithoutSymlinks(const char * filename,
+			       unsigned long long * size);
 
 /**
  * Get the number of blocks that are left on the partition that
@@ -2596,9 +1903,9 @@ int assertIsFile(const char * fil);
 
 /**
  * Complete filename (a la shell) from abbrevition.
- * @param fil the name of the file, may contain ~/ or 
+ * @param fil the name of the file, may contain ~/ or
  *        be relative to the current directory
- * @returns the full file name, 
+ * @returns the full file name,
  *          NULL is returned on error
  */
 char * expandFileName(const char * fil);
@@ -2617,7 +1924,7 @@ int mkdirp(const char * dir);
  * @param len the maximum number of bytes to read
  * @param result the buffer to write the result to
  * @return the number of bytes read on success, -1 on failure
- */ 
+ */
 int readFile(const char * fileName,
 	     int len,
 	     void * result);
@@ -2628,26 +1935,19 @@ int readFile(const char * fileName,
  * @param buffer the data to write
  * @param n number of bytes to write
  * @param mode the mode for file permissions
- */ 
-void writeFile(const char * fileName, 
-	       const void * buffer,
-	       int n,
-	       const char * mode);
+ * @return OK on success, SYSERR on error
+ */
+int writeFile(const char * fileName,
+	      const void * buffer,
+	      unsigned int n,
+	      const char * mode);
 
 /**
- * Build a filename from directory and filename, completing like the shell does
- * @param dir the name of the directory, may contain ~/ or other shell stuff. Will 
- *        NOT be freed!
- * @param fil the name of the file, will NOT be deallocated anymore!
- * @param result where to store the full file name (must be large enough!)
+ * Copy a file.
+ * @return OK on success, SYSERR on error
  */
-void buildFileName(const char * dir,
-		   const EncName * fil,
-		   char * result);
-
-typedef void (*DirectoryEntryCallback)(const char * filename,
-				       const char * dirName,
-				       void * data);
+int copyFile(const char * src,
+	     const char * dst);
 
 /**
  * Scan a directory for files. The name of the directory
@@ -2680,10 +1980,7 @@ int rm_minus_rf(const char * fileName);
 /* use the CLOSE macro... */
 void close_(int fd, const char * filename, int linenumber);
 
-#define CLOSE(fd) close_(fd, __FILE__, __LINE__)
-
-
-
+#define closefile(fd) close_(fd, __FILE__, __LINE__)
 
 /**
  * Stop the application.
@@ -2695,49 +1992,19 @@ void run_shutdown(int signum);
  * Test if the shutdown has been initiated.
  * @return YES if we are shutting down, NO otherwise
  */
-int testShutdown();
+int testShutdown(void);
 
 /**
  * Initialize the signal handlers, etc.
  */
-void initializeShutdownHandlers();
+void initializeShutdownHandlers(void);
 
 /**
  * Wait until the shutdown has been initiated.
  */
-void wait_for_shutdown();
+void wait_for_shutdown(void);
 
-
-void doneShutdownHandlers();
-
-
-typedef struct {
-  char shortArg;
-  char * longArg;
-  char * mandatoryArg;
-  char * description;
-} Help;
-
-#define HELP_HELP \
-  { 'h', "help", NULL,				\
-    gettext_noop("print this help") }
-#define HELP_LOGLEVEL \
-  { 'L', "loglevel", "LEVEL",			\
-    gettext_noop("set verbosity to LEVEL") }
-#define HELP_CONFIG \
-  { 'c', "config", "FILENAME",			\
-    gettext_noop("use configuration file FILENAME") }
-#define HELP_HOSTNAME \
-  { 'H', "host", "HOSTNAME",			\
-    gettext_noop("specify host on which gnunetd is running") }
-#define HELP_VERSION \
-  { 'v', "version", NULL,			\
-    gettext_noop("print the version number") }
-#define HELP_VERBOSE \
-  { 'V', "verbose", NULL,			\
-    gettext_noop("be verbose") }
-#define HELP_END \
-    { 0, NULL, NULL, NULL, }
+void doneShutdownHandlers(void);
 
 /**
  * Print output of --help in GNU format.
@@ -2757,45 +2024,6 @@ int parseDefaultOptions(char c,
 			char * optarg);
 
 /**
- * Default "long" version of the options, use
- * "vhdc:L:H:" in the short option argument 
- * to getopt_long for now.
- */
-#define LONG_DEFAULT_OPTIONS \
-      { "config",        1, 0, 'c' }, \
-      { "version",       0, 0, 'v' }, \
-      { "help",          0, 0, 'h' }, \
-      { "debug",         0, 0, 'd' }, \
-      { "loglevel",      1, 0, 'L' }, \
-      { "host",          1, 0, 'H' }
-
-
-
-
-
-typedef struct {
-  /** The bit counter file on disk */
-  int fd;
-  /** How many bits we set for each stored element */  
-  unsigned int addressesPerElement;
-  /** The actual bloomfilter bit array */
-  char * bitArray;
-  /** Size of bitArray in bytes */
-  unsigned int bitArraySize;
-  /** Concurrency control */
-  Mutex lock;
-  /** Statistics handle for filter hits */
-  int statHandle_hits;
-  /** Statistics handle for filter misses */
-  int statHandle_misses;
-  /** Statistics handle for adds to filter */
-  int statHandle_adds;
-  /** Statistics handle for dels from filter */
-  int statHandle_dels;
-
-} Bloomfilter;
-
-/**
  * Load a bloom-filter from a file.
  * @param filename the name of the file (or the prefix)
  * @param size the size of the bloom-filter (number of
@@ -2804,9 +2032,9 @@ typedef struct {
  *        element (number of bits set per element in the set)
  * @return the bloomfilter
  */
-Bloomfilter * loadBloomfilter(const char * filename,
-			      unsigned int size,
-			      unsigned int k);
+struct Bloomfilter * loadBloomfilter(const char * filename,
+				     unsigned int size,
+				     unsigned int k);
 
 /**
  * Test if an element is in the filter.
@@ -2814,24 +2042,24 @@ Bloomfilter * loadBloomfilter(const char * filename,
  * @param bf the filter
  * @return YES if the element is in the filter, NO if not
  */
-int testBloomfilter(Bloomfilter * bf,
-		    const HashCode160 * e);
+int testBloomfilter(struct Bloomfilter * bf,
+		    const HashCode512 * e);
 
 /**
  * Add an element to the filter
  * @param bf the filter
  * @param e the element
  */
-void addToBloomfilter(Bloomfilter * bf,
-		      const HashCode160 * e);
+void addToBloomfilter(struct Bloomfilter * bf,
+		      const HashCode512 * e);
 
 /**
  * Remove an element from the filter.
  * @param bf the filter
  * @param e the element to remove
  */
-void delFromBloomfilter(Bloomfilter * bf,
-			const HashCode160 * e);
+void delFromBloomfilter(struct Bloomfilter * bf,
+			const HashCode512 * e);
 
 /**
  * Free the space associcated with a filter
@@ -2839,15 +2067,13 @@ void delFromBloomfilter(Bloomfilter * bf,
  * free the space on the drive)
  * @param bf the filter
  */
-void freeBloomfilter(Bloomfilter * bf);
+void freeBloomfilter(struct Bloomfilter * bf);
 
 /**
  * Reset a bloom filter to empty.
  * @param bf the filter
  */
-void resetBloomfilter(Bloomfilter * bf);
-
-typedef HashCode160 * (*ElementIterator)(void * arg);
+void resetBloomfilter(struct Bloomfilter * bf);
 
 /**
  * Resize a bloom filter.  Note that this operation
@@ -2860,12 +2086,11 @@ typedef HashCode160 * (*ElementIterator)(void * arg);
  * @param size the new size for the filter
  * @param k the new number of hash-function to apply per element
  */
-void resizeBloomfilter(Bloomfilter * bf,
+void resizeBloomfilter(struct Bloomfilter * bf,
 		       ElementIterator iterator,
 		       void * iterator_arg,
 		       unsigned int size,
 		       unsigned int k);
-
 
 /**
  * Depending on doBlock, enable or disable the nonblocking mode
@@ -2876,14 +2101,12 @@ void resizeBloomfilter(Bloomfilter * bf,
  */
 int setBlocking(int s, int doBlock);
 
-
 /**
  * Check whether the socket is blocking
  * @param s the socket
  * @return YES if blocking, NO non-blocking
  */
 int isSocketBlocking(int s);
-
 
 /**
  * Do a NONBLOCKING read on the given socket.  Note that in order to
@@ -2899,7 +2122,7 @@ int isSocketBlocking(int s);
  *             0 is returned if no more bytes can be read
  * @return SYSERR on error, YES on success or NO if the operation
  *         would have blocked
- */ 
+ */
 int RECV_NONBLOCKING(int s,
 		     void * buf,
 		     size_t max,
@@ -2931,8 +2154,8 @@ int RECV_BLOCKING_ALL(int s,
  * @param max maximum number of bytes to send
  * @param sent number of bytes actually sent
  * @return SYSERR on error, YES on success or
- *         NO if the operation would have blocked. 
- */ 
+ *         NO if the operation would have blocked.
+ */
 int SEND_NONBLOCKING(int s,
 		     const void * buf,
 		     size_t max,
@@ -2965,21 +2188,10 @@ int SNPRINTF(char * buf,
 	     const char * format,
 	     ...);
 
-
-typedef struct vector_t {
-  unsigned int VECTOR_SEGMENT_SIZE;
-  struct vector_segment_t * segmentsHead;
-  struct vector_segment_t * segmentsTail;
-  struct vector_segment_t * iteratorSegment;
-  unsigned int iteratorIndex;
-  size_t size;
-} Vector;
-
-
 /**
  * A debug function that dumps the vector to stderr.
  */
-void vectorDump(Vector *v);
+void vectorDump(struct Vector *v);
 
 /**
  * @param vss Size of the VectorSegment data area. The "correct" value for this
@@ -2989,111 +2201,111 @@ void vectorDump(Vector *v);
  * or otherwise the increased length of the linked list will become a
  * bottleneck for operations that are performed on arbitrary indexes.
  */
-Vector * vectorNew(unsigned int vss);
+struct Vector * vectorNew(unsigned int vss);
 
 /**
  * Free vector structure including its data segments, but _not_ including the
  * stored void pointers. It is the user's responsibility to empty the vector
  * when necessary to avoid memory leakage.
  */
-void vectorFree(Vector * v);
+void vectorFree(struct Vector * v);
 
-size_t vectorSize(const Vector * v);
+size_t vectorSize(struct Vector * v);
 
 /**
- * Insert a new element in the vector at given index. 
+ * Insert a new element in the vector at given index.
  * @return OK on success, SYSERR if the index is out of bounds.
  */
-int vectorInsertAt(Vector * v, 
+int vectorInsertAt(struct Vector * v,
 		   void * object,
 		   unsigned int index);
 
 /**
  * Insert a new element at the end of the vector.
  */
-void vectorInsertLast(Vector * v, void * object);
+void vectorInsertLast(struct Vector * v, void * object);
 
 /**
  * Return the element at given index in the vector or NULL if the index is out
  * of bounds. The iterator is set to point to the returned element.
  */
-void * vectorGetAt(Vector * v, 
+void * vectorGetAt(struct Vector * v,
 		   unsigned int index);
 
-/** 
+/**
  * Return the first element in the vector, whose index is 0, or NULL if the
  * vector is empty. The iterator of the vector is set to point to the first
  * element.
  */
-void * vectorGetFirst(Vector * v);
+void * vectorGetFirst(struct Vector * v);
 
 /**
  * Return the last element in the vector or NULL if the vector is empty. The
  * iterator of the vector is set to point to the last element.
  */
-void * vectorGetLast(Vector * v);
+void * vectorGetLast(struct Vector * v);
 
 /**
  * Return the next element in the vector, as called after vector_get_at() or
  * vector_get_first(). The return value is NULL if there are no more elements
- * in the vector or if the iterator has not been set. 
+ * in the vector or if the iterator has not been set.
  */
-void * vectorGetNext(Vector * v);
+void * vectorGetNext(struct Vector * v);
 
 /**
  * Return the previous element in the vector, as called after vector_get_at()
  * or vector_get_last(). The return value is NULL if there are no more
  * elements in the vector or if the iterator has not been set.
  */
-void * vectorGetPrevious(Vector * v);
+void * vectorGetPrevious(struct Vector * v);
 
 /**
- * Delete and return the element at given index. NULL is returned if index is 
- * out of bounds. 
+ * Delete and return the element at given index. NULL is returned if index is
+ * out of bounds.
  */
-void * vectorRemoveAt(Vector * v, 
+void * vectorRemoveAt(struct Vector * v,
 		      unsigned int index);
 
 /**
  * Delete and return the last element in the vector, or NULL if the vector
  * is empty.
  */
-void * vectorRemoveLast(Vector * v);
+void * vectorRemoveLast(struct Vector * v);
 
 /**
  * Delete and return given object from the vector, or return NULL if the object
  * is not found.
  */
-void * vectorRemoveObject(Vector * v, void * object);
+void * vectorRemoveObject(struct Vector * v, void * object);
 
 /**
- * Set the given index in the vector. The old value of the index is 
+ * Set the given index in the vector. The old value of the index is
  * returned, or NULL if the index is out of bounds.
  */
-void * vectorSetAt(Vector * v,
-		   void * object, 
+void * vectorSetAt(struct Vector * v,
+		   void * object,
 		   unsigned int index);
 
 /**
  * Set the index occupied by the given object to point to the new object.
  * The old object is returned, or NULL if it's not found.
  */
-void * vectorSetObject(Vector * v, 
+void * vectorSetObject(struct Vector * v,
 		       void * object,
 		       void * old_object);
 
-/** 
+/**
  * Swaps the contents of index1 and index2. Return value is OK
  * on success, SYSERR if either index is out of bounds.
  */
-int vectorSwap(Vector * v, 
-	       unsigned int index1, 
+int vectorSwap(struct Vector * v,
+	       unsigned int index1,
 	       unsigned int index2);
 
 /**
  * Return the index of given element or -1 if the element is not found.
  */
-unsigned int vectorIndexOf(Vector * v, 
+unsigned int vectorIndexOf(struct Vector * v,
 			   void * object);
 
 /**
@@ -3103,21 +2315,140 @@ unsigned int vectorIndexOf(Vector * v,
  * you really need to access everything in the vector as fast as
  * possible.
  */
-void ** vectorElements(Vector * v);
+void ** vectorElements(struct Vector * v);
 
+/**
+ * open() a file
+ */
+int fileopen(const char *filename, int oflag, ...);
+
+/**
+ * String functions
+ */
+#if !HAVE_STRLCPY
+size_t strlcpy(char *dest, const char *src, size_t size);
+#endif
+#if !HAVE_STRLCAT
+size_t strlcat(char *dest, const char *src, size_t count);
+#endif
+
+/**
+ * @brief Enumerate all network interfaces
+ * @param callback the callback function
+ */
+void enumNetworkIfs(void (*callback) (const char *, int, void *), void * cls);
+
+/**
+ * @brief Checks if we can start GNUnet automatically
+ * @return 1 if yes, 0 otherwise
+ */
+int isOSAutostartCapable(void);
+
+/**
+ * @brief Make GNUnet start automatically
+ * @param doAutoStart true to enable autostart, false to disable it
+ * @param username name of the user account to use
+ * @param groupname name of the group to use
+ * @return 0 on success
+ */
+int autostartService(int doAutoStart, char *username, char *groupname);
+
+/**
+ * @brief Checks if we can add an user for the GNUnet service
+ * @return 1 if yes, 0 otherwise
+ * @todo support for useradd(8)
+ */
+int isOSUserAddCapable(void);
+
+/**
+ * @brief Checks if we can add a group for the GNUnet service
+ * @return 1 if yes, 0 otherwise
+ * @todo support for groupadd(8)
+ */
+int isOSGroupAddCapable(void);
+
+/**
+ * @brief Add a service account for GNUnet
+ * @param group the group of the new user
+ * @param name the name of the new user
+ * @return 0 on success
+ */
+int createGroupUser(char *group_name, char *user_name);
+
+/**
+ * @brief Format a Windows specific error code
+ */
+char *winErrorStr(char *prefix, int dwErr);
+
+/**
+ * Checks if gnunetd is running
+ *
+ * Uses CS_PROTO_traffic_COUNT query to determine if gnunetd is
+ * running.
+ *
+ * @return OK if gnunetd is running, SYSERR if not
+ */
+int checkGNUnetDaemonRunning(void);
+
+/**
+ * Start gnunetd process
+ *
+ * @param daemonize YES if gnunetd should be daemonized
+ * @return pid_t of gnunetd if NOT daemonized, 0 if
+ *  daemonized sucessfully, -1 on error
+ */
+int startGNUnetDaemon(int daemonize);
 
 
 /**
- * Enum Windows NICs
+ * Stop gnunetd
+ *
+ * Note that returning an error does NOT mean that
+ * gnunetd will continue to run (it may have been
+ * shutdown by something else in the meantime or
+ * crashed).  Call checkDaemonRunning() frequently
+ * to check the status of gnunetd.
+ *
+ * Furthermore, note that this WILL potentially kill
+ * gnunetd processes on remote machines that cannot
+ * be restarted with startGNUnetDaemon!
+ *
+ * This function does NOT need the PID and will also
+ * kill daemonized gnunetd's.
+ *
+ * @return OK successfully stopped, SYSERR: error
  */
-#ifdef WINDOWS
-void EnumNICs(PMIB_IFTABLE *pIfTable, PMIB_IPADDRTABLE *pAddrTable);
-int PopulateNICCombo(HWND hCombo);
-#endif
+int stopGNUnetDaemon(void);
 
-#ifdef __cplusplus
-}
-#endif
+
+/**
+ * Wait until the gnunet daemon is
+ * running.
+ *
+ * @param timeout how long to wait at most
+ * @return OK if gnunetd is now running
+ */
+int waitForGNUnetDaemonRunning(cron_t timeout);
+
+
+/**
+ * Wait until the gnunet daemon (or any other CHILD process for that
+ * matter) with the given PID has terminated.  Assumes that
+ * the daemon was started with startGNUnetDaemon in no-daemonize mode.
+ * On arbitrary PIDs, this function may fail unexpectedly.
+ *
+ * @return YES if gnunetd shutdown with
+ *  return value 0, SYSERR if waitpid
+ *  failed, NO if gnunetd shutdown with
+ *  some error
+ */
+int waitForGNUnetDaemonTermination(int pid);
+
+/**
+ * @brief Terminate a process
+ * @return YES on success, NO otherwise
+ */
+int termProcess(int pid);
 
 /* ifndef GNUNET_UTIL_H */
 #endif

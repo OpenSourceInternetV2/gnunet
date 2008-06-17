@@ -99,7 +99,7 @@
 #define ACS_DARROW 'v'
 #endif
 
-/* 
+/*
  * Attribute names
  */
 #define screen_attr                   attributes[0]
@@ -159,6 +159,7 @@ struct dialog_list_item {
  */
 
 void init_dialog (void);
+void init_wsize(void);
 void end_dialog (void);
 void resize_dialog(int rows, int cols);
 void do_resize_dialog(void);
@@ -184,12 +185,15 @@ int dialog_menu (const char *title, const char *prompt, int height, int width,
 int dialog_checklist (const char *title, const char *prompt, int height,
 		int width, int list_height, int item_no,
 		struct dialog_list_item **items, int flag);
-extern unsigned char dialog_input_result[];
+extern char dialog_input_result[];
 int dialog_inputbox (const char *title, const char *prompt, int height,
 		int width, const char *init);
 
 struct dialog_list_item *first_sel_item(int item_no,
 		struct dialog_list_item **items);
+
+void show_textbox(const char *title, const char *text, int r, int c);
+void show_helptext(const char *title, const char *text);
 
 /*
  * This is the base for fictitious keys, which activate

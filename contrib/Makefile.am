@@ -2,31 +2,17 @@ if HAVE_GUILE
  bin_SCRIPTS = gnunet-download-manager.scm
 endif
 
+pkgdata_DATA = \
+ config-client.in \
+ config-daemon.in
+
 EXTRA_DIST = \
  gnunet-download-manager.scm \
- gnunet.user \
- gnunet.root \
- autoinstall \
- initgnunet \
+ init_gnunet_redhat init_gnunet_ubuntu \
  visualize_stats.sh \
  gnmessage.sh \
  junkinsert.sh \
  junklookup.sh \
  namespacehelper.sh \
  report.sh \
- OSX/GNUnet \
- OSX/GNUnet-config \
- OSX/GNUnet-funcs \
- OSX/GNUnet.icns \
- OSX/History \
- OSX/Info.plist \
- OSX/Makefile \
- OSX/README \
- OSX/TODO \
- OSX/build_app \
- OSX/gnunet-gtk \
- OSX/gnunet-peer-info \
- OSX/gnunetd \
- OSX/gnunetmac-nox.txt \
- OSX/gnunetmac.txt 
-
+ $(pkgdata_DATA)

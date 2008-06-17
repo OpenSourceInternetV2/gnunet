@@ -1,5 +1,6 @@
 /*
      This file is part of GNUnet
+     (C) 2003, 2004, 2005 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -24,6 +25,7 @@
  */
 
 #include "gnunet_util.h"
+#include "gnunet_protocols.h"
 #include "gnunet_transport.h"
 #include "platform.h"
 
@@ -47,66 +49,64 @@ static CoreAPIForTransport * coreAPI = NULL;
 /* *************** API implementation *************** */
 
 /**
- * Verify that a HELO-Message is correct (a node is reachable at that
- * address). 
+ * Verify that a hello-Message is correct (a node is reachable at that
+ * address).
  *
- * @param helo the HELO message to verify
+ * @param helo the hello message to verify
  *        (the signature/crc have been verified before)
  * @return OK on success, SYSERR on failure
  */
-static int verifyHelo(const HELO_Message * helo) {
+static int verifyHelo(const P2P_hello_MESSAGE * helo) {
 
   if ( (ntohs(helo->senderAddressSize) != sizeof(HostAddress)) ||
-       (ntohs(helo->header.size) != HELO_Message_size(helo)) ||
-       (ntohs(helo->header.requestType) != p2p_PROTO_HELO) ) {
+       (ntohs(helo->header.size) != P2P_hello_MESSAGE_size(helo)) ||
+       (ntohs(helo->header.type) != p2p_PROTO_hello) ) {
     return SYSERR; /* obviously invalid */
   } else {
     if (testConfigurationString("NAT",
 				"LIMITED",
 				"YES")) {
-      /* if WE are a NAT and this is not our HELO,
+      /* if WE are a NAT and this is not our hello,
 	 it is invalid since NAT-to-NAT is not possible! */
-      if (equalsHashCode160(&coreAPI->myIdentity->hashPubKey,
+      if (equalsHashCode512(&coreAPI->myIdentity->hashPubKey,
 			    &helo->senderIdentity.hashPubKey))
 	return OK;
       else
 	return SYSERR;
     }
-    return OK;  
+    return OK;
   }
 }
 
 /**
- * Create a HELO-Message for the current node. The HELO is created
+ * Create a hello-Message for the current node. The hello is created
  * without signature and without a timestamp. The GNUnet core will
  * sign the message and add an expiration time.
  *
- * @param helo where to store the HELO message
- * @return OK on success, SYSERR on error
+ * @return hello on success, NULL on error
  */
-static int createHELO(HELO_Message ** helo) {
-  HELO_Message * msg;
+static P2P_hello_MESSAGE * createhello() {
+  P2P_hello_MESSAGE * msg;
 
   if (! testConfigurationString("NAT",
 				"LIMITED",
 				"YES"))
-    return SYSERR;
+    return NULL;
 
-  msg = MALLOC(sizeof(HELO_Message) + sizeof(HostAddress));
+  msg = MALLOC(sizeof(P2P_hello_MESSAGE) + sizeof(HostAddress));
   msg->senderAddressSize = htons(sizeof(HostAddress));
   msg->protocol          = htons(NAT_PROTOCOL_NUMBER);
   msg->MTU               = htonl(0);
-  *helo = msg;
-  return OK;
+  return msg;
 }
 
 /**
  * Establish a connection to a remote node.
- * @param helo the HELO-Message for the target node
+ * @param helo the hello-Message for the target node
  * @param tsessionPtr the session handle that is to be set
  * @return always fails (returns SYSERR)
  */
-static int natConnect(HELO_Message * helo,
+static int natConnect(const P2P_hello_MESSAGE * helo,
 		      TSession ** tsessionPtr) {
   return SYSERR;
 }
@@ -129,18 +129,14 @@ int natAssociate(TSession * tsession) {
 /**
  * Send a message to the specified remote node.
  *
- * @param tsession the HELO_Message identifying the remote node
+ * @param tsession the P2P_hello_MESSAGE identifying the remote node
  * @param message what to send
  * @param size the size of the message
- * @param isEncrypted is the message encrypted?
- * @param crc CRC32 checksum of the plaintext
  * @return SYSERR (always fails)
  */
 static int natSend(TSession * tsession,
 		   const void * message,
-		   const unsigned int size,
-		   int isEncrypted,
-		   const int crc) {
+		   const unsigned int size) {
   return SYSERR;
 }
 
@@ -180,7 +176,7 @@ static void reloadConfiguration(void) {
 /**
  * Convert NAT address to a string.
  */
-static char * addressToString(const HELO_Message * helo) {
+static char * addressToString(const P2P_hello_MESSAGE * helo) {
   return STRDUP("NAT");
 }
 
@@ -188,14 +184,14 @@ static char * addressToString(const HELO_Message * helo) {
 /**
  * The exported method. Makes the core api available via a global and
  * returns the nat transport API.
- */ 
+ */
 TransportAPI * inittransport_nat(CoreAPIForTransport * core) {
   coreAPI = core;
   natAPI.protocolNumber       = NAT_PROTOCOL_NUMBER;
   natAPI.mtu                  = 0;
   natAPI.cost                 = 30000;
   natAPI.verifyHelo           = &verifyHelo;
-  natAPI.createHELO           = &createHELO;
+  natAPI.createhello           = &createhello;
   natAPI.connect              = &natConnect;
   natAPI.send                 = &natSend;
   natAPI.sendReliable         = &natSend; /* can't increase reliability */

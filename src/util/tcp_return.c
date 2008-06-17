@@ -29,32 +29,33 @@
  */
 
 #include "gnunet_util.h"
+#include "gnunet_protocols.h"
 #include "platform.h"
 
 /**
  * Obtain a return value from a remote call from TCP.
  *
- * @param sock the TCP socket 
+ * @param sock the TCP socket
  * @param ret the return value from TCP
  * @return SYSERR on error, OK if the return value was read
  * successfully
  */
 int readTCPResult(GNUNET_TCP_SOCKET * sock,
 		  int * ret) {
-  CS_RETURN_VALUE * rv;
-  
+  CS_returnvalue_MESSAGE * rv;
+
   rv = NULL;
   if (SYSERR == readFromSocket(sock,
-			       (CS_HEADER **) &rv)) { 
+			       (CS_MESSAGE_HEADER **) &rv)) {
     LOG(LOG_WARNING,
-	_("'%s' failed, other side closed connection.\n"),
+	_("`%s' failed, other side closed connection.\n"),
 	__FUNCTION__);
     return SYSERR;
   }
-  if ( (ntohs(rv->header.size) != sizeof(CS_RETURN_VALUE)) ||
-       (ntohs(rv->header.tcpType) != CS_PROTO_RETURN_VALUE) ) {
+  if ( (ntohs(rv->header.size) != sizeof(CS_returnvalue_MESSAGE)) ||
+       (ntohs(rv->header.type) != CS_PROTO_RETURN_VALUE) ) {
     LOG(LOG_WARNING,
-	_("'%s' failed, reply invalid!\n"),
+	_("`%s' failed, reply invalid!\n"),
 	__FUNCTION__);
     FREE(rv);
     return SYSERR;
@@ -74,60 +75,19 @@ int readTCPResult(GNUNET_TCP_SOCKET * sock,
  */
 int sendTCPResult(GNUNET_TCP_SOCKET * sock,
 		  int ret) {
-  CS_RETURN_VALUE rv;
-  
-  rv.header.size 
-    = htons(sizeof(CS_RETURN_VALUE));
-  rv.header.tcpType 
+  CS_returnvalue_MESSAGE rv;
+
+  rv.header.size
+    = htons(sizeof(CS_returnvalue_MESSAGE));
+  rv.header.type
     = htons(CS_PROTO_RETURN_VALUE);
-  rv.return_value 
+  rv.return_value
     = htonl(ret);
   return writeToSocket(sock,
 		       &rv.header);
 }
 
 
-/**
- * Obtain option from a peer.
- * @return NULL on error
- */   
-char * getConfigurationOptionValue(GNUNET_TCP_SOCKET * sock,
-				   const char * section,
-				   const char * option) {
-  CS_GET_OPTION_REQUEST req;
-  CS_GET_OPTION_REPLY * reply;
-  int res;
-  char * ret;
-  
-  memset(&req,
-	 0,
-	 sizeof(CS_GET_OPTION_REQUEST));
-  req.header.tcpType = htons(CS_PROTO_GET_OPTION_REQUEST);
-  req.header.size = htons(sizeof(CS_GET_OPTION_REQUEST));
-  if ( (strlen(section) >= CS_GET_OPTION_REQUEST_OPT_LEN) ||
-       (strlen(option) >= CS_GET_OPTION_REQUEST_OPT_LEN) ) 
-    return NULL;
-  strcpy(&req.section[0],
-	 section);
-  strcpy(&req.option[0],
-	 option);
-  res = writeToSocket(sock,
-		      &req.header);
-  if (res != OK) 
-    return NULL;
-  reply = NULL;
-  res = readFromSocket(sock,
-		       (CS_HEADER**)&reply);
-  if (res != OK) 
-    return NULL;
-  ret = MALLOC(ntohs(reply->header.size) - sizeof(CS_HEADER) + 1);
-  memcpy(ret,
-	 &reply->value[0],
-	 ntohs(reply->header.size) - sizeof(CS_HEADER));
-  ret[ntohs(reply->header.size) - sizeof(CS_HEADER)] = '\0';
-  FREE(reply);
-  return ret;
-}
 
 
 

@@ -2,204 +2,54 @@ This file describes special operations that must be performed for an
 upgrade between GNUnet versions.  You can obtain version of GNUnet
 that you have installed by running
 
-# gnunetd --version
+$ gnunetd --version
 
 If no migration procedure is listed for your version, a
-data-preserving migration may not be possible.  For CVS versions,
+data-preserving migration may not be possible.  For SVN versions,
 you're on your own.
 
-0.6.4a to 0.6.5:
-================
+0.7.0pre6 and 0.7.0 to 0.7.0a
+=============================
 
-Recompile, restart gnunetd, go.  Oh, and read the documentation 
-on collections :-).
-
-
-0.6.4 to 0.6.4a:
-================
-
-Recompile, restart gnunetd, go.
-
-
-0.6.3a to 0.6.4:
-================
-
-You may want to create new pseudonyms with meta-data to
-advertise your namespaces.  Short of that, it is:
-
-Make sure that your system meets the new dependencies, then
-recompile, restart gnunetd, go.
-
-
-0.6.2b to 0.6.3a:
-=================
-
-Use
+Run
 
 $ gnunet-update
 
-to migrate your GNUnet directory.
+(as the same user that also runs gnunetd).
 
 
-0.6.2a to 0.6.2b:
-=================
+0.7.0pre4 and 0.7.0pre5 to 0.7.0pre6
+====================================
 
-Recompile, restart gnunetd, go.
+Run
 
+$ rm -f /var/lib/GNUnet/content/gnunet.dat ~/.gnunet/content/gnunet.dat
+$ gnunet-update
 
-0.6.2 to 0.6.2a:
-================
-
-Recompile, restart gnunetd, go.
-
-
-0.6.1d to 0.6.2:
-================
-
-There are new options in gnunet.conf, you must update the
-configuration file in order to be able to index files.  After that,
-run
-
-$ gnunet-check -u
-
-to update the file index database (this update should typically be
-quite fast, the code only adds some symbolic links and computes a hash
-over the indexed files).  Direct updates from before 0.6.1b are NOT
-supported.
+(as the same user that also runs gnunetd).
 
 
-0.6.1c to 0.6.1d:
-=================
+0.7.0pre1 and 0.7.0pre2 to 0.7.0pre3
+====================================
 
-Recompile, restart gnunetd, go.
-
-
-0.6.1b to 0.6.1c:
-=================
-
-Recompile, restart gnunetd, go.
+Interesting.  You got those to RUN!?
 
 
-0.6.1 to 0.6.1b:
-================
+before 0.7.0pre1 to 0.7.0pre1
+=============================
 
-Before starting gnunetd, run "gnunet-check -ra". This will convert
-certain data-structures to correct size and restore blocks of locally
-indexed content that the earlier versions could have discarded due to
-a bug.
+Migration is NOT possible, we're breaking compatibility big time.
+Note that 0.7.0pre1 is a pre-release for 0.7.0, so hands-off if you do
+not want to deal with a few bugs and the lack of documentation and
+user interfaces.  Generally, you want to do
 
+$ rm -rf .gnunet
 
-0.6.0 to 0.6.1:
-===============
+before starting 0.7.0pre1.  Also, while it maybe possible that 
+migration from 0.7.0pre1 to 0.7.0 will be painless, there's no
+guarantee for that.
 
-The configuration file has been split into two files, one for gnunetd
-and one for (most of) the tools.  The templates can be found under
-contrib/gnunet.user and contrib/gnunet.root.  Updating the
-configuration files appropriately should be the only change required
-for this update.
+Note that many things have changed in this version, so please read
+the documentation very carefully, but also keep in mind that not
+all of the documentation is up-to-date with the code at this point.
 
-If you are behind a NAT box, you should read
-http://www.ovmj.org/GNUnet/user_gnunet.php3#gnunet.conf.nat.limited
-
-If you are not behind a NAT box, you should still load
-the "nat" transport service (with the default options).
-
-
-0.5.5 to 0.6.0:
-===============
-
-Almost:  Recompile, restart gnunetd, go.
-You may also want to update your configuration file (diff is your
-friend).
-
-
-0.5.4 to 0.5.5:
-===============
-
-Recompile, restart gnunetd and you should be ready to go, everything
-should be compatible.  0.5.5 adds some new messages to the protocol,
-but this just means that older peers may not respond to certain
-requests.
-
-
-0.5.3 to 0.5.4:
-===============
-
-If you inserted many files of the same mime-type into GNUnet 0.5.3
-with a gdbm database you will be able to free a lot of space by
-changing your AFS-DISKQUOTA (gnunet.conf) to some other value
-(increasing by 1 MB will be sufficient) and then running
-gnunet-convert.
-
-But other than this potential optimization, you don't really need to
-do anything.  Even gnunet.conf did not change much. MAXCONNECT is now
-obsolete, and there are six new, experimental IPv6 options that you
-may want to add (sections [UDP6] and [TCP6] at the end of
-contrib/gnunet.conf).
-
-In short, recompile, restart gnunetd and you might be ready to go,
-everything should be compatible.
-
-
-0.5.2 to 0.5.3:
-===============
-We changed pretty much everything in the database format for 0.5.3 for
-any database type.  The only sane solution is
-
-# rm -rf .gnunet/data/afs/
-
-Then configure the database, in particular set the quota and select
-the database type.  If you want to use the new mysql database support,
-you will have to do some extra work (see
-src/applications/afs/database/high_mysql.c).
-
-Note that many hardly reasonable options were removed from
-gnunet.conf, so a good start is probably also:
-
-# cp contrib/gnunet.conf ~/.gnunet/gnunet.conf
-
-or, if you are root:
-
-# cp contrib/gnunet.conf.root /etc/gnunet.conf
-
-
-0.5.1 to 0.5.2:
-===============
-GNUnet now supports /etc/gnunet.conf as the default location for the
-configuration file.  So just copy contrib/gnunet.conf to
-/etc/gnunet.conf and delete ~/.gnunet/gnunet.conf *OR* edit the
-existing ~/.gnunet/gnunet.conf file as needed.  No changes should be
-strictly required, but it's probably a good idea to do a diff of your
-configuration file with the default supplied by 0.5.2.  That's it.
-
-
-0.5.0 to 0.5.1:
-===============
-Note that you need to upgrade libextractor to 0.2.0. Delete
-the old hostkeys, the signature format has changed a bit:
-
-# rm .gnunet/data/hosts/*
-
-You have to rename the content database file. Do
-
-# mkdir data/afs/content
-
-and for gdbm,
-
-# mv data/afs/database.gdb data/afs/content/bucket.0.gdb
-
-or if you're using tdb,
-
-# mv data/afs/databas.tdb data/afs/content/bucket.0.tdb
-
-or directory
-
-# mv data/afs/database.dir data/afs/content/bucket.0.dir
-
-Then in gnunet.conf, set DATABASETYPE accordingly and
-
-  DATABASEBUCKETS = 1
-
-Thats all. If you wish to use more than one database bucket 
-(for >2GB of non-indexed content), see man page for 
-gnunet-convert.
