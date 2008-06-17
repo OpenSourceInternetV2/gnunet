@@ -1,3 +1,13 @@
+gnunet (0.6.4a-3) unstable; urgency=high
+
+  * Bumb revision number for the package to be rebuild against fixed
+    libgcrypt11 (>=1.2.0-10) (Closes: #275793)
+
+  * debian/control: Added version requirement for libgcrypt11-dev (>=1.2.0-10).
+  * Urgency set to high since package in Sarge is currently broken.
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Mon, 11 Oct 2004 12:13:28 +0200
+
 gnunet (0.6.4a-2) unstable; urgency=high
 
   * debian/gnunet.postinst: Fixed data migration process.

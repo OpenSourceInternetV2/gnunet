@@ -48,7 +48,8 @@ config.status: configure
 		--with-tdb=/usr \
 		--with-bdb=/usr \
 		--without-mysql \
-		--enable-guile
+		--enable-guile \
+		--with-pic
 
 
 # Architecture 
