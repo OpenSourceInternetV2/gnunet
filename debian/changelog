@@ -1,3 +1,13 @@
+gnunet (0.7.2b-2) unstable; urgency=low
+
+  * Added build-dependency to libadns1-dev.
+  * Synced gnunetd.conf and gnunetd-daemon.postinst with upstream,
+    using /var/lib/gnunet instead of /var/lib/GNUnet now (Closes: #301822).
+  * Synced gnunet-daemon.install and gnunet-client.install with upstream,
+    including new libraries (Closes: #431021, #434684).
+
+ -- Daniel Baumann <daniel@debian.org>  Tue, 14 Aug 2007 15:57:00 +0200
+
 gnunet (0.7.2b-1) unstable; urgency=low
 
   * New upstream release.

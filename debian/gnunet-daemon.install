@@ -3,5 +3,6 @@
 /usr/bin/gnunet-peer-info
 /usr/bin/gnunet-update
 /usr/lib/libgnunetcore.so.*
+/usr/lib/libgnunetip.so.*
 /usr/lib/GNUnet/libgnunetmodule_*.so
 /usr/lib/GNUnet/libgnunettransport_*.so
