@@ -1,0 +1,32 @@
+.TH GNUNET-PSEUDONYM "1" "31 Mar 2004" "GNUnet"
+.SH NAME
+gnunet-pseudonym \- create, delete or list pseudonyms
+.SH SYNOPSIS
+.B gnunet-pseudonym 
+[options]
+.SH DESCRIPTION
+.PP
+By default, gnunet-pseudonyms lists all pseudonyms created locally. 
+.TP
+\fB\-p PASS\fR, \fB\-\-password=PASS\fR
+Specify password to decrypt pseudonyms encountered or to encrypt pseudonyms created.  The namespace identifiers are displayed for the pseudonyms that could be decrypted.
+.TP
+\fB\-C NAME\fR, \fB\-\-create=NAME\fR
+Creates a new pseudonym with the given NAME.
+.TP
+\fB\-D NAME\fR, \fB\-\-delete=NAME\fR
+Deletes the pseudonym with the given NAME.
+.TP
+\fB\-q\fR, \fB\-\-quiet\fR
+Do not print the list of pseudonyms (only perform create or delete operation).
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+print help page
+.SH FILES
+.TP
+~/.gnunet/data/pseudonyms/
+Directory where the pseudonyms are stored
+.SH "REPORTING BUGS"
+Report bugs by using mantis <http://www.ovmj.org/~mantis/> or by sending electronic mail to <gnunet-developers@gnu.org>
+.SH "SEE ALSO"
+\fBgnunet\-insert\fP(1), \fBgnunet-search\fP(1), \fBgnunetd\fP(1)

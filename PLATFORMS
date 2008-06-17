@@ -1,0 +1,61 @@
+This file lists the known problems with GNUnet on various platforms.
+
+Let us know if you know more about it then we do.  The test is quite
+easy.  Run "make check" and "gnunet-transport-check" *after*
+configuring GNUnet (including placing a valid gnunet.conf into
+~/.gnunet and /etc/gnunet.conf).  That should yield all the
+information necessary (assuming it compiles).
+
+
+Linux (x86):
+- perfect
+
+FreeBSD (x86):
+- perfect
+
+OpenBSD/NetBSD:
+- unknown
+
+Linux (Ultra Sparc):
+- gcry RSA key generation does not work (hangs)
+  workarounds: 
+   use OpenSSL [confirmed]
+   use libgcrypt [untested]
+
+Linux (Alpha):
+- gcry RSA key generation does not work (hangs or even crashes)
+  workarounds:
+   use OpenSSL [confirmed]
+   use libgcrypt [untested]
+
+Solaris 8 (SunOS 5.8, Sparc SunFire 880):
+- gcry test takes forever (bug?)
+  workarounds: 
+   use OpenSSL [confirmed]
+   use libgcrypt [untested]
+- IPC semaphore test fails (hmm, used to pass)
+
+OS X (10.3, PowerPC):
+- ar fails to build (bug in Apple-AR)
+- gcry test takes forever (bug?)
+  workarounds: 
+   use OpenSSL [confirmed]
+   use libgcrypt [untested]
+- plugins are not found (FATAL)
+- CRC errors at the end of downloads (?)
+
+Cygwin (x86):
+- plugins can not be loaded (FATAL)
+- difficult to compile (autotools trouble)
+- gcry doesn't link
+- RSA_private_decrypt (OpenSSL) often fails
+- gnunet-transport-check fails
+- TCP transport doesn't work ("Transport endpoint is not connected")
+- CTRL-C has no effect
+
+MinGW (x86):
+- gcry is not available
+  workaround:
+   use OpenSSL
+- SMTP transport is not available
+- gnunet-testbed is not available

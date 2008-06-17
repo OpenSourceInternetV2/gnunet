@@ -1,0 +1,46 @@
+.TH GNUNET-CONVERT "1" "20 Apr 2004" "GNUnet"
+.SH NAME
+gnunet-convert \- a tool to convert the GNUnet AFS database
+.SH SYNOPSIS
+.B gnunet\-convert
+[\fIOPTIONS\fR] 
+.SH DESCRIPTION
+.PP
+
+gnunet-convert can convert an existing GNUnet AFS block database from
+one format to another.  Current formats are "gdbm", "tdb", "bdb",
+"mysql" and "directory".  
+You must call gnunet-convert whenever you change the quota or
+the database type.  
+
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+print help page
+.TP
+\fB\-c \fIFILENAME\fR, \fB\-\-config=FILENAME\fR
+load config file (default: /etc/gnunet.conf)
+.TP
+\fB\-V\fR \fB\-\-verbose\fR
+Be verbose.
+.TP
+\fB\-q\fR \fB\-\-quiet\fR
+Be quiet.
+.TP
+\fB\-L \fILOGLEVEL\fR, \fB\-\-loglevel=LOGLEVEL\fR
+change the loglevel. Possible values for LOGLEVEL are NOTHING, FATAL, ERROR, FAILURE, WARNING, MESSAGE, INFO, DEBUG, CRON and EVERYTHING.
+.SH NOTES
+
+You cannot convert databases of GNUnet versions older
+than 0.5.3 with this tool.
+
+.SH FILES
+.TP
+~/.gnunet/gnunet.conf
+Users GNUnet configuration file
+.TP
+~/.gnunet/data/afs/content*
+Default location of the GNUnet AFS database.
+.SH "REPORTING BUGS"
+Report bugs by using mantis <http://www.ovmj.org/~mantis/> or by sending electronic mail to <gnunet-developers@gnu.org>
+.SH "SEE ALSO"
+\fBgnunet\-search\fP(1), \fBgnunet\-insert\fP(1), \fBgnunet\-gtk\fP(1), \fBgnunet\-search\fP(1), \fBgnunet\-download\fP(1), \fBgnunet\-check\fP(1), \fBgnunet.conf\fP(5), \fBgnunetd\fP(1)
