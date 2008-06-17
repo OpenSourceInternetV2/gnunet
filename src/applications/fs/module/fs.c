@@ -149,8 +149,10 @@ static int gapPut(void * closure,
 #endif
 
   dv = gapWrapperToDatastoreValue(value, prio);
-  if (dv == NULL)
+  if (dv == NULL) {
+    BREAK();
     return SYSERR;
+  }
   gw = (GapWrapper*) value;
   size = ntohl(gw->dc.size) - sizeof(GapWrapper);
   if ( (OK != getQueryFor(size,
@@ -324,7 +326,7 @@ static int csHandleCS_fs_request_insert_MESSAGE(ClientHandle sock,
       et -= now;
       et = et % MAX_MIGRATION_EXP;
       if (et > 0)
-	et = randomi(et);
+	et = weak_randomi(et);
       et = et + now;
     }
     gw->timeout = htonll(et);
@@ -683,7 +685,7 @@ static int gapGetConverter(const HashCode512 * key,
     et -= now;
     et = et % MAX_MIGRATION_EXP;
     if (et > 0)
-      et = randomi(et);
+      et = weak_randomi(et);
     et = et + now;
   }
   gw->timeout = htonll(et);
@@ -845,7 +847,7 @@ static int dhtGetConverter(const HashCode512 * key,
     et -= now;
     et = et % MAX_MIGRATION_EXP;
     if (et > 0)
-      et = randomi(et);
+      et = weak_randomi(et);
     et = et + now;
   }
   gw->timeout = htonll(et);
@@ -1094,6 +1096,7 @@ int initialize_module_fs(CoreAPIForApplication * capi) {
   dht = NULL;
 
   coreAPI = capi;
+  ONDEMAND_init();
   MUTEX_CREATE(&lock);
   dsGap.closure = NULL;
   dsGap.get = &gapGet;
@@ -1199,6 +1202,7 @@ void done_module_fs() {
   }
   coreAPI = NULL;
   MUTEX_DESTROY(&lock);
+  ONDEMAND_done();
 }
 
 /**

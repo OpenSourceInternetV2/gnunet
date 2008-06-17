@@ -442,8 +442,9 @@ typedef struct {
  * such a great idea (i.e. would just waste bandwidth).
  */
 static int fragmentBMC(void * buf,
-		       FragmentBMC * ctx,
+		       void * cls,
 		       unsigned short len) {
+  FragmentBMC * ctx = cls;
   static int idGen = 0;
   P2P_fragmentation_MESSAGE * frag;
   unsigned int pos;
@@ -457,7 +458,7 @@ static int fragmentBMC(void * buf,
   }
   if (stats != NULL)
     stats->change(stat_fragmented, 1);
-  id = (idGen++) + randomi(512);
+  id = (idGen++) + weak_randomi(512);
   /* write first fragment to buf */
   frag = (P2P_fragmentation_MESSAGE*) buf;
   frag->header.size = htons(len);
@@ -535,7 +536,7 @@ void fragment(const PeerIdentity * peer,
   }
   xlen = mtu - sizeof(P2P_fragmentation_MESSAGE);
   coreAPI->unicastCallback(peer,
-			   (BuildMessageCallback) &fragmentBMC,
+			   &fragmentBMC,
 			   fbmc,
 			   mtu,
 			   prio * xlen / len, /* compute new prio */

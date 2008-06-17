@@ -87,23 +87,10 @@
 #define SECONDS_PINGATTEMPT 120
 
 /**
- * How big do we estimate should the send buffer be?  (can grow bigger
- * if we have many requests in a short time, but if it is larger than
- * this, we start do discard expired entries.)  Computed as "MTU /
- * querySize" plus a bit with the goal to be able to have at least
- * enough small entries to fill a message completely *and* to have
- * some room to manouver.
- */
-#define TARGET_SBUF_SIZE 40
-
-unsigned int MAX_SEND_FREQUENCY = 50 * cronMILLIS;
-
-/**
  * High priority message that needs to go through fast,
  * but not if policies would be disregarded.
  */
 #define ADMIN_PRIORITY 0xFFFF
-
 
 /**
  * If we under-shoot our bandwidth limitation in one time period, how
@@ -114,9 +101,9 @@ unsigned int MAX_SEND_FREQUENCY = 50 * cronMILLIS;
 #define MAX_BUF_FACT 2
 
 /**
- * Expected MTU for a connection (1500 for Ethernet)
+ * Expected MTU for a streaming connection.
  */
-#define EXPECTED_MTU 1500
+#define EXPECTED_MTU 32768
 
 /**
  * How many ping/pong messages to we want to transmit
@@ -134,7 +121,7 @@ unsigned int MAX_SEND_FREQUENCY = 50 * cronMILLIS;
 /**
  * What is the minimum number of bytes per minute that
  * we allocate PER peer? (5 minutes inactivity timeout,
- * 1500 MTU, 8 MSGs => 8 * 1500 / 5 = 2400 bpm [ 40 bps])
+ * 32768 MTU, 8 MSGs => 8 * 32768 / 5 = ~50000 bpm [ ~800 bps])
  */
 #define MIN_BPM_PER_PEER (TARGET_MSG_SID * EXPECTED_MTU * 60 / SECONDS_INACTIVE_DROP)
 
@@ -146,9 +133,10 @@ unsigned int MAX_SEND_FREQUENCY = 50 * cronMILLIS;
 #define MIN_SAMPLE_TIME (MINIMUM_SAMPLE_COUNT * cronMINUTES * EXPECTED_MTU / MIN_BPM_PER_PEER)
 
 /**
- * Hard limit on the send buffer size
+ * Hard limit on the send buffer size (per connection, in bytes),
+ * Must be larger than EXPECTED_MTU.
  */
-#define MAX_SEND_BUFFER_SIZE 256
+#define MAX_SEND_BUFFER_SIZE (EXPECTED_MTU * 8)
 
 /**
  * Status constants
@@ -408,6 +396,7 @@ typedef struct BufferEntry_ {
   /* are we currently in "sendBuffer" for this
      entry? */
   int inSendBuffer;
+  
 } BufferEntry;
 
 typedef struct {
@@ -874,8 +863,7 @@ static int checkSendFrequency(BufferEntry * be) {
   if (be->MAX_SEND_FREQUENCY > MIN_SAMPLE_TIME / MINIMUM_SAMPLE_COUNT)
     be->MAX_SEND_FREQUENCY = MIN_SAMPLE_TIME / MINIMUM_SAMPLE_COUNT;
 
-  if ( (be->lastSendAttempt + be->MAX_SEND_FREQUENCY > cronTime(NULL)) &&
-       (be->sendBufferSize < MAX_SEND_BUFFER_SIZE/4) ) {
+  if (be->lastSendAttempt + be->MAX_SEND_FREQUENCY > cronTime(NULL)) {
 #if DEBUG_CONNECTION
     LOG(LOG_DEBUG,
 	"Send frequency too high (CPU load), send deferred.\n");
@@ -959,7 +947,7 @@ static unsigned int selectMessagesToSend(BufferEntry * be,
     if((totalMessageSize == sizeof(P2P_PACKET_HEADER)) ||
        (((*priority) < EXTREME_PRIORITY) &&
         ((totalMessageSize / sizeof(P2P_PACKET_HEADER)) < 4) &&
-        (randomi(16) != 0))) {
+        (weak_randomi(16) != 0))) {
       /* randomization necessary to ensure we eventually send
          a small message if there is nothing else to do! */
       return 0;
@@ -974,7 +962,7 @@ static unsigned int selectMessagesToSend(BufferEntry * be,
       approxProb = 100 - approxProb;  /* now value between 0 and 50 */
       approxProb *= 2;          /* now value between 0 [always approx] and 100 [never approx] */
       /* control CPU load probabilistically! */
-      if(randomi(1 + approxProb) == 0) {
+      if(weak_randomi(1 + approxProb) == 0) {
         (*priority) = approximateKnapsack(be,
                                           be->session.mtu -
                                           sizeof(P2P_PACKET_HEADER));
@@ -1040,12 +1028,12 @@ static unsigned int selectMessagesToSend(BufferEntry * be,
  * running out of memory).
  */
 static void expireSendBufferEntries(BufferEntry * be) {
-  int msgCap;
+  unsigned long long msgCap;
   int i;
   SendEntry * entry;
   cron_t expired;
   int l;
-  unsigned int freeSlots;
+  unsigned long long usedBytes;
   int j;
 
   /* if it's more than one connection "lifetime" old, always kill it! */
@@ -1057,49 +1045,40 @@ static void expireSendBufferEntries(BufferEntry * be) {
 
   l = getCPULoad();
   /* cleanup queue */
-  if (l >= 50) {
-    msgCap = EXPECTED_MTU / sizeof(HashCode512);
-  } else {
+  msgCap = be->max_bpm; /* have minute of msgs, but at least one MTU */
+  if (msgCap < EXPECTED_MTU)
+    msgCap = EXPECTED_MTU;
+  if (l < 50) { /* afford more if CPU load is low */
     if (l <= 0)
       l = 1;
-    msgCap = EXPECTED_MTU / sizeof(HashCode512)
-      + (MAX_SEND_BUFFER_SIZE - EXPECTED_MTU / sizeof(HashCode512)) / l;
-  }
-  if (be->max_bpm > 2) {
-    msgCap += 2 * (int) log((double)be->max_bpm);
-    if (msgCap >= MAX_SEND_BUFFER_SIZE-1)
-      msgCap = MAX_SEND_BUFFER_SIZE-2;
-    /* try to make sure that there
-       is always room... */
+    msgCap += (MAX_SEND_BUFFER_SIZE - EXPECTED_MTU) / l;
   }
 
-  freeSlots = 0;
-  /* allow at least msgCap msgs in buffer */
+  usedBytes = 0;
+  /* allow at least msgCap bytes in buffer */
   for (i=0;i<be->sendBufferSize;i++)
-    if (be->sendBuffer[i] == NULL)
-      freeSlots++;
+    if (be->sendBuffer[i] != NULL)
+      usedBytes += be->sendBuffer[i]->len;
 
   for (i=0;i<be->sendBufferSize;i++) { 	
     entry = be->sendBuffer[i];
     if (entry == NULL)
       continue;
-    if (be->sendBufferSize <= msgCap + freeSlots)
-      break;
-    if (entry->transmissionTime < expired) {
+    if (entry->transmissionTime <= expired) {
 #if DEBUG_CONNECTION
       LOG(LOG_DEBUG,
-	  "expiring message, expired %ds ago, queue size is %u (bandwidth stressed)\n",
+	  "expiring message, expired %ds ago, queue size is %llu (bandwidth stressed)\n",
 	  (int) ((cronTime(NULL) - entry->transmissionTime) / cronSECONDS),
-	  be->sendBufferSize);
+	  usedBytes);
 #endif
       if (stats != NULL) {
 	stats->change(stat_messagesDropped, 1);
 	stats->change(stat_sizeMessagesDropped, entry->len);
       }
       FREENONNULL(entry->closure);
+      usedBytes -= entry->len;
       FREE(entry);
       be->sendBuffer[i] = NULL;
-      freeSlots++;
     }
   }
 
@@ -1224,8 +1203,7 @@ static void freeSelectedEntries(BufferEntry * be) {
 
   for (i=0;i<be->sendBufferSize;i++) {
     entry = be->sendBuffer[i];
-    if (entry == NULL)
-      continue;
+    GNUNET_ASSERT(entry != NULL);
     if (entry->knapsackSolution == YES) {
       GNUNET_ASSERT(entry->callback == NULL);
       FREENONNULL(entry->closure);
@@ -1526,6 +1504,7 @@ static void appendToBuffer(BufferEntry * be,
   float apri;
   unsigned int i;
   SendEntry ** ne;
+  unsigned long long queueSize;
 
   ENTRY();
   if ( (se == NULL) || (se->len == 0) ) {
@@ -1569,16 +1548,26 @@ static void appendToBuffer(BufferEntry * be,
     FREE(se);
     return;
   }
-  if (be->sendBufferSize >= MAX_SEND_BUFFER_SIZE) {
+  queueSize = 0;
+  for (i=0;i<be->sendBufferSize;i++)
+    queueSize += be->sendBuffer[i]->len;
+
+  if (queueSize >= MAX_SEND_BUFFER_SIZE) {
     /* first, try to remedy! */
     sendBuffer(be);
     /* did it work? */
-    if (be->sendBufferSize >= MAX_SEND_BUFFER_SIZE) {
+
+    queueSize = 0;
+    for (i=0;i<be->sendBufferSize;i++)
+      queueSize += be->sendBuffer[i]->len;
+
+    if (queueSize >= MAX_SEND_BUFFER_SIZE) {
       /* we need to enforce some hard limit here, otherwise we may take
 	 FAR too much memory (200 MB easily) */
 #if DEBUG_CONNECTION
       LOG(LOG_DEBUG,
-	  "sendBufferSize >= %d, refusing to queue message.\n",
+	  "queueSize (%llu) >= %d, refusing to queue message.\n",
+	  queueSize,
 	  MAX_SEND_BUFFER_SIZE);
 #endif
       FREE(se->closure);
@@ -1886,7 +1875,7 @@ static void scheduleInboundTraffic() {
   double shareSum;
   unsigned int u;
   unsigned int minCon;
-  long long schedulableBandwidth; /* MUST be unsigned! */
+  long long schedulableBandwidth;
   long long decrementSB;
   long long * adjustedRR;
   int didAssign;
@@ -1953,8 +1942,8 @@ static void scheduleInboundTraffic() {
 
   /* normalize distribution */
   if (shareSum >= 0.00001) { /* avoid numeric glitches... */
-    for (u=0;u<activePeerCount;u++)
-      shares[u] = shares[u] / shareSum;
+    for (u=0;u<activePeerCount;u++) 
+      shares[u] = shares[u] / shareSum;    
   } else {
     for (u=0;u<activePeerCount;u++)
       shares[u] = 1 / activePeerCount;
@@ -2088,10 +2077,22 @@ static void scheduleInboundTraffic() {
 	  decrementSB += share - entries[u]->idealized_limit;
 	  didAssign = YES;	
 	}
+	if ( (share < MIN_BPM_PER_PEER) &&
+	     (minCon > 0) ) {
+	  /* use one of the minCon's to keep the connection! */
+	  decrementSB -= share;
+	  share = MIN_BPM_PER_PEER;
+	  minCon--;
+	} 
 	entries[u]->idealized_limit = share;
       }
     }
-    schedulableBandwidth -= decrementSB;
+    if (decrementSB > schedulableBandwidth) {
+      schedulableBandwidth -= decrementSB;
+    } else {
+      schedulableBandwidth = 0;
+      break;
+    }
     if ( (activePeerCount > 0) &&
 	 (didAssign == NO) ) {
       int * perm = permute(WEAK, activePeerCount);
@@ -2140,12 +2141,12 @@ static void scheduleInboundTraffic() {
   } /* while bandwidth to distribute */
 
 
-  /* randomly add the MIN_BPM_PER_PEER to minCon peers; yes, this will
+  /* randomly add the remaining MIN_BPM_PER_PEER to minCon peers; yes, this will
      yield some fluctuation, but some amount of fluctuation should be
      good since it creates opportunities. */
   if (activePeerCount > 0)
     for (u=0;u<minCon;u++)
-      entries[randomi(activePeerCount)]->idealized_limit
+      entries[weak_randomi(activePeerCount)]->idealized_limit
 	+= MIN_BPM_PER_PEER;
 
   /* prepare for next round */
@@ -2171,6 +2172,26 @@ static void scheduleInboundTraffic() {
   FREE(adjustedRR);
   FREE(shares);
   FREE(entries);
+  for (u=0;u<CONNECTION_MAX_HOSTS_;u++) {
+    BufferEntry * be = CONNECTION_buffer_[u];
+    if (be == NULL)
+      continue;
+    if (be->idealized_limit < MIN_BPM_PER_PEER) {
+#if DEBUG_CONNECTION || 1
+      EncName enc;
+      
+      IFLOG(LOG_DEBUG,
+	    hash2enc(&be->session.sender.hashPubKey,
+		     &enc));
+      LOG(LOG_DEBUG,
+	  "Number of connections too high, shutting down low-traffic connection to %s (had only %u bpm)\n",
+	  &enc,
+	  be->idealized_limit);
+#endif
+      shutdownConnection(be);
+    }
+  }
+
   MUTEX_UNLOCK(&lock);
 }
 

@@ -111,19 +111,6 @@
  *   2) by executing
  *   mysql> REPAIR TABLE gn070;
  *
- * EFFICIENCY ISSUES
- *
- * If you suffer from too slow index/insert speeds,
- * you might try to define /etc/gnunetd.conf option
- *
- *   [MYSQL]
- *   DELAYED = YES
- *
- * for small efficiency boost. The option will let MySQL bundle multiple
- * inserts before actually writing them to disk. You shouldn't use this
- * option unless you're an (my)sql expert and really know what you're doing.
- * Especially, if you run into any trouble due to this, you're on your own.
- *
  * PROBLEMS?
  *
  * If you have problems related to the mysql module, your best
@@ -170,7 +157,6 @@ typedef struct {
   Mutex DATABASE_Lock_;
   int avgLength_ID;	   /* which column contains the Avg_row_length
                             * in SHOW TABLE STATUS resultset */
-  int useDelayed;          /* use potentially unsafe delayed inserts? */
   char * cnffile;
   int prepare;
   MYSQL_STMT * insert;
@@ -188,7 +174,6 @@ typedef struct {
 } mysqlHandle;
 
 #define INSERT_SAMPLE "INSERT INTO gn070 (size,type,prio,anonLevel,expire,hash,value) VALUES (?,?,?,?,?,?,?)"
-#define INSERT_SAMPLE_DELAYED "INSERT DELAYED INTO gn070 (size,type,prio,anonLevel,expire,hash,value) VALUES (?,?,?,?,?,?,?)"
 
 #define SELECT_SAMPLE "SELECT * FROM gn070 WHERE hash=?"
 #define SELECT_SAMPLE_COUNT "SELECT count(*) FROM gn070 WHERE hash=?"
@@ -208,7 +193,8 @@ static mysqlHandle * dbh;
  *
  */
 static Datastore_Datum * assembleDatum(MYSQL_RES * res,
-				       MYSQL_ROW sql_row) {
+				       MYSQL_ROW sql_row,
+				       mysqlHandle * dbhI) {
   Datastore_Datum * datum;
   int contentSize;
   unsigned long * lens;
@@ -228,8 +214,25 @@ static Datastore_Datum * assembleDatum(MYSQL_RES * res,
        (sscanf(sql_row[2], "%u", &prio) != 1) ||
        (sscanf(sql_row[3], "%u", &level) != 1) ||
        (SSCANF(sql_row[4], "%llu", &exp) != 1) ) {
-    LOG(LOG_WARNING,
-	"SQL Database corrupt, ignoring result.\n");
+    mysql_free_result(res);
+    if ( (lens[5] != sizeof(HashCode512)) ||
+	 (lens[6] != contentSize) ) {
+      char scratch[512];
+
+      LOG(LOG_WARNING,
+	  _("Invalid data in %s.  Trying to fix (by deletion).\n"),
+	  _("mysql datastore"));
+      SNPRINTF(scratch, 
+	       512,
+	       "DELETE FROM gn070 WHERE NOT ((LENGTH(hash)=%u) AND (size=%u + LENGTH(value)))",
+	       sizeof(HashCode512),
+	       sizeof(Datastore_Value));
+      if (0 != mysql_query(dbhI->dbf, scratch))
+	LOG_MYSQL(LOG_ERROR, "mysql_query", dbhI);
+    } else {
+      BREAK(); /* should really never happen */
+    }
+
     return NULL;
   }
 
@@ -356,12 +359,8 @@ static int iopen(mysqlHandle * dbhI,
       return SYSERR;
     }
     if (mysql_stmt_prepare(dbhI->insert,
-			   dbh->useDelayed
-			   ? INSERT_SAMPLE_DELAYED
-			   : INSERT_SAMPLE,
-			   strlen(dbh->useDelayed
-				  ? INSERT_SAMPLE_DELAYED
-				  : INSERT_SAMPLE)) ||
+			   INSERT_SAMPLE,
+			   strlen(INSERT_SAMPLE)) ||
 	mysql_stmt_prepare(dbhI->select,
 			   SELECT_SAMPLE,
 			   strlen(SELECT_SAMPLE)) ||
@@ -393,7 +392,6 @@ static int iopen(mysqlHandle * dbhI,
       mysql_stmt_close(dbhI->selectc);
       mysql_stmt_close(dbhI->selects);
       mysql_stmt_close(dbhI->selectsc);
-      mysql_stmt_close(dbhI->insert);
       mysql_stmt_close(dbhI->update);
       mysql_stmt_close(dbhI->deleteh);
       mysql_stmt_close(dbhI->deleteg);
@@ -533,11 +531,12 @@ static int iterateLowPriority(unsigned int type,
 
   while ((sql_row=mysql_fetch_row(sql_res))) {
     datum = assembleDatum(sql_res,
-			  sql_row);
+			  sql_row,
+			  &dbhI);
     if (datum == NULL) {
-      LOG(LOG_WARNING,
-	  _("Invalid data in MySQL database.  Please verify integrity!\n"));
-      continue;
+      MUTEX_UNLOCK(&dbhI.DATABASE_Lock_);
+      iclose(&dbhI);
+      return count;
     }
     if ( (iter != NULL) &&
 	 (SYSERR == iter(&datum->key, &datum->value, closure) ) ) {
@@ -555,9 +554,7 @@ static int iterateLowPriority(unsigned int type,
     MUTEX_UNLOCK(&dbhI.DATABASE_Lock_);
     iclose(&dbhI);
     return SYSERR;
-  }
-
-		
+  }		
   mysql_free_result(sql_res);
   MUTEX_UNLOCK(&dbhI.DATABASE_Lock_);
   iclose(&dbhI);
@@ -630,11 +627,12 @@ static int iterateExpirationTime(unsigned int type,
 
   while ((sql_row=mysql_fetch_row(sql_res))) {
     datum = assembleDatum(sql_res,
-			  sql_row);
+			  sql_row,
+			  &dbhI);
     if (datum == NULL) {
-      LOG(LOG_WARNING,
-	  _("Invalid data in MySQL database.  Please verify integrity!\n"));
-      continue;
+      MUTEX_UNLOCK(&dbhI.DATABASE_Lock_);
+      iclose(&dbhI);
+      return count;
     }
     if ( (iter != NULL) &&
 	 (SYSERR == iter(&datum->key, &datum->value, closure) ) ) {
@@ -782,40 +780,44 @@ static int get(const HashCode512 * query,
   }
   if (mysql_stmt_store_result(stmt)) {
     LOG(LOG_ERROR,
-		_("`%s' failed at %s:%d with error: %s\n"),
-		"mysql_stmt_store_result",
-		__FILE__, __LINE__,
-		mysql_stmt_error(stmt));
+	_("`%s' failed at %s:%d with error: %s\n"),
+	"mysql_stmt_store_result",
+	__FILE__, __LINE__,
+	mysql_stmt_error(stmt));
     MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
     FREE(datum);
     return SYSERR;
   }
   datasize = MAX_DATUM_SIZE;
   count = 0;
-  while (! mysql_stmt_fetch(stmt)) {
-    count++;
+  while (0 == mysql_stmt_fetch(stmt)) {
+    if ( (twenty != sizeof(HashCode512)) ||
+	 (datasize != size - sizeof(Datastore_Value)) ) {
+      char scratch[512];
 
-    if (twenty != sizeof(HashCode512)) {
-      BREAK();
+      mysql_free_result(sql_res); 
       LOG(LOG_WARNING,
-	  _("Invalid data in MySQL database.  Please verify integrity!\n"));
-      twenty = sizeof(HashCode512);
-      datasize = MAX_DATUM_SIZE;
-      continue;
+	  _("Invalid data in %s.  Trying to fix (by deletion).\n"),
+	  _("mysql datastore"));
+      SNPRINTF(scratch, 
+	       512,
+	       "DELETE FROM gn070 WHERE NOT ((LENGTH(hash)=%u) AND (size=%u + LENGTH(value)))",
+	       sizeof(HashCode512),
+	       sizeof(Datastore_Value));
+      if (0 != mysql_query(dbh->dbf, scratch))
+	LOG_MYSQL(LOG_ERROR, "mysql_query", dbh);
+      
+      FREE(datum);
+      MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
+      return count;
     }
+    count++;
     if (iter != NULL) {
       datum->size = htonl(size);
       datum->type = htonl(rtype);
       datum->prio = htonl(prio);
       datum->anonymityLevel = htonl(level);
       datum->expirationTime = htonll(expiration);
-      if (datasize != size - sizeof(Datastore_Value)) {
-	BREAK();
-	LOG(LOG_WARNING,
-	    _("Invalid data in MySQL database.  Please verify integrity!\n"));
-	datasize = MAX_DATUM_SIZE;
-	continue;
-      }
 #if DEBUG_MYSQL
       LOG(LOG_DEBUG,
 	  "Found in database block with type %u.\n",
@@ -1191,6 +1193,10 @@ provide_module_sqstore_mysql(CoreAPIForApplication * capi) {
   if (cnffile == NULL) {
     cnffile = MALLOC(nX);
     SNPRINTF(cnffile, nX, "%s/.my.cnf", home_dir);
+  } else {
+    char * ex = expandFileName(cnffile);
+    FREE(cnffile);
+    cnffile = ex;
   }
 #ifdef WINDOWS
   FREE(home_dir);
@@ -1209,16 +1215,12 @@ provide_module_sqstore_mysql(CoreAPIForApplication * capi) {
 
   dbh = MALLOC(sizeof(mysqlHandle));
   dbh->cnffile = cnffile;
-  if (testConfigurationString("MYSQL",
-			      "DELAYED",
-			      "YES"))
-    dbh->useDelayed = YES;
-  else
-    dbh->useDelayed = NO;
 
   if (OK != iopen(dbh, YES)) {
     FREE(cnffile);
     FREE(dbh);
+    LOG(LOG_ERROR,
+	_("Failed to load MySQL database module.  Check that MySQL is running and configured properly!\n"));
     dbh = NULL;
     return NULL;
   }

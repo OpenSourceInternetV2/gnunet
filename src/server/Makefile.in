@@ -62,7 +62,7 @@ LTLIBRARIES = $(lib_LTLIBRARIES)
 libgnunetcore_la_DEPENDENCIES =  \
 	$(top_builddir)/src/util/libgnunetutil.la
 am_libgnunetcore_la_OBJECTS = connection.lo core.lo handler.lo \
-	tcpserver.lo version.lo
+	tcpserver.lo startup.lo version.lo
 libgnunetcore_la_OBJECTS = $(am_libgnunetcore_la_OBJECTS)
 binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(bin_PROGRAMS)
@@ -81,7 +81,7 @@ gnunet_update_OBJECTS = $(am_gnunet_update_OBJECTS)
 gnunet_update_DEPENDENCIES =  \
 	$(top_builddir)/src/util/libgnunetutil.la \
 	$(top_builddir)/src/server/libgnunetcore.la
-am_gnunetd_OBJECTS = gnunetd.$(OBJEXT) startup.$(OBJEXT)
+am_gnunetd_OBJECTS = gnunetd.$(OBJEXT)
 gnunetd_OBJECTS = $(am_gnunetd_OBJECTS)
 gnunetd_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la \
 	$(top_builddir)/src/server/libgnunetcore.la
@@ -94,7 +94,7 @@ am__depfiles_maybe = depfiles
 @AMDEP_TRUE@	./$(DEPDIR)/gnunet-transport-check.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/gnunet-update.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/gnunetd.Po ./$(DEPDIR)/handler.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/startup.Po ./$(DEPDIR)/tcpserver.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/startup.Plo ./$(DEPDIR)/tcpserver.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/version.Plo
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -226,6 +226,8 @@ SQLITE_LDFLAGS = @SQLITE_LDFLAGS@
 STRIP = @STRIP@
 USE_NLS = @USE_NLS@
 VERSION = @VERSION@
+XFREEBSD_FALSE = @XFREEBSD_FALSE@
+XFREEBSD_TRUE = @XFREEBSD_TRUE@
 XGETTEXT = @XGETTEXT@
 ac_ct_AR = @ac_ct_AR@
 ac_ct_AS = @ac_ct_AS@
@@ -282,14 +284,14 @@ libgnunetcore_la_SOURCES = \
  core.c \
  handler.c handler.h \
  tcpserver.c tcpserver.h \
+ startup.c startup.h \
  version.c version.h
 
 libgnunetcore_la_LIBADD = \
  $(top_builddir)/src/util/libgnunetutil.la 
 
 gnunetd_SOURCES = \
- gnunetd.c \
- startup.c startup.h 
+ gnunetd.c 
 
 gnunetd_LDADD = \
  $(top_builddir)/src/util/libgnunetutil.la \
@@ -432,7 +434,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gnunet-update.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gnunetd.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/handler.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/startup.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/startup.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tcpserver.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/version.Plo@am__quote@
 

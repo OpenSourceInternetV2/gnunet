@@ -36,17 +36,6 @@
 #include "startup.h"
 #include "version.h"
 
-/**
- * This flag is set if gnunetd is not (to be) detached from the
- * console.
- */
-int debug_flag = NO;
-
-/**
- * This flag is set if gnunetd was started as windows service
- */
-int win_service = NO;
-
 void gnunet_main();
 
 #ifdef MINGW
@@ -117,7 +106,7 @@ void gnunet_main() {
 	    "gnunet-update");
 
   /* init 2: become deamon, initialize core subsystems */
-  if (NO == debug_flag)
+  if (NO == debug_flag())
     detachFromTerminal(filedes);
 
   LOG(LOG_MESSAGE,
@@ -129,7 +118,7 @@ void gnunet_main() {
   loadApplicationModules(); /* still single-threaded! */
 
   /* initialize signal handler (CTRL-C / SIGTERM) */
-  if (NO == debug_flag)
+  if (NO == debug_flag())
     detachFromTerminalComplete(filedes);
   writePIDFile();
 
@@ -174,11 +163,11 @@ int main(int argc, char * argv[]) {
   checkCompiler();
   umask(0);
   /* init 1: get options and basic services up */
-  if (SYSERR == initUtil(argc, argv, &parseCommandLine))
+  if (SYSERR == initUtil(argc, argv, &parseGnunetdCommandLine))
     return 0; /* parse error, --help, etc. */
 
 #ifdef MINGW
-  if (win_service) {
+  if (win_service()) {
     SERVICE_TABLE_ENTRY DispatchTable[] =
       {{"GNUnet", ServiceMain}, {NULL, NULL}};
     GNStartServiceCtrlDispatcher(DispatchTable);

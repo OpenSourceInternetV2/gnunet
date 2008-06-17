@@ -159,9 +159,14 @@ static int put(const HashCode512 * key,
 
   /* check if we have enough space / priority */
   if ( (available < ntohl(value->size) ) &&
-       (minPriority > ntohl(value->prio)) )
+       (minPriority > ntohl(value->prio)) ) {
+    LOG(LOG_WARNING,
+	"Datastore full (%llu/%llu) and content priority too low to kick out other content.  Refusing put.\n",
+	sq->getSize(), 
+	quota);
     return SYSERR; /* new content has such a low priority that
 		      we should not even bother! */
+  }
   if (ntohl(value->prio) < minPriority)
     minPriority = ntohl(value->prio);
 
@@ -237,7 +242,7 @@ static int putUpdate(const HashCode512 * key,
   /* check if we have enough space / priority */
   if ( (available < ntohl(value->size) ) &&
        (minPriority > ntohl(value->prio)) )
-    return SYSERR; /* new content has such a low priority that
+    return NO; /* new content has such a low priority that
 		      we should not even bother! */
   if (ntohl(value->prio) < minPriority)
     minPriority = ntohl(value->prio);
@@ -314,7 +319,7 @@ provide_module_datastore(CoreAPIForApplication * capi) {
   lquota
     = getConfigurationInt("FS", "QUOTA");
   quota
-    = lquota * 1024 * 1024; /* MB to bytes */
+    = ((unsigned long long)lquota) * 1024L * 1024L; /* MB to bytes */
   sq = capi->requestService("sqstore");
   if (sq == NULL) {
     BREAK();
@@ -323,12 +328,15 @@ provide_module_datastore(CoreAPIForApplication * capi) {
   lquota = htonl(lquota);
   stateWriteContent("FS-LAST-QUOTA",
 		    sizeof(unsigned int),
-		    &quota);
+		    &lquota);
 
   coreAPI = capi;
 
   initPrefetch(sq);
-  initFilters();
+  if (OK != initFilters()) {
+    donePrefetch();
+    return NULL;
+  }
   cronMaintenance(NULL);
   addCronJob(&cronMaintenance,
 	     10 * cronSECONDS,

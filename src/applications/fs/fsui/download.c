@@ -55,6 +55,7 @@ static int triggerRecursiveDownload(const ECRS_FileInfo * fi,
   FSUI_DownloadList * pos;
   char * filename;
   char * fullName;
+  char * dotdot;
 
   if (isRoot == YES)
     return OK; /* namespace ad, ignore */
@@ -84,8 +85,12 @@ static int triggerRecursiveDownload(const ECRS_FileInfo * fi,
 		    + strlen(filename));
   strcpy(fullName, parent->filename);
   strcat(fullName, GNUNET_DIRECTORY_EXT);
+  while (NULL != (dotdot = strstr(fullName, "..")))
+    dotdot[0] = dotdot[1] = '_';
   mkdirp(fullName);
   strcat(fullName, DIR_SEPARATOR_STR);
+  while (NULL != (dotdot = strstr(filename, "..")))
+    dotdot[0] = dotdot[1] = '_';
   strcat(fullName, filename);
   FREE(filename);
 #if DEBUG_DTM
@@ -293,7 +298,7 @@ void * downloadThread(void * cls) {
       dl = dl->parent;
     }
   }
-#if DEBUG_DTM
+#if DEBUG_DTM 
   LOG(LOG_DEBUG,
       "Download thread for `%s' terminated (%s)...\n",
       dl->filename,
@@ -328,10 +333,9 @@ static int startDownload(struct FSUI_Context * ctx,
   LOG(LOG_DEBUG,
       "Starting download of file `%s'\n",
       filename);
-
   dl = MALLOC(sizeof(FSUI_DownloadList));
   memset(dl, 0, sizeof(FSUI_DownloadList));
-  cronTime(&dl->startTime);
+  cronTime(&dl->startTime); 
   dl->signalTerminate = SYSERR;
   dl->finished = NO;
   dl->is_recursive = is_recursive;
@@ -343,9 +347,9 @@ static int startDownload(struct FSUI_Context * ctx,
   dl->uri = ECRS_dupUri(uri);
   dl->total = ECRS_fileSize(uri);
   dl->next = parent->child;
+  totalBytes = ECRS_fileSize(uri);
   parent->child = dl;
 
-  totalBytes = ECRS_fileSize(uri);
   root = dl;
   while ( (root->parent != NULL) &&
 	  (root->parent != &dl->ctx->activeDownloads) ) {
@@ -415,7 +419,8 @@ int updateDownloadThread(FSUI_DownloadList * list) {
   if ( (list->ctx->threadPoolSize
 	> list->ctx->activeDownloadThreads) &&
        (list->signalTerminate == SYSERR) &&
-       (list->total > list->completed) &&
+       ( (list->total > list->completed) ||
+         (list->total == 0) ) &&
        (list->finished == NO) ) {
 #if DEBUG_DTM
     LOG(LOG_DEBUG,
