@@ -1,18 +1,13 @@
-if HAVE_GUILE
- bin_SCRIPTS = gnunet-download-manager.scm
-endif
+bin_SCRIPTS = gnunet-download-manager.scm
 
 pkgdata_DATA = \
- config-client.in \
- config-daemon.in
-
-install-data-local:
-	$(mkinstalldirs) $(DESTDIR)$(pkgdatadir)
-	$(INSTALL_DATA) gnunet-logo-color.png $(DESTDIR)$(pkgdatadir)
-	@$(NORMAL_INSTALL)
+ config-daemon.scm \
+ config-client.scm \
+ gnunet-logo-color.png
 
 EXTRA_DIST = \
- gnunet-logo-color.png \
+ gnunet.conf \
+ gnunetd.conf \
  hostlist.cgi \
  hostlist.php \
  gnunet-download-manager.scm \

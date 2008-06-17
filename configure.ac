@@ -21,8 +21,8 @@
 #
 #
 AC_PREREQ(2.57)
-AC_INIT([GNUnet], [0.7.0e],[bug-gnunet@gnu.org])
-AM_INIT_AUTOMAKE([GNUnet], [0.7.0e])
+AC_INIT([GNUnet], [0.7.1c],[bug-gnunet@gnu.org])
+AM_INIT_AUTOMAKE([GNUnet], [0.7.1c])
 AM_CONFIG_HEADER([config.h])
 
 AH_TOP([#define _GNU_SOURCE  1])
@@ -72,6 +72,8 @@ case "$host_os" in
      AC_DEFINE_UNQUOTED(OSX,1,[This is an OS X system])
      CFLAGS="-no-cpp-precomp $CFLAGS"
      LDFLAGS="-flat_namespace -undefined suppress $LDFLAGS"
+     AC_MSG_WARN([The VPN application cannot be compiled on your OS])
+     build_target="macosx"
      ;;
 linux*)
      AC_DEFINE_UNQUOTED(LINUX,1,[This is a Linux system])
@@ -85,6 +87,7 @@ freebsd*)
 openbsd*)
      AC_DEFINE_UNQUOTED(SOMEBSD,1,[This is a BSD system])
      AC_DEFINE_UNQUOTED(OPENBSD,1,[This is an OpenBSD system])
+     LIBS=`echo $LIBS | sed -e "s/-ldl//"`
      ;;
 netbsd*)
      AC_DEFINE_UNQUOTED(SOMEBSD,1,[This is a BSD system])
@@ -127,19 +130,12 @@ netbsd*)
 esac
 
 AC_MSG_CHECKING([for build target])
+AM_CONDITIONAL(MACOSX,  test "$build_target" = "macosx")
 AM_CONDITIONAL(CYGWIN,  test "$build_target" = "cygwin")
 AM_CONDITIONAL(MINGW,   test "$build_target" = "mingw")
 AM_CONDITIONAL(SOLARIS, test "$build_target" = "solaris")
 AM_CONDITIONAL(XFREEBSD, test "$build_target" = "freebsd")
 AC_MSG_RESULT([$build_target])
-
-# We define the paths here, because MinGW/GCC expands paths
-# passed through the command line ("-DDATADIR=..."). This would
-# lead to hard-coded paths ("C:\mingw\mingw\bin...") that do
-# not contain the actual GNUnet installation. GNUnet usually lives in
-# "C:\Program Files\GNU\GNUnet\bin".
-AC_DEFINE_DIR([DATADIR], [datadir/GNUnet/], [The directory for installing read-only architecture-independent data])
-AC_DEFINE_DIR([LOCALEDIR], [datadir/locale/], [gettext catalogs])
 
 
 CHECK_PTHREAD
@@ -157,11 +153,12 @@ AC_CHECK_LIB(c, getloadavg, AC_DEFINE(HAVE_GETLOADAVG,1,[getloadavg supported]))
 # will be more selective!
 SAVE_LIBS=$LIBS
 
-AC_CHECK_LIB(gmp, __gmpz_import,, AC_MSG_ERROR([GNUnet requires the GNU MP library (libgmp)]))
 
 # pthread_t is a struct since 11/2004
 AC_CHECK_MEMBER(pthread_t.p, AC_DEFINE(HAVE_NEW_PTHREAD_T, 1,
   [Define if you have a post 11/2004 pthread library]), , [#include <pthread.h>])
+
+AC_CHECK_FUNCS(pthread_equal)
 
 # libgcrypt
 gcrypt=0
@@ -173,6 +170,13 @@ then
   AC_MSG_ERROR([GNUnet needs libgcrypt])
 fi
 
+
+# libcurl
+LIBCURL_CHECK_CONFIG(,,,AC_MSG_ERROR([GNUnet requires libcurl]))
+
+# libxml2
+AM_PATH_XML2(,xml=1,xml=0)
+AM_CONDITIONAL(HAVE_XML2, test x$xml = x1)
 
 # test for kvm and kstat (for CPU stats under BSD/Solaris)
 AC_CHECK_LIB([kvm],[kvm_open])
@@ -209,6 +213,39 @@ AC_ARG_WITH(extractor,
 if test "$extractor" != 1
 then
  AC_MSG_ERROR([GNUnet requires libextractor])
+fi
+
+# test for libgmp
+gmp=0
+AC_MSG_CHECKING(for libgmp)
+AC_ARG_WITH(gmp,
+   [  --with-gmp=PFX    Base of libgmp installation],
+   [AC_MSG_RESULT([$with_gmp])
+    case $with_gmp in
+      no)
+        ;;
+      yes)
+        AC_CHECK_HEADERS(gmp.h,
+          AC_CHECK_LIB([gmp], [__gmpz_add],
+            gmp=1))
+        ;;
+      *)
+        LDFLAGS="-L$with_gmp/lib $LDFLAGS"
+        CPPFLAGS="-I$with_gmp/include $CPPFLAGS"
+        AC_CHECK_HEADERS(gmp.h,
+          AC_CHECK_LIB([gmp], [__gmpz_add],
+            EXT_LIB_PATH="-L$with_gmp/lib $EXT_LIB_PATH"
+            gmp=1))
+        ;;
+    esac
+   ],
+   [AC_MSG_RESULT([--with-gmp not specified])
+    AC_CHECK_HEADERS(gmp.h,
+     AC_CHECK_LIB([gmp], [__gmpz_add],
+      gmp=1))])
+if test "$gmp" != 1
+then
+ AC_MSG_ERROR([GNUnet requires libgmp])
 fi
 
 SAVE_LDFLAGS=$LDFLAGS
@@ -334,17 +371,72 @@ then
 fi
 
 # GNUnet Setup
-curses=1
-pdcurses=0
-AC_CHECK_HEADER([ncurses.h], [AC_DEFINE([CURSES_LOC], [<ncurses.h>], [Curses location])],
- [AC_CHECK_HEADER([ncurses/ncurses.h], AC_DEFINE([CURSES_LOC], [<ncurses/ncurses.h>]),
- [AC_CHECK_HEADER([curses.h], AC_DEFINE([CURSES_LOC], [<curses.h>]),
- [AC_CHECK_HEADER([ncurses/curses.h], AC_DEFINE([CURSES_LOC], [<ncurses/curses.h>]),
- curses=0)])])])
-AC_CHECK_LIB(ncurses, scrollok,,AC_CHECK_LIB(pdcurses, scrollok,pdcurses=1,curses=0))
-AC_DEFINE_UNQUOTED([HAVE_CURSES], $curses, [We have curses])
-AM_CONDITIONAL(HAVE_CURSES, test x$curses = x1)
-AM_CONDITIONAL(HAVE_PDCURSES, test x$pdcurses = x1)
+dialog=0
+LIBS="-lm $LIBS"
+AC_CHECK_LIB([ncursesw],[wmove])
+AC_MSG_CHECKING([for dialog 1.0-20051207])
+AC_ARG_WITH(dialog,
+   [  --with-dialog=PFX    Base of dialog installation],
+   [AC_MSG_RESULT([$with_dialog])
+    case $with_dialog in
+      no)
+        ;;
+      yes)
+        AC_CHECK_HEADERS(dialog.h,
+          AC_CHECK_LIB([dialog], [dlg_menu],
+            dialog=1))
+        ;;
+      *)
+        LDFLAGS="-L$with_dialog/lib $LDFLAGS"
+        CPPFLAGS="-I$with_dialog/include $CPPFLAGS"
+        AC_CHECK_HEADERS(dialog.h,
+          AC_CHECK_LIB([dialog], [dlg_menu],
+            EXT_LIB_PATH="-L$with_dialog/lib $EXT_LIB_PATH"
+              dialog=1))
+        ;;
+    esac
+   ],
+   [AC_MSG_RESULT([--with-dialog not specified])
+    AC_CHECK_HEADERS(dialog.h,
+      AC_CHECK_LIB([dialog], [dlg_menu],
+          dialog=1))])
+
+AM_CONDITIONAL(HAVE_DIALOG, test x$dialog = x1)
+AC_DEFINE_UNQUOTED([HAVE_DIALOG], $dialog, [We have dialog])
+
+
+# libmicrohttpd
+lmhd=0
+AC_CHECK_LIB([microhttpd],[MHD_start_daemon])
+AC_MSG_CHECKING([for libmicrohttpd])
+AC_ARG_WITH(microhttpd,
+   [  --with-microhttpd=PFX    Base of libmicrohttpd installation],
+   [AC_MSG_RESULT([$with_microhttpd])
+    case $with_microhttpd in
+      no)
+        ;;
+      yes)
+        AC_CHECK_HEADERS(microhttpd.h,
+          AC_CHECK_LIB([microhttpd], [MHD_start_daemon],
+            lmhd=1))
+        ;;
+      *)
+        LDFLAGS="-L$with_microhttpd/lib $LDFLAGS"
+        CPPFLAGS="-I$with_microhttpd/include $CPPFLAGS"
+        AC_CHECK_HEADERS(microhttpd.h,
+          AC_CHECK_LIB([microhttpd], [MHD_start_daemon],
+            EXT_LIB_PATH="-L$with_microhttpd/lib $EXT_LIB_PATH"
+              lmhd=1))
+        ;;
+    esac
+   ],
+   [AC_MSG_RESULT([--with-microhttpd not specified])
+    AC_CHECK_HEADERS(microhttpd.h,
+      AC_CHECK_LIB([microhttpd], [MHD_start_daemon],
+          lmhd=1))])
+
+AM_CONDITIONAL(HAVE_MHD, test x$lmhd = x1)
+AC_DEFINE_UNQUOTED([HAVE_MHD], $lmhd, [We have libmicrohttpd])
 
 # check for gtk >= 2.6.0
 AC_MSG_CHECKING(for gtk)
@@ -359,8 +451,12 @@ then
 fi
 
 # check for gettext
-AM_GNU_GETTEXT_VERSION(0.13)
+AM_GNU_GETTEXT_VERSION([0.13.1])
 AM_GNU_GETTEXT([external])
+
+# check for iconv
+AM_ICONV
+
 
 
 # Checks for standard header files.
@@ -371,7 +467,7 @@ AC_HEADER_STDC
 AC_CHECK_HEADERS([fcntl.h math.h errno.h limits.h stdio.h locale.h sys/stat.h sys/types.h pthread.h],,AC_MSG_ERROR([Compiling GNUnet requires standard UNIX headers files]))
 
 # Checks for headers that are only required on some systems or opional (and where we do NOT abort if they are not there)
-AC_CHECK_HEADERS([langinfo.h sys/param.h sys/mount.h sys/statvfs.h sys/vfs.h arpa/inet.h fcntl.h libintl.h netdb.h netinet/in.h sys/ioctl.h sys/socket.h sys/time.h unistd.h kstat.h sys/sysinfo.h kvm.h sys/file.h])
+AC_CHECK_HEADERS([langinfo.h sys/param.h sys/mount.h sys/statvfs.h sys/vfs.h arpa/inet.h fcntl.h libintl.h netdb.h netinet/in.h sys/ioctl.h sys/socket.h sys/time.h unistd.h kstat.h sys/sysinfo.h kvm.h sys/file.h sys/resource.h iconv.h ifaddrs.h])
 
 # Check for GMP header (and abort if not present)
 AC_CHECK_HEADERS([gmp.h],,AC_MSG_ERROR([Compiling GNUnet requires gmp.h (from the GNU MP library, libgmp)]))
@@ -400,7 +496,7 @@ AC_FUNC_VPRINTF
 AC_HEADER_SYS_WAIT
 AC_TYPE_OFF_T
 AC_TYPE_UID_T
-AC_CHECK_FUNCS([floor gethostname memmove rmdir strncasecmp strrchr strtol atoll dup2 fdatasync ftruncate gethostbyname gettimeofday memset mkdir mkfifo select socket strcasecmp strchr strdup strerror strstr clock_gettime getrusage rand uname setlocale getcwd mktime gmtime_r gmtime strlcpy strlcat ftruncate stat64])
+AC_CHECK_FUNCS([floor gethostname memmove rmdir strncasecmp strrchr strtol atoll dup2 fdatasync ftruncate gethostbyname gettimeofday memset mkdir mkfifo select socket strcasecmp strchr strdup strerror strstr clock_gettime getrusage rand uname setlocale getcwd mktime gmtime_r gmtime strlcpy strlcat ftruncate stat64 sbrk mmap mremap setrlimit gethostbyaddr initgroups getifaddrs freeifaddrs])
 
 # restore LIBS
 LIBS=$SAVE_LIBS
@@ -431,82 +527,43 @@ AM_CONDITIONAL(HAVE_IPV6, test x$ipv6 != x0)
 AC_DEFINE_UNQUOTED(USE_IPV6, $ipv6, [IPV6 available])
 
 # check for guile
-
-AC_ARG_ENABLE(guile,
-              [AC_HELP_STRING([--enable-guile],
-	                      [Install Guile scripts.])],
-	      enable_guile=$enableval)
-
-# By default, enable Guile
-if test -z $enable_guile
-then
-    enable_guile="yes"
-fi
-
 guile=0
-if test "$enable_guile" = "yes"
-then
-    AC_PATH_PROG([guile_available], [guile])
-    if test -z "$guile_available"
-    then
-	AC_MSG_WARN([Guile not available, so `gnunet-download-manager' won't be installed.])
-    else
-	# Perform the whole Guile feature tests
-	GUILE_PROGS
-        guile=1
-	GUILE_MODULE_AVAILABLE(module_available,[(ice-9 format)])
-        if test "$module_available" = "no";
-	then
-          AC_MSG_WARN([required guile module not available])
-	  guile=0
-        fi
-	GUILE_MODULE_AVAILABLE(module_available,[(ice-9 regex)])
-        if test "$module_available" = "no";
-	then
-          AC_MSG_WARN([required guile module not available])
-	  guile=0
-        fi
-	GUILE_MODULE_AVAILABLE(module_available,[(ice-9 and-let-star)])
-        if test "$module_available" = "no";
-	then
-          AC_MSG_WARN([required guile module not available])
-	  guile=0
-        fi
-	GUILE_MODULE_AVAILABLE(module_available,[(ice-9 pretty-print)])
-        if test "$module_available" = "no";
-	then
-          AC_MSG_WARN([required guile module not available])
-	  guile=0
-        fi
-	GUILE_MODULE_AVAILABLE(module_available,[(ice-9 documentation)])
-        if test "$module_available" = "no";
-	then
-          AC_MSG_WARN([required guile module not available])
-	  guile=0
-        fi
-	GUILE_MODULE_AVAILABLE(module_available,[(ice-9 optargs)])
-        if test "$module_available" = "no";
-	then
-          AC_MSG_WARN([required guile module not available])
-	  guile=0
-        fi
+AC_MSG_CHECKING(for guile 1.8)
+AC_ARG_WITH(guile,
+   [  --with-guile=PFX    Base of guile installation],
+   [AC_MSG_RESULT([$with_guile])
+    case $with_guile in
+      no)
+        ;;
+      yes)
+        AC_CHECK_HEADERS(libguile.h,
+          AC_CHECK_LIB([guile], [scm_sigaction_for_thread],
+            guile=1))
+        ;;
+      *)
+        LDFLAGS="-L$with_guile/lib $LDFLAGS"
+        CPPFLAGS="-I$with_guile/include $CPPFLAGS"
+        AC_CHECK_HEADERS(libguile.h,
+          AC_CHECK_LIB([guile], [scm_sigaction_for_thread],
+            EXT_LIB_PATH="-L$with_guile/lib $EXT_LIB_PATH"
+            guile=1))
+        ;;
+    esac
+   ],
+   [AC_MSG_RESULT([--with-guile not specified])
+    AC_CHECK_HEADERS(libguile.h,
+     AC_CHECK_LIB([guile], [scm_sigaction_for_thread],
+      guile=1))])
 
-	# Check that the keywork syntax used by (ice-9 optargs) is `#:keywork'
-	# (as in Guile 1.6) and not `#!' (as in Guile 1.4)
-	GUILE_MODULE_CHECK([guile_pound_colon_keywords],
-			   [(ice-9 optargs)],
-			   [(lambda* (foo [#]:optional (o [#t])) o)],
-			   [Guile 1.6's optarg keyword style is supported])
-	if test $guile_pound_colon_keywords != "yes"
-	then
-	   AC_MSG_WARN([`(ice-9 optargs)' doesn't support the `[#:]' keyword syntax.  Upgrade to Guile 1.6 or later.]);
-	  guile=0
-        else
-          guile=1
-	fi
-    fi
-fi # enable_guile
-AM_CONDITIONAL(HAVE_GUILE, test x$guile != x0)
+if test "$guile" == 1
+then
+ AC_CHECK_LIB([guile], [scm_init_guile], [],
+    	AC_MSG_ERROR([Guile doesn't provide scm_init_guile(). Please report to bug-gnunet@gnu.org]))
+ AC_DEFINE_UNQUOTED([HAVE_GUILE], 1, [We have GUILE])
+else
+ AC_DEFINE_UNQUOTED([HAVE_GUILE], 0, [We do NOT have GUILE])
+fi
+AM_CONDITIONAL(HAVE_GUILE, test x$guile = x1)
 
 AC_CONFIG_FILES([ po/Makefile.in m4/Makefile
 Makefile
@@ -518,17 +575,20 @@ src/include/Makefile
 src/applications/Makefile
 src/applications/advertising/Makefile
 src/applications/bootstrap_http/Makefile
-src/applications/chat/Makefile
 src/applications/datastore/Makefile
 src/applications/dht/Makefile
 src/applications/dht/tools/Makefile
 src/applications/dht/module/Makefile
+src/applications/dstore/Makefile
 src/applications/fragmentation/Makefile
 src/applications/fs/Makefile
+src/applications/fs/collection/Makefile
 src/applications/fs/ecrs/Makefile
 src/applications/fs/fsui/Makefile
 src/applications/fs/lib/Makefile
 src/applications/fs/module/Makefile
+src/applications/fs/namespace/Makefile
+src/applications/fs/uritrack/Makefile
 src/applications/fs/tools/Makefile
 src/applications/gap/Makefile
 src/applications/getoption/Makefile
@@ -539,9 +599,9 @@ src/applications/rpc/Makefile
 src/applications/session/Makefile
 src/applications/sqstore_mysql/Makefile
 src/applications/sqstore_sqlite/Makefile
+src/applications/state/Makefile
 src/applications/stats/Makefile
 src/applications/tbench/Makefile
-src/applications/testbed/Makefile
 src/applications/template/Makefile
 src/applications/topology_default/Makefile
 src/applications/topology_f2f/Makefile
@@ -549,10 +609,30 @@ src/applications/tracekit/Makefile
 src/applications/traffic/Makefile
 src/applications/transport/Makefile
 src/applications/vpn/Makefile
-src/conf/Makefile
+src/setup/Makefile
+src/setup/lib/Makefile
+src/setup/gtk/Makefile
+src/setup/ncurses/Makefile
+src/setup/text/Makefile
 src/server/Makefile
 src/transports/Makefile
+src/transports/upnp/Makefile
 src/util/Makefile
+src/util/boot/Makefile
+src/util/config/Makefile
+src/util/config_impl/Makefile
+src/util/containers/Makefile
+src/util/cron/Makefile
+src/util/crypto/Makefile
+src/util/disk/Makefile
+src/util/error/Makefile
+src/util/getopt/Makefile
+src/util/loggers/Makefile
+src/util/network/Makefile
+src/util/network_client/Makefile
+src/util/os/Makefile
+src/util/string/Makefile
+src/util/threads/Makefile
 src/util/win/Makefile
 ])
 AC_OUTPUT
@@ -565,10 +645,14 @@ then
   AC_MSG_NOTICE([NOTICE: MySQL found, but too old. MySQL support will not be compiled.])
 fi
 
-# guile
-if test "x$guile" = "x0"
+if test "$dialog" != 1
 then
-  AC_MSG_NOTICE([NOTICE: Guile not found, gnunet-download-manager will not be installed.])
+ AC_MSG_NOTICE([NOTICE: curses based gnunet-setup frontends will not be installed.])
+fi
+
+if test "$lmhd" != 1
+then
+ AC_MSG_NOTICE([NOTICE: libmicrohttpd not found, http transport will not be installed.])
 fi
 
 if test "$ipv6" = "0"
@@ -577,3 +661,15 @@ then
 fi
 
 AC_MSG_NOTICE([NOTICE: Database support is set to MySQL: $mysql, SQLite: $sqlite])
+
+# guile
+if test "x$guile" = "x0"
+then
+  AC_MSG_NOTICE([NOTICE: Guile not found, gnunet-download-manager will not be installed.])
+fi
+
+if test "$guile" != 1
+then
+ AC_MSG_NOTICE([WARNING: Guile not found, gnunet-setup will not be installed.])
+fi
+

@@ -26,9 +26,10 @@
 
 #include "platform.h"
 #include "gnunet_fsui_lib.h"
+#include "gnunet_util_config_impl.h"
 
-static void eventCallback(void * cls,
-			  const FSUI_Event * event) {
+static void * eventCallback(void * cls,
+			    const FSUI_Event * event) {
 #if 0
   switch(event->type) {
   case FSUI_search_result:
@@ -48,41 +49,33 @@ static void eventCallback(void * cls,
     break;
   }
 #endif
-}
-static int parseOptions(int argc,
-			char ** argv) {
-  FREENONNULL(setConfigurationString("GNUNET",
-	  		 	     "LOGLEVEL",
-			             "WARNING"));
-  return 0;
+  return NULL;
 }
 
 int main(int argc,
 	 char * argv[]) {
   struct FSUI_Context * ctx;
+  struct GC_Configuration * cfg;
+
+  os_init(NULL);
+  cfg = GC_create_C_impl();
   if (argc != 2) {
     fprintf(stderr,
 	    "Call with name of FSUI resource file!\n");
     return -1;
   }
-  if(OK != initUtil(argc,
-		    argv,
-		    &parseOptions)) {
-    fprintf(stderr,
-	    "initUtil failed!\n");
-    return -1;
-  }
-  startCron();
-  ctx = FSUI_start(argv[1],
+  ctx = FSUI_start(NULL,
+		   cfg,
+		   argv[1],
+		   16,
 		   YES,
 		   &eventCallback,
 		   NULL);
-  if (ctx != NULL) {
+  if (ctx != NULL)
     FSUI_stop(ctx);
-  } else
+  else
     fprintf(stderr,
 	    "FSUI_start failed!\n");
-  stopCron();
-  doneUtil();
+  GC_free(cfg);
   return (ctx == NULL);
 }

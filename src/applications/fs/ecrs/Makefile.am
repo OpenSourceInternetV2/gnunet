@@ -7,10 +7,12 @@ libgnunetecrs_la_SOURCES = \
   directory.c \
   download.c \
   ecrs.c ecrs.h \
+  helper.c \
   indexinfo.c \
   keyspace.c \
   meta.c \
   namespace.c \
+  parser.c \
   search.c \
   tree.c tree.h \
   unindex.c \
@@ -22,10 +24,13 @@ libgnunetecrs_la_LIBADD = \
  $(top_builddir)/src/applications/fs/libecrs_core.la \
  $(top_builddir)/src/applications/fs/lib/libgnunetfs.la \
  $(top_builddir)/src/applications/getoption/libgnunetgetoption_api.la \
+ $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
+ $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
  $(top_builddir)/src/util/libgnunetutil.la 
 
 
 check_PROGRAMS = \
+  bincodertest \
   namespacetest \
   uritest \
   metatest \
@@ -36,14 +41,22 @@ check_PROGRAMS = \
 
 TESTS = $(check_PROGRAMS)
 
+bincodertest_SOURCES = \
+  bincodertest.c 
+bincodertest_LDADD = \
+  $(top_builddir)/src/util/libgnunetutil.la 
+
 uritest_SOURCES = \
   uritest.c 
 uritest_LDADD = \
-  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la 
+  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+  $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la 
 
 namespacetest_SOURCES = \
   namespacetest.c 
 namespacetest_LDADD = \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la 
 
 metatest_SOURCES = \
@@ -60,17 +73,23 @@ metatest2_LDADD = \
 ecrstest_SOURCES = \
   ecrstest.c
 ecrstest_LDADD = \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la 
 
 searchtest_SOURCES = \
   searchtest.c
 searchtest_LDADD = \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la 
 
 directorytest_SOURCES = \
   directorytest.c
 directorytest_LDADD = \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la 
 
 EXTRA_DIST = \
-  check.conf
+  check.conf peer.conf bincoder.c

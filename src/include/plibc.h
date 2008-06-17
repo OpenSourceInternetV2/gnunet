@@ -1,6 +1,6 @@
 /*
      This file is part of PlibC.
-     (C) 2005, 2006 Nils Durner (and other contributing authors)
+     (C) 2005, 2006, 2007 Nils Durner (and other contributing authors)
 
 	   This library is free software; you can redistribute it and/or
 	   modify it under the terms of the GNU Lesser General Public
@@ -22,7 +22,7 @@
  * @brief PlibC header
  * @attention This file is usually not installed under Unix,
  *            so ship it with your application
- * @version $Revision: 1.31 $
+ * @version $Revision: 1.37 $
  */
 
 #ifndef _PLIBC_H_
@@ -34,6 +34,10 @@
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+#ifdef Q_OS_WIN32
+ #define WINDOWS 1
 #endif
 
 #ifdef WINDOWS
@@ -50,6 +54,7 @@ extern "C" {
 #include <sys/stat.h>
 #include <dirent.h>
 #include <errno.h>
+#include <stdarg.h>
 
 #define __BYTE_ORDER BYTE_ORDER
 #define __BIG_ENDIAN BIG_ENDIAN
@@ -336,6 +341,7 @@ char *ctime(const time_t *clock);
 char *ctime_r(const time_t *clock, char *buf);
 int plibc_init(char *pszOrg, char *pszApp);
 void plibc_shutdown();
+int plibc_initialized();
 int plibc_conv_to_win_path_ex(const char *pszUnix, char *pszWindows, int derefLinks);
 void _SetErrnoFromWinError(long lWinError, char *pszCaller, int iLine);
 void SetErrnoFromWinsockError(long lWinError);
@@ -422,11 +428,16 @@ char *strndup (const char *s, size_t n);
 size_t strnlen (const char *str, size_t maxlen);
 #endif
 
+#define strcasecmp(a, b) stricmp(a, b)
+#define strncasecmp(a, b, c) strnicmp(a, b, c)
+
 #endif /* WINDOWS */
 
 #ifndef WINDOWS
  #define DIR_SEPARATOR '/'
  #define DIR_SEPARATOR_STR "/"
+ #define PATH_SEPARATOR ';'
+ #define PATH_SEPARATOR_STR ";"
  #define NEWLINE "\n"
 
 #ifdef ENABLE_NLS
@@ -496,6 +507,8 @@ size_t strnlen (const char *str, size_t maxlen);
 #else
  #define DIR_SEPARATOR '\\'
  #define DIR_SEPARATOR_STR "\\"
+ #define PATH_SEPARATOR ':'
+ #define PATH_SEPARATOR_STR ":"
  #define NEWLINE "\r\n"
 
 #ifdef ENABLE_NLS

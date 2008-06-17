@@ -40,14 +40,15 @@ host_triplet = @host@
 subdir = src/applications/traffic
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/m4/ac_define_dir.m4 \
-	$(top_srcdir)/m4/gettext.m4 $(top_srcdir)/m4/gtk-2.0.m4 \
-	$(top_srcdir)/m4/guile.m4 $(top_srcdir)/m4/iconv.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/m4/gettext.m4 \
+	$(top_srcdir)/m4/gtk-2.0.m4 $(top_srcdir)/m4/iconv.m4 \
 	$(top_srcdir)/m4/lib-ld.m4 $(top_srcdir)/m4/lib-link.m4 \
-	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libgcrypt.m4 \
-	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/pkg.m4 \
-	$(top_srcdir)/m4/po.m4 $(top_srcdir)/m4/progtest.m4 \
-	$(top_srcdir)/acinclude.m4 $(top_srcdir)/configure.ac
+	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libcurl.m4 \
+	$(top_srcdir)/m4/libgcrypt.m4 $(top_srcdir)/m4/libxml2.m4 \
+	$(top_srcdir)/m4/mkdir.m4 $(top_srcdir)/m4/nls.m4 \
+	$(top_srcdir)/m4/pkg.m4 $(top_srcdir)/m4/po.m4 \
+	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/acinclude.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
@@ -63,7 +64,8 @@ am_libgnunetmodule_traffic_la_OBJECTS = traffic.lo
 libgnunetmodule_traffic_la_OBJECTS =  \
 	$(am_libgnunetmodule_traffic_la_OBJECTS)
 libgnunetmodule_traffic_api_la_DEPENDENCIES =  \
-	$(top_builddir)/src/util/libgnunetutil.la
+	$(top_builddir)/src/util/libgnunetutil.la \
+	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la
 am_libgnunetmodule_traffic_api_la_OBJECTS = clientapi.lo
 libgnunetmodule_traffic_api_la_OBJECTS =  \
 	$(am_libgnunetmodule_traffic_api_la_OBJECTS)
@@ -111,7 +113,6 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 CYGWIN_FALSE = @CYGWIN_FALSE@
 CYGWIN_TRUE = @CYGWIN_TRUE@
-DATADIR = @DATADIR@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
 DLLTOOL = @DLLTOOL@
@@ -128,25 +129,25 @@ FFLAGS = @FFLAGS@
 GMSGFMT = @GMSGFMT@
 GNUNETGTK_CFLAGS = @GNUNETGTK_CFLAGS@
 GNUNETGTK_LIBS = @GNUNETGTK_LIBS@
+GREP = @GREP@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
-GUILE = @GUILE@
-GUILE_CONFIG = @GUILE_CONFIG@
-GUILE_TOOLS = @GUILE_TOOLS@
-HAVE_CURSES_FALSE = @HAVE_CURSES_FALSE@
-HAVE_CURSES_TRUE = @HAVE_CURSES_TRUE@
+HAVE_DIALOG_FALSE = @HAVE_DIALOG_FALSE@
+HAVE_DIALOG_TRUE = @HAVE_DIALOG_TRUE@
 HAVE_GTK_FALSE = @HAVE_GTK_FALSE@
 HAVE_GTK_TRUE = @HAVE_GTK_TRUE@
 HAVE_GUILE_FALSE = @HAVE_GUILE_FALSE@
 HAVE_GUILE_TRUE = @HAVE_GUILE_TRUE@
 HAVE_IPV6_FALSE = @HAVE_IPV6_FALSE@
 HAVE_IPV6_TRUE = @HAVE_IPV6_TRUE@
+HAVE_MHD_FALSE = @HAVE_MHD_FALSE@
+HAVE_MHD_TRUE = @HAVE_MHD_TRUE@
 HAVE_MYSQL_FALSE = @HAVE_MYSQL_FALSE@
 HAVE_MYSQL_TRUE = @HAVE_MYSQL_TRUE@
-HAVE_PDCURSES_FALSE = @HAVE_PDCURSES_FALSE@
-HAVE_PDCURSES_TRUE = @HAVE_PDCURSES_TRUE@
 HAVE_SQLITE_FALSE = @HAVE_SQLITE_FALSE@
 HAVE_SQLITE_TRUE = @HAVE_SQLITE_TRUE@
+HAVE_XML2_FALSE = @HAVE_XML2_FALSE@
+HAVE_XML2_TRUE = @HAVE_XML2_TRUE@
 HAVE_ZLIB_FALSE = @HAVE_ZLIB_FALSE@
 HAVE_ZLIB_TRUE = @HAVE_ZLIB_TRUE@
 INSTALL_DATA = @INSTALL_DATA@
@@ -158,6 +159,8 @@ INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 INTLLIBS = @INTLLIBS@
 LDFLAGS = @LDFLAGS@
 LIBADD_DL = @LIBADD_DL@
+LIBCURL = @LIBCURL@
+LIBCURL_CPPFLAGS = @LIBCURL_CPPFLAGS@
 LIBGCRYPT_CFLAGS = @LIBGCRYPT_CFLAGS@
 LIBGCRYPT_CONFIG = @LIBGCRYPT_CONFIG@
 LIBGCRYPT_LIBS = @LIBGCRYPT_LIBS@
@@ -168,11 +171,12 @@ LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
-LOCALEDIR = @LOCALEDIR@
 LTDLINCL = @LTDLINCL@
 LTLIBICONV = @LTLIBICONV@
 LTLIBINTL = @LTLIBINTL@
 LTLIBOBJS = @LTLIBOBJS@
+MACOSX_FALSE = @MACOSX_FALSE@
+MACOSX_TRUE = @MACOSX_TRUE@
 MAKEINFO = @MAKEINFO@
 MINGW_FALSE = @MINGW_FALSE@
 MINGW_TRUE = @MINGW_TRUE@
@@ -205,15 +209,13 @@ VERSION = @VERSION@
 XFREEBSD_FALSE = @XFREEBSD_FALSE@
 XFREEBSD_TRUE = @XFREEBSD_TRUE@
 XGETTEXT = @XGETTEXT@
-ac_ct_AR = @ac_ct_AR@
-ac_ct_AS = @ac_ct_AS@
+XML2_CONFIG = @XML2_CONFIG@
+XML_CPPFLAGS = @XML_CPPFLAGS@
+XML_LIBS = @XML_LIBS@
+_libcurl_config = @_libcurl_config@
 ac_ct_CC = @ac_ct_CC@
 ac_ct_CXX = @ac_ct_CXX@
-ac_ct_DLLTOOL = @ac_ct_DLLTOOL@
 ac_ct_F77 = @ac_ct_F77@
-ac_ct_OBJDUMP = @ac_ct_OBJDUMP@
-ac_ct_RANLIB = @ac_ct_RANLIB@
-ac_ct_STRIP = @ac_ct_STRIP@
 am__fastdepCC_FALSE = @am__fastdepCC_FALSE@
 am__fastdepCC_TRUE = @am__fastdepCC_TRUE@
 am__fastdepCXX_FALSE = @am__fastdepCXX_FALSE@
@@ -228,24 +230,30 @@ build_cpu = @build_cpu@
 build_os = @build_os@
 build_vendor = @build_vendor@
 datadir = @datadir@
+datarootdir = @datarootdir@
+docdir = @docdir@
+dvidir = @dvidir@
 exec_prefix = @exec_prefix@
-guile_available = @guile_available@
 host = @host@
 host_alias = @host_alias@
 host_cpu = @host_cpu@
 host_os = @host_os@
 host_vendor = @host_vendor@
+htmldir = @htmldir@
 includedir = @includedir@
 infodir = @infodir@
 install_sh = @install_sh@
 libdir = @libdir@
 libexecdir = @libexecdir@
+localedir = @localedir@
 localstatedir = @localstatedir@
 mandir = @mandir@
 mkdir_p = @mkdir_p@
 oldincludedir = @oldincludedir@
+pdfdir = @pdfdir@
 prefix = @prefix@
 program_transform_name = @program_transform_name@
+psdir = @psdir@
 sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 subdirs = @subdirs@
@@ -263,7 +271,8 @@ libgnunetmodule_traffic_api_la_SOURCES = \
   clientapi.c 
 
 libgnunetmodule_traffic_api_la_LIBADD = \
-  $(top_builddir)/src/util/libgnunetutil.la
+  $(top_builddir)/src/util/libgnunetutil.la \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la
 
 libgnunetmodule_traffic_la_SOURCES = \
   traffic.c traffic.h

@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2004 Christian Grothoff (and other contributing authors)
+     (C) 2004, 2006 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -26,15 +26,20 @@
 #ifndef GNUNETD_VERSION_H
 #define GNUNETD_VERSION_H
 
+#include "gnunet_util.h"
+
+
 /**
  * Check if we are up-to-date.
  * @return OK if we are
  */
-int checkUpToDate();
+int checkUpToDate(struct GE_Context * ectx,
+		  struct GC_Configuration * cfg);
 
 /**
  * We are up-to-date.
  */
-void upToDate();
+void upToDate(struct GE_Context * ectx,
+	      struct GC_Configuration * cfg);
 
 #endif

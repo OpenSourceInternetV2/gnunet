@@ -13,7 +13,9 @@ libgnunetmodule_identity_la_SOURCES = \
   hostkey.c \
   hostkey.h
 libgnunetmodule_identity_la_LIBADD = \
- $(top_builddir)/src/util/libgnunetutil.la 
+ $(top_builddir)/src/util/libgnunetutil.la \
+ $(top_builddir)/src/util/cron/libgnunetutil_cron.la \
+ $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la 
 libgnunetmodule_identity_la_LDFLAGS = \
   -export-dynamic -avoid-version -module
 
@@ -28,4 +30,5 @@ identitytest_SOURCES = \
  identitytest.c 
 identitytest_LDADD = \
  $(top_builddir)/src/util/libgnunetutil.la \
+ $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
  $(top_builddir)/src/server/libgnunetcore.la  

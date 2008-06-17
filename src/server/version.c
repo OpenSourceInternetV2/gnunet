@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2004 Christian Grothoff (and other contributing authors)
+     (C) 2004, 2006 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -26,14 +26,20 @@
 
 #include "platform.h"
 #include "gnunet_util.h"
+#include "gnunet_util_crypto.h"
+#include "gnunet_directories.h"
 #include "version.h"
+
+#define VERSIONFILE "/state.sdb/GNUNET-VERSION"
+#define VERSIONDIR "/state.sdb/"
 
 /**
  * Extend string by "section:part=val;" where
  * val is the configuration value from the
  * configuration file.
  */
-static void dyncat(char ** string,
+static void dyncat(struct GC_Configuration * cfg,
+		   char ** string,
 		   const char * section,
 		   const char * part) {
   int len;
@@ -43,7 +49,12 @@ static void dyncat(char ** string,
   len = strlen(*string);
   len += strlen(section) + 1;
   len += strlen(part) + 1;
-  val = getConfigurationString(section, part);
+  val = NULL;
+  GC_get_configuration_value_string(cfg,
+				    section,
+				    part,
+				    "",
+				    &val);
   if (val == NULL)
     val = STRDUP("");
   len += strlen(val) + 2;
@@ -68,7 +79,8 @@ static void dyncat(char ** string,
  * since changes to certain values there will also
  * require us to run gnunet-update!
  */
-static void getVersionHash(EncName * enc) {
+static void getVersionHash(struct GC_Configuration * cfg,
+			   EncName * enc) {
   HashCode512 hc;
   char * string;
 
@@ -78,9 +90,18 @@ static void getVersionHash(EncName * enc) {
      changes require gnunet-update feels like overkill for now; one
      simple alternative would be to require gnunet-update for any
      configuration change, but that again would be too strict. */
-  dyncat(&string, "GNUNETD", "APPLICATIONS");
-  dyncat(&string, "FS", "QUOTA");
-  dyncat(&string, "MODULES", "sqstore");
+  dyncat(cfg,
+	 &string,
+	 "GNUNETD",
+	 "APPLICATIONS");
+  dyncat(cfg,
+	 &string,
+	 "FS",
+	 "QUOTA");
+  dyncat(cfg,
+	 &string,
+	 "MODULES",
+	 "sqstore");
   hash(string,
        strlen(string),
        &hc);
@@ -88,37 +109,76 @@ static void getVersionHash(EncName * enc) {
   FREE(string);
 }
 
+static char * getVersionFileName(struct GE_Context * ectx,
+				 struct GC_Configuration * cfg) {
+  char * en;
+  char * cn;
+
+  en = NULL;
+  if (-1 == GC_get_configuration_value_filename(cfg,
+						"GNUNETD",
+						"GNUNETD_HOME",
+						VAR_DAEMON_DIRECTORY,
+						&en))
+    return NULL;
+  GE_ASSERT(ectx, en != NULL);
+  cn = MALLOC(strlen(en) + strlen(VERSIONFILE) + 1);
+  strcpy(cn, en);
+  strcat(cn, VERSIONDIR);
+  disk_directory_create(ectx, cn);
+  strcpy(cn, en);
+  strcat(cn, VERSIONFILE);
+  FREE(en);
+  return cn;
+}
+
+#define MAX_VS sizeof(EncName) + 64
+
 /**
  * Check if we are up-to-date.
  * @return OK if we are
  */
-int checkUpToDate() {
-  char * version;
+int checkUpToDate(struct GE_Context * ectx,
+		  struct GC_Configuration * cfg) {
+  char version[MAX_VS];
   int len;
   EncName enc;
+  char * fn;
 
-  version = NULL;
-  len = stateReadContent("GNUNET-VERSION",
-			 (void**)&version);
-  if (len == -1) {
-    upToDate(); /* first start */
+  fn = getVersionFileName(ectx, cfg);
+  if (fn == NULL) {
+    GE_LOG(ectx,
+	   GE_ERROR | GE_USER | GE_BULK,
+	   _("Failed to determine filename used to store GNUnet version information!\n"));
+    return OK; /* uh uh */
+  }
+  if (disk_file_test(ectx,
+		     fn) != YES) {
+    FREE(fn);
+    upToDate(ectx, cfg); /* first start */
+    return OK;
+  }
+  len = disk_file_read(ectx,
+		       fn,
+		       MAX_VS,
+		       version);
+  FREE(fn);
+  if (len == -1) { /* should never happen -- file should exist */
+    upToDate(ectx,
+	     cfg); /* first start */
     return OK;
   }
   if ( (len != strlen(VERSION) + 1 + sizeof(EncName)) ||
        (0 != memcmp(VERSION,
 		    version,
-		    strlen(VERSION)+1)) ) {
-    FREENONNULL(version);
+		    strlen(VERSION)+1)) )
     return SYSERR; /* wrong version */
-  }
-  getVersionHash(&enc);
+  getVersionHash(cfg,
+		 &enc);
   if (0 != memcmp(&enc,
 		  &version[strlen(VERSION)+1],
-		  sizeof(EncName))) {
-    FREENONNULL(version);
+		  sizeof(EncName)))
     return SYSERR; /* wrong hash */
-  }
-  FREENONNULL(version);
   return OK;
 }
 
@@ -126,20 +186,29 @@ int checkUpToDate() {
  * We are up-to-date.
  * Writes the version tag
  */
-void upToDate() {
-  char * version;
+void upToDate(struct GE_Context * ectx,
+	      struct GC_Configuration * cfg) {
+  char version[MAX_VS];
   int len;
   EncName enc;
+  char * fn;
 
+  fn = getVersionFileName(ectx, cfg);
   len = strlen(VERSION) + 1 + sizeof(EncName);
-  version = MALLOC(len);
+  GE_ASSERT(ectx, len < MAX_VS);
   memcpy(version, VERSION, strlen(VERSION)+1);
-  getVersionHash(&enc);
-  memcpy(&version[strlen(VERSION)+1], &enc, sizeof(EncName));
-  stateWriteContent("GNUNET-VERSION",
-		    len,
-		    version);
-  FREE(version);
+  getVersionHash(cfg,
+		 &enc);
+  memcpy(&version[strlen(VERSION)+1], 
+	 &enc, 
+	 sizeof(EncName));
+  UNLINK(fn);
+  disk_file_write(ectx,
+		  fn,
+		  version,
+		  len,
+		  "600");
+  FREE(fn);
 }
 		
 /* end of version.c */

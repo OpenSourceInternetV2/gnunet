@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2004, 2005 Christian Grothoff (and other contributing authors)
+     (C) 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -25,11 +25,13 @@
 
 #include "platform.h"
 #include "gnunet_util.h"
+#include "gnunet_util_cron.h"
+#include "gnunet_util_config_impl.h"
 #include "gnunet_protocols.h"
 #include "gnunet_sqstore_service.h"
 #include "core.h"
 
-#define ASSERT(x) do { if (! (x)) { printf("Error at %s:%d\n", __FILE__, __LINE__); goto FAILURE; } } while (0)
+#define ASSERT(x) do { if (! (x)) { printf("Error at %s:%d\n", __FILE__, __LINE__); goto FAILURE;} } while (0)
 
 static cron_t now;
 
@@ -58,15 +60,15 @@ static int checkValue(const HashCode512 * key,
   if ( ( value->size == val->size) &&
        (0 == memcmp(val,
 		    value,
-		    ntohl(val->size)) ) ) {
+		    ntohl(val->size)) ) )
     ret = OK;
-  } else {
-     /*
+  else {
+    /*
     printf("Wanted: %u, %llu; got %u, %llu - %d\n",
 	   ntohl(value->size), ntohll(value->expirationTime),
 	   ntohl(val->size), ntohll(val->expirationTime),
 	   memcmp(val, value, ntohl(val->size))); */
-    ret = SYSERR;		
+    ret = SYSERR;
   }
   FREE(value);
   return ret;
@@ -96,9 +98,9 @@ static int iterateDelete(const HashCode512 * key,
 			 const Datastore_Value * val,
 			 SQstore_ServiceAPI * api) {
   if (1 == api->del(key, val))
-    return OK;
+	return OK;
   else
-    return SYSERR;
+	return SYSERR;
 }
 
 static int priorityCheck(const HashCode512 * key,
@@ -146,7 +148,7 @@ static int test(SQstore_ServiceAPI * api) {
   for (i=0;i<256;i++) {
     value = initValue(i);
     memset(&key, 256-i, sizeof(HashCode512));
-    api->put(&key, value);
+    ASSERT(OK == api->put(&key, value));
     FREE(value);
   }
   ASSERT(oldSize < api->getSize());
@@ -194,7 +196,8 @@ static int test(SQstore_ServiceAPI * api) {
 					 &i));
   api->update(&key,
 	      value,
-	      4);
+	      4,
+	      0);
   i += 4;
   ASSERT(1 == api->iterateExpirationTime(ANY_BLOCK,
 					 (Datum_Iterator) &priorityCheck,
@@ -218,63 +221,44 @@ static int test(SQstore_ServiceAPI * api) {
   ASSERT(0 == api->iterateExpirationTime(ANY_BLOCK,
 					 NULL,
 					 NULL));
-
   api->drop();
+
   return OK;
+
  FAILURE:
   api->drop();
   return SYSERR;
 }
 
-/**
- * Perform option parsing from the command line.
- */
-static int parser(int argc,
-		  char * argv[]) {
-  FREENONNULL(setConfigurationString("GNUNETD",
-				     "_MAGIC_",
-				     "YES"));
-  FREENONNULL(setConfigurationString("GNUNETD",
-				     "LOGFILE",
-				     NULL));
-  FREENONNULL(setConfigurationString("FILES",
-				     "gnunet.conf",
-				     "check.conf"));
-  return OK;
-}
-
 int main(int argc, char *argv[]) {
   SQstore_ServiceAPI * api;
   int ok;
+  struct GC_Configuration * cfg;
+  struct CronManager * cron;
 
-  if (OK != initUtil(argc, argv, &parser))
-    errexit(_("Could not initialize libgnunetutil!\n"));
-  initCore();
+  cfg = GC_create_C_impl();
+  if (-1 == GC_parse_configuration(cfg,
+				   "check.conf")) {
+    GC_free(cfg);
+    return -1;
+  }
+  cron = cron_create(NULL);
+  initCore(NULL,
+	   cfg,
+	   cron,
+	   NULL);
   api = requestService("sqstore");
-  if (api == NULL) {
-    BREAK();
-    doneCore();
-    doneUtil();
-    return 1;
-  }
-  ok = SYSERR;
   if (api != NULL) {
-    api->drop();
+    ok = test(api);
     releaseService(api);
-    api = requestService("sqstore");
-    if (api != NULL) {
-      ok = test(api);
-      releaseService(api);
-    } else {
-      BREAK();
-    }
-  }
+  } else
+    ok = SYSERR;
   doneCore();
-  doneUtil();
+  cron_destroy(cron);
+  GC_free(cfg);
   if (ok == SYSERR)
     return 1;
-  else
-    return 0;
+  return 0;
 }
 
-/* end of mysqltest.c */
+/* end of sqlitetest.c */

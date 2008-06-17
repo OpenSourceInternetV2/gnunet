@@ -1,6 +1,6 @@
 /*
       This file is part of GNUnet
-     (C) 2001, 2002, 2003, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
+      (C) 2001, 2002, 2003, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
 
       GNUnet is free software; you can redistribute it and/or modify
       it under the terms of the GNU General Public License as published
@@ -46,9 +46,10 @@
 
 /**
  * Until which load do we consider the peer idle and do not
- * charge at all?
+ * charge at all? (should be larger than IDLE_LOAD_THRESHOLD used
+ * by server/connection.c!)
  */
-#define IDLE_LOAD_THRESHOLD 50
+#define IDLE_LOAD_THRESHOLD 85
 
 /**
  * For how many different hosts can we have a query pending (at most).
@@ -158,7 +159,7 @@
  * THE VALUE YOU PICK MUST BE A POWER OF 2, for example:
  * 128, 256, 512, 1024, 2048, 4092, 8192, 16384, 32768, 65536
  */
-#define MIN_INDIRECTION_TABLE_SIZE 1024 
+#define MIN_INDIRECTION_TABLE_SIZE 1024
 /* #define MIN_INDIRECTION_TABLE_SIZE 4 */
 
 /**
@@ -203,7 +204,7 @@ typedef unsigned int QUERY_POLICY;
  * be determined from the header size.
  */
 typedef struct {
-  P2P_MESSAGE_HEADER header;
+  MESSAGE_HEADER header;
 
   /**
    * Type of the query (block type).
@@ -237,7 +238,7 @@ typedef struct {
  * Return message for search result.
  */
 typedef struct {
-  P2P_MESSAGE_HEADER header;
+  MESSAGE_HEADER header;
 
   HashCode512 primaryKey;
 
@@ -310,7 +311,7 @@ typedef struct {
  * Keep this struct as small as possible -- an array of these
  * takes 80% of GNUnet's memory (for 65536 routing table entries,
  * the array itself uses about 8 MB of memory; the contents
- * that the entries point to can easily use another 8 MB at this 
+ * that the entries point to can easily use another 8 MB at this
  * point [see Mantis #1058])
  */
 typedef struct {

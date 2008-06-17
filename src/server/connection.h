@@ -1,5 +1,6 @@
 /*
      This file is part of GNUnet
+     (C) 2001, 2002, 2003, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -31,12 +32,12 @@
 #include "gnunet_fragmentation_service.h"
 
 /**
- * @brief General message header for all encrypted peer-to-peer
- * messages.  This is the format that handler(.c) expects after
- * decrypting the message.  It provides a timestamp and sequence
+ * @brief General packet header for all encrypted peer-to-peer
+ * packets.  This is the format that handler(.c) expects after
+ * decrypting the packet.  It provides a timestamp and sequence
  * number (to guard against replay attacks).  The header is followed
  * by the 'data' which contains a sequence of GNUnet p2p messages,
- * each with its own P2P_MESSAGE_HEADER.
+ * each with its own MESSAGE_HEADER.
  */
 typedef struct {
   /* hash of the plaintext, used to verify message integrity;
@@ -55,17 +56,20 @@ typedef struct {
 /**
  * Initialize this module.
  */
-void initConnection();
+void initConnection(struct GE_Context * ectx,
+		    struct GC_Configuration * cfg,
+		    struct LoadMonitor * mon,
+		    struct CronManager * cron);
 
 /**
  * Shutdown the connection module.
  */
-void doneConnection();
+void doneConnection(void);
 
 /**
  * For debugging.
  */
-void printConnectionBuffer();
+void printConnectionBuffer(void);
 
 /**
  * Check the sequence number and timestamp.  Decrypts the
@@ -121,7 +125,7 @@ int forEachConnectedNode(PerNodeCallback method,
  * from the GNUnet core.
  *
  * @param session the transport session
- * @param msg the message to transmit, should contain P2P_MESSAGE_HEADERs
+ * @param msg the message to transmit, should contain MESSAGE_HEADERs
  * @return OK on success, SYSERR on failure
  */
 int sendPlaintext(TSession * tsession,
@@ -189,14 +193,14 @@ void unicastCallback(const PeerIdentity * hostId,
  * @param maxdelay how long can the message be delayed?
  */
 void unicast(const PeerIdentity * receiver,
-	     const P2P_MESSAGE_HEADER * msg,
+	     const MESSAGE_HEADER * msg,
 	     unsigned int importance,
 	     unsigned int maxdelay);
 
 /**
  * Return a pointer to the lock of the connection module.
  */
-Mutex * getConnectionModuleLock();
+struct MUTEX * getConnectionModuleLock(void);
 
 
 /* ******************** traffic management ********** */

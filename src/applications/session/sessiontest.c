@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2005 Christian Grothoff (and other contributing authors)
+     (C) 2005, 2006 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -26,28 +26,24 @@
 
 #include "platform.h"
 #include "gnunet_protocols.h"
+#include "gnunet_util.h"
+#include "gnunet_util_config_impl.h"
+#include "gnunet_util_network_client.h"
 #include "gnunet_stats_lib.h"
 
-static int parseOptions(int argc,
-			char ** argv) {
-  FREENONNULL(setConfigurationString("GNUNETD",
-				     "LOGFILE",
-				     NULL));
-  return OK;
-}
+#define START_PEERS 1
 
-/**
- * Identity of peer 2 (hardwired).
- */
-static PeerIdentity peer2;
+static int ok;
 
 static int waitForConnect(const char * name,
 			  unsigned long long value,
 			  void * cls) {
   if ( (value > 0) &&
        (0 == strcmp(_("# of connected peers"),
-		    name)) )
+		    name)) ) {
+    ok = 1;
     return SYSERR;
+  }
   return OK;
 }
 
@@ -59,98 +55,94 @@ static int waitForConnect(const char * name,
  * @return 0: ok, -1: error
  */
 int main(int argc, char ** argv) {
+#if START_PEERS
   pid_t daemon1;
   pid_t daemon2;
+#endif
   int ret;
-  GNUNET_TCP_SOCKET * sock;
+  struct ClientServerConnection * sock;
   int left;
+  struct GC_Configuration * cfg;
 
-  GNUNET_ASSERT(OK ==
-		enc2hash("BV3AS3KMIIBVIFCGEG907N6NTDTH26B7T6FODUSLSGK"
-			 "5B2Q58IEU1VF5FTR838449CSHVBOAHLDVQAOA33O77F"
-			 "OPDA8F1VIKESLSNBO",
-			 &peer2.hashPubKey));
-  if (OK != initUtil(argc,
-		     argv,
-		     &parseOptions))
+  cfg = GC_create_C_impl();
+  if (-1 == GC_parse_configuration(cfg,
+				   "check.conf")) {
+    GC_free(cfg);
     return -1;
-  FREENONNULL(setConfigurationString("GNUNET",
-				     "GNUNETD-CONFIG",
-				     "peer1.conf"));
-  daemon1 = startGNUnetDaemon(NO);
-  FREENONNULL(setConfigurationString("GNUNET",
-				     "GNUNETD-CONFIG",
-				     "peer2.conf"));
-  daemon2 = startGNUnetDaemon(NO);
+  }
+#if START_PEERS
+  daemon1  = os_daemon_start(NULL,
+			     cfg,
+			     "peer1.conf",
+			     NO);
+  daemon2 = os_daemon_start(NULL,
+			    cfg,
+			    "peer2.conf",
+			    NO);
+#endif
   /* in case existing hellos have expired */
-  gnunet_util_sleep(30 * cronSECONDS);
+  PTHREAD_SLEEP(30 * cronSECONDS);
   system("cp peer1/data/hosts/* peer2/data/hosts/");
   system("cp peer2/data/hosts/* peer1/data/hosts/");
+  ret = 0;
+#if START_PEERS
   if (daemon1 != -1) {
-    if (! termProcess(daemon1))
-      DIE_STRERROR("kill");
-    GNUNET_ASSERT(OK == waitForGNUnetDaemonTermination(daemon1));
+    if (os_daemon_stop(NULL, daemon1) != YES)
+      ret = 1;
   }
   if (daemon2 != -1) {
-    if (! termProcess(daemon2))
-      DIE_STRERROR("kill");
-    GNUNET_ASSERT(OK == waitForGNUnetDaemonTermination(daemon2));
+    if (os_daemon_stop(NULL, daemon2) != YES)
+      ret = 1;
   }
-
-  /* re-start, this time we're sure up-to-date hellos are available */
-  FREENONNULL(setConfigurationString("GNUNET",
-				     "GNUNETD-CONFIG",
-				     "peer1.conf"));
-  daemon1 = startGNUnetDaemon(NO);
-  FREENONNULL(setConfigurationString("GNUNET",
-				     "GNUNETD-CONFIG",
-				     "peer2.conf"));
-  daemon2 = startGNUnetDaemon(NO);
-  gnunet_util_sleep(5 * cronSECONDS);
-
-
-  ret = 0;
-  left = 5;
-  /* wait for connection or abort with error */
-  do {
-    sock = getClientSocket();
-    if (sock == NULL) {
-      printf(_("Waiting for gnunetd to start (%u iterations left)...\n"),
+  if (ret != 0)
+    return 1;
+  daemon1  = os_daemon_start(NULL,
+			     cfg,
+			     "peer1.conf",
+			     NO);
+  daemon2 = os_daemon_start(NULL,
+			    cfg,
+			    "peer2.conf",
+			    NO);
+#endif
+  if (OK == connection_wait_for_running(NULL,
+					cfg,
+					30 * cronSECONDS)) {
+    sock = client_connection_create(NULL,
+				    cfg);
+    left = 30; /* how many iterations should we wait? */
+    while (OK == requestStatistics(NULL,
+				   sock,
+				   &waitForConnect,
+				   NULL)) {
+      printf("Waiting for peers to connect (%u iterations left)...\n",
 	     left);
-      sleep(1);
+      sleep(5);
       left--;
       if (left == 0) {
 	ret = 1;
 	break;
       }
     }
-  } while (sock == NULL);
-
-  left = 30; /* how many iterations should we wait? */
-  while (OK == requestStatistics(sock,
-				 &waitForConnect,
-				 NULL)) {
-    printf(_("Waiting for peers to connect (%u iterations left)...\n"),
-	   left);
-    sleep(5);
-    left--;
-    if (left == 0) {
-      ret = 1;
-      break;
-    }
+    connection_destroy(sock);
+  } else {
+    printf("Could not establish connection with peer.\n");
+    ret = 1;
   }
-  releaseClientSocket(sock);
+#if START_PEERS
   if (daemon1 != -1) {
-    if (! termProcess(daemon1))
-      DIE_STRERROR("kill");
-    GNUNET_ASSERT(OK == waitForGNUnetDaemonTermination(daemon1));
+    if (os_daemon_stop(NULL, daemon1) != YES)
+      ret = 1;
   }
   if (daemon2 != -1) {
-    if (! termProcess(daemon2))
-      DIE_STRERROR("kill");
-    GNUNET_ASSERT(OK == waitForGNUnetDaemonTermination(daemon2));
+    if (os_daemon_stop(NULL, daemon2) != YES)
+      ret = 1;
   }
-  doneUtil();
+#endif
+  if (ok == 0)
+    ret = 1;
+
+  GC_free(cfg);
   return ret;
 }
 

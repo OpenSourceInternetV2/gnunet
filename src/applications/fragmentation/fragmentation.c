@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet
-     (C) 2004 Christian Grothoff (and other contributing authors)
+     (C) 2004, 2006 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -42,7 +42,7 @@
  * Message fragment.
  */
 typedef struct {
-  P2P_MESSAGE_HEADER header;
+  MESSAGE_HEADER header;
 
   /**
    * Fragment identity.
@@ -113,7 +113,7 @@ static FC * defragmentationCache[DEFRAG_BUCKET_COUNT];
 /**
  * Lock for the defragmentation cache.
  */
-static Mutex defragCacheLock;
+static struct MUTEX * defragCacheLock;
 
 static void freeFL(FL * fl,
 		   int c) {
@@ -137,18 +137,18 @@ static void freeFL(FL * fl,
  * belong to the entry).  It's a bit more complicated as the
  * collision list is also collapsed.
  */
-static void defragmentationPurgeCron() {
+static void defragmentationPurgeCron(void * unused) {
   int i;
   FC * smf;
   FC * next;
   FC * last;
 
-  MUTEX_LOCK(&defragCacheLock);
+  MUTEX_LOCK(defragCacheLock);
   for (i=0;i<DEFRAG_BUCKET_COUNT;i++) {
     last = NULL;
     smf = defragmentationCache[i];
     while (smf != NULL) {
-      if (smf->ttl < cronTime(NULL)) {
+      if (smf->ttl < get_time()) {
 	/* free linked list of fragments */
 	freeFL(smf->head, 1);
 	next = smf->next;
@@ -164,7 +164,7 @@ static void defragmentationPurgeCron() {
       }
     } /* while smf != NULL */
   } /* for all buckets */
-  MUTEX_UNLOCK(&defragCacheLock);
+  MUTEX_UNLOCK(defragCacheLock);
 }
 
 /**
@@ -181,8 +181,7 @@ static void checkComplete(FC * pep) {
   unsigned short len;
   char * msg;
 
-  GNUNET_ASSERT(pep != NULL);
-
+  GE_ASSERT(NULL, pep != NULL);
   pos = pep->head;
   if (pos == NULL)
     return;
@@ -211,9 +210,11 @@ static void checkComplete(FC * pep) {
 	   FRAGSIZE(pos));
     pos = pos->link;
   }
-
   if (stats != NULL)
     stats->change(stat_defragmented, 1);
+#if 0
+  printf("Finished defragmentation!\n");
+#endif
   /* handle message! */
   coreAPI->injectMessage(&pep->sender,
 			 msg,			
@@ -232,7 +233,7 @@ static void checkComplete(FC * pep) {
  * See if the new fragment is a part of this entry and join them if
  * yes.  Return SYSERR if the fragments do not match.  Return OK if
  * the fragments do match and the fragment has been processed.  The
- * defragCacheLock is already aquired by the caller whenever this
+ * defragCacheLock is already acquired by the caller whenever this
  * method is called.<p>
  *
  * @param entry the entry in the cache
@@ -257,13 +258,19 @@ static int tryJoin(FC * entry,
   FL * tmp;
   unsigned short end;
 
-  GNUNET_ASSERT(entry != NULL);
-  if (! hostIdentityEquals(sender,
-			   &entry->sender))
+  GE_ASSERT(NULL, entry != NULL);
+  if (0 != memcmp(sender,
+		  &entry->sender,
+		  sizeof(PeerIdentity)))
     return SYSERR; /* wrong fragment list, try another! */
   if (ntohl(packet->id) != entry->id)
     return SYSERR; /* wrong fragment list, try another! */
-
+#if 0
+  printf("Received fragment %u from %u to %u\n",
+	 ntohl(packet->id),
+	 ntohs(packet->off),
+	 ntohs(packet->off) + ntohs(packet->header.size) - sizeof(P2P_fragmentation_MESSAGE));
+#endif
   pos = entry->head;
   if ( (pos != NULL) &&
        (packet->len != pos->frag->len) )
@@ -281,9 +288,10 @@ static int tryJoin(FC * entry,
   /* find the after-frame */
   end = ntohs(packet->off) + ntohs(packet->header.size) - sizeof(P2P_fragmentation_MESSAGE);
   if (end <= ntohs(packet->off)) {
-    LOG(LOG_DEBUG,
-	"Received invalid fragment at %s:%d\n",
-	__FILE__, __LINE__);
+    GE_LOG(NULL,
+	   GE_DEVELOPER | GE_DEBUG | GE_BULK,
+	   "Received invalid fragment at %s:%d\n",
+	   __FILE__, __LINE__);
     return SYSERR; /* yuck! integer overflow! */
   }
 
@@ -362,7 +370,7 @@ static int tryJoin(FC * entry,
   pep->link = after;
 
  FINISH:
-  entry->ttl = cronTime(NULL) + DEFRAGMENTATION_TIMEOUT;
+  entry->ttl = get_time() + DEFRAGMENTATION_TIMEOUT;
   checkComplete(entry);
   return OK;
 }
@@ -375,25 +383,26 @@ static int tryJoin(FC * entry,
  * @return SYSERR if the fragment is invalid
  */
 static int processFragment(const PeerIdentity * sender,
-			   const P2P_MESSAGE_HEADER * frag) {
+			   const MESSAGE_HEADER * frag) {
   unsigned int hash;
   FC * smf;
 
   if (ntohs(frag->size) < sizeof(P2P_fragmentation_MESSAGE))
     return SYSERR;
 
-  MUTEX_LOCK(&defragCacheLock);
+  MUTEX_LOCK(defragCacheLock);
   hash = sender->hashPubKey.bits[0] % DEFRAG_BUCKET_COUNT;
   smf = defragmentationCache[hash];
   while (smf != NULL) {
     if (OK == tryJoin(smf,
 		      sender,
 		      (P2P_fragmentation_MESSAGE*) frag)) {
-      MUTEX_UNLOCK(&defragCacheLock);
+      MUTEX_UNLOCK(defragCacheLock);
       return OK;
     }
-    if (hostIdentityEquals(sender,
-			   &smf->sender)) {
+    if (0 == memcmp(sender,
+		    &smf->sender,
+		    sizeof(PeerIdentity))) {
       freeFL(smf->head, 1);
       break;
     }
@@ -403,7 +412,7 @@ static int processFragment(const PeerIdentity * sender,
     smf = MALLOC(sizeof(FC));
     smf->next = defragmentationCache[hash];
     defragmentationCache[hash] = smf;
-    smf->ttl = cronTime(NULL) + DEFRAGMENTATION_TIMEOUT;
+    smf->ttl = get_time() + DEFRAGMENTATION_TIMEOUT;
     smf->sender = *sender;
   }
   smf->id = ntohl(((P2P_fragmentation_MESSAGE*)frag)->id);
@@ -414,7 +423,7 @@ static int processFragment(const PeerIdentity * sender,
 	 frag,
 	 ntohs(frag->size));
 
-  MUTEX_UNLOCK(&defragCacheLock);
+  MUTEX_UNLOCK(defragCacheLock);
   return OK;
 }
 
@@ -477,7 +486,7 @@ static int fragmentBMC(void * buf,
     mlen = sizeof(P2P_fragmentation_MESSAGE) + ctx->len - pos;
     if (mlen > ctx->mtu)
       mlen = ctx->mtu;
-    GNUNET_ASSERT(mlen > sizeof(P2P_fragmentation_MESSAGE));
+    GE_ASSERT(NULL, mlen > sizeof(P2P_fragmentation_MESSAGE));
     frag->header.size = htons(mlen);
     frag->header.type = htons(P2P_PROTO_fragment);
     frag->id = id;
@@ -489,10 +498,10 @@ static int fragmentBMC(void * buf,
     coreAPI->unicast(&ctx->sender,
 		     &frag->header,
 		     EXTREME_PRIORITY,
-		     ctx->transmissionTime - cronTime(NULL));
+		     ctx->transmissionTime - get_time());
     pos += mlen - sizeof(P2P_fragmentation_MESSAGE);
   }
-  GNUNET_ASSERT(pos == ctx->len);
+  GE_ASSERT(NULL, pos == ctx->len);
   FREE(frag);
   FREE(ctx);
   return OK;
@@ -514,8 +523,8 @@ void fragment(const PeerIdentity * peer,
   FragmentBMC * fbmc;
   int xlen;
 
-  GNUNET_ASSERT(len > mtu);
-  GNUNET_ASSERT(mtu > sizeof(P2P_fragmentation_MESSAGE));
+  GE_ASSERT(NULL, len > mtu);
+  GE_ASSERT(NULL, mtu > sizeof(P2P_fragmentation_MESSAGE));
   fbmc = MALLOC(sizeof(FragmentBMC) + len);
   fbmc->mtu = mtu;
   fbmc->sender = *peer;
@@ -560,15 +569,17 @@ provide_module_fragmentation(CoreAPIForApplication * capi) {
   }
   for (i=0;i<DEFRAG_BUCKET_COUNT;i++)
     defragmentationCache[i] = NULL;
-  MUTEX_CREATE(&defragCacheLock);
-  addCronJob((CronJob) &defragmentationPurgeCron,
-	     60 * cronSECONDS,
-	     60 * cronSECONDS,
-	     NULL);
-  LOG(LOG_DEBUG,
-      _("`%s' registering handler %d\n"),
-      "fragmentation",
-      P2P_PROTO_fragment);
+  defragCacheLock = MUTEX_CREATE(NO);
+  cron_add_job(coreAPI->cron,
+	       &defragmentationPurgeCron,
+	       60 * cronSECONDS,
+	       60 * cronSECONDS,
+	       NULL);
+  GE_LOG(capi->ectx,
+	 GE_INFO | GE_USER | GE_REQUEST,
+	 _("`%s' registering handler %d\n"),
+	 "fragmentation",
+	 P2P_PROTO_fragment);
   capi->registerHandler(P2P_PROTO_fragment,
 			&processFragment);
 
@@ -584,9 +595,10 @@ void release_module_fragmentation() {
 
   coreAPI->unregisterHandler(P2P_PROTO_fragment,
 			     &processFragment);
-  delCronJob((CronJob) &defragmentationPurgeCron,
-	     60 * cronSECONDS,
-	     NULL);
+  cron_del_job(coreAPI->cron,
+	       &defragmentationPurgeCron,
+	       60 * cronSECONDS,
+	       NULL);
   for (i=0;i<DEFRAG_BUCKET_COUNT;i++) {
     FC * pos = defragmentationCache[i];
     while (pos != NULL) {
@@ -600,7 +612,8 @@ void release_module_fragmentation() {
     coreAPI->releaseService(stats);
     stats = NULL;
   }
-  MUTEX_DESTROY(&defragCacheLock);
+  MUTEX_DESTROY(defragCacheLock);
+  defragCacheLock = NULL;
   coreAPI = NULL;
 }
 

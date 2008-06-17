@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2004, 2005 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -23,113 +23,85 @@
  * @brief insignificant gnunetd helper methods
  *
  * Helper methods for the startup of gnunetd:
- * - install signal handling
- * - system checks on startup
  * - PID file handling
- * - detaching from terminal
- * - command line parsing
  *
  * @author Christian Grothoff
  */
 
 #include "platform.h"
 #include "gnunet_util.h"
+#include "gnunet_directories.h"
 #include "gnunet_protocols.h"
 
 #include "tcpserver.h"
 #include "core.h"
-
-
-
-/**
- * This flag is set if gnunetd is not (to be) detached from the
- * console.
- */
-static int debug_flag_ = NO;
-
-/**
- * This flag is set if gnunetd was started as windows service
- */
-static int win_service_ = NO;
-
-int debug_flag() {
-  return debug_flag_;
-}
-
-int win_service() {
-  return win_service_;
-}
-
+#include "startup.h"
 
 #ifdef MINGW
-  /**
-   * Windows service information
-   */
-  static SERVICE_STATUS theServiceStatus;
-  static SERVICE_STATUS_HANDLE hService;
+/**
+ * Windows service information
+ */
+static SERVICE_STATUS theServiceStatus;
+static SERVICE_STATUS_HANDLE hService;
 #endif
 
 /**
- * This flag is set if gnunetd is shutting down.
+ * Shutdown gnunetd
+ * @param cfg configuration, may be NULL if in service mode
+ * @param sig signal code that causes shutdown, optional
  */
-static Semaphore * doShutdown;
+void shutdown_gnunetd(struct GC_Configuration * cfg, 
+		      int sig) {
+#ifdef MINGW
+  if (!cfg || GC_get_configuration_value_yesno(cfg, 
+					       "GNUNETD", 
+					       "WINSERVICE", 
+					       NO) == YES) {
+    /* If GNUnet runs as service, only the
+       Service Control Manager is allowed
+       to kill us. */
+    if (sig != SERVICE_CONTROL_STOP)
+      {
+	SERVICE_STATUS theStat;
+	
+	/* Init proper shutdown through the SCM */
+	if (GNControlService(hService, SERVICE_CONTROL_STOP, &theStat))
+	  {
+	    /* Success */
+	    
+	    /* The Service Control Manager will call
+	       gnunetd.c::ServiceCtrlHandler(), which calls
+	       this function again. We then stop the gnunetd. */
+	    return;
+	  }
+	/* We weren't able to tell the SCM to stop the service,
+	   but we don't care.
+	   Just shut the gnunetd process down. */
+      }
+    
+    /* Acknowledge the shutdown request */
+    theServiceStatus.dwCurrentState = SERVICE_STOP_PENDING;
+    GNSetServiceStatus(hService, &theServiceStatus);
+  }
+#endif
 
-/* ************* SIGNAL HANDLING *********** */
-
-/**
- * Cron job that triggers re-reading of the configuration.
- */
-static void reread_config_helper(void * unused) {
-  LOG(LOG_DEBUG,
-      "Re-reading configuration file.\n");
-  readConfiguration();
-  triggerGlobalConfigurationRefresh();
-  LOG(LOG_DEBUG,
-      "New configuration active.\n");
-}
-
-/**
- * Signal handler for SIGHUP.
- * Re-reads the configuration file.
- */
-static void reread_config(int signum) {
-  addCronJob(&reread_config_helper,
-	     1 * cronSECONDS,
-	     0,
-	     NULL);
+  GNUNET_SHUTDOWN_INITIATE();
 }
 
 #ifdef MINGW
-static void shutdown_gnunetd(int signum);
-
-BOOL WINAPI win_shutdown_gnunetd(DWORD dwCtrlType)
-{
-  switch(dwCtrlType)
-  {
-    case CTRL_C_EVENT:
-    case CTRL_CLOSE_EVENT:
-    case CTRL_SHUTDOWN_EVENT:
-    case CTRL_LOGOFF_EVENT:
-    case SERVICE_CONTROL_STOP:
-      shutdown_gnunetd(dwCtrlType);
-  }
-
-  return TRUE;
-}
-
 /**
  * This function is called from the Windows Service Control Manager
  * when a service has to shutdown
  */
-void WINAPI ServiceCtrlHandler(DWORD dwOpcode) {
+static void WINAPI ServiceCtrlHandler(DWORD dwOpcode) {
   if (dwOpcode == SERVICE_CONTROL_STOP)
-    win_shutdown_gnunetd(SERVICE_CONTROL_STOP);
+    shutdown_gnunetd(NULL, dwOpcode);
 }
 
 /**
  * called by gnunetd.c::ServiceMain()
  */
-void win_service_main(void (*gn_main)()) {
+void win_service_main(void (*gnunet_main)()) {
   memset(&theServiceStatus, 0, sizeof(theServiceStatus));
   theServiceStatus.dwServiceType = SERVICE_WIN32;
   theServiceStatus.dwControlsAccepted = SERVICE_ACCEPT_STOP;
@@ -141,455 +113,204 @@ void win_service_main(void (*gn_main)()) {
 
   GNSetServiceStatus(hService, &theServiceStatus);
 
-  gn_main();
+  gnunet_main();
 
   theServiceStatus.dwCurrentState = SERVICE_STOPPED;
   GNSetServiceStatus(hService, &theServiceStatus);
 }
 #endif
 
-/**
- * Try a propper shutdown of gnunetd.
- */
-static void shutdown_gnunetd(int signum) {
 
-#ifdef MINGW
-if (win_service())
+int changeUser(struct GE_Context * ectx,
+	       struct GC_Configuration * cfg) {
+  char * user;
+
+  user = NULL;
+  if (0 == GC_get_configuration_value_string(cfg,
+					     "GNUNETD",
+					     "USER",
+					     "",
+					     &user) && strlen(user)) {
+    if (OK != os_change_user(ectx,
+			     user)) {
+      FREE(user);
+      return SYSERR;
+    }
+  }
+  FREE(user);
+  return OK;
+}
+
+int setFdLimit(struct GE_Context * ectx,
+               struct GC_Configuration * cfg) {
+  unsigned long long limit;
+
+  limit = 0;
+  if (0 == GC_get_configuration_value_number(cfg,
+					     "GNUNETD",
+					     "FDLIMIT",
+					     0,
+					     65536,
+					     1024,
+					     &limit)) {
+    if (OK != os_set_fd_limit(ectx,
+			      (int)limit)) {
+      return SYSERR;
+    }
+  }
+  return OK;
+}
+
+/**
+ * @brief Cap datastore limit to the filesystem's capabilities
+ * @notice FAT does not support files larger than 2/4 GB
+ * @param ectx error handler
+ * @param cfg configuration manager
+ */
+void capFSQuotaSize(struct GE_Context * ectx,
+               struct GC_Configuration * cfg)
 {
-  /* If GNUnet runs as service, only the
-     Service Control Manager is allowed
-     to kill us. */
-  if (signum != SERVICE_CONTROL_STOP)
-  {
-    SERVICE_STATUS theStat;
+#ifdef WINDOWS
+  unsigned long long quota, cap;
+  char *afsdir, fs[MAX_PATH + 1];
+  DWORD flags;
+  
+  if (-1 == GC_get_configuration_value_number(cfg,
+                 "FS",
+                 "QUOTA",
+                 0,
+                 ((unsigned long long)-1)/1024/1024,
+                 1024,
+                 &quota))
+    return;
 
-    /* Init proper shutdown through the SCM */
-    if (GNControlService(hService, SERVICE_CONTROL_STOP, &theStat))
-    {
-      /* Success */
+  GC_get_configuration_value_filename(cfg,
+              "FS",
+              "DIR",
+              VAR_DAEMON_DIRECTORY "/data/fs/",
+              &afsdir);
+  GE_ASSERT(ectx, strlen(afsdir) > 2);
+  
+  /* get root directory */
+  afsdir[3] = '\0';
 
-      /* The Service Control Manager will call
-         gnunetd.c::ServiceCtrlHandler(), which calls
-         this function again. We then stop the gnunetd. */
-      return;
-    }
-    /* We weren't able to tell the SCM to stop the service,
-       but we don't care.
-       Just shut the gnunetd process down. */
+  if (!GetVolumeInformation(afsdir,
+               NULL,
+               0,
+               NULL,
+               NULL,
+               &flags,
+               fs,
+               _MAX_PATH + 1)) {
+    GE_LOG(ectx,
+      GE_ERROR | GE_ADMIN | GE_USER | GE_IMMEDIATE,
+      _("Unable to obtain filesystem information for `%s': %u\n"),
+      afsdir,
+      GetLastError());
+      
+    return;
   }
-
-  /* Acknowledge the shutdown request */
-  theServiceStatus.dwCurrentState = SERVICE_STOP_PENDING;
-  GNSetServiceStatus(hService, &theServiceStatus);
-}
-#endif
-
-  SEMAPHORE_UP(doShutdown);
-}
-
-static int shutdownHandler(ClientHandle client,
-                           const CS_MESSAGE_HEADER * msg) {
-  int ret;
-
-  if (ntohs(msg->size) != sizeof(CS_MESSAGE_HEADER)) {
-    LOG(LOG_WARNING,
-        _("The `%s' request received from client is malformed.\n"),
-	"shutdown");
-    return SYSERR;
+  
+  if (strncasecmp(fs, "NTFS", 4) == 0)
+    cap = 0;
+  else if (strcasecmp(fs, "FAT32") == 0)
+    cap = 3000;
+  else if (strcasecmp(fs, "FAT16") == 0)
+    cap = 1500;
+  else {
+    /* unknown FS */
+    GE_LOG(ectx,
+      GE_ERROR | GE_ADMIN | GE_USER | GE_IMMEDIATE,
+      _("Filesystem `%s' of partition `%s' is unknown. Please "
+        "contact gnunet-developers@gnu.org!"),
+      fs,
+      afsdir);
+    
+    if (!(flags & FILE_PERSISTENT_ACLS))
+      cap = 1500;
+    else
+      cap = 0;
   }
-  LOG(LOG_INFO,
-      "shutdown request accepted from client\n");
-
-  if (SYSERR == unregisterCSHandler(CS_PROTO_SHUTDOWN_REQUEST,
-                                    &shutdownHandler))
-    GNUNET_ASSERT(0);
-  ret = sendTCPResultToClient(client,
-			      OK);
-  shutdown_gnunetd(0);
-  return ret;
-}
-
-/**
- * Initialize signal handlers
- */
-void initSignalHandlers() {
-#ifndef MINGW
-  struct sigaction sig;
-  struct sigaction oldsig;
-#endif
-
-  doShutdown = SEMAPHORE_NEW(0);
-
-#ifndef MINGW
-  sig.sa_handler = &shutdown_gnunetd;
-  sigemptyset(&sig.sa_mask);
-#ifdef SA_INTERRUPT
-  sig.sa_flags = SA_INTERRUPT; /* SunOS */
-#else
-  sig.sa_flags = SA_RESTART;
-#endif
-  sigaction(SIGINT,  &sig, &oldsig);
-  sigaction(SIGTERM, &sig, &oldsig);
-  sigaction(SIGQUIT, &sig, &oldsig);
-
-  sig.sa_handler = &reread_config;
-  sigaction(SIGHUP, &sig, &oldsig);
-#else
-  SetConsoleCtrlHandler(&win_shutdown_gnunetd, TRUE);
-#endif
-
-  if (SYSERR == registerCSHandler(CS_PROTO_SHUTDOWN_REQUEST,
-                                  &shutdownHandler))
-    GNUNET_ASSERT(0);
-}
-
-void doneSignalHandlers() {
-#ifndef MINGW
-  struct sigaction sig;
-  struct sigaction oldsig;
-
-  sig.sa_handler = SIG_DFL;
-  sigemptyset(&sig.sa_mask);
-#ifdef SA_INTERRUPT
-  sig.sa_flags = SA_INTERRUPT; /* SunOS */
-#else
-  sig.sa_flags = SA_RESTART;
-#endif
-  sigaction(SIGINT,  &sig, &oldsig);
-  sigaction(SIGTERM, &sig, &oldsig);
-  sigaction(SIGQUIT, &sig, &oldsig);
-#else
-  SetConsoleCtrlHandler(&win_shutdown_gnunetd, TRUE);
-#endif
-  SEMAPHORE_FREE(doShutdown);
-}
-
-/**
- * Cron job to timeout gnunetd.
- */
-static void semaphore_up(void * sem) {
-  SEMAPHORE_UP((Semaphore*)sem);
-}
-
-void waitForSignalHandler() {
-  int valgrind;
-
-  /* mechanism to stop gnunetd after a certain
-     time without a signal -- to debug with valgrind*/
-  valgrind = getConfigurationInt("GNUNETD",
-				 "VALGRIND");
-  if (valgrind > 0)
-    addCronJob(&semaphore_up,
-	       valgrind * cronSECONDS,
-	       0,
-	       doShutdown);
-#if 0
-  /* If Valgrind is used to debug memory leaks, some sort of mechanism
-     is needed to make gnunetd exit without using any signal -IW*/
-  FILE *fp;
-
-  while(1) {
-    fp=FOPEN("/tmp/quitgn", "r");
-    if(fp) {
-      fprintf(stderr, "QUITTING...\n");
-      fclose(fp);
-      return;
-    }
-    sleep(1);
+  
+  if ((cap != 0) && (cap < quota)) {
+    GE_LOG(ectx,
+      GE_WARNING | GE_ADMIN | GE_USER | GE_IMMEDIATE,
+      _("Limiting datastore size to %llu GB, because the `%s' filesystem does "
+        "not support larger files. Please consider storing the database on "
+        "a NTFS partition!\n"),
+      cap / 1000,
+      fs);
+    
+    GC_set_configuration_value_number(cfg,
+               ectx,
+               "FS",
+               "QUOTA",
+               cap);
   }
 #endif
-  SEMAPHORE_DOWN(doShutdown);
-  if (valgrind > 0)
-    delCronJob(&semaphore_up,
-	       0,
-	       doShutdown);
-
 }
 
-/* *********** SYSTEM CHECKS ON STARTUP ************ */
+static char * getPIDFile(struct GC_Configuration * cfg) {
+  char * pif;
 
-/**
- * Check if the compiler did a decent job aligning the structs...
- */
-void checkCompiler() {
-  GNUNET_ASSERT(sizeof(P2P_hello_MESSAGE) == 600);
-  GNUNET_ASSERT(sizeof(P2P_MESSAGE_HEADER) == 4);
-}
-
-/* *********** PID file handling *************** */
-
-static char * getPIDFile() {
-  return getFileName("GNUNETD",
-		     "PIDFILE",
-		     _("You must specify a name for the PID file in section"
-		       " `%s' under `%s'.\n"));
+  if (0 != GC_get_configuration_value_filename(cfg,
+					       "GNUNETD",
+					       "PIDFILE",
+					       VAR_DAEMON_DIRECTORY "/gnunetd.pid",
+					       &pif))
+    return NULL;
+  return pif;
 }
 
 /**
  * Write our process ID to the pid file.
  */
-void writePIDFile() {
+void writePIDFile(struct GE_Context * ectx,
+		  struct GC_Configuration * cfg) {
   FILE * pidfd;
   char * pif;
 
-  pif = getPIDFile();
+  pif = getPIDFile(cfg);
+  if (pif == NULL)
+    return; /* no PID file */
   pidfd = FOPEN(pif, "w");
   if (pidfd == NULL) {
-    LOG(LOG_WARNING,
-	_("Could not write PID to file `%s': %s.\n"),
-	pif,
-	STRERROR(errno));
-  } else {
-    fprintf(pidfd, "%u", (unsigned int) getpid());
-    fclose(pidfd);
-  }
-  FREE(pif);
-}
-
-void deletePIDFile() {
-  char * pif = getPIDFile();
-  UNLINK(pif);
-  FREE(pif);
-}
-
-/* ************** DETACHING FROM TERMAINAL ************** */
-
-/**
- * Fork and start a new session to go into the background
- * in the way a good deamon should.
- *
- * @param filedes pointer to an array of 2 file descriptors
- *        to complete the detachment protocol (handshake)
- */
-void detachFromTerminal(int * filedes) {
-#ifndef MINGW
-  pid_t pid;
-  int nullfd;
-#endif
-
-  /* Don't hold the wrong FS mounted */
-  if (CHDIR("/") < 0) {
-    perror("chdir");
-    exit(1);
-  }
-
-#ifndef MINGW
-  PIPE(filedes);
-  pid = fork();
-  if (pid < 0) {
-    perror("fork");
-    exit(1);
-  }
-  if (pid) {  /* Parent */
-    int ok;
-    char c;
-
-    closefile(filedes[1]); /* we only read */
-    ok = SYSERR;
-    while (0 < READ(filedes[0], &c, sizeof(char))) {
-      if (c == '.')
-	ok = OK;
-    }
-    fflush(stdout);
-    if (ok == OK)
-      exit(0);
-    else
-      exit(1); /* child reported error */
-  }
-  closefile(filedes[0]); /* we only write */
-  nullfd = fileopen("/dev/null",
-		O_CREAT | O_RDWR | O_APPEND);
-  if (nullfd < 0) {
-    perror("/dev/null");
-    exit(1);
-  }
-  /* child - close fds linking to invoking terminal, but
-   * close usual incoming fds, but redirect them somewhere
-   * useful so the fds don't get reallocated elsewhere.
-   */
-  if (dup2(nullfd,0) < 0 ||
-      dup2(nullfd,1) < 0 ||
-      dup2(nullfd,2) < 0) {
-    perror("dup2"); /* Should never happen */
-    exit(1);
-  }
-  pid = setsid(); /* Detach from controlling terminal */
-#else
- FreeConsole();
-#endif
-}
-
-void detachFromTerminalComplete(int * filedes) {
-#ifndef MINGW
-  char c = '.';
-  WRITE(filedes[1], &c, sizeof(char)); /* signal success */
-  closefile(filedes[1]);
-#endif
-}
-
-/* ****************** COMMAND LINE PARSING ********************* */
-
-static void printDot(void * unused) {
-  LOG(LOG_DEBUG, ".");
-}
-
-/**
- * Print a list of the options we offer.
- */
-static void printhelp() {
-  static Help help[] = {
-    HELP_CONFIG,
-    { 'd', "debug", NULL,
-      gettext_noop("run in debug mode; gnunetd will "
-		   "not daemonize and error messages will "
-		   "be written to stderr instead of a logfile") },
-    HELP_HELP,
-    HELP_LOGLEVEL,
-#ifndef MINGW	/* not supported */
-    { 'u', "user", "LOGIN",
-      gettext_noop("run as user LOGIN") },
-#endif
-    HELP_VERSION,
-    HELP_END,
-  };
-  formatHelp("gnunetd [OPTIONS]",
-	     _("Starts the gnunetd daemon."),
-	     help);
-}
-
-#ifndef MINGW
-/**
- * @brief Change user ID
- */
-void changeUser(const char *user) {
-  struct passwd * pws;
-
-  pws = getpwnam(user);
-  if(pws == NULL) {
-    LOG(LOG_WARNING,
-        _("User `%s' not known, cannot change UID to it.\n"), user);
+    GE_LOG_STRERROR_FILE(ectx,
+			 GE_WARNING | GE_ADMIN | GE_BULK,
+			 "fopen",
+			 pif);
+    FREE(pif);
     return;
   }
-  if((0 != setgid(pws->pw_gid)) ||
-     (0 != setegid(pws->pw_gid)) ||
-     (0 != setuid(pws->pw_uid)) || (0 != seteuid(pws->pw_uid))) {
-    if((0 != setregid(pws->pw_gid, pws->pw_gid)) ||
-       (0 != setreuid(pws->pw_uid, pws->pw_uid)))
-      LOG(LOG_WARNING,
-          _("Cannot change user/group to `%s': %s\n"),
-          user, STRERROR(errno));
-  }
+  if (0 > FPRINTF(pidfd,
+		  "%u",
+		  (unsigned int) getpid()))
+    GE_LOG_STRERROR_FILE(ectx,
+			 GE_WARNING | GE_ADMIN | GE_BULK,
+			 "fprintf",
+			 pif);
+  if (0 != fclose(pidfd))
+    GE_LOG_STRERROR_FILE(ectx,
+			 GE_WARNING | GE_ADMIN | GE_BULK,
+			 "fclose",
+			 pif);
+  FREE(pif);
 }
-#endif
 
-/**
- * Perform option parsing from the command line.
- */
-int parseGnunetdCommandLine(int argc,
-			    char * argv[]) {
-  int cont = OK;
-  int c;
-
-  /* set the 'magic' code that indicates that
-     this process is 'gnunetd' (and not any of
-     the tools).  This can be used by code
-     that runs in both the tools and in gnunetd
-     to distinguish between the two cases. */
-  FREENONNULL(setConfigurationString("GNUNETD",
-				     "_MAGIC_",
-				     "YES"));
-  while (1) {
-    int option_index = 0;
-    static struct GNoption long_options[] = {
-      { "loglevel",1, 0, 'L' },
-      { "config",  1, 0, 'c' },
-      { "version", 0, 0, 'v' },
-      { "help",    0, 0, 'h' },
-      { "user",    1, 0, 'u' },
-      { "debug",   0, 0, 'd' },
-      { "livedot", 0, 0, 'l' },
-      { "padding", 1, 0, 'p' },
-      { "win-service", 0, 0, '@' },
-      { 0,0,0,0 }
-    };
-
-    c = GNgetopt_long(argc,
-		      argv,
-		      "vhdc:u:L:lp:@",
-		      long_options,
-		      &option_index);
-
-    if (c == -1)
-      break;  /* No more flags to process */
-
-    switch(c) {
-    case 'p':
-      FREENONNULL(setConfigurationString("GNUNETD-EXPERIMENTAL",
-					 "PADDING",
-					 GNoptarg));
-      break;
-    case 'l':
-      addCronJob(&printDot,
-		 1 * cronSECONDS,
-		 1 * cronSECONDS,
-		 NULL);
-      break;
-    case 'c':
-      FREENONNULL(setConfigurationString("FILES",
-					 "gnunet.conf",
-					 GNoptarg));
-      break;
-    case 'v':
-      printf("GNUnet v%s\n",
-	     VERSION);
-      cont = SYSERR;
-      break;
-    case 'h':
-      printhelp();
-      cont = SYSERR;
-      break;
-    case 'L':
-      FREENONNULL(setConfigurationString("GNUNETD",
-					 "LOGLEVEL",
-					 GNoptarg));
-      break;
-    case 'd':
-      debug_flag_ = YES;
-      FREENONNULL(setConfigurationString("GNUNETD",
-					 "LOGFILE",
-					 NULL));
-      break;
-#ifndef MINGW	/* not supported */
-    case 'u':
-      changeUser(GNoptarg);
-      break;
-#endif
-#ifdef MINGW
-    case '@':
-      win_service_ = YES;
-      break;
-#endif
-    default:
-      LOG(LOG_FAILURE,
-	  _("Use --help to get a list of options.\n"));
-      cont = SYSERR;
-    } /* end of parsing commandline */
+void deletePIDFile(struct GE_Context * ectx,
+		   struct GC_Configuration * cfg) {
+  char * pif = getPIDFile(cfg);
+  if (pif == NULL)
+    return; /* no PID file */
+  if (YES == disk_file_test(ectx,
+			    pif)) {
+    if (0 != UNLINK(pif))
+      GE_LOG_STRERROR_FILE(ectx,
+			   GE_WARNING | GE_ADMIN | GE_BULK,
+			   "unlink",
+			   pif);
   }
-  if (GNoptind < argc) {
-    LOG(LOG_WARNING,
-	_("Invalid command-line arguments:\n"));
-    while (GNoptind < argc) {
-      LOG(LOG_WARNING,
-	  _("Argument %d: `%s'\n"),
-	  GNoptind+1,
-	  argv[GNoptind]);
-      GNoptind++;
-    }
-    LOG(LOG_FATAL,
-	_("Invalid command-line arguments.\n"));
-    return SYSERR;
-  }
-  return cont;
+  FREE(pif);
 }
 
 /* end of startup.c */

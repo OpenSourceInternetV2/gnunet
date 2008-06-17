@@ -28,10 +28,15 @@
 #include "gnunet_protocols.h"
 #include "gnunet_transport.h"
 #include "gnunet_stats_service.h"
-#include "platform.h"
+#include "gnunet_upnp_service.h"
 #include "ip.h"
+#include "platform.h"
 
 #define DEBUG_UDP NO
+
+static UPnP_ServiceAPI * upnp;
+
+#include "udp_helper.c"
 
 /**
  * Host-Address in a UDP network.
@@ -54,77 +59,15 @@ typedef struct {
 
 } HostAddress;
 
-/**
- * Message-Packet header.
- */
-typedef struct {
-  /**
-   * this struct is *preceded* by MESSAGE_PARTs - until
-   * size-sizeof(UDPMessage)!
-   */
+static struct GC_Configuration * cfg;
 
-  /**
-   * size of the message, in bytes, including this header.
-   */
-  unsigned short size;
+static struct LoadMonitor * load_monitor;
 
-  /**
-   * Currently always 0.
-   */
-  unsigned short reserved;
+static struct CIDRNetwork * filteredNetworks_;
 
-  /**
-   * What is the identity of the sender (hash of public key)
-   */
-  PeerIdentity sender;
+static struct CIDRNetwork * allowedNetworks_;
 
-} UDPMessage;
-
-/* *********** globals ************* */
-
-/* apis (our advertised API and the core api ) */
-static CoreAPIForTransport * coreAPI;
-static TransportAPI udpAPI;
-
-static Stats_ServiceAPI * stats;
-
-static int stat_bytesReceived;
-
-static int stat_bytesSent;
-
-static int stat_bytesDropped;
-
-
-/**
- * thread that listens for inbound messages
- */
-static PTHREAD_T dispatchThread;
-
-/**
- * the socket that we receive all data from
- */
-static int udp_sock = -1;
-
-/**
- * Semaphore for communication with the
- * udp server thread.
- */
-static Semaphore * serverSignal;
-static int udp_shutdown = YES;
-
-/**
- * configuration
- */
-static struct CIDRNetwork * filteredNetworks_ = NULL;
-static Mutex configLock;
-
-/**
- * Keep used port locally, the one in the configuration
- * may change and then we would not be able to send
- * the shutdown signal!
- */
-static unsigned short port;
-
+static struct MUTEX * configLock;
 
 /**
  * Get the GNUnet UDP port from the configuration, or from
@@ -134,235 +77,139 @@ static unsigned short port;
  */
 static unsigned short getGNUnetUDPPort() {
   struct servent * pse;	/* pointer to service information entry	*/
-  unsigned short port;
+  unsigned long long port;
 
-  port = (unsigned short) getConfigurationInt("UDP",
-					      "PORT");
-  if (port == 0) { /* try lookup in services */
+  if (-1 == GC_get_configuration_value_number(cfg,
+					      "UDP",
+					      "PORT",
+					      1,
+					      65535,
+					      2086,
+					      &port)) {
     if ((pse = getservbyname("gnunet", "udp")))
-      port = ntohs(pse->s_port);
+      port = htons(pse->s_port);
     else
-      errexit(_("Cannot determine port to bind to. "
-		" Define in configuration file in section `%s' under `%s' "
-		"or in `%s' under %s/%s.\n"),
-	      "UDP",
-	      "PORT",
-	      "/etc/services",
-	      "udp",
-	      "gnunet");
+      port = 0;
   }
-  return port;
+  return (unsigned short) port;
 }
 
 /**
  * Allocate and bind a server socket for the UDP transport.
  */
-static int passivesock(unsigned short port) {
+static int listensock(unsigned short port) {
   struct sockaddr_in sin;
   int sock;
   const int on = 1;
 
-  sock = SOCKET(PF_INET, SOCK_DGRAM, UDP_PROTOCOL_NUMBER);
-  if (sock < 0)
-    DIE_STRERROR("socket");
-  if ( SETSOCKOPT(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) < 0 )
-    DIE_STRERROR("setsockopt");
-  if (port != 0) {
-    memset(&sin, 0, sizeof(sin));
-    sin.sin_family      = AF_INET;
-    sin.sin_addr.s_addr = INADDR_ANY;
-    sin.sin_port        = htons(port);
-    if (BIND(sock,
-	     (struct sockaddr *)&sin,
-	     sizeof(sin)) < 0) {
-      LOG_STRERROR(LOG_FATAL, "bind");
-      errexit(_("Failed to bind to UDP port %d.\n"),
-		port);
-    }
-  } /* do not bind if port == 0, then we use
-       send-only! */
+  sock = SOCKET(PF_INET, SOCK_DGRAM, 17);
+  if (sock < 0) {
+    GE_DIE_STRERROR(ectx,
+		    GE_FATAL | GE_ADMIN | GE_IMMEDIATE,
+		    "socket");
+    return -1;
+  }
+  if ( SETSOCKOPT(sock,
+		  SOL_SOCKET,
+		  SO_REUSEADDR,
+		  &on,
+		  sizeof(on)) < 0 ) {
+    GE_DIE_STRERROR(ectx,
+		    GE_FATAL | GE_ADMIN | GE_IMMEDIATE,
+		    "setsockopt");
+    return -1;
+  }
+  GE_ASSERT(NULL, port != 0);
+  memset(&sin,
+	 0,
+	 sizeof(sin));
+  sin.sin_family      = AF_INET;
+  sin.sin_addr.s_addr = INADDR_ANY;
+  sin.sin_port        = htons(port);
+  if (BIND(sock,
+	   (struct sockaddr *)&sin,
+	   sizeof(sin)) < 0) {
+    GE_LOG_STRERROR(ectx,
+		    GE_FATAL | GE_ADMIN | GE_IMMEDIATE,
+		    "bind");
+    GE_LOG(ectx,
+	   GE_FATAL | GE_ADMIN | GE_IMMEDIATE,
+	   _("Failed to bind to UDP port %d.\n"),
+	   port);
+    GE_DIE_STRERROR(ectx,
+		    GE_FATAL | GE_USER | GE_IMMEDIATE,
+		    "bind");
+    return -1;
+  }
+  /* do not bind if port == 0, then we use
+     send-only! */
   return sock;
 }
 
 /**
  * Check if we are explicitly forbidden to communicate with this IP.
  */
-static int isBlacklisted(IPaddr ip) {
+static int isBlacklisted(const void * addr,
+			 unsigned int addr_len) {
+  IPaddr ip;
   int ret;
 
-  MUTEX_LOCK(&configLock);
-  ret = checkIPListed(filteredNetworks_,
-		      ip);
-  MUTEX_UNLOCK(&configLock);
+  if (addr_len == sizeof(struct sockaddr_in)) {
+    memcpy(&ip,
+	   &((struct sockaddr_in*) addr)->sin_addr,
+	   sizeof(IPaddr));
+  } else if (addr_len == sizeof(IPaddr)) {
+    memcpy(&ip,
+	   addr,
+	   addr_len);
+  } else {
+    return SYSERR;
+  }
+  MUTEX_LOCK(configLock);
+  ret = check_ipv4_listed(filteredNetworks_,
+			  ip);
+  MUTEX_UNLOCK(configLock);
   return ret;
 }
 
 /**
- * Listen on the given socket and distribute the packets to the UDP
- * handler.
+ * Check if we are allowed to connect to the given IP.
  */
-static void * listenAndDistribute() {
-  struct sockaddr_in incoming;
-  socklen_t addrlen = sizeof(incoming);
-  int size;
-  EncName enc;
-  P2P_PACKET * mp;
-  UDPMessage udpm;
-  IPaddr ipaddr;
-  int error;
-  int pending;
+static int isWhitelisted(const void * addr,
+			 unsigned int addr_len) {
+  IPaddr ip;
   int ret;
-  fd_set readSet;
-  fd_set errorSet;
-  fd_set writeSet;
 
-  SEMAPHORE_UP(serverSignal);
-  while (udp_shutdown == NO) {
-    FD_ZERO(&readSet);
-    FD_ZERO(&writeSet);
-    FD_ZERO(&errorSet);
-    FD_SET(udp_sock, &readSet);
-    ret = SELECT(udp_sock + 1, &readSet, &writeSet, &errorSet, NULL);
-    if (ret == -1) {
-      if (udp_shutdown == YES)
-	break;
-      if (errno == EINTR)
-	continue;
-      DIE_STRERROR("select");
-    }
-    if (! FD_ISSET(udp_sock, &readSet))
-      continue;
-    pending = 0;
-    /* @todo FIXME in PlibC */
-#ifdef MINGW
-    error = ioctlsocket(udp_sock,
-#else
-    error = ioctl(udp_sock,
-#endif
-		  FIONREAD,
-		  &pending);
-    if (error != 0) {
-      LOG_STRERROR(LOG_ERROR, "ioctl");
-      continue;
-    }
-    if (pending <= 0) {
-      LOG(LOG_WARNING,
-	  _("UDP: select returned, but ioctl reports %d bytes available!\n"),
-	  pending);
-      if (pending == 0) {
-      	/* maybe empty UDP packet was sent (see report on bug-gnunet,
-	   5/11/6; read 0 bytes from UDP just to kill potential empty packet! */
-	memset(&incoming,
-	       0, 
-	       sizeof(struct sockaddr_in));
-	RECVFROM(udp_sock,
-		 NULL,
-		 0,
-		 0,
-		 (struct sockaddr * )&incoming,
-		 &addrlen);	
-      }
-      continue;
-    }   
-    if (pending >= 65536) {
-      BREAK();
-      continue;
-    }   
-    mp = MALLOC(sizeof(P2P_PACKET));
-    mp->msg = MALLOC(pending);    
-    memset(&incoming,
-	   0,
-	   sizeof(struct sockaddr_in));
-    if (udp_shutdown == YES) {
-      FREE(mp->msg);
-      FREE(mp);
-      break;
-    }
-    size = RECVFROM(udp_sock,
-		    mp->msg,
-		    pending,
-		    0,
-		    (struct sockaddr * )&incoming,
-		    &addrlen);
-    if ( (size < 0) ||
-	 (udp_shutdown == YES) ) {
-      FREE(mp->msg);
-      FREE(mp);
-      if (udp_shutdown == NO) {
-	if ( (errno == EINTR) ||
-	     (errno == EAGAIN) ||
-	     (errno == ECONNREFUSED) ) 
-	  continue;	
-      }
-      if (udp_shutdown == NO)
-	LOG_STRERROR(LOG_ERROR, "recvfrom");
-      break; /* die/shutdown */
-    }
-    incrementBytesReceived(size);
-    stats->change(stat_bytesReceived,
-		  size);
-
-    if ((unsigned int)size <= sizeof(UDPMessage)) {
-      LOG(LOG_INFO,
-	  _("Received invalid UDP message from %u.%u.%u.%u:%u, dropping.\n"),
-	  PRIP(ntohl(*(int*)&incoming.sin_addr)),
-	  ntohs(incoming.sin_port));
-      FREE(mp->msg);
-      FREE(mp);
-      continue;
-    }
-    memcpy(&udpm,
-	   &((char*)mp->msg)[size - sizeof(UDPMessage)],
-	   sizeof(UDPMessage));
-
-    IFLOG(LOG_DEBUG,
-	  hash2enc(&udpm.sender.hashPubKey,
-		   &enc));
-#if DEBUG_UDP
-    LOG(LOG_DEBUG,
-	"received %d bytes via UDP from %u.%u.%u.%u:%u (%s)\n",
-	size,
-	PRIP(ntohl(*(int*)&incoming.sin_addr)),
-	ntohs(incoming.sin_port),
-	&enc);
-#endif
-    /* quick test of the packet, if failed, repeat! */
-    if (size != ntohs(udpm.size)) {
-      LOG(LOG_WARNING,
-	  _("Packet received from %u.%u.%u.%u:%u (UDP) failed format check.\n"),
-	  PRIP(ntohl(*(int*)&incoming.sin_addr)),
-	  ntohs(incoming.sin_port));
-      FREE(mp->msg);
-      FREE(mp);
-      continue;
-    }
-    GNUNET_ASSERT(sizeof(struct in_addr) == sizeof(IPaddr));
-    memcpy(&ipaddr,
-	   &incoming.sin_addr,
-	   sizeof(struct in_addr));
-    if (YES == isBlacklisted(ipaddr)) {
-      LOG(LOG_WARNING,
-	  _("%s: Rejected connection from blacklisted "
-	    "address %u.%u.%u.%u.\n"),
-	  "UDP",
-	  PRIP(ntohl(*(int*)&incoming.sin_addr)));
-      FREE(mp->msg);
-      FREE(mp);
-      continue;
-    }
-    /* message ok, fill in mp and pass to core */
-    mp->tsession = NULL;
-    mp->size     = ntohs(udpm.size) - sizeof(UDPMessage);
-    mp->sender   = udpm.sender;
-    coreAPI->receive(mp);
+  if (addr_len == sizeof(struct sockaddr_in)) {
+    memcpy(&ip,
+	   &((struct sockaddr_in*) addr)->sin_addr,
+	   sizeof(IPaddr));
+  } else if (addr_len == sizeof(IPaddr)) {
+    memcpy(&ip,
+	   addr,
+	   addr_len);
+  } else {
+    return SYSERR;
   }
-  /* shutdown */
-  SEMAPHORE_UP(serverSignal);
-  return NULL;
+  ret = OK;
+  MUTEX_LOCK(configLock);
+  if (allowedNetworks_ != NULL)
+    ret = check_ipv4_listed(allowedNetworks_,
+			    ip);
+  MUTEX_UNLOCK(configLock);
+  return ret;
 }
 
+static int isRejected(const void * addr,
+		      unsigned int addr_len) {
+  if ((YES == isBlacklisted(addr,
+			    addr_len)) ||
+      (YES != isWhitelisted(addr,
+			    addr_len)))	
+    return YES;
+  return NO;
+}
 
-/* *************** API implementation *************** */
 
 /**
  * Verify that a hello-Message is correct (a node is reachable at that
@@ -380,11 +227,14 @@ static int verifyHelo(const P2P_hello_MESSAGE * helo) {
   if ( (ntohs(helo->senderAddressSize) != sizeof(HostAddress)) ||
        (ntohs(helo->header.size) != P2P_hello_MESSAGE_size(helo)) ||
        (ntohs(helo->header.type) != p2p_PROTO_hello) ||
-       (YES == isBlacklisted(haddr->senderIP)) )
+       (YES == isBlacklisted(&haddr->senderIP,
+			     sizeof(IPaddr))) ||
+       (YES != isWhitelisted(&haddr->senderIP,
+			     sizeof(IPaddr))) )
     return SYSERR; /* obviously invalid */
   else {
 #if DEBUG_UDP
-    LOG(LOG_DEBUG,
+    GE_LOG(ectx, GE_DEBUG | GE_USER | GE_BULK,
 	"Verified UDP helo from %u.%u.%u.%u:%u.\n",
 	PRIP(ntohl(*(int*)&haddr->senderIP.addr)),
 	ntohs(haddr->senderPort));
@@ -403,77 +253,41 @@ static int verifyHelo(const P2P_hello_MESSAGE * helo) {
 static P2P_hello_MESSAGE * createhello() {
   P2P_hello_MESSAGE * msg;
   HostAddress * haddr;
+  unsigned short port;
 
-  if ( ( (udp_shutdown == YES) && (getGNUnetUDPPort() == 0) ) ||
-       ( (udp_shutdown == NO) && (port == 0) ) )
+  port = getGNUnetUDPPort();
+  if (port == 0)
     return NULL; /* UDP transport configured send-only */
 
   msg = MALLOC(sizeof(P2P_hello_MESSAGE) + sizeof(HostAddress));
   haddr = (HostAddress*) &msg[1];
 
-  if (SYSERR == getPublicIPAddress(&haddr->senderIP)) {
+
+  if (! ( ( (upnp != NULL) &&
+	    (OK == upnp->get_ip(port,
+				"UDP",
+				&haddr->senderIP)) ) ||
+	  (SYSERR != getPublicIPAddress(cfg,
+					ectx,
+					&haddr->senderIP)) ) ) {
     FREE(msg);
-    LOG(LOG_WARNING,
-	_("UDP: Could not determine my public IP address.\n"));
-    return NULL;
+    GE_LOG(ectx,
+	   GE_WARNING | GE_ADMIN | GE_USER | GE_BULK,
+	   _("UDP: Could not determine my public IP address.\n"));
+    return NULL;  
   }
 #if DEBUG_UDP
-  LOG(LOG_DEBUG,
-      "UDP uses IP address %u.%u.%u.%u.\n",
-      PRIP(ntohl(*(int*)&haddr->senderIP)));
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_USER | GE_BULK,
+	 "UDP uses IP address %u.%u.%u.%u.\n",
+	 PRIP(ntohl(*(int*)&haddr->senderIP)));
 #endif
-  if (udp_shutdown == YES)
-    haddr->senderPort      = htons(getGNUnetUDPPort());
-  else
-    haddr->senderPort      = htons(port);
+  haddr->senderPort      = htons(port);
   haddr->reserved        = htons(0);
   msg->senderAddressSize = htons(sizeof(HostAddress));
   msg->protocol          = htons(UDP_PROTOCOL_NUMBER);
   msg->MTU               = htonl(udpAPI.mtu);
   return msg;
-}
-
-/**
- * Establish a connection to a remote node.
- * @param helo the hello-Message for the target node
- * @param tsessionPtr the session handle that is to be set
- * @return OK on success, SYSERR if the operation failed
- */
-static int udpConnect(const P2P_hello_MESSAGE * helo,
-		      TSession ** tsessionPtr) {
-  TSession * tsession;
-  HostAddress * haddr;
-
-  tsession = MALLOC(sizeof(TSession));
-  tsession->internal = MALLOC(P2P_hello_MESSAGE_size(helo));
-  memcpy(tsession->internal,
-	 helo,
-	 P2P_hello_MESSAGE_size(helo));
-  tsession->ttype = udpAPI.protocolNumber;
-  haddr = (HostAddress*) &helo[1];
-#if DEBUG_UDP
-  LOG(LOG_DEBUG,
-      "Connecting via UDP to %u.%u.%u.%u:%u.\n",
-      PRIP(ntohl(*(int*)&haddr->senderIP.addr)),
-      ntohs(haddr->senderPort));
-#endif
-   (*tsessionPtr) = tsession;
-  return OK;
-}
-
-/**
- * A (core) Session is to be associated with a transport session. The
- * transport service may want to know in order to call back on the
- * core if the connection is being closed.
- *
- * @param tsession the session handle passed along
- *   from the call to receive that was made by the transport
- *   layer
- * @return OK if the session could be associated,
- *         SYSERR if not.
- */
-int udpAssociate(TSession * tsession) {
-  return SYSERR; /* UDP connections can never be associated */
 }
 
 /**
@@ -486,23 +300,24 @@ int udpAssociate(TSession * tsession) {
  */
 static int udpSend(TSession * tsession,
 		   const void * message,
-		   const unsigned int size) {
-  char * msg;
-  UDPMessage mp;
+		   const unsigned int size,
+		   int important) {
+  UDPMessage * mp;
   P2P_hello_MESSAGE * helo;
   HostAddress * haddr;
   struct sockaddr_in sin; /* an Internet endpoint address */
   int ok;
   int ssize;
+  size_t sent;
 
-  if (udp_shutdown == YES)
+  if (udp_sock == NULL)
     return SYSERR;
   if (size == 0) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     return SYSERR;
   }
   if (size > udpAPI.mtu) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     return SYSERR;
   }
   helo = (P2P_hello_MESSAGE*)tsession->internal;
@@ -511,14 +326,11 @@ static int udpSend(TSession * tsession,
 
   haddr = (HostAddress*) &helo[1];
   ssize = size + sizeof(UDPMessage);
-  msg       = MALLOC(ssize);
-  mp.size   = htons(ssize);
-  mp.reserved = 0;
-  mp.sender = *(coreAPI->myIdentity);
-  memcpy(&msg[size],
-	 &mp,
-	 sizeof(UDPMessage));
-  memcpy(msg,
+  mp = MALLOC(ssize);
+  mp->header.size = htons(ssize);
+  mp->header.type = 0;
+  mp->sender = *(coreAPI->myIdentity);
+  memcpy(&mp[1],
 	 message,
 	 size);
   ok = SYSERR;
@@ -526,54 +338,43 @@ static int udpSend(TSession * tsession,
   sin.sin_family = AF_INET;
   sin.sin_port = haddr->senderPort;
 
-  GNUNET_ASSERT(sizeof(struct in_addr) == sizeof(IPaddr));
+  GE_ASSERT(ectx, sizeof(struct in_addr) == sizeof(IPaddr));
   memcpy(&sin.sin_addr,
 	 &haddr->senderIP,
 	 sizeof(IPaddr));
 #if DEBUG_UDP
-  LOG(LOG_DEBUG,
-      "Sending message of %d bytes via UDP to %u.%u.%u.%u:%u.\n",
-      ssize,
-      PRIP(ntohl(*(int*)&sin.sin_addr)),
-      ntohs(sin.sin_port));
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_USER | GE_BULK,
+	 "Sending message of %d bytes via UDP to %u.%u.%u.%u:%u.\n",
+	 ssize,
+	 PRIP(ntohl(*(int*)&sin.sin_addr)),
+	 ntohs(sin.sin_port));
 #endif
-  if (ssize == SENDTO(udp_sock,
-		      msg,
-		      ssize,
-		      0, /* no flags */
-		      (struct sockaddr*) &sin,
-		      sizeof(sin))) {
+  if (YES == socket_send_to(udp_sock,
+			    NC_Nonblocking,
+			    mp,
+			    ssize,
+			    &sent,
+			    (const char *) &sin,
+			    sizeof(sin))) {
     ok = OK;
-    stats->change(stat_bytesSent,
-		  ssize);
+    if (stats != NULL)
+      stats->change(stat_bytesSent,
+		    sent);
   } else {
-    LOG(LOG_WARNING,
-	_("Failed to send message of size %d via UDP to %u.%u.%u.%u:%u: %s\n"),
-	ssize,
-	PRIP(ntohl(*(int*)&sin.sin_addr)),
-	ntohs(sin.sin_port),
-	STRERROR(errno));
-    stats->change(stat_bytesDropped,
-		  ssize);
+    GE_LOG(ectx,
+	   GE_WARNING | GE_ADMIN | GE_BULK,
+	   _("Failed to send message of size %d via UDP to %u.%u.%u.%u:%u: %s\n"),
+	   ssize,
+	   PRIP(ntohl(*(int*)&sin.sin_addr)),
+	   ntohs(sin.sin_port),
+	   STRERROR(errno));
+    if (stats != NULL)
+      stats->change(stat_bytesDropped,
+		    ssize);
   }
-  incrementBytesSent(ssize);
-  FREE(msg);
+  FREE(mp);
   return ok;
-}
-
-/**
- * Disconnect from a remote node.
- *
- * @param tsession the session that is closed
- * @return OK on success, SYSERR if the operation failed
- */
-static int udpDisconnect(TSession * tsession) {
-  if (tsession != NULL) {
-    if (tsession->internal != NULL)
-      FREE(tsession->internal);
-    FREE(tsession);
-  }
-  return OK;
 }
 
 /**
@@ -582,106 +383,120 @@ static int udpDisconnect(TSession * tsession) {
  * @return OK on success, SYSERR if the operation failed
  */
 static int startTransportServer(void) {
+  int sock;
+  unsigned short port;
+
+  GE_ASSERT(ectx, selector == NULL);
    /* initialize UDP network */
   port = getGNUnetUDPPort();
-  udp_sock = passivesock(port);
   if (port != 0) {
-    udp_shutdown = NO;
-    serverSignal = SEMAPHORE_NEW(0);
-    if (0 != PTHREAD_CREATE(&dispatchThread,
-			    (PThreadMain) &listenAndDistribute,
-			    NULL,
-			    4*1024)) {
-      SEMAPHORE_FREE(serverSignal);
-      serverSignal = NULL;
+    sock = listensock(port);
+    if (sock == -1)
       return SYSERR;
-    }
-    SEMAPHORE_DOWN(serverSignal);
-  } else {
-    memset(&dispatchThread,
-	   0,
-	   sizeof(PTHREAD_T)); /* zero-out */
+    selector = select_create("udp",
+			     YES,
+			     ectx,
+			     load_monitor,
+			     sock,
+			     sizeof(struct sockaddr_in),
+			     0, /* timeout */
+			     &select_message_handler,
+			     NULL,
+			     &select_accept_handler,
+			     &isRejected,
+			     &select_close_handler,
+			     NULL,
+			     64 * 1024);
+    if (selector == NULL)
+      return SYSERR;
   }
-  return OK;
-}
-
-/**
- * Shutdown the server process (stop receiving inbound traffic). Maybe
- * restarted later!
- */
-static int stopTransportServer() {
-  GNUNET_ASSERT(udp_sock != -1);
-  if (udp_shutdown == NO) {
-    /* stop the thread, first set shutdown
-       to YES, then ensure that the thread
-       actually sees the flag by sending
-       a dummy message of 1 char */
-    udp_shutdown = YES;
-    if (serverSignal != NULL) {
-      char msg = '\0';
-      struct sockaddr_in sin;
-      void * unused;
-      int mySock;
-
-      mySock = SOCKET(PF_INET, SOCK_DGRAM, UDP_PROTOCOL_NUMBER);
-      if (mySock < 0)
-	DIE_STRERROR("socket");
-      /* send to loopback */
-      sin.sin_family = AF_INET;
-      sin.sin_port = htons(port);
-      *(int*)&sin.sin_addr = htonl(0x7F000001); /* 127.0.0.1 = localhost */
-      SENDTO(mySock,
-	     &msg,
-	     sizeof(msg),
-	     0,
-	     (struct sockaddr*) &sin,
-	     sizeof(sin));
-      PTHREAD_KILL(&dispatchThread, SIGALRM);  /* sometimes LO is firewalled, try alternative */
-      SEMAPHORE_DOWN(serverSignal);
-      SEMAPHORE_FREE(serverSignal);
-      PTHREAD_JOIN(&dispatchThread, &unused);
-    }
+  sock = SOCKET(PF_INET, SOCK_DGRAM, 17);
+  if (sock == -1) {
+    GE_LOG_STRERROR(ectx,
+		    GE_ERROR | GE_ADMIN | GE_BULK,
+		    "socket");
+    select_destroy(selector);
+    selector = NULL;
+    return SYSERR;
   }
-  closefile(udp_sock);
-  udp_sock = -1;
+  udp_sock = socket_create(ectx,
+			   load_monitor,
+			   sock);
+  GE_ASSERT(ectx, udp_sock != NULL);
   return OK;
 }
 
 /**
  * Reload the configuration. Should never fail.
  */
-static void reloadConfiguration(void) {
+static int reloadConfiguration() {
   char * ch;
 
-  MUTEX_LOCK(&configLock);
+  MUTEX_LOCK(configLock);
   FREENONNULL(filteredNetworks_);
-  ch = getConfigurationString("UDP",
-			      "BLACKLIST");
-  if (ch == NULL)
-    filteredNetworks_ = parseRoutes("");
-  else {
-    filteredNetworks_ = parseRoutes(ch);
-    FREE(ch);
-  }
-  MUTEX_UNLOCK(&configLock);
+  FREENONNULL(allowedNetworks_);
+  ch = NULL;
+  GC_get_configuration_value_string(cfg,
+				    "UDP",
+				    "BLACKLIST",
+				    "",
+				    &ch);
+  filteredNetworks_ = parse_ipv4_network_specification(ectx,
+						       ch);
+  FREE(ch);
+  ch = NULL;
+  GC_get_configuration_value_string(cfg,
+				    "UDP",
+				    "WHITELIST",
+				    "",
+				    &ch);
+  if (strlen(ch) > 0)
+    allowedNetworks_ = parse_ipv4_network_specification(ectx,
+							ch);
+  else
+    allowedNetworks_ = NULL;
+  FREE(ch);
+  MUTEX_UNLOCK(configLock);
+  return 0;
 }
 
 /**
  * Convert UDP address to a string.
  */
-static char * addressToString(const P2P_hello_MESSAGE * helo) {
+static char * 
+addressToString(const P2P_hello_MESSAGE * hello,
+		int do_resolve) {
   char * ret;
-  HostAddress * haddr;
+  const HostAddress * haddr = (const HostAddress*) &hello[1];
   size_t n;
+  const char * hn = "";
+  struct hostent * ent;
 
-  haddr = (HostAddress*) &helo[1];
-  n = 4*4+6+6;
+#if HAVE_GETHOSTBYADDR
+  if (do_resolve) {
+    ent = gethostbyaddr(haddr,
+			sizeof(IPaddr),
+			AF_INET);
+    if (ent != NULL)
+      hn = ent->h_name;
+  }    
+#endif
+  n = 4*4+6+6 + strlen(hn) + 10;
   ret = MALLOC(n);
-  SNPRINTF(ret,
-	   n,
-	   "%u.%u.%u.%u:%u (UDP)",
-	   PRIP(ntohl(*(int*)&haddr->senderIP.addr)),
-	   ntohs(haddr->senderPort));
+  if (strlen(hn) > 0) {
+    SNPRINTF(ret,
+	     n,
+	     "%s (%u.%u.%u.%u) UDP (%u)",
+	     hn,
+	     PRIP(ntohl(*(int*)&haddr->senderIP.addr)),
+	     ntohs(haddr->senderPort));
+  } else {
+    SNPRINTF(ret,
+	     n,
+	     "%u.%u.%u.%u UDP (%u)",
+	     PRIP(ntohl(*(int*)&haddr->senderIP.addr)),
+	     ntohs(haddr->senderPort));
+  }
   return ret;
 }
 
@@ -696,11 +511,41 @@ static char * addressToString(const P2P_hello_MESSAGE * helo) {
  * returns the udp transport API.
  */
 TransportAPI * inittransport_udp(CoreAPIForTransport * core) {
-  int mtu;
+  unsigned long long mtu;
 
-  GNUNET_ASSERT(sizeof(HostAddress) == 8);
-  GNUNET_ASSERT(sizeof(UDPMessage) == 68);
+  ectx = core->ectx;
+  cfg = core->cfg;
+  load_monitor = core->load_monitor;
+  GE_ASSERT(ectx, sizeof(HostAddress) == 8);
+  GE_ASSERT(ectx, sizeof(UDPMessage) == 68);
   coreAPI = core;
+  if (-1 == GC_get_configuration_value_number(cfg,
+					      "UDP",
+					      "MTU",
+					      sizeof(UDPMessage) + P2P_MESSAGE_OVERHEAD + sizeof(MESSAGE_HEADER) + 32,
+					      65500,
+					      MESSAGE_SIZE,
+					      &mtu)) {
+    return NULL;
+  }
+  if (mtu < 1200)
+    GE_LOG(ectx,
+	   GE_ERROR | GE_USER | GE_IMMEDIATE,
+	   _("MTU %llu for `%s' is probably too low!\n"),
+	   mtu,
+	   "UDP");
+  if (GC_get_configuration_value_yesno(cfg,
+				       "UDP",
+				       "UPNP",
+				       YES) == YES) {
+    upnp = coreAPI->requestService("upnp");
+    
+    if (upnp == NULL)
+			GE_LOG(ectx,
+	   		GE_ERROR | GE_USER | GE_IMMEDIATE,
+	   		"The UPnP service could not be loaded. To disable UPnP, set the " \
+	   		"configuration option \"UPNP\" in section \"UDP\" to \"NO\"\n");	
+	}
   stats = coreAPI->requestService("stats");
   if (stats != NULL) {
     stat_bytesReceived
@@ -710,39 +555,36 @@ TransportAPI * inittransport_udp(CoreAPIForTransport * core) {
     stat_bytesDropped
       = stats->create(gettext_noop("# bytes dropped by UDP (outgoing)"));
   }
-
-  MUTEX_CREATE(&configLock);
+  configLock = MUTEX_CREATE(NO);
   reloadConfiguration();
-  mtu = getConfigurationInt("UDP",
-			    "MTU");
-  if (mtu == 0)
-    mtu = MESSAGE_SIZE;
-  if (mtu < 1200)
-    LOG(LOG_ERROR,
-	_("MTU for `%s' is probably too low (fragmentation not implemented!)\n"),
-	"UDP");
-
   udpAPI.protocolNumber       = UDP_PROTOCOL_NUMBER;
   udpAPI.mtu                  = mtu - sizeof(UDPMessage);
   udpAPI.cost                 = 20000;
   udpAPI.verifyHelo           = &verifyHelo;
-  udpAPI.createhello           = &createhello;
+  udpAPI.createhello          = &createhello;
   udpAPI.connect              = &udpConnect;
   udpAPI.send                 = &udpSend;
-  udpAPI.sendReliable         = &udpSend; /* can't increase reliability */
   udpAPI.associate            = &udpAssociate;
   udpAPI.disconnect           = &udpDisconnect;
   udpAPI.startTransportServer = &startTransportServer;
   udpAPI.stopTransportServer  = &stopTransportServer;
-  udpAPI.reloadConfiguration  = &reloadConfiguration;
   udpAPI.addressToString      = &addressToString;
+  udpAPI.testWouldTry         = &testWouldTry;
 
   return &udpAPI;
 }
 
 void donetransport_udp() {
-  coreAPI->releaseService(stats);
-  MUTEX_DESTROY(&configLock);
+  if (stats != NULL) {
+    coreAPI->releaseService(stats);
+    stats = NULL;
+  }
+  if (upnp != NULL) {
+    coreAPI->releaseService(upnp);
+    upnp = NULL;
+  }
+  MUTEX_DESTROY(configLock);
+  configLock = NULL;
   FREENONNULL(filteredNetworks_);
   coreAPI = NULL;
 }

@@ -31,7 +31,7 @@
 #include "tree.h"
 #include <extractor.h>
 
-#define EXTRA_CHECKS YES
+#define EXTRA_CHECKS ALLOW_EXTRA_CHECKS
 
 
 /**
@@ -46,11 +46,58 @@
 #define BLOCK_ALIGN_SIZE (DBLOCK_SIZE)
 
 typedef struct Location {
-  PeerIdentity peer;
-  HashCode512 query;
-  HashCode512 key;
-  unsigned int type;
-  unsigned long long size;
+  /**
+   * Information about the shared file.
+   */
+  FileIdentifier fi;
+
+  /**
+   * Public key of the peer sharing the file.
+   */
+  PublicKey peer;
+
+  /**
+   * Time when the HELLO *and* this location URI
+   * expire (they expire together!).
+   */
+  TIME_T expirationTime;
+
+  /**
+   * Transport protocol to use to contact the peer.
+   */
+  unsigned short proto;
+
+  /**
+   * Size of the address.
+   */
+  unsigned short sas;
+
+  /**
+   * MTU of the transport.
+   */
+  unsigned int mtu;
+
+  /**
+   * Address of the peer.
+   */
+  char * address;
+
+  /**
+   * RSA signature of the HELLO information
+   * (as constructed from the rest of the info
+   * in this struct).  This allows anyone to
+   * reconstruct a valid HELLO message from 
+   * the location URI.
+   */
+  Signature helloSignature;
+
+  /**
+   * RSA signature over the FileIdentifier,
+   * hash of the peer and expiration time.
+   * (everything until proto).  
+   */
+  Signature contentSignature;
+
 } Location;
 
 enum uri_types { chk, sks, ksk, loc };
@@ -66,7 +113,7 @@ typedef struct ECRS_URI {
       HashCode512 namespace;
       HashCode512 identifier;
     } sks;
-    FileIdentifier chk;
+    FileIdentifier fi;
     Location loc;
   } data;
 } URI;

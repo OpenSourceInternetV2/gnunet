@@ -1,5 +1,7 @@
 /*
      This file is part of GNUnet
+     (C) 2001, 2002, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
+
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -20,13 +22,8 @@
  * @file server/startup.h
  * @author Christian Grothoff
  * @brief Helper methods for the startup of gnunetd:
- * - install signal handling
- * - system checks on startup
  * - PID file handling
- * - detaching from terminal
- * - command line parsing
- *
- **/
+ */
 
 #ifndef STARTUP_H
 #define STARTUP_H
@@ -34,71 +31,43 @@
 #include "gnunet_util.h"
 #include "platform.h"
 
-int debug_flag();
+int changeUser(struct GE_Context * ectx,
+	       struct GC_Configuration * cfg);
 
-int win_service();
-
-/**
- * Check if the compiler did a decent job.
- **/
-void checkCompiler();
-
-/**
- * Perform option parsing from the command line.
- **/
-int parseGnunetdCommandLine(int argc,
-			    char * argv[]);
-
-/**
- * Initialize signal handlers
- **/
-void initSignalHandlers();
-
-void doneSignalHandlers();
-
-void waitForSignalHandler();
-
-/**
- * Fork and start a new session to go into the background
- * in the way a good deamon should.
- *
- * @param filedes pointer to an array of 2 file descriptors
- *        to complete the detachment protocol (handshake)
- **/
-void detachFromTerminal(int * filedes);
-
-/**
- * Detached process signals former parent success.
- **/
-void detachFromTerminalComplete(int * filedes);
-
+int setFdLimit(struct GE_Context * ectx,
+	       struct GC_Configuration * cfg);
 
 /**
  * Write our process ID to the pid file.
- **/
-void writePIDFile();
+ */
+void writePIDFile(struct GE_Context * ectx,
+		  struct GC_Configuration * cfg);
 
 /**
  * Delete the pid file.
- **/
-void deletePIDFile();
+ */
+void deletePIDFile(struct GE_Context * ectx,
+		   struct GC_Configuration * cfg);
 
 /**
- * Load all of the user-specified application modules.
+ * @brief Cap datastore limit to the filesystem's capabilities
+ * @notice FAT does not support files larger than 2/4 GB
+ * @param ectx error handler
+ * @param cfg configuration manager
  */
-void loadApplicationModules();
+void capFSQuotaSize(struct GE_Context * ectx,
+               struct GC_Configuration * cfg);
 
-#ifndef MINGW
 /**
- * @brief Change user ID
+ * Shutdown gnunetd
+ * @param cfg configuration
+ * @param sig signal code that causes shutdown, optional
  */
-void changeUser(const char *user);
-#endif
+void shutdown_gnunetd(struct GC_Configuration * cfg, int sig);
+
 
 #ifdef MINGW
-BOOL WINAPI win_shutdown_gnunetd(DWORD dwCtrlType);
-void win_service_main(void (*gn_main)());
+void win_service_main(void (*gnunet_main)());
 #endif
-
 #endif
 /* end of startup.h */

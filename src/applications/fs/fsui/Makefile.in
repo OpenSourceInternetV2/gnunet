@@ -15,7 +15,7 @@
 @SET_MAKE@
 
 
-SOURCES = $(libgnunetfsui_la_SOURCES) $(downloadtest_SOURCES) $(fsui_loader_SOURCES) $(fsuitest_SOURCES) $(fsuitest2_SOURCES) $(namespace_infotest_SOURCES) $(searchtest_SOURCES)
+SOURCES = $(libgnunetfsui_la_SOURCES) $(downloadtest_SOURCES) $(fsui_loader_SOURCES) $(fsuitest_SOURCES) $(fsuitest2_SOURCES) $(searchtest_SOURCES) $(serializetest_SOURCES) $(serializetest2_SOURCES) $(serializetest3_SOURCES) $(serializetest4_SOURCES)
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -40,19 +40,21 @@ POST_UNINSTALL = :
 host_triplet = @host@
 noinst_PROGRAMS = fsui-loader$(EXEEXT)
 check_PROGRAMS = fsuitest$(EXEEXT) fsuitest2$(EXEEXT) \
-	searchtest$(EXEEXT) downloadtest$(EXEEXT) \
-	namespace_infotest$(EXEEXT)
+	searchtest$(EXEEXT) serializetest$(EXEEXT) \
+	serializetest2$(EXEEXT) serializetest3$(EXEEXT) \
+	serializetest4$(EXEEXT) downloadtest$(EXEEXT)
 subdir = src/applications/fs/fsui
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/m4/ac_define_dir.m4 \
-	$(top_srcdir)/m4/gettext.m4 $(top_srcdir)/m4/gtk-2.0.m4 \
-	$(top_srcdir)/m4/guile.m4 $(top_srcdir)/m4/iconv.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/m4/gettext.m4 \
+	$(top_srcdir)/m4/gtk-2.0.m4 $(top_srcdir)/m4/iconv.m4 \
 	$(top_srcdir)/m4/lib-ld.m4 $(top_srcdir)/m4/lib-link.m4 \
-	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libgcrypt.m4 \
-	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/pkg.m4 \
-	$(top_srcdir)/m4/po.m4 $(top_srcdir)/m4/progtest.m4 \
-	$(top_srcdir)/acinclude.m4 $(top_srcdir)/configure.ac
+	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libcurl.m4 \
+	$(top_srcdir)/m4/libgcrypt.m4 $(top_srcdir)/m4/libxml2.m4 \
+	$(top_srcdir)/m4/mkdir.m4 $(top_srcdir)/m4/nls.m4 \
+	$(top_srcdir)/m4/pkg.m4 $(top_srcdir)/m4/po.m4 \
+	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/acinclude.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
@@ -63,61 +65,100 @@ libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libgnunetfsui_la_DEPENDENCIES =  \
 	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+	$(top_builddir)/src/applications/fs/namespace/libgnunetnamespace.la \
+	$(top_builddir)/src/applications/fs/uritrack/libgnuneturitrack.la \
+	$(top_builddir)/src/util/cron/libgnunetutil_cron.la \
+	$(top_builddir)/src/util/loggers/libgnunetutil_logging.la \
 	$(top_builddir)/src/util/libgnunetutil.la
-am_libgnunetfsui_la_OBJECTS = collection.lo download.lo file_info.lo \
-	fsui.lo helper.lo namespace_info.lo search.lo unindex.lo \
-	upload.lo
+am_libgnunetfsui_la_OBJECTS = deserialize.lo download.lo fsui.lo \
+	search.lo serialize.lo unindex.lo upload.lo
 libgnunetfsui_la_OBJECTS = $(am_libgnunetfsui_la_OBJECTS)
 PROGRAMS = $(noinst_PROGRAMS)
 am_downloadtest_OBJECTS = downloadtest.$(OBJEXT)
 downloadtest_OBJECTS = $(am_downloadtest_OBJECTS)
 downloadtest_DEPENDENCIES =  \
+	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
+	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
 	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
 	$(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
 	$(top_builddir)/src/util/libgnunetutil.la
 am_fsui_loader_OBJECTS = fsui-loader.$(OBJEXT)
 fsui_loader_OBJECTS = $(am_fsui_loader_OBJECTS)
-fsui_loader_DEPENDENCIES =  \
+fsui_loader_DEPENDENCIES = $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
 	$(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
 	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
 	$(top_builddir)/src/util/libgnunetutil.la
 am_fsuitest_OBJECTS = fsuitest.$(OBJEXT)
 fsuitest_OBJECTS = $(am_fsuitest_OBJECTS)
 fsuitest_DEPENDENCIES =  \
+	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
+	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
 	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
 	$(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
 	$(top_builddir)/src/util/libgnunetutil.la
 am_fsuitest2_OBJECTS = fsuitest2.$(OBJEXT)
 fsuitest2_OBJECTS = $(am_fsuitest2_OBJECTS)
 fsuitest2_DEPENDENCIES =  \
-	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
-	$(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
-	$(top_builddir)/src/util/libgnunetutil.la
-am_namespace_infotest_OBJECTS = namespace_infotest.$(OBJEXT)
-namespace_infotest_OBJECTS = $(am_namespace_infotest_OBJECTS)
-namespace_infotest_DEPENDENCIES =  \
+	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
+	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
 	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
 	$(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
 	$(top_builddir)/src/util/libgnunetutil.la
 am_searchtest_OBJECTS = searchtest.$(OBJEXT)
 searchtest_OBJECTS = $(am_searchtest_OBJECTS)
 searchtest_DEPENDENCIES =  \
+	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
+	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
+	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+	$(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
+	$(top_builddir)/src/util/libgnunetutil.la
+am_serializetest_OBJECTS = serializetest.$(OBJEXT)
+serializetest_OBJECTS = $(am_serializetest_OBJECTS)
+serializetest_DEPENDENCIES =  \
+	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
+	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
+	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+	$(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
+	$(top_builddir)/src/util/libgnunetutil.la
+am_serializetest2_OBJECTS = serializetest2.$(OBJEXT)
+serializetest2_OBJECTS = $(am_serializetest2_OBJECTS)
+serializetest2_DEPENDENCIES =  \
+	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
+	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
+	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+	$(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
+	$(top_builddir)/src/util/libgnunetutil.la
+am_serializetest3_OBJECTS = serializetest3.$(OBJEXT)
+serializetest3_OBJECTS = $(am_serializetest3_OBJECTS)
+serializetest3_DEPENDENCIES =  \
+	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
+	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
+	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+	$(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
+	$(top_builddir)/src/util/libgnunetutil.la
+am_serializetest4_OBJECTS = serializetest4.$(OBJEXT)
+serializetest4_OBJECTS = $(am_serializetest4_OBJECTS)
+serializetest4_DEPENDENCIES =  \
+	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
+	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
 	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
 	$(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
 	$(top_builddir)/src/util/libgnunetutil.la
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
-@AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/collection.Plo \
+@AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/deserialize.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/download.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/downloadtest.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/file_info.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/fsui-loader.Po ./$(DEPDIR)/fsui.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/fsuitest.Po ./$(DEPDIR)/fsuitest2.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/helper.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/namespace_info.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/namespace_infotest.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/search.Plo ./$(DEPDIR)/searchtest.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/serialize.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/serializetest.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/serializetest2.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/serializetest3.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/serializetest4.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/unindex.Plo ./$(DEPDIR)/upload.Plo
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -129,12 +170,14 @@ LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
 SOURCES = $(libgnunetfsui_la_SOURCES) $(downloadtest_SOURCES) \
 	$(fsui_loader_SOURCES) $(fsuitest_SOURCES) \
-	$(fsuitest2_SOURCES) $(namespace_infotest_SOURCES) \
-	$(searchtest_SOURCES)
+	$(fsuitest2_SOURCES) $(searchtest_SOURCES) \
+	$(serializetest_SOURCES) $(serializetest2_SOURCES) \
+	$(serializetest3_SOURCES) $(serializetest4_SOURCES)
 DIST_SOURCES = $(libgnunetfsui_la_SOURCES) $(downloadtest_SOURCES) \
 	$(fsui_loader_SOURCES) $(fsuitest_SOURCES) \
-	$(fsuitest2_SOURCES) $(namespace_infotest_SOURCES) \
-	$(searchtest_SOURCES)
+	$(fsuitest2_SOURCES) $(searchtest_SOURCES) \
+	$(serializetest_SOURCES) $(serializetest2_SOURCES) \
+	$(serializetest3_SOURCES) $(serializetest4_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -162,7 +205,6 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 CYGWIN_FALSE = @CYGWIN_FALSE@
 CYGWIN_TRUE = @CYGWIN_TRUE@
-DATADIR = @DATADIR@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
 DLLTOOL = @DLLTOOL@
@@ -179,25 +221,25 @@ FFLAGS = @FFLAGS@
 GMSGFMT = @GMSGFMT@
 GNUNETGTK_CFLAGS = @GNUNETGTK_CFLAGS@
 GNUNETGTK_LIBS = @GNUNETGTK_LIBS@
+GREP = @GREP@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
-GUILE = @GUILE@
-GUILE_CONFIG = @GUILE_CONFIG@
-GUILE_TOOLS = @GUILE_TOOLS@
-HAVE_CURSES_FALSE = @HAVE_CURSES_FALSE@
-HAVE_CURSES_TRUE = @HAVE_CURSES_TRUE@
+HAVE_DIALOG_FALSE = @HAVE_DIALOG_FALSE@
+HAVE_DIALOG_TRUE = @HAVE_DIALOG_TRUE@
 HAVE_GTK_FALSE = @HAVE_GTK_FALSE@
 HAVE_GTK_TRUE = @HAVE_GTK_TRUE@
 HAVE_GUILE_FALSE = @HAVE_GUILE_FALSE@
 HAVE_GUILE_TRUE = @HAVE_GUILE_TRUE@
 HAVE_IPV6_FALSE = @HAVE_IPV6_FALSE@
 HAVE_IPV6_TRUE = @HAVE_IPV6_TRUE@
+HAVE_MHD_FALSE = @HAVE_MHD_FALSE@
+HAVE_MHD_TRUE = @HAVE_MHD_TRUE@
 HAVE_MYSQL_FALSE = @HAVE_MYSQL_FALSE@
 HAVE_MYSQL_TRUE = @HAVE_MYSQL_TRUE@
-HAVE_PDCURSES_FALSE = @HAVE_PDCURSES_FALSE@
-HAVE_PDCURSES_TRUE = @HAVE_PDCURSES_TRUE@
 HAVE_SQLITE_FALSE = @HAVE_SQLITE_FALSE@
 HAVE_SQLITE_TRUE = @HAVE_SQLITE_TRUE@
+HAVE_XML2_FALSE = @HAVE_XML2_FALSE@
+HAVE_XML2_TRUE = @HAVE_XML2_TRUE@
 HAVE_ZLIB_FALSE = @HAVE_ZLIB_FALSE@
 HAVE_ZLIB_TRUE = @HAVE_ZLIB_TRUE@
 INSTALL_DATA = @INSTALL_DATA@
@@ -209,6 +251,8 @@ INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 INTLLIBS = @INTLLIBS@
 LDFLAGS = @LDFLAGS@
 LIBADD_DL = @LIBADD_DL@
+LIBCURL = @LIBCURL@
+LIBCURL_CPPFLAGS = @LIBCURL_CPPFLAGS@
 LIBGCRYPT_CFLAGS = @LIBGCRYPT_CFLAGS@
 LIBGCRYPT_CONFIG = @LIBGCRYPT_CONFIG@
 LIBGCRYPT_LIBS = @LIBGCRYPT_LIBS@
@@ -219,11 +263,12 @@ LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
-LOCALEDIR = @LOCALEDIR@
 LTDLINCL = @LTDLINCL@
 LTLIBICONV = @LTLIBICONV@
 LTLIBINTL = @LTLIBINTL@
 LTLIBOBJS = @LTLIBOBJS@
+MACOSX_FALSE = @MACOSX_FALSE@
+MACOSX_TRUE = @MACOSX_TRUE@
 MAKEINFO = @MAKEINFO@
 MINGW_FALSE = @MINGW_FALSE@
 MINGW_TRUE = @MINGW_TRUE@
@@ -256,15 +301,13 @@ VERSION = @VERSION@
 XFREEBSD_FALSE = @XFREEBSD_FALSE@
 XFREEBSD_TRUE = @XFREEBSD_TRUE@
 XGETTEXT = @XGETTEXT@
-ac_ct_AR = @ac_ct_AR@
-ac_ct_AS = @ac_ct_AS@
+XML2_CONFIG = @XML2_CONFIG@
+XML_CPPFLAGS = @XML_CPPFLAGS@
+XML_LIBS = @XML_LIBS@
+_libcurl_config = @_libcurl_config@
 ac_ct_CC = @ac_ct_CC@
 ac_ct_CXX = @ac_ct_CXX@
-ac_ct_DLLTOOL = @ac_ct_DLLTOOL@
 ac_ct_F77 = @ac_ct_F77@
-ac_ct_OBJDUMP = @ac_ct_OBJDUMP@
-ac_ct_RANLIB = @ac_ct_RANLIB@
-ac_ct_STRIP = @ac_ct_STRIP@
 am__fastdepCC_FALSE = @am__fastdepCC_FALSE@
 am__fastdepCC_TRUE = @am__fastdepCC_TRUE@
 am__fastdepCXX_FALSE = @am__fastdepCXX_FALSE@
@@ -279,24 +322,30 @@ build_cpu = @build_cpu@
 build_os = @build_os@
 build_vendor = @build_vendor@
 datadir = @datadir@
+datarootdir = @datarootdir@
+docdir = @docdir@
+dvidir = @dvidir@
 exec_prefix = @exec_prefix@
-guile_available = @guile_available@
 host = @host@
 host_alias = @host_alias@
 host_cpu = @host_cpu@
 host_os = @host_os@
 host_vendor = @host_vendor@
+htmldir = @htmldir@
 includedir = @includedir@
 infodir = @infodir@
 install_sh = @install_sh@
 libdir = @libdir@
 libexecdir = @libexecdir@
+localedir = @localedir@
 localstatedir = @localstatedir@
 mandir = @mandir@
 mkdir_p = @mkdir_p@
 oldincludedir = @oldincludedir@
+pdfdir = @pdfdir@
 prefix = @prefix@
 program_transform_name = @program_transform_name@
+psdir = @psdir@
 sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 subdirs = @subdirs@
@@ -307,30 +356,35 @@ lib_LTLIBRARIES = \
   libgnunetfsui.la 
 
 libgnunetfsui_la_SOURCES = \
-  collection.c \
+  deserialize.c \
   download.c \
-  file_info.c \
   fsui.c fsui.h \
-  helper.c \
-  namespace_info.c \
   search.c \
+  serialize.c \
   unindex.c \
   upload.c
 
 libgnunetfsui_la_LIBADD = \
  -lextractor \
  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+ $(top_builddir)/src/applications/fs/namespace/libgnunetnamespace.la \
+ $(top_builddir)/src/applications/fs/uritrack/libgnuneturitrack.la \
+ $(top_builddir)/src/util/cron/libgnunetutil_cron.la \
+ $(top_builddir)/src/util/loggers/libgnunetutil_logging.la \
  $(top_builddir)/src/util/libgnunetutil.la 
 
 EXTRA_DIST = \
-  check.conf
+  check.conf \
+  peer.conf
 
 fsui_loader_SOURCES = \
  fsui-loader.c 
 
 fsui_loader_LDADD = \
+ $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
  $(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+ $(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
  $(top_builddir)/src/util/libgnunetutil.la 
 
 TESTS = $(check_PROGRAMS)
@@ -338,6 +392,8 @@ fsuitest_SOURCES = \
   fsuitest.c 
 
 fsuitest_LDADD = \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
   $(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
   $(top_builddir)/src/util/libgnunetutil.la 
@@ -346,14 +402,8 @@ fsuitest2_SOURCES = \
   fsuitest2.c 
 
 fsuitest2_LDADD = \
-  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
-  $(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
-  $(top_builddir)/src/util/libgnunetutil.la 
-
-namespace_infotest_SOURCES = \
-  namespace_infotest.c 
-
-namespace_infotest_LDADD = \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
   $(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
   $(top_builddir)/src/util/libgnunetutil.la 
@@ -362,6 +412,8 @@ searchtest_SOURCES = \
   searchtest.c 
 
 searchtest_LDADD = \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
   $(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
   $(top_builddir)/src/util/libgnunetutil.la 
@@ -370,6 +422,48 @@ downloadtest_SOURCES = \
   downloadtest.c 
 
 downloadtest_LDADD = \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
+  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+  $(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
+  $(top_builddir)/src/util/libgnunetutil.la 
+
+serializetest_SOURCES = \
+  serializetest.c 
+
+serializetest_LDADD = \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
+  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+  $(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
+  $(top_builddir)/src/util/libgnunetutil.la 
+
+serializetest2_SOURCES = \
+  serializetest2.c 
+
+serializetest2_LDADD = \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
+  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+  $(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
+  $(top_builddir)/src/util/libgnunetutil.la 
+
+serializetest3_SOURCES = \
+  serializetest3.c 
+
+serializetest3_LDADD = \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
+  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+  $(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
+  $(top_builddir)/src/util/libgnunetutil.la 
+
+serializetest4_SOURCES = \
+  serializetest4.c 
+
+serializetest4_LDADD = \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
   $(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
   $(top_builddir)/src/util/libgnunetutil.la 
@@ -462,12 +556,21 @@ fsuitest$(EXEEXT): $(fsuitest_OBJECTS) $(fsuitest_DEPENDENCIES)
 fsuitest2$(EXEEXT): $(fsuitest2_OBJECTS) $(fsuitest2_DEPENDENCIES) 
 	@rm -f fsuitest2$(EXEEXT)
 	$(LINK) $(fsuitest2_LDFLAGS) $(fsuitest2_OBJECTS) $(fsuitest2_LDADD) $(LIBS)
-namespace_infotest$(EXEEXT): $(namespace_infotest_OBJECTS) $(namespace_infotest_DEPENDENCIES) 
-	@rm -f namespace_infotest$(EXEEXT)
-	$(LINK) $(namespace_infotest_LDFLAGS) $(namespace_infotest_OBJECTS) $(namespace_infotest_LDADD) $(LIBS)
 searchtest$(EXEEXT): $(searchtest_OBJECTS) $(searchtest_DEPENDENCIES) 
 	@rm -f searchtest$(EXEEXT)
 	$(LINK) $(searchtest_LDFLAGS) $(searchtest_OBJECTS) $(searchtest_LDADD) $(LIBS)
+serializetest$(EXEEXT): $(serializetest_OBJECTS) $(serializetest_DEPENDENCIES) 
+	@rm -f serializetest$(EXEEXT)
+	$(LINK) $(serializetest_LDFLAGS) $(serializetest_OBJECTS) $(serializetest_LDADD) $(LIBS)
+serializetest2$(EXEEXT): $(serializetest2_OBJECTS) $(serializetest2_DEPENDENCIES) 
+	@rm -f serializetest2$(EXEEXT)
+	$(LINK) $(serializetest2_LDFLAGS) $(serializetest2_OBJECTS) $(serializetest2_LDADD) $(LIBS)
+serializetest3$(EXEEXT): $(serializetest3_OBJECTS) $(serializetest3_DEPENDENCIES) 
+	@rm -f serializetest3$(EXEEXT)
+	$(LINK) $(serializetest3_LDFLAGS) $(serializetest3_OBJECTS) $(serializetest3_LDADD) $(LIBS)
+serializetest4$(EXEEXT): $(serializetest4_OBJECTS) $(serializetest4_DEPENDENCIES) 
+	@rm -f serializetest4$(EXEEXT)
+	$(LINK) $(serializetest4_LDFLAGS) $(serializetest4_OBJECTS) $(serializetest4_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -475,19 +578,20 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/collection.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/deserialize.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/download.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/downloadtest.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/file_info.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fsui-loader.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fsui.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fsuitest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fsuitest2.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/helper.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/namespace_info.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/namespace_infotest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/search.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/searchtest.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/serialize.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/serializetest.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/serializetest2.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/serializetest3.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/serializetest4.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/unindex.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/upload.Plo@am__quote@
 

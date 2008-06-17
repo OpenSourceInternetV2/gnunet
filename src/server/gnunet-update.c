@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2004 Christian Grothoff (and other contributing authors)
+     (C) 2004, 2006 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -26,6 +26,9 @@
 
 #include "platform.h"
 #include "gnunet_util.h"
+#include "gnunet_util_boot.h"
+#include "gnunet_util_cron.h"
+#include "gnunet_directories.h"
 #include "gnunet_core.h"
 #include "core.h"
 #include "startup.h"
@@ -40,135 +43,18 @@
  */
 #define DSO_PREFIX "libgnunet"
 
-/**
- * Print a list of the options we offer.
- */
-static void printhelp() {
-  static Help help[] = {
-    HELP_CONFIG,
-    { 'g', "get", "SECTION:ENTRY",
-      gettext_noop("print a value from the configuration file to stdout") },
-    HELP_HELP,
-    HELP_LOGLEVEL,
-#ifndef MINGW	/* not supported */
-    { 'u', "user", "LOGIN",
-      gettext_noop("run as user LOGIN") },
-#endif
-    { 'U', "client", NULL,
-      gettext_noop("run in client mode (for getting client configuration values)") },
-    HELP_VERSION,
-    HELP_VERBOSE,
-    HELP_END,
-  };
-  formatHelp("gnunet-update [OPTIONS]",
-	     _("Updates GNUnet datastructures after version change."),
-	     help);
-}
+static struct GC_Configuration * cfg;
 
-static int be_verbose = NO;
-
-/**
- * Perform option parsing from the command line.
- */
-static int parseCommandLine(int argc,
-			    char * argv[]) {
-  int c;
-  int user = NO;
-  int get = NO;
-
-  /* set the 'magic' code that indicates that
-     this process is 'gnunetd' (and not any of
-     the user-tools).  Needed such that we use
-     the right configuration file... */
-  FREENONNULL(setConfigurationString("GNUNETD",
-				     "_MAGIC_",
-				     "YES"));
-  while (1) {
-    int option_index = 0;
-    static struct GNoption long_options[] = {
-      LONG_DEFAULT_OPTIONS,
-      { "get", 1, 0, 'g' },
-#ifndef MINGW	/* not supported */
-      { "user", 0, 0, 'u' },
-#endif
-      { "client", 0, 0, 'U' },
-      { "verbose", 0, 0, 'V' },
-      { 0,0,0,0 }
-    };
-
-    c = GNgetopt_long(argc,
-		      argv,
-		      "vhdc:g:VL:",
-		      long_options,
-		      &option_index);
-    if (c == -1)
-      break;  /* No more flags to process */
-    if (YES == parseDefaultOptions(c, GNoptarg))
-      continue;
-    switch(c) {
-    case 'g':
-      FREENONNULL(setConfigurationString("GNUNET-UPDATE",
-					 "GET",
-					 GNoptarg));
-      get = YES;
-     break;
-    case 'L':
-      FREENONNULL(setConfigurationString("GNUNETD",
-					 "LOGLEVEL",
-					 GNoptarg));
-     break;
-    case 'h':
-      printhelp();
-      return SYSERR;
-#ifndef MINGW	/* not supported */
-    case 'u':
-      changeUser(GNoptarg);
-      break;
-#endif
-    case 'U':
-      FREENONNULL(setConfigurationString("GNUNETD",
-					 "_MAGIC_",
-					 "NO"));
-      user = YES;
-      break;
-    case 'v':
-      printf("GNUnet v%s, gnunet-update 0.0.1\n",
-	     VERSION);
-      return SYSERR;
-    case 'V':
-      be_verbose = YES;
-      break;
-    default:
-      printf(_("Use --help to get a list of options.\n"));
-      return SYSERR;
-    } /* end of parsing commandline */
-  }
-  if (user && (! get)) {
-    printf(_("Option `%s' makes no sense without option `%s'."),
-	   "-u", "-g");
-    return SYSERR;
-  }
-  if (GNoptind < argc) {
-    printf(_("Invalid arguments: "));
-    while (GNoptind < argc)
-      printf("%s ", argv[GNoptind++]);
-    printf(_("\nExiting.\n"));
-    return SYSERR;
-  }
-  if (get == NO) {
-    /* if we do not run in 'get' mode,
-       make sure we send error messages
-       to the console... */
-    FREENONNULL(setConfigurationString("GNUNETD",
-				       "LOGFILE",
-				       NULL));
-  }
-  return OK;
-}
+static struct GE_Context * ectx;
 
 static char ** processed;
+
 static unsigned int processedCount;
+
 static UpdateAPI uapi;
+
+static char * cfgFilename = DEFAULT_DAEMON_CONFIG_FILE;
+
 
 /**
  * Allow the module named "pos" to update.
@@ -176,7 +62,7 @@ static UpdateAPI uapi;
  */
 static int updateModule(const char * rpos) {
   UpdateMethod mptr;
-  void * library;
+  struct PluginHandle * library;
   char * name;
   int i;
   char * pos;
@@ -188,30 +74,36 @@ static int updateModule(const char * rpos) {
   GROW(processed, processedCount, processedCount+1);
   processed[processedCount-1] = STRDUP(rpos);
 
-  pos = getConfigurationString("MODULES",
-			       rpos);
-  if (pos == NULL)
-    pos = STRDUP(rpos);
+  pos = NULL;
+  if (-1 == GC_get_configuration_value_string(cfg,
+					      "MODULES",
+					      rpos,
+					      rpos,
+					      &pos))
+    return SYSERR;
+  GE_ASSERT(ectx, pos != NULL);
 
   name = MALLOC(strlen(pos) + strlen("module_") + 1);
   strcpy(name, "module_");
   strcat(name, pos);
   FREE(pos);
-  library = loadDynamicLibrary(DSO_PREFIX,
-			       name);
+  library = os_plugin_load(ectx,
+			   DSO_PREFIX,
+			   name);
   if (library == NULL) {
     FREE(name);
     return SYSERR;
   }
-  mptr = trybindDynamicMethod(library,
-			      "update_",
-			      name);
+  mptr = os_plugin_resolve_function(library,
+				    "update_",
+				    NO);
   if (mptr == NULL) {
+    os_plugin_unload(library);
     FREE(name);
     return OK; /* module needs no updates! */
   }
   mptr(&uapi);
-  unloadDynamicLibrary(library);
+  os_plugin_unload(library);
   FREE(name);
   return OK;
 }
@@ -225,13 +117,14 @@ static void updateApplicationModules() {
   char * next;
   char * pos;
 
-  dso = getConfigurationString("GNUNETD",
-			       "APPLICATIONS");
-  if (dso == NULL) {
-    LOG(LOG_WARNING,
-	_("No applications defined in configuration!\n"));
+  dso = NULL;
+  if (-1 == GC_get_configuration_value_string(cfg,
+					      "GNUNETD",
+					      "APPLICATIONS",
+					      "advertising fs getoption stats traffic",
+					      &dso))
     return;
-  }
+  GE_ASSERT(ectx, dso != NULL);
   next = dso;
   do {
     pos = next;
@@ -245,13 +138,15 @@ static void updateApplicationModules() {
       next++;
     }
     if (strlen(pos) > 0) {
-      LOG(LOG_MESSAGE,
-	  _("Updating data for module `%s'\n"),
-	  pos);
+      GE_LOG(ectx,
+	     GE_INFO | GE_USER | GE_BULK,
+	     _("Updating data for module `%s'\n"),
+	     pos);
       if (OK != updateModule(pos))
-	LOG(LOG_ERROR,
-	    _("Failed to update data for module `%s'\n"),
-	    pos);
+	GE_LOG(ectx,
+	       GE_ERROR | GE_DEVELOPER | GE_BULK | GE_USER,
+	       _("Failed to update data for module `%s'\n"),
+	       pos);
     }
   } while (next != NULL);
   FREE(dso);
@@ -271,28 +166,42 @@ static void doGet(char * get) {
     *ent = '\0';
     ent++;
   }
-  val = getConfigurationString(sec, ent);
-  if (val == NULL)
-    printf("%u\n",
-	   getConfigurationInt(sec, ent));
-  else {
+  if (YES == GC_have_configuration_value(cfg,
+					 sec,
+					 ent)) {
+    GC_get_configuration_value_string(cfg,
+				      sec,
+				      ent,
+				      NULL,
+				      &val);
     printf("%s\n",
 	   val);
     FREE(val);
   }
-  FREE(get);
 }
 
 static void work() {
   int i;
-  uapi.updateModule = &updateModule;
+  struct CronManager * cron;
+
+  uapi.updateModule   = &updateModule;
   uapi.requestService = &requestService;
   uapi.releaseService = &releaseService;
+  uapi.ectx = ectx;
+  uapi.cfg = cfg;
 
-  initCore();
+  cron = cron_create(ectx);
+  if (initCore(ectx, cfg, cron, NULL) != OK) {
+  	GE_LOG(ectx, GE_FATAL | GE_USER | GE_IMMEDIATE,
+  		_("Core initialization failed.\n"));
+  		
+  	return;
+  }
+  
+  /* enforce filesystem limits */
+  capFSQuotaSize(ectx, cfg);
 
-  /* force update of common modules
-     (used by core) */
+  /* force update of common modules (used by core) */
   updateModule("transport");
   updateModule("identity");
   updateModule("session");
@@ -301,38 +210,76 @@ static void work() {
   /* then update active application modules */
   updateApplicationModules();
   /* store information about update */
-  upToDate();
+  upToDate(ectx, cfg);
 
   for (i=0;i<processedCount;i++)
     FREE(processed[i]);
-  if (be_verbose)
-    printf(_("Updated data for %d applications.\n"),
-	   processedCount);
   GROW(processed, processedCount, 0);
   doneCore();
+  cron_destroy(cron);
 }
 
+static int set_client_config(CommandLineProcessorContext * ctx,
+			     void * scls,
+			     const char * option,
+			     const char * value) {
+  cfgFilename = DEFAULT_CLIENT_CONFIG_FILE;
+  return OK;
+}
+	
+
+/**
+ * All gnunet-update command line options
+ */
+static struct CommandLineOption gnunetupdateOptions[] = {
+  COMMAND_LINE_OPTION_CFG_FILE(&cfgFilename), /* -c */
+  { 'g', "get", "SECTION:ENTRY",
+    gettext_noop("print a value from the configuration file to stdout"),
+    1, &gnunet_getopt_configure_set_option, "GNUNET-UPDATE:GET" },
+  COMMAND_LINE_OPTION_HELP(gettext_noop("Updates GNUnet datastructures after version change.")), /* -h */
+  COMMAND_LINE_OPTION_HOSTNAME, /* -H */
+  COMMAND_LINE_OPTION_LOGGING, /* -L */
+  { 'u', "user", "LOGIN",
+    gettext_noop("run as user LOGIN"),
+    1, &gnunet_getopt_configure_set_option, "GNUNETD:USER" },	
+  { 'U', "client", NULL,
+    gettext_noop("run in client mode (for getting client configuration values)"),
+    0, &set_client_config, NULL },	
+  COMMAND_LINE_OPTION_VERSION(PACKAGE_VERSION), /* -v */
+  COMMAND_LINE_OPTION_VERBOSE,
+  COMMAND_LINE_OPTION_END,
+};
+
+
 int main(int argc,
-	 char * argv[]) {
+	 char * const * argv) {
   char * get;
-  char * user;
+  int ret;
 
-  if (SYSERR == initUtil(argc, argv, &parseCommandLine))
-    return 0;
-#ifndef MINGW
-  user = getConfigurationString("GNUNETD", "USER");
-  if (user && strlen(user))
-    changeUser(user);
-  FREENONNULL(user);
-#endif
-
-  get = getConfigurationString("GNUNET-UPDATE",
-			       "GET");
-  if (get != NULL)
+  ret = GNUNET_init(argc,
+		    argv,
+		    "gnunet-update",
+		    &cfgFilename,
+		    gnunetupdateOptions,
+		    &ectx,
+		    &cfg);
+  if ( (ret == -1) ||
+       (OK != changeUser(ectx, cfg)) ) {
+    GNUNET_fini(ectx, cfg);
+    return -1;
+  }
+  get = NULL;
+  GC_get_configuration_value_string(cfg,
+				    "GNUNET-UPDATE",
+				    "GET",
+				    "",
+				    &get);
+  if (strlen(get) > 0)
     doGet(get);
   else
     work();
-  doneUtil();
+  FREE(get);
+  GNUNET_fini(ectx, cfg);
   return 0;
 }
 

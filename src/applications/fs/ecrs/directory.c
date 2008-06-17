@@ -49,7 +49,8 @@
  * @return number of entries on success, SYSERR if the
  *         directory is malformed
  */
-int ECRS_listDirectory(const char * data,
+int ECRS_listDirectory(struct GE_Context * ectx,
+		       const char * data,
 		       unsigned long long len,
 		       struct ECRS_MetaData ** md,
 		       ECRS_SearchProgressCallback spcb,
@@ -72,10 +73,13 @@ int ECRS_listDirectory(const char * data,
     mdSize = ntohl(mdSize);
     if (mdSize > len - 8 - sizeof(unsigned int) )
       return SYSERR; /* invalid size */
-    *md = ECRS_deserializeMetaData(&data[8 + sizeof(unsigned int)],
+    *md = ECRS_deserializeMetaData(ectx,
+				   &data[8 + sizeof(unsigned int)],
 				   mdSize);
-    if (*md == NULL)
+    if (*md == NULL) {
+      GE_BREAK(ectx, 0);
       return SYSERR; /* malformed !*/
+    }
     pos = 8 + sizeof(unsigned int) + mdSize;
   }
   while (pos < len) {
@@ -86,7 +90,7 @@ int ECRS_listDirectory(const char * data,
       align = ((pos / BLOCK_ALIGN_SIZE)+1) * BLOCK_ALIGN_SIZE;
       pos = align;
       if (pos >= len) {
-	/* malformed */
+	/* malformed - or partial download... */
 	break;
       }
     }
@@ -95,16 +99,19 @@ int ECRS_listDirectory(const char * data,
 	    (data[epos] != '\0') )
       epos++;
     if (epos == len) {
-      return SYSERR; /* malformed */
+      return SYSERR; /* malformed - or partial download */
     }
 
-    fi.uri = ECRS_stringToUri(&data[pos]);
+    fi.uri = ECRS_stringToUri(ectx,
+			      &data[pos]);
     pos = epos+1;
-    if (fi.uri == NULL)
+    if (fi.uri == NULL) {
+      GE_BREAK(ectx, 0);
       return SYSERR; /* malformed! */
+    }
     if (ECRS_isKeywordUri(fi.uri)) {
       ECRS_freeUri(fi.uri);
-      BREAK();
+      GE_BREAK(ectx, 0);
       return SYSERR; /* illegal in directory! */
     }
 
@@ -116,13 +123,15 @@ int ECRS_listDirectory(const char * data,
     pos += sizeof(unsigned int);
     if (pos + mdSize > len) {
       ECRS_freeUri(fi.uri);
-      return SYSERR; /* malformed! */
+      return SYSERR; /* malformed - or partial download */
     }
 
-    fi.meta = ECRS_deserializeMetaData(&data[pos],
+    fi.meta = ECRS_deserializeMetaData(ectx,
+				       &data[pos],
 				       mdSize);
     if (fi.meta == NULL) {
       ECRS_freeUri(fi.uri);
+      GE_BREAK(ectx, 0);
       return SYSERR; /* malformed !*/
     }
     pos += mdSize;
@@ -159,7 +168,8 @@ int ECRS_listDirectory(const char * data,
  *        is extended with the mime-type for a GNUnet directory.
  * @return OK on success, SYSERR on error
  */
-int ECRS_createDirectory(char ** data,
+int ECRS_createDirectory(struct GE_Context * ectx,
+			 char ** data,
 			 unsigned long long * len,
 			 unsigned int count,
 			 const ECRS_FileInfo * fis,
@@ -174,7 +184,7 @@ int ECRS_createDirectory(char ** data,
 
   for (i=0;i<count;i++) {
     if (ECRS_isKeywordUri(fis[i].uri)) {
-      BREAK();
+      GE_BREAK(ectx, 0);
       return SYSERR; /* illegal in directory! */
     }
   }
@@ -187,7 +197,7 @@ int ECRS_createDirectory(char ** data,
     psize = size;
 
     ucs[i] = ECRS_uriToString(fis[i].uri);
-    GNUNET_ASSERT(ucs[i] != NULL);
+    GE_ASSERT(ectx, ucs[i] != NULL);
     size += strlen(ucs[i]) + 1;
     size += sizeof(unsigned int);
     size += ECRS_sizeofMetaData(fis[i].meta,
@@ -208,11 +218,12 @@ int ECRS_createDirectory(char ** data,
 	 GNUNET_DIRECTORY_MAGIC,
 	 8);
 
-  ret = ECRS_serializeMetaData(meta,
+  ret = ECRS_serializeMetaData(ectx,
+			       meta,
 			       &(*data)[pos + sizeof(unsigned int)],
 			       size - pos - sizeof(unsigned int),
 			       ECRS_SERIALIZE_FULL);
-  GNUNET_ASSERT(ret != SYSERR);
+  GE_ASSERT(ectx, ret != SYSERR);
   ret = htonl(ret);
   memcpy(&(*data)[pos],
 	 &ret,
@@ -238,11 +249,12 @@ int ECRS_createDirectory(char ** data,
     pos += strlen(ucs[i]) + 1;
     FREE(ucs[i]);
 
-    ret = ECRS_serializeMetaData(fis[i].meta,
+    ret = ECRS_serializeMetaData(ectx,
+				 fis[i].meta,
 				 &(*data)[pos + sizeof(unsigned int)],
 				 size - pos - sizeof(unsigned int),
 				 ECRS_SERIALIZE_FULL);
-    GNUNET_ASSERT(ret != SYSERR);
+    GE_ASSERT(ectx, ret != SYSERR);
     ret = htonl(ret);
     memcpy(&(*data)[pos],
 	   &ret,
@@ -250,7 +262,7 @@ int ECRS_createDirectory(char ** data,
     pos += ntohl(ret) + sizeof(unsigned int);
   }
   FREE(ucs);
-  GNUNET_ASSERT(pos == size);
+  GE_ASSERT(ectx, pos == size);
 
   return OK;
 }

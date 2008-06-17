@@ -31,28 +31,32 @@
 #include "gnunet_transport.h"
 
 /**
- * The identity of THIS node.
- */
-extern PeerIdentity myIdentity;
-
-/**
  * Initialize the CORE's globals.
  */
-void initCore();
+int initCore(struct GE_Context * ectx,
+	     struct GC_Configuration * cfg,
+	     struct CronManager * cron,
+	     struct LoadMonitor * monitor);
 
 /**
  * Shutdown the CORE modules (also shuts down all
  * application modules).
  */
-void doneCore();
+void doneCore(void);
 
 void * requestService(const char * pos);
 
 int releaseService(void * service);
 
-void unloadApplicationModules();
+/**
+ * @return OK on success, SYSERR if some modules failed to unload
+ */
+int unloadApplicationModules(void);
 
-void loadApplicationModules();
+/**
+ * @return OK on success, SYSERR if some modules failed to load
+ */
+int loadApplicationModules(void);
 
 
 

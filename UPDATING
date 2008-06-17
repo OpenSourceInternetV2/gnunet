@@ -9,6 +9,113 @@ data-preserving migration may not be possible.  For SVN versions,
 you're on your own.
 
 
+0.7.1b to 0.7.1c
+================
+
+Run
+
+$ gnunet-update
+
+This may take a bit longer than usual (depending on your
+database size, it may take a few hours!).  You may also
+want to manually re-run gnunet-insert (due to bugfixes
+related to content expiration and preview-generation
+bugs in an older libextractor version).
+
+
+0.7.1a to 0.7.1b
+================
+
+Run
+
+$ gnunet-update
+
+(as the same user that also runs gnunetd).  Check your configuration
+file for values with "$"-symbols.  If it contains any, you must add
+definitions for those paths into a special new section "PATHS" --
+otherwise GNUnet will not expand the "$"-variables.  Alternatively,
+reconfigure using gnunet-setup.  The default location for gnunetd's
+files changed from "/var/lib/GNUnet" to "/var/lib/gnunet".  If you
+create a new configuration file from scratch (or want to switch to
+the new default), you should rename the old directory at the time 
+of the change.
+
+
+0.7.1 to 0.7.1a
+===============
+
+Run
+
+$ gnunet-update
+
+(as the same user that also runs gnunetd).
+
+
+0.7.1pre2 to 0.7.1
+==================
+
+Run
+
+$ gnunet-update
+
+(as the same user that also runs gnunetd).
+
+
+0.7.1pre1 to 0.7.1pre2
+======================
+
+Run
+
+$ gnunet-update
+
+(as the same user that also runs gnunetd).
+
+
+0.7.1pre0 to 0.7.1pre1
+======================
+
+Run
+
+$ gnunet-update
+
+(as the same user that also runs gnunetd).
+
+
+0.7.0e to 0.7.1pre0
+===================
+
+First of all, read README.debian and study the changes in the
+dependencies.  Install all dependencies and check the version
+numbers.  Once you have managed to compile GNUnet, read on.
+
+There are now two TCP transports, one using the 0.7.1 protocol and one
+using the 0.7.0e protocol to allow the 0.7.1 network to connect with
+the 0.7.0 network.  The old TCP transport is hardwired to use port
+2089, so you may have to open some new holes in your firewall (you can
+only change the port by editing the source).  The new TCP transport
+will run at whatever port is specified in the configuration.
+
+Next you should edit your gnunetd.conf file as follows:
+* remove http, smtp from TRANSPORTS, add "tcp_old"
+* if HTTP-PROXY-PORT is set, add ":PORT-NUMBER" 
+  to the HTTP-PROXY line
+
+If your "gnunetd.conf" file is not in /etc,  you may
+have to edit scripts to pass "-c THE_PATH/gnunetd.conf"
+to gnunetd as an argument.  Alternatively, move the
+configuration to "/etc/gnunetd.conf".
+
+
+Finally, stop your old gnunetd process and run 
+
+# gnunet-update
+# gnunet-setup -d
+$ gnunet-setup 
+
+to update the configuration and run the setup tool to configure new
+options (you maybe able to skip gnunet-setup).  Restart gnunetd.
+
+
 0.7.0pre6, 0.7.0, 0.7.0{a,b,c,d} to 0.7.0e
 ==========================================
 

@@ -3,7 +3,9 @@ INCLUDES = -I$(top_srcdir)/src/include
 plugindir = $(libdir)/GNUnet
 
 LDADD = \
- $(top_builddir)/src/util/libgnunetutil.la 
+ $(top_builddir)/src/util/libgnunetutil.la \
+ $(top_builddir)/src/util/cron/libgnunetutil_cron.la \
+ $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la 
 
 plugin_LTLIBRARIES = \
   libgnunetmodule_gap.la
@@ -28,10 +30,15 @@ gaptest_SOURCES = \
 gaptest_LDADD = \
   $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
   $(top_builddir)/src/util/libgnunetutil.la 
+
 
 EXTRA_DIST = \
   peer1.conf \
   peer2.conf \
   peer1/.hostkey \
-  peer2/.hostkey 
+  peer2/.hostkey \
+  check.conf

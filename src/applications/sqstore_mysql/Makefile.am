@@ -9,7 +9,8 @@ plugin_LTLIBRARIES = \
   libgnunetmodule_sqstore_mysql.la
 
 check_PROGRAMS = \
-  mysqltest
+  mysqltest \
+  mysqltest2 
 
 TESTS = $(check_PROGRAMS)
 
@@ -34,4 +35,12 @@ mysqltest_SOURCES = \
  mysqltest.c 
 mysqltest_LDADD = \
  $(top_builddir)/src/util/libgnunetutil.la \
+ $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
  $(top_builddir)/src/server/libgnunetcore.la
+
+mysqltest2_SOURCES = \
+ mysqltest2.c 
+mysqltest2_LDADD = \
+ $(top_builddir)/src/server/libgnunetcore.la  \
+ $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+ $(top_builddir)/src/util/libgnunetutil.la  

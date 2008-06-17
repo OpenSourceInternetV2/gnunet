@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2006 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -27,154 +27,117 @@
 #include "platform.h"
 #include "gnunet_util.h"
 #include "gnunet_protocols.h"
+#include "gnunet_directories.h"
 #include "gnunet_transport_service.h"
 #include "gnunet_identity_service.h"
 #include "gnunet_core.h"
+#include "gnunet_util_boot.h"
+#include "gnunet_util_cron.h"
 #include "core.h"
 
 static Transport_ServiceAPI * transport;
+
 static Identity_ServiceAPI * identity;
 
+static struct GE_Context * ectx;
+
+static char * cfgFilename = DEFAULT_DAEMON_CONFIG_FILE;
+
+static int no_resolve = NO;
+
 /**
- * Perform option parsing from the command line.
+ * All gnunet-peer-info command line options
  */
-static int parser(int argc,
-		  char * argv[]) {
-  int cont = OK;
-  int c;
-
-  /* set the 'magic' code that indicates that
-     this process is 'gnunetd' (and not any of
-     the user-tools).  Needed such that we use
-     the right configuration file... */
-  FREENONNULL(setConfigurationString("GNUNETD",
-				     "_MAGIC_",
-				     "YES"));
-  FREENONNULL(setConfigurationString("GNUNETD",
-				     "LOGFILE",
-				     NULL));
-  while (1) {
-    int option_index = 0;
-    static struct GNoption long_options[] = {
-      { "loglevel",1, 0, 'L' },
-      { "config",  1, 0, 'c' },
-      { "version", 0, 0, 'v' },
-      { "help",    0, 0, 'h' },
-      { 0,0,0,0 }
-    };
-
-    c = GNgetopt_long(argc,
-		      argv,
-		      "vhc:L:",
-		      long_options,
-		      &option_index);
-
-    if (c == -1)
-      break;  /* No more flags to process */
-
-    switch(c) {
-    case 'c':
-      FREENONNULL(setConfigurationString("FILES",
-					 "gnunet.conf",
-					 GNoptarg));
-      break;
-    case 'v':
-      printf("gnunet-peer-info v%s\n",
-	     VERSION);
-      cont = SYSERR;
-      break;
-    case 'h': {
-      static Help help[] = {
-	HELP_CONFIG,
-	HELP_HELP,
-	HELP_LOGLEVEL,
-	HELP_VERSION,
-	HELP_END,
-      };
-      formatHelp("gnunet-peer-info [OPTIONS]",
-		 _("Print information about GNUnet peers."),
-		 help);
-      cont = SYSERR;
-      break;
-    }
-    case 'L':
-      FREENONNULL(setConfigurationString("GNUNETD",
-					 "LOGLEVEL",
-					 GNoptarg));
-      break;
-    default:
-      LOG(LOG_FAILURE,
-	  _("Use --help to get a list of options.\n"));
-      cont = SYSERR;
-    } /* end of parsing commandline */
-  }
-  if (GNoptind < argc) {
-    LOG(LOG_WARNING,
-	_("Invalid arguments: "));
-    while (GNoptind < argc)
-      LOG(LOG_WARNING,
-	  "%s ", argv[GNoptind++]);
-    LOG(LOG_FATAL,
-	_("Invalid arguments. Exiting.\n"));
-    return SYSERR;
-  }
-  return cont;
-}
+static struct CommandLineOption gnunetpeerinfoOptions[] = {
+  COMMAND_LINE_OPTION_CFG_FILE(&cfgFilename), /* -c */
+  COMMAND_LINE_OPTION_HELP(gettext_noop("Print information about GNUnet peers.")), /* -h */
+  COMMAND_LINE_OPTION_HOSTNAME, /* -H */
+  COMMAND_LINE_OPTION_LOGGING, /* -L */
+  { 'n', "numeric", NULL,
+    gettext_noop("don't resolve host names"),
+    0, &gnunet_getopt_configure_set_one, &no_resolve },
+  COMMAND_LINE_OPTION_VERSION(PACKAGE_VERSION), /* -v */
+  COMMAND_LINE_OPTION_END,
+};
 
 /**
  * Print information about the peer.
  * Currently prints the PeerIdentity, trust and the IP.
  * Could of course do more (e.g. resolve via DNS).
  */
-static void printHostInfo(const PeerIdentity * id,
-			  const unsigned short proto,
-			  int verified,
-			  void * data) {
+static int printHostInfo(const PeerIdentity * id,
+			 const unsigned short proto,
+			 int verified,
+			 void * data) {
   P2P_hello_MESSAGE * helo;
   char * info;
   EncName enc;
 
+  if (GNUNET_SHUTDOWN_TEST()==YES)
+    return SYSERR;
   hash2enc(&id->hashPubKey,
 	   &enc);
   helo = identity->identity2Helo(id,
 				 proto,
 				 NO);
   if (NULL == helo) {
-    LOG(LOG_WARNING,
-	_("Could not get address of peer `%s'.\n"),
-	&enc);
-    return;
+    GE_LOG(ectx,
+	   GE_WARNING | GE_BULK | GE_USER,
+	   _("Could not get address of peer `%s'.\n"),
+	   &enc);
+    return OK;
   }
   if (SYSERR == verifySig(&helo->senderIdentity,
-			  P2P_hello_MESSAGE_size(helo) - sizeof(Signature) - sizeof(PublicKey) - sizeof(P2P_MESSAGE_HEADER),
+			  P2P_hello_MESSAGE_size(helo) - sizeof(Signature) - sizeof(PublicKey) - sizeof(MESSAGE_HEADER),
 			  &helo->signature,
 			  &helo->publicKey)) {
-    LOG(LOG_WARNING,
-	_("hello message invalid (signature invalid).\n"));
+    GE_LOG(ectx, 
+	   GE_WARNING | GE_BULK | GE_USER,
+	   _("hello message invalid (signature invalid).\n"));
   }
-  info = transport->heloToString(helo);
+  info = transport->helloToString(helo,
+				  ! no_resolve);
   FREE(helo);
   if (info == NULL) {
-    LOG(LOG_WARNING,
-	_("Could not get address of peer `%s'.\n"),
-	&enc);
-    return;
+    GE_LOG(ectx,
+	   GE_WARNING | GE_BULK | GE_USER,
+	   _("Could not get address of peer `%s'.\n"),
+	   &enc);
+    return OK;
   }
-
   printf(_("Peer `%s' with trust %8u and address `%s'\n"),
 	 (char*)&enc,
 	 identity->getHostTrust(id),
 	 info);
   FREE(info);
+  return OK;
 }
 
-int main(int argc, char *argv[]) {
-  if (OK != initUtil(argc, argv, &parser))
-    return SYSERR;
-  FREENONNULL(setConfigurationString("TCPSERVER",
-				     "DISABLE",
-				     "YES"));
-  initCore();
+int main(int argc,
+	 char * const * argv) {
+  struct GC_Configuration * cfg;
+  struct CronManager * cron;
+  int ret;
+
+  ret = GNUNET_init(argc,
+		    argv,
+		    "gnunet-peer-info",
+		    &cfgFilename,
+		    gnunetpeerinfoOptions,
+		    &ectx,
+		    &cfg);
+  if (ret == -1) {
+    GNUNET_fini(ectx, cfg);
+    return -1;
+  }
+  GE_ASSERT(ectx,
+	    0 == GC_set_configuration_value_string(cfg,
+						   ectx,
+						   "TCPSERVER",
+						   "DISABLE",
+						   "YES"));
+  cron = cron_create(ectx);
+  initCore(ectx, cfg, cron, NULL);
   identity = requestService("identity");
   transport = requestService("transport");
   identity->forEachHost(0, /* no timeout */
@@ -183,7 +146,8 @@ int main(int argc, char *argv[]) {
   releaseService(identity);
   releaseService(transport);
   doneCore();
-  doneUtil();
+  cron_destroy(cron);
+  GNUNET_fini(ectx, cfg);
   return 0;
 }
 

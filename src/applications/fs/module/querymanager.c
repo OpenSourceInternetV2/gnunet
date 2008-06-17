@@ -35,7 +35,7 @@
 typedef struct {
   HashCode512 query;
   unsigned int type;
-  ClientHandle client;
+  struct ClientHandle * client;
 } TrackRecord;
 
 /**
@@ -44,17 +44,20 @@ typedef struct {
 static TrackRecord ** trackers;
 
 static unsigned int trackerCount;
+
 static unsigned int trackerSize;
 
 /**
  * Mutex for all query manager structures.
  */
-static Mutex queryManagerLock;
+static struct MUTEX * queryManagerLock;
 
 static CoreAPIForApplication * coreAPI;
 
+static struct GE_Context * ectx;
+
 static void removeEntry(unsigned int off) {
-  GNUNET_ASSERT(off < trackerCount);
+  GE_ASSERT(ectx, off < trackerCount);
   FREE(trackers[off]);
   trackers[off] = trackers[--trackerCount];
   trackers[trackerCount] = NULL;
@@ -63,13 +66,13 @@ static void removeEntry(unsigned int off) {
     GROW(trackers, trackerSize, trackerSize / 2);
 }
 
-static void ceh(ClientHandle client) {
+static void ceh(struct ClientHandle * client) {
   int i;
-  MUTEX_LOCK(&queryManagerLock);
+  MUTEX_LOCK(queryManagerLock);
   for (i=trackerCount-1;i>=0;i--)
     if (trackers[i]->client == client)
       removeEntry(i);
-  MUTEX_UNLOCK(&queryManagerLock);
+  MUTEX_UNLOCK(queryManagerLock);
 }
 
 /**
@@ -81,16 +84,16 @@ static void ceh(ClientHandle client) {
  */
 void trackQuery(const HashCode512 * query,
 		unsigned int type,
-		const ClientHandle client) {
+		struct ClientHandle * client) {
   int i;
 
-  GNUNET_ASSERT(client != NULL);
-  MUTEX_LOCK(&queryManagerLock);
+  GE_ASSERT(ectx, client != NULL);
+  MUTEX_LOCK(queryManagerLock);
   for (i=trackerCount-1;i>=0;i--)
     if ( (trackers[i]->client == client) &&
 	 (equalsHashCode512(&trackers[i]->query,
 			    query)) ) {
-      MUTEX_UNLOCK(&queryManagerLock);
+      MUTEX_UNLOCK(queryManagerLock);
       return;
     }
   if (trackerSize == trackerCount)
@@ -102,7 +105,7 @@ void trackQuery(const HashCode512 * query,
   trackers[trackerCount]->type = type;
   trackers[trackerCount]->client = client;
   trackerCount++;
-  MUTEX_UNLOCK(&queryManagerLock);
+  MUTEX_UNLOCK(queryManagerLock);
 }
 
 /**
@@ -112,19 +115,19 @@ void trackQuery(const HashCode512 * query,
  * @param client where did the query come from?
  */
 void untrackQuery(const HashCode512 * query,
-		  const ClientHandle client) {
+		  struct ClientHandle * client) {
   int i;
 
-  MUTEX_LOCK(&queryManagerLock);
+  MUTEX_LOCK(queryManagerLock);
   for (i=trackerCount-1;i>=0;i--)
     if ( (trackers[i]->client == client) &&
 	 (equalsHashCode512(&trackers[i]->query,
 			    query)) ) {
       removeEntry(i);
-      MUTEX_UNLOCK(&queryManagerLock);
+      MUTEX_UNLOCK(queryManagerLock);
       return;
     }
-  MUTEX_UNLOCK(&queryManagerLock);
+  MUTEX_UNLOCK(queryManagerLock);
 }
 
 /**
@@ -142,14 +145,20 @@ void processResponse(const HashCode512 * key,
   EncName enc;
 #endif
 
-  GNUNET_ASSERT(ntohl(value->size) > sizeof(Datastore_Value));
+  GE_ASSERT(ectx, 
+	    ntohl(value->size) > sizeof(Datastore_Value));
+  if ( (ntohll(value->expirationTime) < get_time()) &&
+       (ntohl(value->type) != D_BLOCK) )
+    return; /* ignore expired, non-data responses! */
+
   matchCount = 0;
 #if DEBUG_QUERYMANAGER
-  IFLOG(LOG_DEBUG,
-	hash2enc(key,
-		 &enc));
+  IF_GELOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   hash2enc(key,
+		    &enc));
 #endif
-  MUTEX_LOCK(&queryManagerLock);
+  MUTEX_LOCK(queryManagerLock);
   for (i=trackerCount-1;i>=0;i--) {
     if ( (equalsHashCode512(&trackers[i]->query,
 			    key)) &&
@@ -161,14 +170,17 @@ void processResponse(const HashCode512 * key,
       rc->header.size = htons(sizeof(CS_fs_reply_content_MESSAGE) +
 			      ntohl(value->size) - sizeof(Datastore_Value));
       rc->header.type = htons(CS_PROTO_gap_RESULT);
+      rc->anonymityLevel = value->anonymityLevel;
+      rc->expirationTime = value->expirationTime;
       memcpy(&rc[1],
 	     &value[1],
 	     ntohl(value->size) - sizeof(Datastore_Value));
 #if DEBUG_QUERYMANAGER
-      LOG(LOG_DEBUG,
-	  "Sending reply for `%s' to client waiting in slot %u.\n",
-	  &enc,
-	  i);
+      GE_LOG(ectx,
+	     GE_DEBUG | GE_REQUEST | GE_USER,
+	     "Sending reply for `%s' to client waiting in slot %u.\n",
+	     &enc,
+	     i);
 #endif
       coreAPI->sendToClient(trackers[i]->client,
 			    &rc->header);
@@ -177,12 +189,13 @@ void processResponse(const HashCode512 * key,
   }
 #if DEBUG_QUERYMANAGER && 0
   if (matchCount == 0) {
-    LOG(LOG_DEBUG,
-	"Reply `%s' did not match any request.\n",
-	&enc);
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "Reply `%s' did not match any request.\n",
+	   &enc);
   }
 #endif
-  MUTEX_UNLOCK(&queryManagerLock);
+  MUTEX_UNLOCK(queryManagerLock);
 }
 
 /**
@@ -190,11 +203,12 @@ void processResponse(const HashCode512 * key,
  */
 int initQueryManager(CoreAPIForApplication * capi) {
   coreAPI = capi;
+  ectx = capi->ectx;
   capi->registerClientExitHandler(&ceh);
   GROW(trackers,
        trackerSize,
        64);
-  MUTEX_CREATE(&queryManagerLock);
+  queryManagerLock = MUTEX_CREATE(NO);
   return OK;
 }
 
@@ -207,8 +221,9 @@ void doneQueryManager() {
        0);
   trackerCount = 0;
   coreAPI->unregisterClientExitHandler(&ceh);
-  MUTEX_DESTROY(&queryManagerLock);
+  MUTEX_DESTROY(queryManagerLock);
   coreAPI = NULL;
+  ectx = NULL;
 }
 
 /* end of querymanager.c */

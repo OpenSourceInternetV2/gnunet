@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2004, 2005 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -26,12 +26,15 @@
 
 #include "platform.h"
 #include "gnunet_protocols.h"
+#include "gnunet_directories.h"
 #include "ecrs_core.h"
 #include "ondemand.h"
+#include "gnunet_state_service.h"
 
 #define DEBUG_ONDEMAND NO
 
 #define TRACK_INDEXED_FILES NO
+
 #define TRACKFILE "indexed_requests.txt"
 
 /**
@@ -65,6 +68,12 @@ typedef struct {
 
 static char * index_directory;
 
+static struct GE_Context * ectx;
+
+static CoreAPIForApplication * coreAPI;
+
+static State_ServiceAPI * state;
+
 static char * getOnDemandFile(const HashCode512 * fileId) {
   EncName enc;
   char * fn;
@@ -73,7 +82,7 @@ static char * getOnDemandFile(const HashCode512 * fileId) {
 	   &enc);
   fn = MALLOC(strlen(index_directory) + sizeof(EncName) + 1);
   strcpy(fn, index_directory);
-  strcat(fn, "/");
+  strcat(fn, DIR_SEPARATOR_STR);
   strcat(fn, (char*) &enc);
   return fn;
 }
@@ -105,14 +114,16 @@ static int checkPresent(const HashCode512 * key,
  * @return SYSERR on error, NO if symlinking failed,
  *         YES on success
  */
-int ONDEMAND_initIndex(const HashCode512 * fileId,
+int ONDEMAND_initIndex(struct GE_Context * cectx,
+		       const HashCode512 * fileId,
 		       const char *fn) {
   EncName enc;
   char * serverFN;
   char unavail_key[256];
   HashCode512 linkId;
 
-  if ( (SYSERR == getFileHash(fn,
+  if ( (SYSERR == getFileHash(cectx,
+			      fn,
 			      &linkId)) ||
        (! equalsHashCode512(&linkId,
 			    fileId)) ) {
@@ -129,9 +140,17 @@ int ONDEMAND_initIndex(const HashCode512 * fileId,
   strcat(serverFN,
 	 (char*)&enc);
   UNLINK(serverFN);
+  disk_directory_create_for_file(cectx,
+				 serverFN);
   if (0 != SYMLINK(fn, serverFN)) {
-    LOG_FILE_STRERROR(LOG_ERROR, "symlink", fn);
-    LOG_FILE_STRERROR(LOG_ERROR, "symlink", serverFN);
+    GE_LOG_STRERROR_FILE(cectx,
+			 GE_ERROR | GE_ADMIN | GE_USER | GE_BULK,
+			 "symlink",
+			 fn);
+    GE_LOG_STRERROR_FILE(cectx,
+			 GE_ERROR | GE_ADMIN | GE_USER | GE_BULK,
+			 "symlink",
+			 serverFN);
     FREE(serverFN);
     return NO;
   }
@@ -139,7 +158,8 @@ int ONDEMAND_initIndex(const HashCode512 * fileId,
 	   256,
 	   "FIRST_UNAVAILABLE-%s",
 	   (char*)&enc);
-  stateUnlinkFromDB(unavail_key);
+  state->unlink(ectx,
+		unavail_key);
   FREE(serverFN);
   return YES;
 }
@@ -151,7 +171,8 @@ int ONDEMAND_initIndex(const HashCode512 * fileId,
  * @return NO if already present, YES on success,
  *  SYSERR on other error (i.e. datastore full)
  */
-int ONDEMAND_index(Datastore_ServiceAPI * datastore,
+int ONDEMAND_index(struct GE_Context * cectx,
+		   Datastore_ServiceAPI * datastore,
 		   unsigned int prio,
 		   cron_t expiration,
 		   unsigned long long fileOffset,
@@ -170,7 +191,8 @@ int ONDEMAND_index(Datastore_ServiceAPI * datastore,
 
 
   if (size <= sizeof(DBlock)) {
-    BREAK();
+    GE_BREAK(cectx, 0);
+    GE_BREAK(ectx, 0);
     return SYSERR;
   }
 
@@ -185,15 +207,16 @@ int ONDEMAND_index(Datastore_ServiceAPI * datastore,
 
     /* not sym-linked, write content to offset! */
 #if DEBUG_ONDEMAND
-    LOG(LOG_DEBUG,
-	"Storing on-demand encoded data in `%s'.\n",
-	fn);
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "Storing on-demand encoded data in `%s'.\n",
+	   fn);
 #endif
-    fd = fileopen(fn,
-		  O_LARGEFILE | O_CREAT|O_WRONLY,
-		  S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH); /* 644 */
+    fd = disk_file_open(cectx,
+			fn,
+			O_LARGEFILE | O_CREAT|O_WRONLY,
+			S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH); /* 644 */
     if(fd == -1) {
-      LOG_FILE_STRERROR(LOG_ERROR, "open", fn);
       FREE(fn);
       return SYSERR;
     }
@@ -206,10 +229,13 @@ int ONDEMAND_index(Datastore_ServiceAPI * datastore,
     if (ret == size - sizeof(DBlock)) {
       ret = OK;
     } else {
-      LOG_FILE_STRERROR(LOG_ERROR, "write", fn);
+      GE_LOG_STRERROR_FILE(cectx,
+			   GE_ERROR | GE_ADMIN | GE_USER | GE_BULK,
+			   "write",
+			   fn);
       ret = SYSERR;
     }
-    closefile(fd);
+    CLOSE(fd);
     if (ret == SYSERR) {
       FREE(fn);
       return ret;
@@ -237,7 +263,8 @@ int ONDEMAND_index(Datastore_ServiceAPI * datastore,
 			      size,
 			      &key,
 			      &dsvalue)) {
-      BREAK();
+      GE_BREAK(cectx, 0);
+      GE_BREAK(ectx, 0);
     } else {
       FREE(dsvalue);
     }
@@ -245,11 +272,13 @@ int ONDEMAND_index(Datastore_ServiceAPI * datastore,
 #endif
 
 #if DEBUG_ONDEMAND
-  IFLOG(LOG_DEBUG,
-	hash2enc(&key, &enc));
-  LOG(LOG_DEBUG,
-      "Storing on-demand content for query `%s'\n",
-      &enc);
+  IF_GELOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   hash2enc(&key, &enc));
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "Storing on-demand content for query `%s'\n",
+	 &enc);
 #endif
 
   ret = datastore->get(&key,
@@ -271,7 +300,8 @@ struct adJ {
   HashCode512 query;
 };
 
-static void asyncDelJob(struct adJ * job) {
+static void asyncDelJob(void * cls) {
+  struct adJ * job = cls;
   job->datastore->del(&job->query,
 		      job->dbv);
   FREE(job->dbv);
@@ -301,15 +331,17 @@ static void asyncDelete(Datastore_ServiceAPI * datastore,
 #if DEBUG_ONDEMAND
   hash2enc(query,
 	   &enc);
-  LOG(LOG_DEBUG,
-      _("Indexed file disappeared, deleting block for query `%s'\n"),
-      &enc);
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 _("Indexed file disappeared, deleting block for query `%s'\n"),
+	 &enc);
 #endif
   /* schedule for "immediate" execution */
-  addCronJob((CronJob) &asyncDelJob,
-	     0,
-	     0,
-	     job);
+  cron_add_job(coreAPI->cron,
+	       &asyncDelJob,
+	       0,
+	       0,
+	       job);
 }
 
 /**
@@ -334,22 +366,26 @@ int ONDEMAND_getIndexed(Datastore_ServiceAPI * datastore,
   DBlock * db;
 
   if (ntohl(dbv->size) != sizeof(OnDemandBlock)) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     return SYSERR;
   }
   odb = (OnDemandBlock*) dbv;
   fn = getOnDemandFile(&odb->fileId);
-
-  fileHandle = fileopen(fn,
-			O_LARGEFILE | O_RDONLY,
-			0);
-  if (fileHandle == -1) {
+  if ( (YES != disk_file_test(ectx,
+			      fn)) ||
+       (-1 == (fileHandle = disk_file_open(ectx,
+					   fn,
+					   O_LARGEFILE | O_RDONLY,
+					   0))) ) {
     char unavail_key[256];
     EncName enc;
-    cron_t * first_unavail;
+    unsigned long long * first_unavail;
     struct stat linkStat;
 
-    LOG_FILE_STRERROR(LOG_ERROR, "open", fn);
+    GE_LOG_STRERROR_FILE(ectx,
+			 GE_WARNING | GE_ADMIN | GE_USER | GE_BULK,
+			 "open",
+			 fn);
 
     /* Is the symlink there? */
     if (LSTAT(fn, &linkStat) == -1) {
@@ -362,13 +398,17 @@ int ONDEMAND_getIndexed(Datastore_ServiceAPI * datastore,
 	       256,
 	       "FIRST_UNVAILABLE-%s",
 	       (char *) &enc);
-      if (stateReadContent(unavail_key,
-			   (void *) &first_unavail) == SYSERR) {
-        unsigned long long now = htonll(cronTime(NULL));
-        stateWriteContent(unavail_key, sizeof(cron_t), (void *) &now);
+      if (state->read(ectx,
+		      unavail_key,
+		      (void*)&first_unavail) != sizeof(cron_t)) {
+        unsigned long long now = htonll(get_time());
+        state->write(ectx,
+		     unavail_key,
+		     sizeof(cron_t),
+		     (void *) &now);
       } else {
         /* Delete it after 3 days */
-        if (*first_unavail - cronTime(NULL) > 3 * cronDAYS) {
+        if (ntohll(*first_unavail) - get_time() > 3 * cronDAYS) {
 	  unsigned int len;
 	  char * ofn;
 	  int ret;
@@ -379,7 +419,7 @@ int ONDEMAND_getIndexed(Datastore_ServiceAPI * datastore,
 		  (errno == ENAMETOOLONG) &&
 		  (len < 4 * 1024 * 1024) )
 	    if (len * 2 < len) {
-	      BREAK();
+	      GE_BREAK(ectx, 0);
 	      GROW(ofn, len, 0);
 	      FREE(fn);
 	      return SYSERR;
@@ -389,15 +429,17 @@ int ONDEMAND_getIndexed(Datastore_ServiceAPI * datastore,
 		 len*2);
 	  	
           if (ret != -1) {
-            LOG(LOG_ERROR,
-		_("Because the file `%s' has been unavailable for 3 days"
-		  " it got removed from your share.  Please unindex files before"
-		  " deleting them as the index now contains invalid references!\n"),
-		ofn);
+            GE_LOG(ectx,
+		   GE_ERROR | GE_BULK | GE_USER,
+		   _("Because the file `%s' has been unavailable for 3 days"
+		     " it got removed from your share.  Please unindex files before"
+		     " deleting them as the index now contains invalid references!\n"),
+		   ofn);
 	  }
 	  FREE(ofn);
 	  asyncDelete(datastore, dbv, query);
-          stateUnlinkFromDB(unavail_key);
+          state->unlink(ectx,
+			unavail_key);
           UNLINK(fn);
         }
       }
@@ -437,9 +479,13 @@ int ONDEMAND_getIndexed(Datastore_ServiceAPI * datastore,
   if (ntohll(odb->fileOffset) != lseek(fileHandle,
 				       ntohll(odb->fileOffset),
 				       SEEK_SET)) {
-    LOG_FILE_STRERROR(LOG_WARNING, "lseek", fn);
+    GE_LOG_STRERROR_FILE(ectx,
+			 GE_WARNING | GE_ADMIN | GE_USER | GE_BULK,
+			 "lseek",
+			 fn);
     FREE(fn);
-    closefile(fileHandle);
+    CLOSE(fileHandle);
+    asyncDelete(datastore, dbv, query);
     return SYSERR;
   }
   db = MALLOC(sizeof(DBlock) + ntohl(odb->blockSize));
@@ -449,13 +495,17 @@ int ONDEMAND_getIndexed(Datastore_ServiceAPI * datastore,
 	      iobuf,
 	      ntohl(odb->blockSize));
   if (blen != ntohl(odb->blockSize)) {
-    LOG_FILE_STRERROR(LOG_ERROR, "read", fn);
+    GE_LOG_STRERROR_FILE(ectx,
+			 GE_WARNING | GE_ADMIN | GE_USER | GE_BULK,
+			 "read",
+			 fn);
     FREE(fn);
     FREE(db);
-    closefile(fileHandle);
+    CLOSE(fileHandle);
+    asyncDelete(datastore, dbv, query);
     return SYSERR;
   }
-  closefile(fileHandle);
+  CLOSE(fileHandle);
   ret = fileBlockEncode(db,
 			ntohl(odb->blockSize) + sizeof(DBlock),
 			query,
@@ -463,7 +513,9 @@ int ONDEMAND_getIndexed(Datastore_ServiceAPI * datastore,
   FREE(db);
   FREE(fn);
   if (ret == SYSERR) {
-    LOG(LOG_ERROR, "Indexed content does not match its hash.\n");
+    GE_LOG(ectx,
+	   GE_WARNING | GE_BULK | GE_USER,
+	   _("Indexed content changed (does not match its hash).\n"));
     asyncDelete(datastore, dbv, query);
     return SYSERR;
   }
@@ -485,12 +537,13 @@ int ONDEMAND_testindexed(Datastore_ServiceAPI * datastore,
   int fd;
 
   fn = getOnDemandFile(fileId);
-  fd = fileopen(fn,
-	    O_RDONLY);
+  fd = disk_file_open(ectx,
+		      fn,
+		      O_RDONLY);
   FREE(fn);
   if(fd == -1)
     return NO;
-  closefile(fd);
+  CLOSE(fd);
   return YES;
 }
 
@@ -511,19 +564,21 @@ static int completeValue(const HashCode512 * key,
 		    &comp[1],
 		    ntohl(value->size) - sizeof(Datastore_Value))) ) {
 #if DEBUG_ONDEMAND
-    LOG(LOG_DEBUG,
-	"`%s' found value that does not match (%u, %u).\n",
-	__FUNCTION__,
-	ntohl(comp->size),
-	ntohl(value->size));
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "`%s' found value that does not match (%u, %u).\n",
+	   __FUNCTION__,
+	   ntohl(comp->size),
+	   ntohl(value->size));
 #endif
     return OK;
   }
   *comp = *value; /* make copy! */
 #if DEBUG_ONDEMAND
-  LOG(LOG_DEBUG,
-      "`%s' found value that matches.\n",
-      __FUNCTION__);
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "`%s' found value that matches.\n",
+	 __FUNCTION__);
 #endif
   return SYSERR;
 }
@@ -538,7 +593,8 @@ static int completeValue(const HashCode512 * key,
  *        up the file properly when computing
  *        the keys of the odb blocks).
  */
-int ONDEMAND_unindex(Datastore_ServiceAPI * datastore,
+int ONDEMAND_unindex(struct GE_Context * cectx,
+		     Datastore_ServiceAPI * datastore,
 		     unsigned int blocksize,
 		     const HashCode512 * fileId) {
   char * fn;
@@ -555,21 +611,24 @@ int ONDEMAND_unindex(Datastore_ServiceAPI * datastore,
 
   fn = getOnDemandFile(fileId);
 #if DEBUG_ONDEMAND
-  LOG(LOG_DEBUG,
-      "Removing on-demand encoded data stored in `%s'.\n",
-      fn);
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "Removing on-demand encoded data stored in `%s'.\n",
+	 fn);
 #endif
-  fd = fileopen(fn,
-	    O_RDONLY | O_LARGEFILE,
-	    S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH); /* 644 */
+  fd = disk_file_open(cectx,
+		      fn,
+		      O_RDONLY | O_LARGEFILE,
+		      S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH); /* 644 */
   if(fd == -1) {
-    LOG_FILE_STRERROR(LOG_ERROR, "open", fn);
     FREE(fn);
     return SYSERR;
   }
   pos = 0;
-  if (OK != getFileSize(fn,
-			&size)) {
+  if (OK != disk_file_size(cectx,
+			   fn,
+			   &size,
+			   YES)) {
     FREE(fn);
     return SYSERR;
   }
@@ -582,8 +641,11 @@ int ONDEMAND_unindex(Datastore_ServiceAPI * datastore,
     if (delta != READ(fd,
 		      &block[1],
 		      delta)) {
-      LOG_FILE_STRERROR(LOG_ERROR, "read", fn);
-      closefile(fd);
+      GE_LOG_STRERROR_FILE(cectx,
+			   GE_ERROR | GE_ADMIN | GE_USER | GE_BULK,
+			   "read",
+			   fn);
+      CLOSE(fd);
       FREE(fn);
       FREE(block);
       return SYSERR;
@@ -610,20 +672,21 @@ int ONDEMAND_unindex(Datastore_ServiceAPI * datastore,
     else /* not found */
       ret = SYSERR;
     if (ret == SYSERR) {
-      IFLOG(LOG_WARNING,
-	    hash2enc(&key,
-		     &enc));
-      LOG(LOG_WARNING,
-	  _("Unindexed ODB block `%s' from offset %llu already missing from datastore.\n"),
-	  &enc,
-	  pos);
+      IF_GELOG(cectx,
+	       GE_WARNING | GE_BULK | GE_USER,
+	       hash2enc(&key,
+			&enc));
+      GE_LOG(ectx,
+	     GE_WARNING | GE_BULK | GE_USER,
+	     _("Unindexed ODB block `%s' from offset %llu already missing from datastore.\n"),
+	     &enc,
+	     pos);
     }
     pos += delta;
   }
   FREE(block);
-  closefile(fd);
+  CLOSE(fd);
   UNLINK(fn);
-
   /* Remove information about unavailability */
   hash2enc(fileId,
 	   &enc);
@@ -631,36 +694,47 @@ int ONDEMAND_unindex(Datastore_ServiceAPI * datastore,
 	   256,
 	   "FIRST_UNAVAILABLE-%s",
 	   (char*)&enc);
-  stateUnlinkFromDB(unavail_key);
-
-
+  state->unlink(ectx,
+		unavail_key);
   FREE(fn);
   return OK;
 }
 
-int ONDEMAND_init() {
+int ONDEMAND_init(CoreAPIForApplication * capi) {
   char * tmp;
 
-
-  tmp
-    = getConfigurationString("FS",
-			     "INDEX-DIRECTORY");
-  if (NULL == tmp) {
-    tmp = getConfigurationString("GNUNETD",
-				 "GNUNETD_HOME");
-    GNUNET_ASSERT(NULL != tmp);
-    tmp = REALLOC(tmp,
-			      strlen(tmp) +
-			      strlen("/data/shared/") + 1);
-    strcat(tmp, "/data/shared/");
+  coreAPI = capi;
+  state = capi->requestService("state");
+  if (state == NULL) {
+    GE_BREAK(ectx, 0);
+    return SYSERR;
   }
-  index_directory = expandFileName(tmp);
+  ectx = capi->ectx;
+  GC_get_configuration_value_filename(capi->cfg,
+				      "GNUNETD",
+				      "GNUNETD_HOME",
+				      VAR_DAEMON_DIRECTORY,
+				      &tmp);
+  GE_ASSERT(ectx,
+	    NULL != tmp);
+  tmp = REALLOC(tmp,
+		strlen(tmp) +
+		strlen("/data/shared/") + 1);
+  strcat(tmp, "/data/shared/");
+  GC_get_configuration_value_filename(capi->cfg,
+				      "FS",
+				      "INDEX-DIRECTORY",
+				      tmp,
+				      &index_directory);
   FREE(tmp);
-  mkdirp(index_directory); /* just in case */  
+  disk_directory_create(ectx,
+			index_directory); /* just in case */
   return OK;
 }
 
 int ONDEMAND_done() {
+  coreAPI->releaseService(state);
+  state = NULL;
   FREE(index_directory);
   return OK;
 }

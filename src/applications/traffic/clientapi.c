@@ -43,7 +43,7 @@
  * @param peers set to number of peers involved
  * @return OK on success, SYSERR on error
  */
-int pollSocket(GNUNET_TCP_SOCKET * sock,
+int pollSocket(struct ClientServerConnection * sock,
 	       unsigned int timeframe,
 	       unsigned short type,
 	       unsigned short direction,
@@ -61,24 +61,18 @@ int pollSocket(GNUNET_TCP_SOCKET * sock,
     = htons(CS_PROTO_traffic_QUERY);
   req.timePeriod
     = htonl(timeframe);
-  if (SYSERR == writeToSocket(sock,
-			      &req.header)) {
-    LOG(LOG_WARNING,
-	_("Failed to query gnunetd about traffic conditions.\n"));
+  if (SYSERR == connection_write(sock,
+				 &req.header))
     return SYSERR;
-  }
   info = NULL;
-  if (SYSERR == readFromSocket(sock,
-			       (CS_MESSAGE_HEADER**)&info)) {
-    LOG(LOG_WARNING,
-	_("Did not receive reply from gnunetd about traffic conditions.\n"));
+  if (SYSERR == connection_read(sock,
+				(MESSAGE_HEADER**)&info))
     return SYSERR;
-  }
   if ( (ntohs(info->header.type) !=
 	CS_PROTO_traffic_INFO) ||
        (ntohs(info->header.size) !=
 	sizeof(CS_traffic_info_MESSAGE) + ntohl(info->count)*sizeof(TRAFFIC_COUNTER)) ) {
-    BREAK();
+    GE_BREAK(NULL, 0);
     return SYSERR;
   }
 

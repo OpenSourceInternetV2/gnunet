@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004, 2005 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -19,7 +19,7 @@
 */
 
 /**
- * @file util/win.cc
+ * @file util/win/win.cc
  * @brief Helper functions for MS Windows in C++
  * @author Nils Durner
  **/
@@ -37,6 +37,8 @@
 #endif
 
 extern "C" {
+
+int plibc_conv_to_win_path(const char *pszUnix, char *pszWindows);
 
 /**
  * Enumerate all network adapters
@@ -776,6 +778,28 @@ end:
 	   HeapFree(GetProcessHeap(), 0, pNewACL);
 	
 	return fResult;
+}
+
+char *winErrorStr(const char *prefix, int dwErr)
+{
+  char *err, *ret;
+  int mem;
+  
+  if (! FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
+    NULL, (DWORD) dwErr, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR) &err,
+    0, NULL ))
+  {
+    err = "";
+  }
+
+  mem = strlen(err) + strlen(prefix) + 20;
+  ret = (char *) malloc(mem);
+
+  snprintf(ret, mem, "%s: %s (#%u)", prefix, err, dwErr);
+
+  LocalFree(err);
+
+  return ret;
 }
 
 } /* extern "C" */

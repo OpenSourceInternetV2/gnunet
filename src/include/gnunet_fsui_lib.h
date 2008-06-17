@@ -20,8 +20,9 @@
 
 /**
  * @file include/gnunet_fsui_lib.h
- * @brief support for FS user interfaces
+ * @brief support for GNUnet file-sharing user interfaces
  * @author Christian Grothoff
+ * @see include/gnunet_ecrs_lib.h
  *
  * Writing a UI for GNUnet is now easier then ever before.  Basically,
  * the UI first calls FSUI_start, passing a callback that the UI uses
@@ -31,15 +32,17 @@
  * event processor also may have to worry about synchronizing itself
  * with the GUI library to display updates).<p>
  *
- * After creating a FSUI_Context with FSUI_start the UI can start (or
- * cancel) uploads, downloads or searches.  The FSUI_Context can be
- * destroyed, when it is created again the next time all pending
- * operations are resumed (!).  Clients can use the various iterator
- * functions to obtain information about pending actions.<p>
+ * After creating a FSUI_Context with FSUI_start the UI can start,
+ * abort and stop uploads, downloads, deletions or searches.
+ * The FSUI_Context can be destroyed, when it is created again
+ * the next time all pending operations are resumed (!).
+ * Clients can use the various iterator functions to obtain
+ * information about pending actions.<p>
  *
- * Note that there can only be one FSUI_Context for all clients.
+ * Note that there can only be one FSUI_Context for a given
+ * client application name if resuming is enabled.
  * Creating an FSUI_Context may _fail_ if any other UI is currently
- * running (for the same user).<p>
+ * running (for the same user and application name).<p>
  *
  * Clients may use SOME functions of GNUnet's ECRS library, in
  * particular functions to deal with URIs and MetaData, but generally
@@ -49,13 +52,33 @@
  *
  * Closing an FSUI_Context may take a while as the context may need
  * to serialize some state and complete operations that may not be
- * interrupted (such as indexing / unindexing operations). If this
- * is not acceptable, clients should wait until all uploads and
- * unindexing operations have completed before attempting to close
- * the FSUI_Context.<p>
+ * interrupted (such as communications with gnunetd).  Clients
+ * may want to open a window informing the user about the pending
+ * shutdown operation.<p>
+ *
+ * Any "startXXX" operation will result in FSUI state and memory
+ * being allocated until it is paired with a "stopXXX" operation.
+ * Before calling "stopXXX", one of three things must happen:
+ * Either, the client receives an "error" (something went wrong)
+ * or "completed" (action finished) event.  Alternatively, the
+ * client may call abortXXX" which will result in an "aborted"
+ * event.  In either case, the event itself will NOT result in
+ * the memory being released by FSUI -- the client must still
+ * call "FSUI_stopXXX" explicitly.  Clients that call
+ * "FSUI_stopXXX" before an aborted, error or completed event
+ * will be blocked until either of the three events happens.<p>
+ *
+ * Using the Event mechanism, clients can associate an arbitrary
+ * pointer with any operation (upload, download, search or
+ * deletion).  The pointer is initialized using the return value
+ * from the respective start or resume events.  If any memory
+ * is associated with the datastructure, the client should free
+ * that memory when suspend or stop events are issued.  For all
+ * events (other than start/resume), FSUI will track and provide
+ * the client pointer as part of the event (cctx field).<p>
  *
  * Note that most of this code is completely new in GNUnet 0.7.0 and
- * thus still highly experimental.  Suggestions are welcome.
+ * thus still highly experimental.  Suggestions are welcome.<p>
  */
 
 #ifndef GNUNET_FSUI_LIB_H
@@ -73,46 +96,200 @@ extern "C" {
 /**
  * Entry representing an FSUI download.  FSUI downloads form a tree
  * (for properly representing recursive downloads) with an invisible
- * root (for multiple parallel downloads).
+ * root (for multiple parallel downloads).<p>
  *
  * FSUI hands out references of this type to allow clients to access
  * information about active downloads.
- *
- * Structs of this type MUST NOT be stored in anything but local
- * variables (!) by FSUI clients.  This will ensure that the
- * references are always valid.
  */
 struct FSUI_DownloadList;
 
+struct FSUI_UploadList;
+
+struct FSUI_SearchList;
+
+struct FSUI_UnindexList;
+
 /**
  * @brief types of FSUI events.
+ *
+ * For the types aborted, error, suspending and complete,
+ * the client MUST free the "cctx" context associated with
+ * the event (if allocated).  This context is created
+ * by the "resume" operation.<p>
+ *
+ * Resume events are issued when operations resume as well
+ * as when they are first initiated!<p>
+ *
+ * Searches "complete" if they time out or the maximum
+ * number of results has been found.
  */
 enum FSUI_EventType {
-  /**
-   * We found a new search result.
-   */
+  FSUI_search_started,
+  FSUI_search_stopped,
   FSUI_search_result,
+  FSUI_search_completed,
+  FSUI_search_aborted,
   FSUI_search_error,
+  FSUI_search_suspended,
+  FSUI_search_resumed,
+  FSUI_download_started,
+  FSUI_download_stopped,
   FSUI_download_progress,
-  FSUI_download_complete,
+  FSUI_download_completed,
   FSUI_download_aborted,
   FSUI_download_error,
+  FSUI_download_suspended,
+  FSUI_download_resumed,
+  FSUI_upload_started,
+  FSUI_upload_stopped,
   FSUI_upload_progress,
-  FSUI_upload_complete,
+  FSUI_upload_completed,
+  FSUI_upload_aborted,
   FSUI_upload_error,
+  FSUI_upload_suspended,
+  FSUI_upload_resumed,
+  FSUI_unindex_started,
+  FSUI_unindex_stopped,
   FSUI_unindex_progress,
-  FSUI_unindex_complete,
+  FSUI_unindex_completed,
+  FSUI_unindex_aborted,
   FSUI_unindex_error,
-  /**
-   * Connection status with gnunetd changed.
-   */
-  FSUI_gnunetd_connected,
-  /**
-   * Connection status with gnunetd changed.
-   */
-  FSUI_gnunetd_disconnected,
-  FSUI_download_suspending,
+  FSUI_unindex_suspended,
+  FSUI_unindex_resumed,
 };
+
+
+/**
+ * Current state of a download (or uploads, or search,
+ * or unindex operations).
+ *
+ * PENDING means that the download is waiting for a thread
+ * to be assigned to run it.  Downloads start in this state,
+ * and during shutdown are serialized in this state.<br>
+ *
+ * ACTIVE means that there is currently a thread running
+ * the download (and that thread is allowed to continue).<br>
+ *
+ * COMPLETED means that the download is finished (but the
+ * thread has not been joined yet).  The download thread
+ * makes the transition from PENDING to COMPLETED when it
+ * is about to terminate.<br>
+ *
+ * COMPLETED_JOINED means that the download is finished and
+ * the thread has been joined.<br>
+ *
+ * ABORTED means that the user is causing the download to be
+ * terminated early (but the thread has not been joined yet).  The
+ * controller or the download thread make this transition; the
+ * download thread is supposed to terminate shortly after the state is
+ * moved to ABORTED.<br>
+ *
+ * ABORTED_JOINED means that the download did not complete
+ * successfully, should not be restarted and that the thread
+ * has been joined.<br>
+ *
+ * ERROR means that some fatal error is causing the download to be
+ * terminated early (but the thread has not been joined yet).  The
+ * controller or the download thread make this transition; the
+ * download thread is supposed to terminate shortly after the state is
+ * moved to ERROR.<br>
+ *
+ * ERROR_JOINED means that the download did not complete successfully,
+ * should not be restarted and that the thread has been joined.<br>
+ *
+ * SUSPENDING is used to notify the download thread that it
+ * should terminate because of an FSUI shutdown.  After this
+ * termination the code that joins the thread should move
+ * the state into PENDING (a new thread would not be started
+ * immediately because "threadPoolSize" will be 0 until FSUI
+ * resumes).
+ */
+typedef enum {
+  FSUI_PENDING = 0,
+  FSUI_ACTIVE = 1,
+  FSUI_COMPLETED = 2,
+  FSUI_COMPLETED_JOINED = 3,
+  FSUI_ABORTED = 4,
+  FSUI_ABORTED_JOINED = 5,
+  FSUI_ERROR = 6,
+  FSUI_ERROR_JOINED = 7,
+  FSUI_SUSPENDING = 8,
+} FSUI_State;
+
+/**
+ * @brief Description of a download.  Gives the
+ *  identifier of the download for FSUI and
+ *  the client context.  For downloads that
+ *  are not top-level, also gives the handle
+ *  and client context for the parent download.
+ */
+typedef struct {
+
+  /**
+   * What file in the download tree are we
+   * refering to?
+   */
+  struct FSUI_DownloadList * pos;
+
+  void * cctx;
+
+  /**
+   * What is our parent download in the download tree?
+   * NULL if this is the top-level download.
+   */
+  struct FSUI_DownloadList * ppos;
+
+  void * pcctx;
+
+  /**
+   * If this download is associated with a search,
+   * what is the search?
+   */
+  struct FSUI_SearchList * spos;
+
+  /**
+   * If this download is associated with a search,
+   * what is the client context for the search?
+   */
+  void * sctx;
+
+} FSUI_DownloadContext;
+
+typedef struct {
+
+  /**
+   * What file in the upload tree are we
+   * refering to?
+   */
+  struct FSUI_UploadList * pos;
+
+  void * cctx;
+
+  /**
+   * What is our parent upload in the upload tree?
+   * NULL if this is the top-level upload.
+   */
+  struct FSUI_UploadList * ppos;
+
+  void * pcctx;
+
+} FSUI_UploadContext;
+
+typedef struct {
+
+  struct FSUI_SearchList * pos;
+
+  void * cctx;
+
+} FSUI_SearchContext;
+
+typedef struct {
+
+  struct FSUI_UnindexList * pos;
+
+  void * cctx;
+
+} FSUI_UnindexContext;
 
 /**
  * @brief FSUI Event.
@@ -120,192 +297,462 @@ enum FSUI_EventType {
 typedef struct {
   enum FSUI_EventType type;
   union {
+
     struct {
+
+      FSUI_SearchContext sc;
+
       /**
        * File-Info of the data that was found.
        */
       ECRS_FileInfo fi;
-     /**
+
+      /**
        * The URI of the search for which data was
        * found.
        */
-      struct ECRS_URI * searchURI;
+      const struct ECRS_URI * searchURI;
+
     } SearchResult;
-    /**
-     * Download Progress information.  Also used
-     * for download_completed event.
-     */
+
+
     struct {
+
+      FSUI_SearchContext sc;
+
+    } SearchCompleted;
+
+    struct {
+
+      FSUI_SearchContext sc;
+
+    } SearchAborted;
+
+    struct {
+
+      FSUI_SearchContext sc;
+
+      const char * message;
+
+    } SearchError;
+
+    struct {
+
+      FSUI_SearchContext sc;
+
+    } SearchSuspended;
+
+    struct {
+
+      FSUI_SearchContext sc;
+
+      struct ECRS_URI * searchURI;
+
+      const ECRS_FileInfo * fis;
+
+      unsigned int anonymityLevel;
+
+      unsigned int fisSize;
+
+      FSUI_State state;
+
+    } SearchResumed;
+
+    struct {
+
+      FSUI_SearchContext sc;
+
+      const struct ECRS_URI * searchURI;
+
+      unsigned int anonymityLevel;
+
+    } SearchStarted;
+
+    struct {
+
+      FSUI_SearchContext sc;
+
+    } SearchStopped;
+
+
+
+    struct {
+
+      FSUI_DownloadContext dc;
+
       /**
        * How far are we?
        */
       unsigned long long completed;
+
       /**
        * How large is the total download (as far
        * as known so far).
        */
       unsigned long long total;
+
       /**
        * Offset of the last block obtained.
        */
       unsigned long long last_offset;
-      /**
-       * The last block (in plaintext)
-       */
-      const void * last_block;
-      /**
-       * Size of the last block
-       */
-      unsigned int last_size;
-      /**
-       * Information about the download.
-       */
-      char * filename;
-      /**
-       * Original URI.
-       */
-      struct ECRS_URI * uri;
+
       /**
        * Estimated completion time.
        */
       cron_t eta;
+
       /**
-       * Start time.
+       * Information about the download.
        */
-      cron_t start_time;
+      const char * filename;
+
       /**
-       * Is this (part of) a recursive download?
+       * Original URI.
        */
-      int is_recursive;
+      const struct ECRS_URI * uri;
+
       /**
-       * If the download is recursive, what is the
-       * main file? (otherwise equal to filename);
+       * The last block (in plaintext)
        */
-      char * main_filename;
+      const void * last_block;
+
       /**
-       * If the download is recursive, what is the
-       * main URI? (otherwise equal to uri);
+       * Size of the last block
        */
-      struct ECRS_URI * main_uri;
-      /**
-       * What file in the download tree are we
-       * refering to?
-       */
-      struct FSUI_DownloadList * pos;
+      unsigned int last_size;
+
     } DownloadProgress;
-    /**
-     * DownloadError is used for both
-     * download_aborted and download_error
-     * message types.
-     */
+
+
     struct {
+
+      FSUI_DownloadContext dc;
+
+      /**
+       * How large is the total download (as far
+       * as known so far).
+       */
+      unsigned long long total;
+
+      /**
+       * Information about the download.
+       */
+      const char * filename;
+
+      /**
+       * Original URI.
+       */
+      const struct ECRS_URI * uri;
+
+    } DownloadCompleted;
+
+
+    struct {
+
+      FSUI_DownloadContext dc;
+
       /**
        * Error message.
        */
       const char * message;
-      /**
-       * What file in the download tree are we
-       * refering to?
-       */
-      struct FSUI_DownloadList * pos;
+
     } DownloadError;
+
+
     struct {
+
+      FSUI_DownloadContext dc;
+
+    } DownloadAborted;
+
+
+    struct {
+
+      FSUI_DownloadContext dc;
+
+    } DownloadStopped;
+
+
+    struct {
+
+      FSUI_DownloadContext dc;
+
+    } DownloadSuspended;
+
+
+    struct {
+
+      FSUI_DownloadContext dc;
+
       /**
-       * How far are we? (for the current file)
-       */
-      unsigned long long completed;
-      /**
-       * How large is the total upload (for the current file)
+       * How large is the total download (as far
+       * as known so far).
        */
       unsigned long long total;
+
       /**
-       * Information about the upload.
+       * Information about the download.
        */
-      char * filename;
+      const char * filename;
+
       /**
-       * Estimated completion time (for the current file)
+       * Original URI.
        */
-      cron_t eta;
-      /**
-       * How far are we? (for the recursive upload)
-       */
-      unsigned long long main_completed;
-      /**
-       * How large is the total upload (for the recursive upload)
-       */
-      unsigned long long main_total;
-      /**
-       * Estimated completion time (for the recursive upload)
-       */
-      cron_t main_eta;
-      /**
-       * Start time.
-       */
-      cron_t start_time;
-      /**
-       * Is this (part of) a recursive upload?
-       */
-      int is_recursive;
-      /**
-       * If the download is recursive, what is the
-       * main file? (otherwise equal to filename);
-       */
-      char * main_filename;
-    } UploadProgress;
+      ECRS_FileInfo fi;
+
+      unsigned int anonymityLevel;
+
+    } DownloadStarted;
+
     struct {
+
+      FSUI_DownloadContext dc;
+
       /**
-       * How large is the total upload.
-       */
-      unsigned long long total;
-      /**
-       * How much has been done so far.
+       * How far are we?
        */
       unsigned long long completed;
 
       /**
+       * How large is the total download (as far
+       * as known so far).
+       */
+      unsigned long long total;
+
+      /**
+       * Estimated completion time.
+       */
+      cron_t eta;
+
+      /**
+       * Information about the download.
+       */
+      const char * filename;
+
+      ECRS_FileInfo fi;
+
+      unsigned int anonymityLevel;
+
+      FSUI_State state;
+
+    } DownloadResumed;
+
+
+    struct {
+
+      FSUI_UploadContext uc;
+
+      /**
+       * How far are we? (for the current file)
+       */
+      unsigned long long completed;
+
+      /**
+       * How large is the total upload (for the current file)
+       */
+      unsigned long long total;
+
+      /**
+       * Estimated completion time (for the current file)
+       */
+      cron_t eta;
+
+      /**
+       * Information about the upload.
+       */
+      const char * filename;
+
+    } UploadProgress;
+
+
+    struct {
+
+      FSUI_UploadContext uc;
+
+      /**
+       * How large is the total upload.
+       */
+      unsigned long long total;
+
+      /**
        * Which file was uploaded?
        */
-      char * filename;
+      const char * filename;
+
       /**
        * URI of the uploaded file.
        */
       struct ECRS_URI * uri;
-      /**
-       * Estimated completion time for the entire
-       * upload (!= now only for recursive uploads).
-       */
-      cron_t eta;
-      /**
-       * Start time.
-       */
-      cron_t start_time;
-      /**
-       * Is this (part of) a recursive upload?
-       */
-      int is_recursive;
-      /**
-       * If the download is recursive, what is the
-       * main file? (otherwise equal to filename);
-       */
-      char * main_filename;
-    } UploadComplete;
+
+    } UploadCompleted;
+
+
     struct {
+
+      FSUI_UploadContext uc;
+
+    } UploadAborted;
+
+
+    struct {
+
+      FSUI_UploadContext uc;
+
+      const char * message;
+
+    } UploadError;
+
+    struct {
+
+      FSUI_UploadContext uc;
+
+    } UploadSuspended;
+
+    struct {
+
+      FSUI_UploadContext uc;
+
+    } UploadStopped;
+
+
+    struct {
+
+      FSUI_UploadContext uc;
+
+      /**
+       * How large is the total upload (for the current file)
+       */
       unsigned long long total;
+
+      unsigned int anonymityLevel;
+
+      /**
+       * Information about the upload.
+       */
+      const char * filename;
+
+    } UploadStarted;
+
+    struct {
+
+      FSUI_UploadContext uc;
+
+      /**
+       * How far are we? (for the current file)
+       */
       unsigned long long completed;
-      cron_t eta;
-      char * filename;
-      cron_t start_time;
-    } UnindexProgress;
-    struct {
+
+      /**
+       * How large is the total upload (for the current file)
+       */
       unsigned long long total;
-      char * filename;
-      cron_t start_time;
-    } UnindexComplete;
-    /**
-     * Used for errors.
-     */
-    char * message;
+
+      /**
+       * Estimated completion time (for the current file)
+       */
+      cron_t eta;
+
+      /**
+       * Information about the upload.
+       */
+      const char * filename;
+
+      unsigned int anonymityLevel;
+
+      FSUI_State state;
+
+      /**
+       * Set to the URI of the upload if upload is
+       * complete.  Otherwise NULL.
+       */
+      struct ECRS_URI * uri;
+
+    } UploadResumed;
+
+
+    struct {
+
+      FSUI_UnindexContext uc;
+
+      unsigned long long total;
+
+      unsigned long long completed;
+
+      cron_t eta;
+
+      const char * filename;
+
+    } UnindexProgress;
+
+
+    struct {
+
+      FSUI_UnindexContext uc;
+
+      unsigned long long total;
+
+      const char * filename;
+
+    } UnindexCompleted;
+
+
+    struct {
+
+      FSUI_UnindexContext uc;
+
+    } UnindexAborted;
+
+    struct {
+
+      FSUI_UnindexContext uc;
+
+    } UnindexStopped;
+
+
+    struct {
+
+      FSUI_UnindexContext uc;
+
+    } UnindexSuspended;
+
+
+    struct {
+
+      FSUI_UnindexContext uc;
+
+      unsigned long long total;
+
+      unsigned long long completed;
+
+      cron_t eta;
+
+      const char * filename;
+
+      FSUI_State state;
+
+    } UnindexResumed;
+
+    struct {
+
+      FSUI_UnindexContext uc;
+
+      unsigned long long total;
+
+      const char * filename;
+
+    } UnindexStarted;
+
+
+    struct {
+
+      FSUI_UnindexContext uc;
+
+      const char * message;
+
+    } UnindexError;
+
   } data;
+
 } FSUI_Event;
 
 /**
@@ -316,71 +763,16 @@ struct FSUI_Context;
 /**
  * Generic callback for all kinds of FSUI progress and error messages.
  * This function will be called for download progress, download
- * completion, upload progress and completion, search results, etc.
+ * completion, upload progress and completion, search results, etc.<p>
  *
  * The details of the argument format are yet to be defined.  What
  * FSUI guarantees is that only one thread at a time will call the
- * callback (so it need not be re-entrant).
- */
-typedef void (*FSUI_EventCallback)(void * cls,
-				   const FSUI_Event * event);
-
-/**
- * Iterator over all namespaces.
+ * callback (so it need not be re-entrant).<p>
  *
- * @param rating the local rating of the namespace
- * @return OK to continue iteration, SYSERR to abort
+ * @return cctx for resume events, otherwise NULL
  */
-typedef int (*FSUI_NamespaceIterator)(void * cls,
-				      const char * namespaceName,
-				      const HashCode512 * namespaceId,
-				      const struct ECRS_MetaData * md,
-				      int rating);
-
-/**
- * Iterator over all searches and search results.
- *
- * @return OK to continue iteration, SYSERR to abort
- */
-typedef int (*FSUI_SearchIterator)(void * cls,
-				   const struct ECRS_URI * searchUri,
-				   unsigned int anonymityLevel,
-				   unsigned int resultCount,
-				   const ECRS_FileInfo * results);
-
-/**
- * Iterator over all updateable content.
- *
- * @param uri URI of the last content published
- * @param lastId the ID of the last publication
- * @param nextId the ID of the next update
- * @param publicationFrequency how often are updates scheduled?
- * @param nextPublicationTime the scheduled time for the
- *  next update (0 for sporadic updates)
- * @return OK to continue iteration, SYSERR to abort
- */
-typedef int (*FSUI_UpdateIterator)(void * cls,
-				   const ECRS_FileInfo * uri,
-				   const HashCode512 * lastId,
-				   const HashCode512 * nextId,
-				   TIME_T publicationFrequency,
-				   TIME_T nextPublicationTime);
-
-/**
- * Iterator over active downloads.
- *
- * @param pos What file in the download tree are we
- * refering to?
- * @return OK to continue iteration, SYSERR to abort
- */
-typedef int (*FSUI_DownloadIterator)(void * cls,
-				     const struct FSUI_DownloadList * pos,
-				     const char * filename,
-				     const struct ECRS_URI * uri,
-				     unsigned long long filesize,
-				     unsigned long long bytesCompleted,
-				     int isRecursive,
-				     unsigned int anonymityLevel);
+typedef void * (*FSUI_EventCallback)(void * cls,
+				     const FSUI_Event * event);
 
 /**
  * @brief Start the FSUI manager.  Use the given progress callback to
@@ -413,10 +805,14 @@ typedef int (*FSUI_DownloadIterator)(void * cls,
  * @param closure extra argument to cb
  * @return NULL on error
  */
-struct FSUI_Context * FSUI_start(const char * name,
-				 int doResume,
-				 FSUI_EventCallback cb,
-				 void * closure); /* fsui.c */
+struct FSUI_Context *
+FSUI_start(struct GE_Context * ectx,
+	   struct GC_Configuration * cfg,
+	   const char * name,
+	   unsigned int threadPoolSize,
+	   int doResume,
+	   FSUI_EventCallback cb,
+	   void * closure); /* fsui.c */
 
 /**
  * Stop all processes under FSUI control (may serialize
@@ -426,413 +822,158 @@ struct FSUI_Context * FSUI_start(const char * name,
  */
 void FSUI_stop(struct FSUI_Context * ctx); /* fsui.c */
 
-/* ******************** simple FS API **************** */
-
-/**
- * Create an ECRS URI from a single user-supplied string of keywords.
- * The string may contain the reserved word 'AND' to create a boolean
- * search over multiple keywords.
- *
- * @return an ECRS URI for the given keywords, NULL
- *  if keywords is not legal (i.e. empty).
- */
-struct ECRS_URI * FSUI_parseCharKeywordURI(const char * keywords); /* helper.c */
-
-/**
- * Create an ECRS URI from a user-supplied command line of keywords.
- * The command line may contain the reserved word 'AND' to create a
- * boolean search over multiple keywords.
- *
- * @return an ECRS URI for the given keywords, NULL
- *  if keywords is not legal (i.e. empty).
- */
-struct ECRS_URI * FSUI_parseArgvKeywordURI(unsigned int argc,
-					   const char ** argv); /* helper.c */
-
-/**
- * Create an ECRS URI from a user-supplied list of keywords.
- * The keywords are NOT separated by AND but already
- * given individually.
- *
- * @return an ECRS URI for the given keywords, NULL
- *  if keywords is not legal (i.e. empty).
- */
-struct ECRS_URI * FSUI_parseListKeywordURI(unsigned int num_keywords,
-					   const char ** keywords);
 
 /**
  * Start a search.
- * @return SYSERR if such a search is already pending, OK on
- *  success
+ *
+ * @return NULL on error
  */
-int FSUI_startSearch(struct FSUI_Context * ctx,
-		     unsigned int anonymityLevel,
-		     const struct ECRS_URI * uri); /* search.c */
+struct FSUI_SearchList *
+FSUI_startSearch(struct FSUI_Context * ctx,
+		 unsigned int anonymityLevel,
+		 unsigned int maxResults,
+		 cron_t timeout,
+		 const struct ECRS_URI * uri); /* search.c */
+
+/**
+ * Abort a search.
+ *
+ * @return SYSERR if such a search is not known
+ */
+int FSUI_abortSearch(struct FSUI_Context * ctx,
+		     struct FSUI_SearchList * sl); /* search.c */
 
 /**
  * Stop a search.
+ *
  * @return SYSERR if such a search is not known
  */
 int FSUI_stopSearch(struct FSUI_Context * ctx,
-		    const struct ECRS_URI * uri); /* search.c */
+		    struct FSUI_SearchList * sl); /* search.c */
 
 /**
- * List active searches.  Can also be used to obtain
- * search results that were already signaled earlier.
- */
-int FSUI_listSearches(struct FSUI_Context * ctx,
-		      FSUI_SearchIterator iter,
-		      void * closure); /* search.c */
-
-/**
- * Start to download a file.
+ * Start to download a file or directory.
  *
- * @return OK on success, SYSERR if the target file is
- *  already used for another download at the moment (or
- *  if the disk does not have enough space).
+ * @return NULL on error
  */
-int FSUI_startDownload(struct FSUI_Context * ctx,
-		       unsigned int anonymityLevel,
-		       const struct ECRS_URI * uri,
-		       const char * filename); /* download.c */
+struct FSUI_DownloadList *
+FSUI_startDownload(struct FSUI_Context * ctx,
+		   unsigned int anonymityLevel,
+		   int doRecursive,
+		   const struct ECRS_URI * uri,
+		   const struct ECRS_MetaData * meta,
+		   const char * filename,
+		   struct FSUI_SearchList * parentSearch,
+		   struct FSUI_DownloadList * parentDownload); /* download.c */
 
 /**
- * Abort a download.  If the URI was for a recursive
+ * Abort a download.  If the dl is for a recursive
  * download, all sub-downloads will also be aborted.
- * Cannot be used to terminate a single file download
- * that is part of a recursive download.
  *
- * @return SYSERR if no such download is pending
+ * @return SYSERR on error
+ */
+int FSUI_abortDownload(struct FSUI_Context * ctx,
+		       struct FSUI_DownloadList * dl); /* download.c */
+
+/**
+ * Stop a download.  If the dl is for a recursive
+ * download, all sub-downloads will also be stopped.
+ *
+ * @return SYSERR on error
  */
 int FSUI_stopDownload(struct FSUI_Context * ctx,
-		      const struct ECRS_URI * uri,
-		      const char * filename); /* download.c */
+		      struct FSUI_DownloadList * dl); /* download.c */
 
 /**
- * List active downloads.  Will NOT list completed
- * downloads, FSUI clients should listen closely
- * to the FSUI_EventCallback to not miss completion
- * events.
+ * Method that can be used to select files that
+ * should be put into a directory when doing an
+ * upload.  For example, "disk_directory_scan"
+ * is a legal implementation that would simply
+ * select all files of the directory for the
+ * upload.
+ */
+typedef int (*DirectoryScanCallback)(void * data,
+				     const char * filename,
+				     DirectoryEntryCallback dec,
+				     void * decClosure);
+
+/**
+ * Start uploading a file or directory.
  *
- * @param root subtree to iterate over, use
- *        NULL for all top-level downloads
+ * @param ctx
+ * @param filename name of file or directory to upload (directory
+ *        implies use of recursion)
+ * @param doIndex use indexing, not insertion
+ * @param doExtract use libextractor
+ * @param individualKeywords add KBlocks for non-top-level files
+ * @param topLevelMetaData metadata for top-level file or directory
+ * @param globalURI keywords for all files
+ * @param keyURI keywords for top-level file
+ * @return NULL on error
  */
-int FSUI_listDownloads(struct FSUI_Context * ctx,
-		       const struct FSUI_DownloadList * root,
-		       FSUI_DownloadIterator iter,
-		       void * closure); /* download.c */
+struct FSUI_UploadList *
+FSUI_startUpload(struct FSUI_Context * ctx,
+		 const char * filename,
+		 DirectoryScanCallback dsc,
+		 void * dscClosure,
+		 unsigned int anonymityLevel,
+		 unsigned int priority,
+		 int doIndex,
+		 int doExtract,
+		 int individualKeywords,
+		 cron_t expiration,
+		 const struct ECRS_MetaData * topLevelMetaData,
+		 const struct ECRS_URI * globalURI,
+		 const struct ECRS_URI * keyUri);
+
 
 /**
- * Clear all completed top-level downloads from the FSUI list.
+ * Abort an upload.  If the context is for a recursive
+ * upload, all sub-uploads will also be aborted.
  *
- * @param callback function to call on each completed download
- *        that is being cleared.
- * @return SYSERR on error, otherwise number of downloads cleared
+ * @return SYSERR on error
  */
-int FSUI_clearCompletedDownloads(struct FSUI_Context * ctx,
-				 FSUI_DownloadIterator iter,
-				 void * closure); /* download.c */
-
+int FSUI_abortUpload(struct FSUI_Context * ctx,
+		     struct FSUI_UploadList * ul);
 
 /**
- * Get parent of active download.
- * @return NULL if there is no parent
- */
-const struct FSUI_DownloadList *
-FSUI_getDownloadParent(const struct FSUI_DownloadList * child); /* download.c */
-
-/**
- * Start uploading a file.  Note that an upload cannot be stopped once
- * started (not necessary anyway), but it can fail.  The function also
- * automatically the uploaded file in the global keyword space under
- * the given keywords.
+ * Stop an upload.  Only to be called for the top-level
+ * upload.
  *
- * @return OK on success (at least we started with it),
- *  SYSERR if the file does not exist or gnunetd is not
- *  running
+ * @return SYSERR on error
  */
-int FSUI_upload(struct FSUI_Context * ctx,
-		const char * filename,
-		unsigned int anonymityLevel,
-		int doIndex,
-		int doExtract,
-		const struct ECRS_MetaData * md,
-		const struct ECRS_URI * keyUri);
+int FSUI_stopUpload(struct FSUI_Context * ctx,
+		    struct FSUI_UploadList * ul);
+
 
 /**
  * "delete" operation for uploaded files.  May fail
  * asynchronously, check progress callback.
  *
- * @return OK on success (at least we started with it),
- *  SYSERR if the file does not exist
+ * @return NULL on error
  */
-int FSUI_unindex(struct FSUI_Context * ctx,
-		 const char * filename);
-
-/* ***************** recursive FS API ***************** */
+struct FSUI_UnindexList *
+FSUI_startUnindex(struct FSUI_Context * ctx,
+		  const char * filename);
 
 
 /**
- * Start uploading a directory.  Note that an upload cannot be stopped
- * once started (not necessary anyway), but it can fail.  All files
- * in the recursive tree will be indexed under all keywords found by
- * the specified extractor plugins AND the globalKeywords.  The
- * main directory will furthermore be published with the given keywords
- * and the specified directoryMetaData.
+ * Abort an unindex operation.
  *
- * @return OK on success (at least we started with it),
- *  SYSERR if the file does not exist
-*/
-int FSUI_uploadAll(struct FSUI_Context * ctx,
-		   const char * dirname,
-		   unsigned int anonymityLevel,
-		   int doIndex,
-		   int individualKeywords,
-		   const struct ECRS_MetaData * directoryMetaData,
-		   const struct ECRS_URI * globalURI,
-		   const struct ECRS_URI * topURI); /* upload.c */
+ * @return SYSERR on error
+ */
+int FSUI_abortUnindex(struct FSUI_Context * ctx,
+		      struct FSUI_UnindexList * ul);
+
 
 /**
- * Start to download a file or directory recursively.
+ * Stop an unindex operation.
  *
- * @return OK on success (at least we started with it),
- *  SYSERR if the file does not exist
+ * @return SYSERR on error
  */
-int FSUI_startDownloadAll(struct FSUI_Context * ctx,
-			  unsigned int anonymityLevel,
-			  const struct ECRS_URI * uri,
-			  const char * dirname); /* download.c */
+int FSUI_stopUnindex(struct FSUI_Context * ctx,
+		     struct FSUI_UnindexList * ul);
 
-/* ******************** collections API **************** */
-
-/**
- * Start collection.
- */
-int FSUI_startCollection(struct FSUI_Context * ctx,
-			 unsigned int anonymityLevel,
-			 TIME_T updateInterval,
-			 const char * name,
-			 const struct ECRS_MetaData * meta); /* collection.c */
-
-/**
- * Stop collection.
- *
- * @return OK on success, SYSERR if no collection is active
- */
-int FSUI_stopCollection(struct FSUI_Context * ctx); /* collection.c */
-
-/**
- * Are we using a collection?
- *
- * @return NULL if there is no collection, otherwise its name
- */
-const char * FSUI_getCollection(struct FSUI_Context * ctx); /* collection.c */
-
-/**
- * Upload an update of the current collection information to the
- * network now.  The function has no effect if the collection has not
- * changed since the last publication.  If we are currently not
- * collecting, this function does nothing.
- *
- * Note that clients typically don't have to call this function
- * explicitly.  FSUI will call the function on exit (for sporadically
- * updated collections), on any change to the collection (for
- * immediately updated content) or when the publication time has
- * arrived (for periodically updated collections).
- *
- * However, clients may want to call this function if explicit
- * publication of an update at another time is desired.
- */
-void FSUI_publishCollectionNow(struct FSUI_Context * ctx);
-
-/**
- * If we are currently building a collection, publish the given file
- * information in that collection.  If we are currently not
- * collecting, this function does nothing.
- *
- * Note that clients typically don't have to call this function
- * explicitly -- by using the FSUI library it should be called
- * automatically by FSUI code whenever needed.  However, the function
- * maybe useful if you're inserting files using libECRS directly or
- * need other ways to explicitly extend a collection.
- */
-void FSUI_publishToCollection(struct FSUI_Context * ctx,
-			      const ECRS_FileInfo * fi);
-
-
-/* ******************** Namespace API ***************** */
-
-/**
- * Create a new namespace (and publish an advertismement).
- * This function is synchronous, but may block the system
- * for a while since it must create a public-private key pair!
- *
- * @param meta meta-data about the namespace (maybe NULL)
- * @return URI on success, NULL on error (namespace already exists)
- */
-struct ECRS_URI *
-FSUI_createNamespace(struct FSUI_Context * ctx,
-		     unsigned int anonymityLevel,
-		     const char * namespaceName,
-		     const struct ECRS_MetaData * meta,
-		     const struct ECRS_URI * advertisementURI,
-		     const HashCode512 * rootEntry); /* namespace_info.c */
-
-/**
- * Delete a local namespace.  Only prevents future insertions into the
- * namespace, does not delete any content from the network!
- *
- * @return OK on success, SYSERR on error
- */
-#define FSUI_deleteNamespace ECRS_deleteNamespace
-
-/**
- * Change the ranking of a (non-local) namespace.
- *
- * @param ns the name of the namespace, as obtained
- *  from ECRS_getNamespaceName
- * @param delta by how much should the rating be
- *  changed?
- * @return new rating of the namespace
- */
-int FSUI_rankNamespace(struct FSUI_Context * ctx,
-		       const char * ns,
-		       int delta); /* namespace_info.c */
-
-/**
- * Add a namespace to the set of known namespaces.  For all namespace
- * advertisements that we discover FSUI should automatically call this
- * function.
- *
- * @param ns the namespace identifier
- */
-void FSUI_addNamespaceInfo(const struct ECRS_URI * uri,
-			   const struct ECRS_MetaData * meta);
-
-
-/**
- * Get the root of the namespace (if we have one).
- * @return SYSERR on error, OK on success
- */
-int FSUI_getNamespaceRoot(const char * ns,
-			  HashCode512 * root);
-
-
-/**
- * List all available (local or non-local) namespaces.
- *
- * @param local only list local namespaces (if NO, only
- *   non-local known namespaces are listed)
- */
-int FSUI_listNamespaces(struct FSUI_Context * ctx,
-			int local,
-			FSUI_NamespaceIterator iterator,
-			void * closure); /* namespace_info.c */
-
-/**
- * Add an entry into a namespace (also for publishing
- * updates).  Typical uses are (all others would be odd):
- * <ul>
- *  <li>updateInterval NONE, thisId some user-specified value
- *      or NULL if user wants system to pick random value;
- *      nextId and lastId NULL (irrelevant)</li>
- *  <li>updateInterval SPORADIC, thisId given (initial
- *      submission), nextId maybe given or NULL,
- *      lastId NULL</li>
- *  <li>updateInterval SPORADIC, lastId given (either
- *      user-provided or from listNamespaceContent
- *      iterator); thisId NULL or given (from lNC);
- *      nextId maybe given or NULL, depending on user preference</li>
- *  <li>updateInterval non-NULL, non-SPORADIC; lastId
- *      is NULL (inital submission), thisId non-NULL or
- *      rarely NULL (if user does not care about name of
- *      starting entry), nextId maybe NULL or not</li>
- *  <li>updateInterval non-NULL, non-SPORADIC; lastId
- *      is non-NULL (periodic update), thisId NULL (computed!)
- *      nextID NULL (computed)</li>
- * </ul>
- * And yes, reading the ECRS paper maybe a good idea.
- *
- * @param name in which namespace to publish
- * @param updateInterval the desired frequency for updates
- * @param lastId the ID of the last value (maybe NULL)
- *        set if this is an update to an existing entry
- * @param thisId the ID of the update (maybe NULL if
- *        lastId determines the value or if no specific value
- *        is desired)
- * @param nextId the ID of the next update (maybe NULL);
- *        set for sporadic updates if a specific next ID is
- *        desired
- * @param dst to which URI should the namespace entry refer?
- * @param md what meta-data should be associated with the
- *        entry?
- * @return the resulting URI, NULL on error
- */
-struct ECRS_URI *
-FSUI_addToNamespace(struct FSUI_Context * ctx,
-		    unsigned int anonymityLevel,
-		    const char * name,
-		    TIME_T updateInterval,
-		    const HashCode512 * lastId,
-		    const HashCode512 * thisId,
-		    const HashCode512 * nextId,
-		    const struct ECRS_URI * dst,
-		    const struct ECRS_MetaData * md); /* namespace_info.c */
-
-/**
- * Compute the next ID for peridodically updated content.
- * @param updateInterval MUST be a peridic interval (not NONE or SPORADIC)
- * @param thisId MUST be known to FSUI
- * @return OK on success, SYSERR on error
- */
-int FSUI_computeNextId(const char * name,
-		       const HashCode512 * lastId,
-		       const HashCode512 * thisId,
-		       TIME_T updateInterval,
-		       HashCode512 * nextId);
-
-/**
- * List all updateable content in a given namespace.
- */
-int FSUI_listNamespaceContent(struct FSUI_Context * ctx,
-			      const char * name,
-			      FSUI_UpdateIterator iterator,
-			      void * closure); /* namespace_info.c */
-
-/* **************** TRACKING API ****************** */
-
-/**
- * Toggle tracking URIs.
- *
- * @param onOff YES to enable tracking, NO to disable
- *  disabling tracking
- */
-void FSUI_trackURIS(int onOff); /* file_info.c */
-
-/**
- * Deletes all entries in the FSUI tracking cache.
- */
-void FSUI_clearTrackedURIS(void); /* file_info.c */
-
-/**
- * Get the FSUI URI tracking status.
- *
- * @return YES of tracking is enabled, NO if not
- */
-int FSUI_trackStatus(void); /* file_info.c */
-
-/**
- * Makes a URI available for directory building.  This function is
- * automatically called by all FSUI functions and only in the
- * interface for clients that call ECRS directly.
- */
-void FSUI_trackURI(const ECRS_FileInfo * fi); /* file_info.c */
-
-/**
- * List all URIs.
- */
-int FSUI_listURIs(ECRS_SearchProgressCallback iterator,
-		  void * closure); /* file_info.c */
 
 #if 0 /* keep Emacsens' auto-indent happy */
 {

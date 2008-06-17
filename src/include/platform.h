@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004, 2005 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -33,9 +33,21 @@
 #include "config.h"
 #endif
 
-#define ALLOW_EXTRA_CHECKS  YES
+#ifdef WINDOWS
+#define BREAKPOINT asm("int $3;");
+#else
+#define BREAKPOINT
+#endif
 
-#include "plibc.h"
+#ifdef OPENBSD
+/* force declaration of u_int, u_char, ... needed by netinet/tcp.h */
+#undef __BSD_VISIBLE
+#define __BSD_VISIBLE 1
+#include <sys/types.h>
+#include <dlfcn.h>
+#endif
+
+#define ALLOW_EXTRA_CHECKS NO
 
 /**
  * For strptime (glibc2 needs this).
@@ -44,6 +56,9 @@
 #define _XOPEN_SOURCE
 #endif
 
+#ifndef _REENTRANT
+#define _REENTRANT
+#endif
 
 /* configuration options */
 
@@ -54,7 +69,6 @@
  #define _REENT_ONLY
 #endif
 
-#include <pthread.h>
 #ifdef CYGWIN
  #undef _REENT_ONLY
 #endif
@@ -72,6 +86,7 @@
  #include <pwd.h>
  #include <sys/ioctl.h>
  #include <sys/wait.h>
+ #include <grp.h>
 #else
  #include "winproc.h"
 #endif
@@ -100,24 +115,14 @@
 #include <sys/param.h>
 #endif
 #if TIME_WITH_SYS_TIME
- #include <sys/time.h>
- #include <time.h>
+#include <sys/time.h>
+#include <time.h>
 #else
- #if HAVE_SYS_TIME_H
-  #include <sys/time.h>
- #else
-  #include <time.h>
- #endif
+#if HAVE_SYS_TIME_H
+#include <sys/time.h>
+#else
+#include <time.h>
 #endif
-
-/* if we have both openssl & libgcrypt, stick
-   to openssl for now (who has the obscure
-   libgcrypt CVS version that works for us!?...) */
-#if USE_OPENSSL
- #if USE_GCRYPT
-  #undef USE_GCRYPT
-  #define USE_GCRYPT 0
- #endif
 #endif
 
 #ifdef SOMEBSD
@@ -128,6 +133,7 @@
 #endif
 #ifdef OSX
 #include <semaphore.h>
+#include <net/if.h>
 #endif
 #ifdef LINUX
 #include <net/if.h>
@@ -141,14 +147,22 @@
 #include <windows.h>
 #include <cygwin/if.h>
 #endif
+#if HAVE_IFADDRS_H
+#include <ifaddrs.h>
+#endif
 #include <errno.h>
-
 #include <limits.h>
 
 #if HAVE_CTYPE_H
 #include <ctype.h>
 #endif
+#if HAVE_SYS_RESOURCE_H
+#include <sys/resource.h>
+#endif
 
+#include "plibc.h"
+
+#include <pthread.h>
 #include <locale.h>
 #include "gettext.h"
 
@@ -169,7 +183,13 @@
 
 #ifdef OSX
  #define socklen_t unsigned int
+ #define __BYTE_ORDER BYTE_ORDER
+ #define __BIG_ENDIAN BIG_ENDIAN
+ /* not available on OS X, override configure */
+ #undef HAVE_STAT64
+ #undef HAVE_MREMAP
 #endif
+
 
 #if !HAVE_ATOLL
 long long atoll(const char *nptr);
@@ -181,6 +201,12 @@ long long atoll(const char *nptr);
 
 #ifndef O_LARGEFILE
 #define O_LARGEFILE 0
+#endif
+
+#if defined(__sparc__)
+#define MAKE_UNALIGNED(val) ({ __typeof__((val)) __tmp; memmove(&__tmp, &(val), sizeof((val))); __tmp; })
+#else
+#define MAKE_UNALIGNED(val) val
 #endif
 
 #endif

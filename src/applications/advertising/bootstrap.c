@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2006 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -29,6 +29,7 @@
 #include "gnunet_util.h"
 #include "gnunet_protocols.h"
 #include "gnunet_bootstrap_service.h"
+#include "gnunet_state_service.h"
 
 #define DEBUG_BOOTSTRAP NO
 
@@ -38,15 +39,23 @@ static CoreAPIForApplication * coreAPI;
 
 static Bootstrap_ServiceAPI * bootstrap;
 
-static PTHREAD_T pt;
+static State_ServiceAPI * state;
 
-static int abort_bootstrap = YES;
+static struct PTHREAD * pt;
 
 typedef struct {
   P2P_hello_MESSAGE ** helos;
   unsigned int helosCount;
   unsigned int helosLen;
+  int do_shutdown;
 } HelloListClosure;
+
+static HelloListClosure hlc;
+
+static int testTerminate(void * cls) {
+  HelloListClosure * c = cls;
+  return ! c->do_shutdown;
+}
 
 static void processhellos(HelloListClosure * hcq) {
   int rndidx;
@@ -54,18 +63,19 @@ static void processhellos(HelloListClosure * hcq) {
   P2P_hello_MESSAGE * msg;
 
   if (NULL == hcq) {
-    BREAK();
+    GE_BREAK(coreAPI->ectx, 0);
     return;
   }
-  while ( (abort_bootstrap == NO) &&
+  while ( (! hcq->do_shutdown) &&
 	  (hcq->helosCount > 0) ) {
     /* select hello by random */
     rndidx = weak_randomi(hcq->helosCount);
 #if DEBUG_BOOTSTRAP
-    LOG(LOG_DEBUG,
-	"%s chose hello %d of %d\n",
-	__FUNCTION__,
-	rndidx, hcq->helosCount);
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "%s chose hello %d of %d\n",
+	   __FUNCTION__,
+	   rndidx, hcq->helosCount);
 #endif
     msg = (P2P_hello_MESSAGE*) hcq->helos[rndidx];
     hcq->helos[rndidx]
@@ -81,23 +91,26 @@ static void processhellos(HelloListClosure * hcq) {
 			   NULL);
     FREE(msg);
     if ( (hcq->helosCount > 0) &&
-	 (abort_bootstrap == NO) ) {
+	 (! hlc.do_shutdown) ) {
       /* wait a bit */
       unsigned int load;
       int nload;
-      load = getCPULoad();
+      load = os_cpu_get_load(coreAPI->ectx,
+			     coreAPI->cfg);
       if (load == (unsigned int)-1)
-	load = 50; 
-      nload = getNetworkLoadUp();
+	load = 50;
+      nload = os_network_monitor_get_load(coreAPI->load_monitor,
+					  Upload);
       if (nload > load)
 	load = nload;
-      nload = getNetworkLoadDown();
+      nload = os_network_monitor_get_load(coreAPI->load_monitor,
+					  Download);
       if (nload > load)
 	load = nload;
       if (load > 100)
 	load = 100;
 
-      gnunet_util_sleep(50 + weak_randomi((load+1)*(load+1)));
+      PTHREAD_SLEEP(50 + weak_randomi((load+1)*(load+1)));
     }
   }
   for (i=0;i<hcq->helosCount;i++)
@@ -108,7 +121,8 @@ static void processhellos(HelloListClosure * hcq) {
 }
 
 static void downloadHostlistCallback(const P2P_hello_MESSAGE * helo,
-				     HelloListClosure * cls) {
+				     void * c) {
+  HelloListClosure * cls = c;
   if (cls->helosCount >= cls->helosLen) {
     GROW(cls->helos,
 	 cls->helosLen,
@@ -128,8 +142,8 @@ static int needBootstrap() {
   cron_t now;
   char * data;
 
-  cronTime(&now);
-  if (coreAPI->forAllConnectedNodes(NULL, NULL) > 4) {
+  now = get_time();
+  if (coreAPI->forAllConnectedNodes(NULL, NULL) >= 3) {
     /* still change delta and lastTest; even
        if the peer _briefly_ drops below 4
        connections, we don't want it to immediately
@@ -140,17 +154,19 @@ static int needBootstrap() {
   }
   if (lastTest == 0) {
     /* first run in this process */
-    if (-1 != stateReadContent(BOOTSTRAP_INFO,
-			       (void**)&data)) {
+    if (-1 != state->read(coreAPI->ectx,
+			  BOOTSTRAP_INFO,
+			  (void**)&data)) {
       /* but not first on this machine */
-      lastTest = cronTime(&now);
+      lastTest = now;
       delta = 2 * cronMINUTES; /* wait 2 minutes */
       FREE(data);
     } else {
       /* first on this machine, too! */
-      stateWriteContent(BOOTSTRAP_INFO,
-			1,
-			"X");
+      state->write(coreAPI->ectx,
+		   BOOTSTRAP_INFO,
+		   1,
+		   "X");
       delta = 60 * cronSECONDS;
     }
   }
@@ -169,29 +185,30 @@ static int needBootstrap() {
 }
 
 static void * processThread(void * unused) {
-  HelloListClosure cls;
-
-  cls.helos = NULL;
-  while (abort_bootstrap == NO) {
-    while (abort_bootstrap == NO) {
-      gnunet_util_sleep(2 * cronSECONDS);
+  hlc.helos = NULL;
+  while (NO == hlc.do_shutdown) {
+    while (NO == hlc.do_shutdown) {
+      PTHREAD_SLEEP(2 * cronSECONDS);
       if (needBootstrap())
 	break;
     }
-    if (abort_bootstrap != NO)
+    if (YES == hlc.do_shutdown)
       break;
 #if DEBUG_BOOTSTRAP
-    LOG(LOG_DEBUG,
-	"Starting bootstrap.\n");
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "Starting bootstrap.\n");
 #endif
-    cls.helosLen = 0;
-    cls.helosCount = 0;
-    bootstrap->bootstrap((hello_Callback)&downloadHostlistCallback,
-			 &cls);
-    GROW(cls.helos,
-	 cls.helosLen,
-	 cls.helosCount);
-    processhellos(&cls);
+    hlc.helosLen = 0;
+    hlc.helosCount = 0;
+    bootstrap->bootstrap(&downloadHostlistCallback,
+			 &hlc,
+			 &testTerminate,
+			 &hlc);
+    GROW(hlc.helos,
+	 hlc.helosLen,
+	 hlc.helosCount);
+    processhellos(&hlc);
   }
   return NULL;
 }
@@ -202,27 +219,34 @@ static void * processThread(void * unused) {
  */
 void startBootstrap(CoreAPIForApplication * capi) {
   coreAPI = capi;
+  state = capi->requestService("state");
+  GE_ASSERT(capi->ectx,
+	    state != NULL);
   bootstrap = capi->requestService("bootstrap");
-  GNUNET_ASSERT(bootstrap != NULL);
-  abort_bootstrap = NO;
-  GNUNET_ASSERT(0 == PTHREAD_CREATE(&pt,
-				    &processThread,
-				    NULL,
-				    8 * 1024));	
+  GE_ASSERT(capi->ectx,
+	    bootstrap != NULL);
+  hlc.do_shutdown = NO;
+  pt = PTHREAD_CREATE(&processThread,
+		      NULL,
+		      64 * 1024);
+  GE_ASSERT(capi->ectx,
+	    pt != NULL);
 }
 
 /**
  * Stop advertising.
- * @todo [WIN] Check if this works under Windows
  */
 void stopBootstrap() {
   void * unused;
 
-  abort_bootstrap = YES;
-  PTHREAD_KILL(&pt, SIGALRM);
-  PTHREAD_JOIN(&pt, &unused);
+  hlc.do_shutdown = YES;
+  PTHREAD_STOP_SLEEP(pt);
+  PTHREAD_JOIN(pt, &unused);
+  pt = NULL;
   coreAPI->releaseService(bootstrap);
   bootstrap = NULL;
+  coreAPI->releaseService(state);
+  state = NULL;
   coreAPI = NULL;
 }
 

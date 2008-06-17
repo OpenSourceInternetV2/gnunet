@@ -6,43 +6,52 @@ lib_LTLIBRARIES = \
 noinst_PROGRAMS = fsui-loader
 
 libgnunetfsui_la_SOURCES = \
-  collection.c \
+  deserialize.c \
   download.c \
-  file_info.c \
   fsui.c fsui.h \
-  helper.c \
-  namespace_info.c \
   search.c \
+  serialize.c \
   unindex.c \
   upload.c
 libgnunetfsui_la_LIBADD = \
  -lextractor \
  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+ $(top_builddir)/src/applications/fs/namespace/libgnunetnamespace.la \
+ $(top_builddir)/src/applications/fs/uritrack/libgnuneturitrack.la \
+ $(top_builddir)/src/util/cron/libgnunetutil_cron.la \
+ $(top_builddir)/src/util/loggers/libgnunetutil_logging.la \
  $(top_builddir)/src/util/libgnunetutil.la 
 
 EXTRA_DIST = \
-  check.conf
-
+  check.conf \
+  peer.conf
 
 fsui_loader_SOURCES = \
  fsui-loader.c 
 fsui_loader_LDADD = \
+ $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
  $(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+ $(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
  $(top_builddir)/src/util/libgnunetutil.la 
 
 check_PROGRAMS = \
   fsuitest \
   fsuitest2 \
   searchtest \
-  downloadtest \
-  namespace_infotest
+  serializetest \
+  serializetest2 \
+  serializetest3 \
+  serializetest4 \
+  downloadtest 
 
 TESTS = $(check_PROGRAMS)
 
 fsuitest_SOURCES = \
   fsuitest.c 
 fsuitest_LDADD = \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
   $(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
   $(top_builddir)/src/util/libgnunetutil.la 
@@ -50,13 +59,8 @@ fsuitest_LDADD = \
 fsuitest2_SOURCES = \
   fsuitest2.c 
 fsuitest2_LDADD = \
-  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
-  $(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
-  $(top_builddir)/src/util/libgnunetutil.la 
-
-namespace_infotest_SOURCES = \
-  namespace_infotest.c 
-namespace_infotest_LDADD = \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
   $(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
   $(top_builddir)/src/util/libgnunetutil.la 
@@ -64,6 +68,8 @@ namespace_infotest_LDADD = \
 searchtest_SOURCES = \
   searchtest.c 
 searchtest_LDADD = \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
   $(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
   $(top_builddir)/src/util/libgnunetutil.la 
@@ -71,6 +77,45 @@ searchtest_LDADD = \
 downloadtest_SOURCES = \
   downloadtest.c 
 downloadtest_LDADD = \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
+  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+  $(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
+  $(top_builddir)/src/util/libgnunetutil.la 
+
+serializetest_SOURCES = \
+  serializetest.c 
+serializetest_LDADD = \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
+  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+  $(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
+  $(top_builddir)/src/util/libgnunetutil.la 
+
+serializetest2_SOURCES = \
+  serializetest2.c 
+serializetest2_LDADD = \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
+  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+  $(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
+  $(top_builddir)/src/util/libgnunetutil.la 
+
+serializetest3_SOURCES = \
+  serializetest3.c 
+serializetest3_LDADD = \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
+  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+  $(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
+  $(top_builddir)/src/util/libgnunetutil.la 
+
+
+serializetest4_SOURCES = \
+  serializetest4.c 
+serializetest4_LDADD = \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
   $(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
   $(top_builddir)/src/util/libgnunetutil.la 

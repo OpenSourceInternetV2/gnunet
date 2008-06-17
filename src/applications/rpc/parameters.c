@@ -1,5 +1,6 @@
 /*
       This file is part of GNUnet
+      (C) 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
 
       GNUnet is free software; you can redistribute it and/or modify
       it under the terms of the GNU General Public License as published
@@ -24,9 +25,10 @@
  * @author Antti Salonen, Christian Grothoff
  */
 
-#include "platform.h"
 #include "gnunet_util.h"
+#include "gnunet_util_containers.h"
 #include "gnunet_rpc_service.h"
+#include "platform.h"
 
 /**
  * A parameter to/from an RPC call. These (and nothing else) are stored in
@@ -83,6 +85,7 @@ void RPC_paramSerialize(RPC_Param * param,
   if (target == NULL)
     return;
   pos = 0;
+  dataLength = 0;
   for (i = 0; i < RPC_paramCount(param); i++) {
     paramName = RPC_paramName(param, i);
     paramValue = NULL;
@@ -157,6 +160,7 @@ size_t RPC_paramSize(RPC_Param * param) {
   if (param == NULL)
     return 0;
   pos = 0;
+  dataLength = 0;
   for (i = 0; i < RPC_paramCount(param); i++) {
     paramName = RPC_paramName(param, i);
     paramValue = NULL;

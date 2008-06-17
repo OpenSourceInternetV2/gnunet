@@ -5,14 +5,8 @@
 /* Define to 1 if the `closedir' function returns void instead of `int'. */
 #undef CLOSEDIR_VOID
 
-/* Curses location */
-#undef CURSES_LOC
-
 /* This is a Cygwin system */
 #undef CYGWIN
-
-/* The directory for installing read-only architecture-independent data */
-#undef DATADIR
 
 /* Define to 1 if translation of program messages to the user's native
    language is requested. */
@@ -60,12 +54,15 @@
 /* Define to 1 if you have the <ctype.h> header file. */
 #undef HAVE_CTYPE_H
 
-/* We have curses */
-#undef HAVE_CURSES
-
 /* Define if the GNU dcgettext() function is already present or preinstalled.
    */
 #undef HAVE_DCGETTEXT
+
+/* We have dialog */
+#undef HAVE_DIALOG
+
+/* Define to 1 if you have the <dialog.h> header file. */
+#undef HAVE_DIALOG_H
 
 /* Define to 1 if you have the <dirent.h> header file, and it defines `DIR'.
    */
@@ -116,6 +113,9 @@
 /* Define to 1 if you have the `fork' function. */
 #undef HAVE_FORK
 
+/* Define to 1 if you have the `freeifaddrs' function. */
+#undef HAVE_FREEIFADDRS
+
 /* Define to 1 if fseeko (and presumably ftello) exists and is declared. */
 #undef HAVE_FSEEKO
 
@@ -125,11 +125,17 @@
 /* Define to 1 if you have the `getcwd' function. */
 #undef HAVE_GETCWD
 
+/* Define to 1 if you have the `gethostbyaddr' function. */
+#undef HAVE_GETHOSTBYADDR
+
 /* Define to 1 if you have the `gethostbyname' function. */
 #undef HAVE_GETHOSTBYNAME
 
 /* Define to 1 if you have the `gethostname' function. */
 #undef HAVE_GETHOSTNAME
+
+/* Define to 1 if you have the `getifaddrs' function. */
+#undef HAVE_GETIFADDRS
 
 /* getloadavg supported */
 #undef HAVE_GETLOADAVG
@@ -155,11 +161,23 @@
 /* We have GTK */
 #undef HAVE_GTK
 
+/* We do NOT have GUILE */
+#undef HAVE_GUILE
+
 /* Define if you have the iconv() function. */
 #undef HAVE_ICONV
 
+/* Define to 1 if you have the <iconv.h> header file. */
+#undef HAVE_ICONV_H
+
+/* Define to 1 if you have the <ifaddrs.h> header file. */
+#undef HAVE_IFADDRS_H
+
 /* Define to 1 if you have the `index' function. */
 #undef HAVE_INDEX
+
+/* Define to 1 if you have the `initgroups' function. */
+#undef HAVE_INITGROUPS
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
@@ -173,11 +191,17 @@
 /* Define to 1 if you have the <langinfo.h> header file. */
 #undef HAVE_LANGINFO_H
 
+/* Define to 1 if you have a functional curl library. */
+#undef HAVE_LIBCURL
+
 /* Define if you have the libdl library or equivalent. */
 #undef HAVE_LIBDL
 
-/* Define to 1 if you have the `gmp' library (-lgmp). */
-#undef HAVE_LIBGMP
+/* Define to 1 if you have the `guile' library (-lguile). */
+#undef HAVE_LIBGUILE
+
+/* Define to 1 if you have the <libguile.h> header file. */
+#undef HAVE_LIBGUILE_H
 
 /* Define to 1 if you have the `intl' library (-lintl). */
 #undef HAVE_LIBINTL
@@ -194,8 +218,11 @@
 /* Define to 1 if you have the `m' library (-lm). */
 #undef HAVE_LIBM
 
-/* Define to 1 if you have the `ncurses' library (-lncurses). */
-#undef HAVE_LIBNCURSES
+/* Define to 1 if you have the `microhttpd' library (-lmicrohttpd). */
+#undef HAVE_LIBMICROHTTPD
+
+/* Define to 1 if you have the `ncursesw' library (-lncursesw). */
+#undef HAVE_LIBNCURSESW
 
 /* Define to 1 if you have the `nsl' library (-lnsl). */
 #undef HAVE_LIBNSL
@@ -239,6 +266,12 @@
 /* Define to 1 if you have the `memset' function. */
 #undef HAVE_MEMSET
 
+/* We have libmicrohttpd */
+#undef HAVE_MHD
+
+/* Define to 1 if you have the <microhttpd.h> header file. */
+#undef HAVE_MICROHTTPD_H
+
 /* Define to 1 if you have the `mkdir' function. */
 #undef HAVE_MKDIR
 
@@ -247,6 +280,12 @@
 
 /* Define to 1 if you have the `mktime' function. */
 #undef HAVE_MKTIME
+
+/* Define to 1 if you have the `mmap' function. */
+#undef HAVE_MMAP
+
+/* Define to 1 if you have the `mremap' function. */
+#undef HAVE_MREMAP
 
 /* Define to 1 if you have the <mysql/mysql.h> header file. */
 #undef HAVE_MYSQL_MYSQL_H
@@ -272,6 +311,9 @@
 /* Define if libtool can extract symbol lists from object files. */
 #undef HAVE_PRELOADED_SYMBOLS
 
+/* Define to 1 if you have the `pthread_equal' function. */
+#undef HAVE_PTHREAD_EQUAL
+
 /* Define to 1 if you have the <pthread.h> header file. */
 #undef HAVE_PTHREAD_H
 
@@ -287,11 +329,17 @@
 /* Define to 1 if you have the `rmdir' function. */
 #undef HAVE_RMDIR
 
+/* Define to 1 if you have the `sbrk' function. */
+#undef HAVE_SBRK
+
 /* Define to 1 if you have the `select' function. */
 #undef HAVE_SELECT
 
 /* Define to 1 if you have the `setlocale' function. */
 #undef HAVE_SETLOCALE
+
+/* Define to 1 if you have the `setrlimit' function. */
+#undef HAVE_SETRLIMIT
 
 /* Define if you have the shl_load function. */
 #undef HAVE_SHL_LOAD
@@ -389,6 +437,9 @@
 /* Define to 1 if you have the <sys/param.h> header file. */
 #undef HAVE_SYS_PARAM_H
 
+/* Define to 1 if you have the <sys/resource.h> header file. */
+#undef HAVE_SYS_RESOURCE_H
+
 /* Define to 1 if you have the <sys/select.h> header file. */
 #undef HAVE_SYS_SELECT_H
 
@@ -437,11 +488,62 @@
 /* Define to 1 if `vfork' works. */
 #undef HAVE_WORKING_VFORK
 
+/* Define as const if the declaration of iconv() needs const. */
+#undef ICONV_CONST
+
+/* Defined if libcurl supports AsynchDNS */
+#undef LIBCURL_FEATURE_ASYNCHDNS
+
+/* Defined if libcurl supports IDN */
+#undef LIBCURL_FEATURE_IDN
+
+/* Defined if libcurl supports IPv6 */
+#undef LIBCURL_FEATURE_IPV6
+
+/* Defined if libcurl supports KRB4 */
+#undef LIBCURL_FEATURE_KRB4
+
+/* Defined if libcurl supports libz */
+#undef LIBCURL_FEATURE_LIBZ
+
+/* Defined if libcurl supports NTLM */
+#undef LIBCURL_FEATURE_NTLM
+
+/* Defined if libcurl supports SSL */
+#undef LIBCURL_FEATURE_SSL
+
+/* Defined if libcurl supports SSPI */
+#undef LIBCURL_FEATURE_SSPI
+
+/* Defined if libcurl supports DICT */
+#undef LIBCURL_PROTOCOL_DICT
+
+/* Defined if libcurl supports FILE */
+#undef LIBCURL_PROTOCOL_FILE
+
+/* Defined if libcurl supports FTP */
+#undef LIBCURL_PROTOCOL_FTP
+
+/* Defined if libcurl supports FTPS */
+#undef LIBCURL_PROTOCOL_FTPS
+
+/* Defined if libcurl supports HTTP */
+#undef LIBCURL_PROTOCOL_HTTP
+
+/* Defined if libcurl supports HTTPS */
+#undef LIBCURL_PROTOCOL_HTTPS
+
+/* Defined if libcurl supports LDAP */
+#undef LIBCURL_PROTOCOL_LDAP
+
+/* Defined if libcurl supports TELNET */
+#undef LIBCURL_PROTOCOL_TELNET
+
+/* Defined if libcurl supports TFTP */
+#undef LIBCURL_PROTOCOL_TFTP
+
 /* This is a Linux system */
 #undef LINUX
-
-/* gettext catalogs */
-#undef LOCALEDIR
 
 /* Define to 1 if `lstat' dereferences a symlink specified with a trailing
    slash. */
@@ -554,19 +656,22 @@
 /* Define to empty if `const' does not conform to ANSI C. */
 #undef const
 
+/* Define curl_free() as free() if our version of curl lacks curl_free. */
+#undef curl_free
+
 /* Define to a type to use for `error_t' if it is not otherwise available. */
 #undef error_t
 
 /* Define to `int' if <sys/types.h> doesn't define. */
 #undef gid_t
 
-/* Define to `long' if <sys/types.h> does not define. */
+/* Define to `long int' if <sys/types.h> does not define. */
 #undef off_t
 
 /* Define to `int' if <sys/types.h> does not define. */
 #undef pid_t
 
-/* Define to `unsigned' if <sys/types.h> does not define. */
+/* Define to `unsigned int' if <sys/types.h> does not define. */
 #undef size_t
 
 /* Define to `int' if <sys/types.h> doesn't define. */

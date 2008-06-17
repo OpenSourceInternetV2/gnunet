@@ -63,9 +63,29 @@ extern "C" {
 #define NAT_PROTOCOL_NUMBER 1
 
 /**
- * protocol number of TCP. Do NEVER change, also used in other context!
+ * protocol number of TCP.
  */
-#define TCP_PROTOCOL_NUMBER 6
+#define TCP_PROTOCOL_NUMBER 2
+
+/**
+ * protocol number of UDP.
+ */
+#define UDP_PROTOCOL_NUMBER 3
+
+/**
+ * Protocol number for TCP on IPv6 (TCP+6)
+ */
+#define TCP6_PROTOCOL_NUMBER 4
+
+/**
+ * Protocol number for UDP on IPv6 (UDP+6)
+ */
+#define UDP6_PROTOCOL_NUMBER 5
+
+/**
+ * protocol number of TCP.
+ */
+#define TCP_OLD_PROTOCOL_NUMBER 6
 
 /**
  * protocol number for HTTP (80 is too big, so 8 will have to do)
@@ -73,19 +93,9 @@ extern "C" {
 #define HTTP_PROTOCOL_NUMBER 8
 
 /**
- * Protocol number for TCP on IPv6 (TCP+6)
- */
-#define TCP6_PROTOCOL_NUMBER 12
-
-/**
  * protocol number of UDP. Do NEVER change, also used in other context!
  */
-#define UDP_PROTOCOL_NUMBER 17
-
-/**
- * Protocol number for UDP on IPv6 (UDP+6)
- */
-#define UDP6_PROTOCOL_NUMBER 23
+#define UDP_OLD_PROTOCOL_NUMBER 17
 
 /**
  * protocol number for SMTP
@@ -119,6 +129,11 @@ extern "C" {
  * gnunetd to client: option value
  */
 #define CS_PROTO_GET_OPTION_REPLY 3
+
+/**
+ * gnunetd to client: error message
+ */
+#define CS_PROTO_RETURN_ERROR 4
 
 
 /* ********** CS AFS application messages ********** */
@@ -233,53 +248,48 @@ extern "C" {
 #define CS_PROTO_chat_MSG 44
 
 
-/* ********** CS TESTBED application messages ********** */
-
-#define CS_PROTO_testbed_REQUEST 50
-#define CS_PROTO_testbed_REPLY   51
-
-
 /* ********** CS DHT application messages ********** */
-
-/**
- * client to CS: join table
- */
-#define CS_PROTO_dht_REQUEST_JOIN     72
-
-/**
- * client to CS: leave table
- */
-#define CS_PROTO_dht_REQUEST_LEAVE    73
 
 /**
  * Client to CS or CS to client: get from table
  */
-#define CS_PROTO_dht_REQUEST_GET      74
+#define CS_PROTO_dht_REQUEST_GET      48
 
 /**
  * Client to CS or CS to client: put into table
  */
-#define CS_PROTO_dht_REQUEST_PUT      75
+#define CS_PROTO_dht_REQUEST_PUT      49
+
+
+/* ********** CS TESTBED application messages ********** */
+
+#define CS_PROTO_testbed_REQUEST 50
+
+#define CS_PROTO_testbed_REPLY   51
+
+
+
+/* ************* CS VPN messages ************* */
 
 /**
- * Client to CS or CS to client: remove from table
+ * Most are commands available to clients
+ * except VPN_MSG (general loggable output) and
+ * VPN_REPLY = output from a command.
+ * The commands output their last using their own code
+ * instead of the VPN_REPLY so the UI knows it has
+ * seen all the output.
  */
-#define CS_PROTO_dht_REQUEST_REMOVE   76
-
-/**
- * Client to CS or CS to client: results from get
- */
-#define CS_PROTO_dht_REPLY_GET        77
-
-/**
- * Client to CS or CS to client: confirmed
- */
-#define CS_PROTO_dht_REPLY_ACK        78
-
-/**
- * Client to CS: iterate over table
- */
-#define CS_PROTO_dht_REQUEST_ITERATE   79
+#define CS_PROTO_VPN_MSG 92
+#define CS_PROTO_VPN_REPLY 93
+#define CS_PROTO_VPN_DEBUGOFF 94
+#define CS_PROTO_VPN_DEBUGON 95
+#define CS_PROTO_VPN_TUNNELS 96
+#define CS_PROTO_VPN_ROUTES 97
+#define CS_PROTO_VPN_REALISED 98
+#define CS_PROTO_VPN_RESET 99
+#define CS_PROTO_VPN_REALISE 100
+#define CS_PROTO_VPN_ADD 101
+#define CS_PROTO_VPN_TRUST 102
 
 
 #define CS_PROTO_MAX_USED 80
@@ -324,6 +334,7 @@ extern "C" {
  */
 #define P2P_PROTO_noise 6
 
+
 /* ************* p2p GAP application messages *********** */
 
 /**
@@ -363,7 +374,27 @@ extern "C" {
 #define P2P_PROTO_rpc_RES 43
 #define P2P_PROTO_rpc_ACK 44
 
-#define P2P_PROTO_MAX_USED 45
+/************** p2p DHT application messages ************/
+
+#define P2P_PROTO_DHT_DISCOVERY 45
+#define P2P_PROTO_DHT_ASK_HELLO 46
+#define P2P_PROTO_DHT_GET       47
+#define P2P_PROTO_DHT_PUT       48
+#define P2P_PROTO_DHT_RESULT    49
+
+
+/* ************* p2p VPN messages ************* */
+
+#define P2P_PROTO_aip_IP 64	/* contains IPv6 frame */
+
+#define P2P_PROTO_aip_ROUTE 65 /* a route to a node */
+
+#define P2P_PROTO_aip_ROUTES 66 /* no more routes in my table */
+
+#define P2P_PROTO_aip_GETROUTE 67 /* request for a table entry from a peer */
+
+
+#define P2P_PROTO_MAX_USED 68
 
 
 
@@ -413,6 +444,8 @@ extern "C" {
  * Type of OnDemand encoded blocks.
  */
 #define ONDEMAND_BLOCK 0xFFFFFFFF
+
+
 
 #if 0 /* keep Emacsens' auto-indent happy */
 {

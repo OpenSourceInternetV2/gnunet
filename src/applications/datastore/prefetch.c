@@ -27,6 +27,7 @@
 
 #include "platform.h"
 #include "prefetch.h"
+#include "gnunet_protocols.h"
 
 #define DEBUG_PREFETCH NO
 
@@ -40,11 +41,13 @@
  * Buffer with pre-fetched, encoded random content for migration.
  */
 typedef struct {
+
   HashCode512 key;
+
   Datastore_Value * value;
   /**
    * 0 if we have never used this content with any peer.  Otherwise
-   * the value is set to the lowest 32 bit of the peer ID (to avoid 
+   * the value is set to the lowest 32 bit of the peer ID (to avoid
    * sending it to the same peer twice).  After sending out the
    * content twice, it is discarded.
    */
@@ -63,48 +66,68 @@ static SQstore_ServiceAPI * sq;
  * Semaphore on which the RCB acquire thread waits
  * if the RCB buffer is full.
  */
-static Semaphore * acquireMoreSignal;
+static struct SEMAPHORE * acquireMoreSignal;
 
-static Semaphore * doneSignal;
+/**
+ * Set to YES to shutdown the module.
+ */
+static int doneSignal;
 
 /**
  * Lock for the RCB buffer.
  */
-static Mutex lock;
+static struct MUTEX * lock;
 
 /**
  * Highest index in RCB that is valid.
  */
 static int rCBPos = 0;
 
-static PTHREAD_T gather_thread;
+static struct PTHREAD * gather_thread;
 
+static struct GE_Context * ectx;
 
-static int aquire(const HashCode512 * key,
+static struct GC_Configuration * cfg;
+		
+
+static int acquire(const HashCode512 * key,
 		  const Datastore_Value * value,
 		  void * closure) {
+  int loadc;
+  int loadi;
   int load;
 
-  if (doneSignal != NULL)
+  if (doneSignal)
     return SYSERR;
-  SEMAPHORE_DOWN(acquireMoreSignal);
-  if (doneSignal != NULL)
+  SEMAPHORE_DOWN(acquireMoreSignal, YES);
+  if (doneSignal)
     return SYSERR;
-  MUTEX_LOCK(&lock);
+  MUTEX_LOCK(lock);
   load = 0;
   while (randomContentBuffer[rCBPos].value != NULL) {
     rCBPos = (rCBPos + 1) % RCB_SIZE;
     load++;
     if (load > RCB_SIZE) {
-      BREAK();
-      MUTEX_UNLOCK(&lock);
+      GE_BREAK(ectx, 0);
+      MUTEX_UNLOCK(lock);
       return SYSERR;
     }
-  }  
+  }
 #if DEBUG_PREFETCH
-  LOG(LOG_DEBUG,
-      "Adding content to prefetch buffer (%u)\n",
-      rCBPos);
+  {
+    EncName enc;
+
+    hash2enc(key,
+	     &enc);
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_BULK | GE_USER,
+	   "Adding content `%s' of type %u/size %u/exp %llu to prefetch buffer (%u)\n",
+	   &enc,
+	   ntohl(value->type),
+	   ntohl(value->size),
+	   ntohll(value->expirationTime),
+	   rCBPos);
+  }
 #endif
   randomContentBuffer[rCBPos].key = *key;
   randomContentBuffer[rCBPos].used = 0;
@@ -113,18 +136,24 @@ static int aquire(const HashCode512 * key,
   memcpy(randomContentBuffer[rCBPos].value,
 	 value,
 	 ntohl(value->size));
-  MUTEX_UNLOCK(&lock);
-  load = getCPULoad(); /* FIXME: should use 'IO load' here */
+  MUTEX_UNLOCK(lock);
+  loadi = os_disk_get_load(ectx,
+			   cfg);
+  loadc = os_cpu_get_load(ectx,
+			  cfg);
+  if (loadi > loadc)
+    load = loadi;
+  else
+    load = loadc;
   if (load < 10)
     load = 10;    /* never sleep less than 500 ms */
   if (load > 100)
-    load = 100;   /* never sleep longer than 5 seconds since that
-		     might show up badly in the shutdown sequence... */
-  if (doneSignal != NULL)
+    load = 100;   /* never sleep longer than 5 seconds */
+  if (doneSignal)
     return SYSERR;
   /* the higher the load, the longer the sleep */
-  gnunet_util_sleep(50 * cronMILLIS * load);
-  if (doneSignal != NULL)
+  PTHREAD_SLEEP(50 * cronMILLIS * load);
+  if (doneSignal)
     return SYSERR;
   return OK;
 }
@@ -134,21 +163,19 @@ static int aquire(const HashCode512 * key,
  */
 static void * rcbAcquire(void * unused) {
   int load;
-  while (doneSignal == NULL) {
-    sq->iterateExpirationTime(0,
-			      &aquire,
+  while (doneSignal == NO) {
+    sq->iterateMigrationOrder(&acquire,
 			      NULL);
     /* sleep here, too - otherwise we start looping immediately
        if there is no content in the DB! */
-    load = getCPULoad();
+    load = os_cpu_get_load(ectx,
+			   cfg);
     if (load < 10)
       load = 10;    /* never sleep less than 500 ms */
     if (load > 100)
-      load = 100;   /* never sleep longer than 5 seconds since that
-		       might show up badly in the shutdown sequence... */
-    gnunet_util_sleep(50 * cronMILLIS * load);
+      load = 100;   /* never sleep longer than 5 seconds */
+    PTHREAD_SLEEP(50 * cronMILLIS * load);
   }
-  SEMAPHORE_UP(doneSignal);
   return NULL;
 }
 
@@ -170,7 +197,7 @@ int getRandom(const HashCode512 * receiver,
 
   minIdx = -1;
   minDist = -1; /* max */
-  MUTEX_LOCK(&lock);
+  MUTEX_LOCK(lock);
   for (i=0;i<RCB_SIZE;i++) {
     if (randomContentBuffer[i].value == NULL)
       continue;
@@ -180,6 +207,9 @@ int getRandom(const HashCode512 * receiver,
 	     (type != 0) ) ) ||
 	 (sizeLimit < ntohl(randomContentBuffer[i].value->size)) )
       continue;
+    if ( (ntohl(randomContentBuffer[i].value->type) == ONDEMAND_BLOCK) &&
+	 (sizeLimit < 32768) )
+      continue; /* 32768 == ecrs/tree.h: DBLOCK_SIZE */
     dist = distanceHashCode512(&randomContentBuffer[i].key,
 			       receiver);
     if (dist < minDist) {
@@ -188,17 +218,19 @@ int getRandom(const HashCode512 * receiver,
     }
   }
   if (minIdx == -1) {
-    MUTEX_UNLOCK(&lock);
+    MUTEX_UNLOCK(lock);
 #if DEBUG_PREFETCH
-    LOG(LOG_DEBUG,
-	"Failed to find content in prefetch buffer\n");
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "Failed to find content in prefetch buffer\n");
 #endif
     return SYSERR;
   }
 #if DEBUG_PREFETCH
-    LOG(LOG_DEBUG,
-	"Found content in prefetch buffer (%u)\n",
-	minIdx);
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "Found content in prefetch buffer (%u)\n",
+	   minIdx);
 #endif
   *key = randomContentBuffer[minIdx].key;
   *value = randomContentBuffer[minIdx].value;
@@ -216,38 +248,45 @@ int getRandom(const HashCode512 * receiver,
     randomContentBuffer[minIdx].value = NULL;
     SEMAPHORE_UP(acquireMoreSignal);
   }
-  MUTEX_UNLOCK(&lock);
+  MUTEX_UNLOCK(lock);
   return OK;
 }
 				
-void initPrefetch(SQstore_ServiceAPI * s) {
+void initPrefetch(struct GE_Context * e,
+		  struct GC_Configuration * c,
+		  SQstore_ServiceAPI * s) {
+  ectx = e;
+  cfg = c;
   sq = s;
   memset(randomContentBuffer,
 	 0,
 	 sizeof(ContentBuffer *)*RCB_SIZE);
-  acquireMoreSignal = SEMAPHORE_NEW(RCB_SIZE);
-  doneSignal = NULL;
-  MUTEX_CREATE(&lock);
-  if (0 != PTHREAD_CREATE(&gather_thread,
-			  (PThreadMain)&rcbAcquire,
-			  NULL,
-			  64*1024))
-    DIE_STRERROR("pthread_create");
+  acquireMoreSignal = SEMAPHORE_CREATE(RCB_SIZE);
+  doneSignal = NO;
+  lock = MUTEX_CREATE(NO);
+  gather_thread = PTHREAD_CREATE(&rcbAcquire,
+				 NULL,
+				 64*1024);
+  GE_ASSERT(NULL,
+	    gather_thread != NULL);
 }
 
 void donePrefetch() {
   int i;
   void * unused;
 
-  doneSignal = SEMAPHORE_NEW(0);
+  doneSignal = YES;
+  PTHREAD_STOP_SLEEP(gather_thread);
   SEMAPHORE_UP(acquireMoreSignal);
-  SEMAPHORE_DOWN(doneSignal);
-  SEMAPHORE_FREE(acquireMoreSignal);
-  SEMAPHORE_FREE(doneSignal);
-  PTHREAD_JOIN(&gather_thread, &unused);
-  for (i=0;i<rCBPos;i++)
+  PTHREAD_JOIN(gather_thread, &unused);
+  SEMAPHORE_DESTROY(acquireMoreSignal);
+  for (i=0;i<RCB_SIZE;i++)
     FREENONNULL(randomContentBuffer[i].value);
-  MUTEX_DESTROY(&lock);
+  MUTEX_DESTROY(lock);
+  lock = NULL;
+  sq = NULL;
+  cfg = NULL;
+  ectx = NULL;
 }
 
 /* end of prefetch.c */

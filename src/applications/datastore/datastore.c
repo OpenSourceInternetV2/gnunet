@@ -32,15 +32,12 @@
 #include "gnunet_protocols.h"
 #include "gnunet_datastore_service.h"
 #include "gnunet_sqstore_service.h"
+#include "gnunet_state_service.h"
+#include "gnunet_stats_service.h"
 #include "filter.h"
 #include "prefetch.h"
 
 #define DEBUG_DATASTORE NO
-
-/**
- * Require 1 MB 'free' space.
- */
-#define MIN_FREE 1024 * 1024
 
 /**
  * SQ-store handle
@@ -68,7 +65,10 @@ static long long available;
 static unsigned long long quota;
 
 /**
+ * Require 1/100th of quota to be 'free' space.
  */
+#define MIN_FREE (quota / 100)
+
 static unsigned long long getSize() {
   return sq->getSize();
 }
@@ -76,7 +76,6 @@ static unsigned long long getSize() {
 static int fastGet(const HashCode512 * query) {
   return testAvailable(query);
 }
-
 
 static int get(const HashCode512 * query,
 	       unsigned int type,
@@ -86,12 +85,14 @@ static int get(const HashCode512 * query,
 #if DEBUG_DATASTORE
     EncName enc;
 
-    IFLOG(LOG_DEBUG,
-	  hash2enc(query,
-		   &enc));
-    LOG(LOG_DEBUG,
-	"Datastore availability pre-test failed for `%s'.\n",
-	&enc);
+    IF_GELOG(coreAPI->ectx,
+	     GE_DEBUG | GE_REQUEST | GE_USER,
+	     hash2enc(query,
+		      &enc));
+    GE_LOG(coreAPI->ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "Datastore availability pre-test failed for `%s'.\n",
+	   &enc);
 #endif
     return 0;
   }
@@ -108,39 +109,42 @@ static int del(const HashCode512 * query,
 	       const Datastore_Value * value) {
   int ok;
   EncName enc;
-  int i;
 
   if (! testAvailable(query)) {
-    IFLOG(LOG_WARNING,
-	  hash2enc(query,
-		   &enc));
-    LOG(LOG_WARNING,
-	_("Availability test failed for `%s' at %s:%d.\n"),
-	&enc,
-	__FILE__, __LINE__);
+    IF_GELOG(coreAPI->ectx,
+	     GE_WARNING | GE_BULK | GE_USER,
+	     hash2enc(query,
+		      &enc));
+    GE_LOG(coreAPI->ectx,
+	   GE_WARNING | GE_BULK | GE_USER,
+	   _("Availability test failed for `%s' at %s:%d.\n"),
+	   &enc,
+	   __FILE__, __LINE__);
     return 0;
   }
   ok = sq->del(query, value);
-  if (0 < ok) {
-    for (i=0;i<ok;i++) {
-      makeUnavailable(query); /* update filter! */
-      available += ntohl(value->size);
-    }
+  if (ok >= 0) {
+    makeUnavailable(query); /* update filter! */
+    available += ntohl(value->size);
 #if DEBUG_DATASTORE
-    IFLOG(LOG_DEBUG,
-	  hash2enc(query,
-		   &enc));
-    LOG(LOG_DEBUG,
-	"Deleted `%s' from database.\n",
-	&enc);
+    IF_GELOG(coreAPI->ectx,
+	     GE_DEBUG | GE_REQUEST | GE_USER,
+	     hash2enc(query,
+		      &enc));
+    GE_LOG(coreAPI->ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "Deleted `%s' from database.\n",
+	   &enc);
 #endif
   } else {
-    IFLOG(LOG_WARNING,
-	  hash2enc(query,
-		   &enc));
-    LOG(LOG_WARNING,
-	_("Database failed to delete `%s'.\n"),
-	&enc);
+    IF_GELOG(coreAPI->ectx,
+	     GE_WARNING | GE_BULK | GE_USER,
+	     hash2enc(query,
+		      &enc));
+    GE_LOG(coreAPI->ectx,
+	   GE_WARNING | GE_BULK | GE_USER,
+	   _("Database failed to delete `%s'.\n"),
+	   &enc);
   }
   return ok;
 }
@@ -159,12 +163,19 @@ static int put(const HashCode512 * key,
   int ok;
 
   /* check if we have enough space / priority */
+  if (ntohll(value->expirationTime) < get_time()) {
+    GE_LOG(coreAPI->ectx,
+	   GE_INFO | GE_REQUEST | GE_USER,
+	   "Received content for put already expired!\n");
+    return NO;
+  }
   if ( (available < ntohl(value->size) ) &&
        (minPriority > ntohl(value->prio)) ) {
-    LOG(LOG_WARNING,
-	"Datastore full (%llu/%llu) and content priority too low to kick out other content.  Refusing put.\n",
-	sq->getSize(), 
-	quota);
+    GE_LOG(coreAPI->ectx,
+	   GE_INFO | GE_REQUEST | GE_USER,
+	   "Datastore full (%llu/%llu) and content priority too low to kick out other content.  Refusing put.\n",
+	   sq->getSize(),
+	   quota);
     return SYSERR; /* new content has such a low priority that
 		      we should not even bother! */
   }
@@ -191,7 +202,7 @@ static int checkExists(const HashCode512 * key,
 		       const Datastore_Value * value,
 		       void * cls) {
   CE * ce = cls;
-  
+
   if ( (value->size != ce->value->size) ||
        (0 != memcmp(&value[1],
 		    &ce->value[1],
@@ -235,29 +246,33 @@ static int putUpdate(const HashCode512 * key,
 	    &cls);
 
   if (cls.exists) {
-    if (htonl(value->prio) == 0) {
+    if ( (ntohl(value->prio) == 0) &&
+	 (ntohll(value->expirationTime) <= ntohll(cls.existing->expirationTime)) ) {
       FREE(cls.existing);
       return OK;
     }
     /* update prio */
     sq->update(key,
 	       cls.existing,
-	       ntohl(value->prio));
+	       ntohl(value->prio),
+	       ntohll(value->expirationTime));
     FREE(cls.existing);
     return OK;
   }
 #if DEBUG_DATASTORE
-  LOG(LOG_DEBUG,
-      "Migration: available %llu (need %u), min priority %u have %u\n",
-      available, ntohl(value->size),
-      minPriority,
-      ntohl(value->prio));
+  GE_LOG(coreAPI->ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "Migration: available %llu (need %u), min priority %u have %u\n",
+	 available, 
+	 ntohl(value->size),
+	 minPriority,
+	 ntohl(value->prio));
 #endif
   /* check if we have enough space / priority */
   if ( (available < ntohl(value->size) ) &&
        (minPriority > ntohl(value->prio)) )
     return NO; /* new content has such a low priority that
-		      we should not even bother! */
+		  we should not even bother! */
   if (ntohl(value->prio) < minPriority)
     minPriority = ntohl(value->prio);
 
@@ -271,18 +286,25 @@ static int putUpdate(const HashCode512 * key,
   return ok;
 }
 
+/**
+ * @return *closure if we are below quota,
+ *         SYSERR if we have deleted all of the expired content
+ *         OK if we deleted expired content and are above quota
+ */
 static int freeSpaceExpired(const HashCode512 * key,
-			 const Datastore_Value * value,
-			 void * closure) {
+			    const Datastore_Value * value,
+			    void * closure) {
+  int * icls = closure;
   int ret;
 
-  if (cronTime(NULL) < ntohll(value->expirationTime))
+  if (get_time() < ntohll(value->expirationTime))
     return SYSERR; /* not expired */
   ret = sq->del(key, value);
   if (ret != SYSERR)
-    available += ret * ntohl(value->size);
-  if (available >= MIN_FREE)
-    return SYSERR;
+    available += ntohl(value->size);
+  if ( (available > 0) &&
+       (available >= MIN_FREE) )
+    return *icls;
   return OK;
 }
 
@@ -294,8 +316,9 @@ static int freeSpaceLow(const HashCode512 * key,
   minPriority = ntohl(value->prio);
   ret = sq->del(key, value);
   if (ret != SYSERR)
-    available += ret * ntohl(value->size);
-  if (available >= MIN_FREE)
+    available +=  ntohl(value->size);
+  if ( (available > 0) &&
+       (available >= MIN_FREE) )
     return SYSERR;
   return OK;
 }
@@ -307,12 +330,16 @@ static int freeSpaceLow(const HashCode512 * key,
  * Also updates available and minPriority.
  */
 static void cronMaintenance(void * unused) {
+  int syserr = SYSERR;
+
   available = quota - sq->getSize();
-  if (available < MIN_FREE) {
+  if ( (available < 0) ||
+       (available < MIN_FREE) ) {
     sq->iterateExpirationTime(ANY_BLOCK,
 			      &freeSpaceExpired,
-			      NULL);
-    if (available < MIN_FREE) {
+			      &syserr);
+    if ( (available < 0) ||
+	 (available < MIN_FREE) ) {
       sq->iterateLowPriority(ANY_BLOCK,
 			     &freeSpaceLow,
 			     NULL);
@@ -328,35 +355,64 @@ static void cronMaintenance(void * unused) {
 Datastore_ServiceAPI *
 provide_module_datastore(CoreAPIForApplication * capi) {
   static Datastore_ServiceAPI api;
-  unsigned int lquota;
+  unsigned long long lquota;
+  unsigned int sqot;
+  State_ServiceAPI * state;
+  Stats_ServiceAPI * stats;
 
-  lquota
-    = getConfigurationInt("FS", "QUOTA");
+  if (-1 == GC_get_configuration_value_number(capi->cfg,
+					      "FS",
+					      "QUOTA",
+					      0,
+					      ((unsigned long long)-1)/1024/1024,
+					      1024,
+					      &lquota)) {
+    GE_BREAK(capi->ectx, 0);
+    return NULL; /* OOPS */
+  }
   quota
-    = ((unsigned long long)lquota) * 1024L * 1024L; /* MB to bytes */
+    = lquota * 1024 * 1024; /* MB to bytes */
+  stats = capi->requestService("stats");
+  if (stats != NULL) {
+    stats->set(stats->create(gettext_noop("# bytes allowed in datastore")),
+	       quota);
+    capi->releaseService(stats);
+  }
+  state = capi->requestService("state");
+  if (state != NULL) {
+    sqot = htonl(lquota);
+    state->write(capi->ectx,
+		 "FS-LAST-QUOTA",
+		 sizeof(unsigned int),
+		 &sqot);
+    capi->releaseService(state);
+  } else {
+    GE_LOG(capi->ectx,
+	   GE_USER | GE_ADMIN | GE_ERROR | GE_BULK,
+	   _("Failed to load state service. Trying to do without.\n"));
+  }
   sq = capi->requestService("sqstore");
   if (sq == NULL) {
-    BREAK();
+    GE_BREAK(capi->ectx, 0);
     return NULL;
   }
-  lquota = htonl(lquota);
-  stateWriteContent("FS-LAST-QUOTA",
-		    sizeof(unsigned int),
-		    &lquota);
-
   coreAPI = capi;
-
-  initPrefetch(sq);
-  if (OK != initFilters()) {
+  initPrefetch(capi->ectx,
+	       capi->cfg,
+	       sq);
+  if (OK != initFilters(capi->ectx,
+			capi->cfg)) {
+    GE_BREAK(capi->ectx, 0);
     donePrefetch();
+    capi->releaseService(sq);
     return NULL;
   }
-  cronMaintenance(NULL);
-  addCronJob(&cronMaintenance,
-	     10 * cronSECONDS,
-	     10 * cronSECONDS,
-	     NULL);
-
+  available = quota - sq->getSize();
+  cron_add_job(capi->cron,
+	       &cronMaintenance,
+	       10 * cronSECONDS,
+	       10 * cronSECONDS,
+	       NULL);
   api.getSize = &getSize;
   api.put = &put;
   api.fast_get = &fastGet;
@@ -372,9 +428,10 @@ provide_module_datastore(CoreAPIForApplication * capi) {
  * Shutdown the manager module.
  */
 void release_module_datastore() {
-  delCronJob(&cronMaintenance,
-	     10 * cronSECONDS,
-	     NULL);
+  cron_del_job(coreAPI->cron,
+	       &cronMaintenance,
+	       10 * cronSECONDS,
+	       NULL);
   donePrefetch();
   doneFilters();
   coreAPI->releaseService(sq);
@@ -399,25 +456,58 @@ static int filterAddAll(const HashCode512 * key,
  * different sqstore's here, too.
  */
 void update_module_datastore(UpdateAPI * uapi) {
-  int quota;
+  unsigned long long quota;
+  unsigned int lastQuota;
   int * lq;
-  int lastQuota;
+  State_ServiceAPI * state;
+  int ok = OK;
 
-  quota
-    = getConfigurationInt("FS", "QUOTA");
-  lq = NULL;
-  if (sizeof(int) != stateReadContent("FS-LAST-QUOTA",
-				      (void**)&lq))
-    return; /* first start? */
-  lastQuota = ntohl(*lq);
-  FREE(lq);
-  if (lastQuota == quota)
-    return; /* unchanged */
-  /* ok, need to convert! */
-  deleteFilter();
-  initFilters();
+  if (-1 == GC_get_configuration_value_number(uapi->cfg,
+					      "FS",
+					      "QUOTA",
+					      0,
+					      ((unsigned long long)-1)/1024/1024,
+					      1024,
+					      &quota))
+    return; /* OOPS */
   sq = uapi->requestService("sqstore");
-  sq->get(NULL, ANY_BLOCK,
+  GE_LOG(uapi->ectx,
+	 GE_USER | GE_ADMIN | GE_INFO | GE_IMMEDIATE,
+	 _("Deleting expired content.  This may take a while.\n"));
+  sq->iterateExpirationTime(ANY_BLOCK,
+			    &freeSpaceExpired,
+			    &ok);
+  GE_LOG(uapi->ectx,
+	 GE_USER | GE_ADMIN | GE_INFO | GE_IMMEDIATE,
+	 _("Completed deleting expired content.\n"));
+  state = uapi->requestService("state");
+  if (state != NULL) {
+    lq = NULL;
+    if (sizeof(int) != state->read(uapi->ectx,
+				   "FS-LAST-QUOTA",
+				   (void**)&lq)) {
+      uapi->releaseService(state);
+      return; /* first start? */
+    }
+    uapi->releaseService(state);
+    lastQuota = ntohl(*lq);
+    FREE(lq);
+    uapi->releaseService(sq);
+    if (lastQuota == quota)
+      return; /* unchanged */
+  } else {
+    GE_LOG(uapi->ectx,
+	   GE_USER | GE_ADMIN | GE_ERROR | GE_BULK,
+	   _("Failed to load state service. Trying to do without.\n"));
+  }
+
+  /* ok, need to convert! */
+  deleteFilter(uapi->ectx,
+	       uapi->cfg);
+  initFilters(uapi->ectx,
+	      uapi->cfg);
+  sq->get(NULL, 
+	  ANY_BLOCK,
 	  &filterAddAll,
 	  NULL);
   uapi->releaseService(sq);

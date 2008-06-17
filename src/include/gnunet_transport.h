@@ -98,7 +98,7 @@ typedef void (*P2P_PACKETProcessor)(P2P_PACKET * mp);
 typedef struct {
 
   /**
-   * The version of the CORE API. For now, always "0".
+   * The version of the CORE API. For now, always "1".
    */
   unsigned int version;
 
@@ -106,6 +106,26 @@ typedef struct {
    * The identity of the local node.
    */
   PeerIdentity * myIdentity;
+
+  /**
+   * System error context
+   */
+  struct GE_Context * ectx;
+
+  /**
+   * System configuration
+   */
+  struct GC_Configuration * cfg;
+
+  /**
+   * System load monitor
+   */
+  struct LoadMonitor * load_monitor;
+
+  /**
+   * System cron Manager.
+   */
+  struct CronManager * cron;
 
   /**
    * Data was received (potentially encrypted), make the core process
@@ -164,7 +184,7 @@ typedef struct {
    * the transport should never do ANYTHING
    * with it.
    */
-  void * libHandle;
+  struct PluginHandle * libHandle;
 
   /**
    * The name of the transport, set by the
@@ -179,7 +199,7 @@ typedef struct {
    * idea.  The field is updated by a cron job
    * periodically.
    */
-  P2P_hello_MESSAGE * helo;
+  P2P_hello_MESSAGE * hello;
 
   /**
    * The number of the protocol that is supported by this transport
@@ -206,11 +226,11 @@ typedef struct {
    * Verify that a hello-Message is correct (a node
    * is potentially reachable at that address). Core
    * will only play ping pong after this verification passed.
-   * @param helo the hello message to verify
+   * @param hello the hello message to verify
    *        (the signature/crc have been verified before)
    * @return OK if the helo is well-formed
    */
-  int (*verifyHelo)(const P2P_hello_MESSAGE * helo);
+  int (*verifyHelo)(const P2P_hello_MESSAGE * hello);
 
   /**
    * Create a hello-Message for the current node. The hello is
@@ -220,8 +240,6 @@ typedef struct {
    * responsible for filling in the protocol number,
    * senderAddressSize and the senderAddress itself.
    *
-   * @param helo address where to store the pointer to the hello
-   *        message
    * @return OK on success, SYSERR on error (e.g. send-only
    *  transports return SYSERR here)
    */
@@ -230,12 +248,12 @@ typedef struct {
   /**
    * Establish a connection to a remote node.
    *
-   * @param helo the hello-Message for the target node
+   * @param hello the hello-Message for the target node
    * @param tsession the session handle that is to be set
    * @return OK on success, SYSERR if the operation failed
    */
-  int (*connect)(const P2P_hello_MESSAGE * helo,
-		 TSession ** tsession);
+  int (*connect)(const P2P_hello_MESSAGE * hello,
+		 TSession ** tsession);  
 
   /**
    * Send a message to the specified remote node.
@@ -243,6 +261,8 @@ typedef struct {
    *        or the hello_message from connect)
    * @param msg the message
    * @param size the size of the message, <= mtu
+   * @param important YES if message is important (i.e. grow
+   *        buffers to queue if needed)
    * @return SYSERR on error, NO on temporary error (retry),
    *         YES/OK on success; after any persistent error,
    *         the caller must call "disconnect" and not continue
@@ -251,25 +271,8 @@ typedef struct {
    */
   int (*send)(TSession * tsession,
 	      const void * msg,
-	      const unsigned int size);
-
-  /**
-   * Send a message to the specified remote node with
-   * increased reliablility (whatever that means is
-   * up to the transport).
-   *
-   * @param tsession an opaque session handle (e.g. a socket
-   *        or the hello_message from connect)
-   * @param msg the message
-   * @param size the size of the message, <= mtu
-   * @return SYSERR on error, OK on success; after any error,
-   *         the caller must call "disconnect" and not continue
-   *         using the session afterwards (useful if the other
-   *         side closed the connection).
-   */
-  int (*sendReliable)(TSession * tsession,
-		      const void * msg,
-		      const unsigned int size);
+	      unsigned int size,
+	      int important);
 
   /**
    * A (core) Session is to be associated with a transport session. The
@@ -320,16 +323,30 @@ typedef struct {
   int (*stopTransportServer)(void);
 
   /**
-   * Reload the configuration. Should never fail (keep old
-   * configuration on error, syslog errors!)
+   * Convert transport address to human readable string.
+   *
+   * @param resolve_ip should we try to resolve the IP?
    */
-  void (*reloadConfiguration)(void);
+  char * (*addressToString)(const P2P_hello_MESSAGE * hello,
+			    int resolve_ip);
 
   /**
-   * Convert transport address to human readable string.
+   * Test if the transport would even try to send
+   * a message of the given size and importance
+   * for the given session.<br>
+   * This function is used to check if the core should
+   * even bother to construct (and encrypt) this kind
+   * of message.
+   *
+   * @return YES if the transport would try (i.e. queue
+   *         the message or call the OS to send),
+   *         NO if the transport would just drop the message,
+   *         SYSERR if the size/session is invalid
    */
-  char * (*addressToString)(const P2P_hello_MESSAGE * helo);
-
+  int (*testWouldTry)(TSession * tsession,
+		      unsigned int size,
+		      int important);
+  
 } TransportAPI;
 
 /**

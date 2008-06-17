@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2003, 2004 Christian Grothoff (and other contributing authors)
+     (C) 2003, 2004, 2006 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -26,8 +26,7 @@
  * Unindex file.
  *
  * TODO:
- * - code cleanup (share more with
- *   upload.c)
+ * - code cleanup (share more with upload.c)
  */
 
 #include "platform.h"
@@ -53,7 +52,7 @@
  * to avoid code duplication (move to block.c, pass
  * FS_delete as argument!).
  */
-static int pushBlock(GNUNET_TCP_SOCKET * sock,
+static int pushBlock(struct ClientServerConnection * sock,
 		     const CHK * chk,	
 		     unsigned int level,
 		     Datastore_Value ** iblocks) {
@@ -77,7 +76,7 @@ static int pushBlock(GNUNET_TCP_SOCKET * sock,
 			&ichk,
 			level+1,
 			iblocks)) {
-      BREAK();
+      GE_BREAK(NULL, 0);
       return SYSERR;
     }
     fileBlockEncode(db,
@@ -88,7 +87,7 @@ static int pushBlock(GNUNET_TCP_SOCKET * sock,
     if (SYSERR == FS_delete(sock,
 			    value)) {
       FREE(value);
-      BREAK();
+      GE_BREAK(NULL, 0);
       return SYSERR;
     }
 #else
@@ -115,9 +114,10 @@ static int pushBlock(GNUNET_TCP_SOCKET * sock,
  * a) check if we have a symlink
  * b) delete symbolic link
  */
-static int undoSymlinking(const char * fn,
+static int undoSymlinking(struct GE_Context * ectx,
+			  const char * fn,
 			  const HashCode512 * fileId,
-			  GNUNET_TCP_SOCKET * sock) {
+			  struct ClientServerConnection * sock) {
   EncName enc;
   char * serverDir;
   char * serverFN;
@@ -129,7 +129,10 @@ static int undoSymlinking(const char * fn,
 #endif
   if (0 != LSTAT(fn,
 		 &buf)) {
-    LOG_FILE_STRERROR(LOG_ERROR, "stat", fn);
+    GE_LOG_STRERROR_FILE(ectx,
+			 GE_ERROR | GE_BULK | GE_USER | GE_ADMIN,
+			 "stat",
+			 fn);
     return SYSERR;
   }
 #ifdef S_ISLNK
@@ -155,7 +158,10 @@ static int undoSymlinking(const char * fn,
 	 (char*)&enc);
 
   if (0 != UNLINK(serverFN)) {
-    LOG_FILE_STRERROR(LOG_ERROR, "unlink", serverFN);
+    GE_LOG_STRERROR_FILE(ectx,
+			 GE_ERROR | GE_BULK | GE_USER | GE_ADMIN,
+			 "unlink",
+			 serverFN);
     FREE(serverFN);
     return SYSERR;
   }
@@ -170,7 +176,9 @@ static int undoSymlinking(const char * fn,
  *
  * @return SYSERR if the unindexing failed (i.e. not indexed)
  */
-int ECRS_unindexFile(const char * filename,
+int ECRS_unindexFile(struct GE_Context * ectx,
+		     struct GC_Configuration * cfg,
+		     const char * filename,
 		     ECRS_UploadProgressCallback upcb,
 		     void * upcbClosure,
 		     ECRS_TestTerminate tt,
@@ -185,7 +193,7 @@ int ECRS_unindexFile(const char * filename,
   Datastore_Value * dblock;
   DBlock * db;
   Datastore_Value * value;
-  GNUNET_TCP_SOCKET * sock;
+  struct ClientServerConnection * sock;
   HashCode512 fileId;
   CHK chk;
   cron_t eta;
@@ -193,31 +201,31 @@ int ECRS_unindexFile(const char * filename,
   cron_t now;
   int wasIndexed;
 
-  cronTime(&start);
-  if (isDirectory(filename)) {
-    BREAK();
+  start = get_time();
+  if (YES != disk_file_test(ectx,
+			    filename)) {
+    GE_BREAK(ectx, 0);
     return SYSERR;
   }
-  if (0 == assertIsFile(filename)) {
-    BREAK();
+  if (OK != disk_file_size(ectx,
+			   filename,
+			   &filesize,
+			   YES))
     return SYSERR;
-  }
-  if (OK != getFileSize(filename,
-			&filesize))
-    return SYSERR;
-  sock = getClientSocket();
+  sock = client_connection_create(ectx, cfg);
   if (sock == NULL)
     return SYSERR;
   eta = 0;
   if (upcb != NULL)
     upcb(filesize, 0, eta, upcbClosure);
-  if (SYSERR == getFileHash(filename,
+  if (SYSERR == getFileHash(ectx,
+			    filename,
 			    &fileId)) {
-    releaseClientSocket(sock);
-    BREAK();
+    connection_destroy(sock);
+    GE_BREAK(ectx, 0);
     return SYSERR;
   }
-  cronTime(&now);
+  now = get_time();
   eta = now + 2 * (now - start);
   /* very rough estimate: hash reads once through the file,
      we'll do that once more and write it.  But of course
@@ -233,11 +241,11 @@ int ECRS_unindexFile(const char * filename,
     = FS_testIndexed(sock,
 		     &fileId);
 
-  fd = fileopen(filename, O_RDONLY | O_LARGEFILE);
-  if (fd == -1) {
-    LOG_FILE_STRERROR(LOG_WARNING, "OPEN", filename);
+  fd = disk_file_open(ectx,
+		      filename,
+		      O_RDONLY | O_LARGEFILE);
+  if (fd == -1)
     return SYSERR;
-  }
   dblock = MALLOC(sizeof(Datastore_Value) + DBLOCK_SIZE + sizeof(DBlock));
   dblock->size = htonl(sizeof(Datastore_Value) + DBLOCK_SIZE + sizeof(DBlock));
   dblock->anonymityLevel = htonl(0);
@@ -275,9 +283,10 @@ int ECRS_unindexFile(const char * filename,
     if (size != READ(fd,
 		     &db[1],
 		     size)) {
-      LOG_FILE_STRERROR(LOG_WARNING,
-			"READ",
-			filename);
+      GE_LOG_STRERROR_FILE(ectx,
+			   GE_ERROR | GE_USER | GE_ADMIN | GE_BULK,
+			   "READ",
+			   filename);
       goto FAILURE;
     }
     if (tt != NULL)
@@ -293,11 +302,11 @@ int ECRS_unindexFile(const char * filename,
 			&chk,
 			0, /* dblocks are on level 0 */
 			iblocks)) {
-      BREAK();
+      GE_BREAK(ectx, 0);
       goto FAILURE;
     }
     if (! wasIndexed) {
-      if (OK == 
+      if (OK ==
 	  fileBlockEncode(db,
 			  size,
 			  &chk.query,
@@ -307,7 +316,7 @@ int ECRS_unindexFile(const char * filename,
 	if (OK != FS_delete(sock,
 			    value)) {
 	  FREE(value);
-	  BREAK();
+	  GE_BREAK(ectx, 0);
 	  goto FAILURE;
 	}
 #else
@@ -320,7 +329,7 @@ int ECRS_unindexFile(const char * filename,
       }
     }
     pos += size;
-    cronTime(&now);
+    now = get_time();
     eta = (cron_t) (start +
 		    (((double)(now - start)/(double)pos))
 		    * (double)filesize);
@@ -341,7 +350,7 @@ int ECRS_unindexFile(const char * filename,
 			&chk,
 			i+1,
 			iblocks)) {
-      BREAK();
+      GE_BREAK(ectx, 0);
       goto FAILURE;
     }
     fileBlockEncode(db,
@@ -352,7 +361,7 @@ int ECRS_unindexFile(const char * filename,
     if (OK != FS_delete(sock,
 			value)) {
       FREE(value);
-      BREAK();
+      GE_BREAK(ectx, 0);
       goto FAILURE;
     }
 #else
@@ -365,34 +374,35 @@ int ECRS_unindexFile(const char * filename,
   }
 
   if (wasIndexed) {
-    if (OK == undoSymlinking(filename,
+    if (OK == undoSymlinking(ectx,
+			     filename,
 			     &fileId,
 			     sock)) {
       if (OK != FS_unindex(sock,
 			   DBLOCK_SIZE,
 			   &fileId)) {
-	BREAK();
+	GE_BREAK(ectx, 0);
 	goto FAILURE;
       }
     } else {
-      BREAK();
+      GE_BREAK(ectx, 0);
       goto FAILURE;
     }
   }
-
+  FREE(iblocks[treedepth]);
   /* free resources */
   FREE(iblocks);
   FREE(dblock);
-  closefile(fd);
-  releaseClientSocket(sock);
+  CLOSE(fd);
+  connection_destroy(sock);
   return OK;
  FAILURE:
-  for (i=0;i<treedepth;i++)
+  for (i=0;i<=treedepth;i++)
     FREENONNULL(iblocks[i]);
   FREE(iblocks);
   FREE(dblock);
-  closefile(fd);
-  releaseClientSocket(sock);
+  CLOSE(fd);
+  connection_destroy(sock);
   return SYSERR;
 }
 

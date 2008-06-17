@@ -42,7 +42,8 @@
  *
  * @return OK if cover traffic is sufficient
  */
-int checkCoverTraffic(Traffic_ServiceAPI * traffic,
+int checkCoverTraffic(struct GE_Context * ectx,
+		      Traffic_ServiceAPI * traffic,		
 		      unsigned int level) {
   unsigned int count;
   unsigned int peers;
@@ -61,34 +62,38 @@ int checkCoverTraffic(Traffic_ServiceAPI * traffic,
 			 &peers,
 			 &sizes,
 			 &timevect)) {
-    LOG(LOG_WARNING,
-	_("Failed to get traffic stats.\n"));
+    GE_LOG(ectx,
+	   GE_WARNING | GE_BULK | GE_USER,
+	   _("Failed to get traffic stats.\n"));
     return SYSERR;
   }
   if (level > 1000) {
     if (peers < level / 1000) {
-      LOG(LOG_DEBUG,
-	  "Not enough cover traffic to satisfy anonymity requirements (%u, %u peers). "
-	  "Result dropped.\n",
-	  level,
-	  peers);
+      GE_LOG(ectx,
+	     GE_DEBUG | GE_REQUEST | GE_USER,
+	     "Not enough cover traffic to satisfy anonymity requirements (%u, %u peers). "
+	     "Result dropped.\n",
+	     level,
+	     peers);
       return SYSERR;
     }
     if (count < level % 1000) {
-      LOG(LOG_DEBUG,
-	  "Not enough cover traffic to satisfy anonymity requirements (%u, %u messages). "
-	  "Result dropped.\n",
-	  level,
-	  count);
+      GE_LOG(ectx,
+	     GE_DEBUG | GE_REQUEST | GE_USER,
+	     "Not enough cover traffic to satisfy anonymity requirements (%u, %u messages). "
+	     "Result dropped.\n",
+	     level,
+	     count);
       return SYSERR;
     }
   } else {
     if (count < level) {
-      LOG(LOG_DEBUG,
-	  "Not enough cover traffic to satisfy anonymity requirements (%u, %u messages). "
-	  "Result dropped.\n",
-	  level,
-	  count);
+      GE_LOG(ectx,
+	     GE_DEBUG | GE_REQUEST | GE_USER,
+	     "Not enough cover traffic to satisfy anonymity requirements (%u, %u messages). "
+	     "Result dropped.\n",
+	     level,
+	     count);
       return SYSERR;
     }
   }

@@ -28,6 +28,8 @@
 #define COREAPI_H
 
 #include "gnunet_util.h"
+#include "gnunet_util_cron.h"
+#include "gnunet_util_crypto.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,7 +49,7 @@ extern "C" {
  * roughly the main GNUnet version scheme, but is
  * more a compatibility ID.
  */
-#define GNUNET_CORE_VERSION 0x00070005
+#define GNUNET_CORE_VERSION 0x00070100
 
 
 /**
@@ -55,6 +57,11 @@ extern "C" {
  * for example overrules drop-rules.
  */
 #define EXTREME_PRIORITY 0xFFFFFF
+
+/**
+ * Highest legal priority or trust value
+ */
+#define MAX_PRIO 0x7FFFFFFF
 
 /**
  * Overhead of the core for encapsulating P2P messages.
@@ -84,7 +91,7 @@ typedef struct {
  * long, what is actually signed is the hash of these bytes.
  */
 typedef struct {
-  P2P_MESSAGE_HEADER header;
+  MESSAGE_HEADER header;
 
   /**
    * The signature
@@ -134,24 +141,24 @@ typedef struct {
  * Opaque handle for client connections passed by
  * the core to the CSHandlers.
  */
-typedef struct ClientH * ClientHandle;
+struct ClientHandle;
 
 /**
  * Type of a handler for messages from clients.
  */
-typedef int (*CSHandler)(ClientHandle client,
-			 const CS_MESSAGE_HEADER * message);
+typedef int (*CSHandler)(struct ClientHandle * client,
+			 const MESSAGE_HEADER * message);
 
 /**
  * Method called whenever a given client disconnects.
  */
-typedef void (*ClientExitHandler)(ClientHandle client);
+typedef void (*ClientExitHandler)(struct ClientHandle * client);
 
 /**
  * Type of a handler for some message type.
  */
 typedef int (*MessagePartHandler)(const PeerIdentity * sender,
-				  const P2P_MESSAGE_HEADER * message);
+				  const MESSAGE_HEADER * message);
 
 /**
  * Type of a handler for plaintext messages.  Since we cannot
@@ -159,7 +166,7 @@ typedef int (*MessagePartHandler)(const PeerIdentity * sender,
  * the callback.
  */
 typedef int (*PlaintextMessagePartHandler)(const PeerIdentity * sender,
-					   const P2P_MESSAGE_HEADER * message,
+					   const MESSAGE_HEADER * message,
 					   TSession * session);
 
 /**
@@ -206,8 +213,8 @@ typedef int (*BuildMessageCallback)(void * buf,
  * on the other hand does NOT confirm delivery since the actual
  * transfer happens asynchronously.
  */
-typedef int (*SendToClientCallback)(ClientHandle handle,
-                                    const CS_MESSAGE_HEADER * message);
+typedef int (*SendToClientCallback)(struct ClientHandle * handle,
+                                    const MESSAGE_HEADER * message);
 
 /**
  * GNUnet CORE API for applications and services that are implemented
@@ -224,6 +231,27 @@ typedef struct {
    * The identity of the local node.
    */
   PeerIdentity * myIdentity;
+
+  /**
+   * System error context
+   */
+  struct GE_Context * ectx;
+
+  /**
+   * System configuration
+   */
+  struct GC_Configuration * cfg;
+
+  /**
+   * System load monitor
+   */
+  struct LoadMonitor * load_monitor;
+
+  /**
+   * System cron Manager.
+   */
+  struct CronManager * cron;
+
 
   /* ****************** services and applications **************** */
 
@@ -284,7 +312,7 @@ typedef struct {
    * from the GNUnet core.
    *
    * @param session the transport session
-   * @param msg the message to transmit, should contain P2P_MESSAGE_HEADERs
+   * @param msg the message to transmit, should contain MESSAGE_HEADERs
    * @return OK on success, SYSERR on failure
    */
   int (*sendPlaintext)(TSession * session,
@@ -301,7 +329,7 @@ typedef struct {
    * @param maxdelay how long can the message be delayed?
    */
   void (*unicast)(const PeerIdentity * receiver,
-		  const P2P_MESSAGE_HEADER * msg,
+		  const MESSAGE_HEADER * msg,
 		  unsigned int importance,
 		  unsigned int maxdelay);
 
@@ -539,7 +567,7 @@ typedef struct {
    * on the other hand does NOT confirm delivery since the actual
    * transfer happens asynchronously.
    */
-  int (*sendValueToClient)(ClientHandle handle,
+  int (*sendValueToClient)(struct ClientHandle * handle,
 			   int value);
 
   /**
@@ -595,7 +623,8 @@ typedef struct {
    * Terminate the connection with the given client (asynchronous
    * detection of a protocol violation).
    */
-  void (*terminateClientConnection)(ClientHandle handle);
+  void (*terminateClientConnection)(struct ClientHandle * handle);
+
 
   /* ************************ MISC ************************ */
 
@@ -625,7 +654,7 @@ typedef struct {
    * The the lock of the connection module. A module that registers
    * callbacks may need this.
    */
-  Mutex * (*getConnectionModuleLock)(void);
+  struct MUTEX * (*getConnectionModuleLock)(void);
 
   /**
    * Get the current number of slots in the connection table (as computed
@@ -649,7 +678,23 @@ typedef struct {
   int (*getLastActivityOf)(const PeerIdentity * peer,
 			   cron_t * time);
 
+  /* here for binary compatibility (for now) */
+
+  /**
+   * Send a message to the client identified by the handle.  Note that
+   * the core will typically buffer these messages as much as possible
+   * and only return SYSERR if it runs out of buffers.  Returning OK
+   * on the other hand does NOT confirm delivery since the actual
+   * transfer happens asynchronously.
+   */
+  int (*sendErrorMessageToClient)(struct ClientHandle * handle,
+				  GE_KIND kind,
+				  const char * value);
+
+  struct GE_Context * (*createClientLogContext)(GE_KIND mask,
+						struct ClientHandle * handle);
 } CoreAPIForApplication;
+
 
 /**
  * Type of the initialization method implemented by GNUnet protocol
@@ -689,6 +734,16 @@ typedef void (*ServiceDoneMethod)(void);
  * necessary updates.
  */
 typedef struct {
+
+  /**
+   * System error context
+   */
+  struct GE_Context * ectx;
+
+  /**
+   * System configuration
+   */
+  struct GC_Configuration * cfg;
 
   /**
    * Trigger updates for another module.

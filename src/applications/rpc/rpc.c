@@ -63,7 +63,7 @@
 
 
 #if DEBUG_RPC_CLIENT
-#define RPC_STATUS(a,b,c) LOG(LOG_DEBUG, "RPC: `%s' (%p) %s at %s\n", a, c, b, __FUNCTION__);
+#define RPC_STATUS(a,b,c) GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER, "RPC: `%s' (%p) %s at %s\n", a, c, b, __FUNCTION__);
 #else
 #define RPC_STATUS(a,b,c)
 #endif
@@ -79,8 +79,9 @@ static CoreAPIForApplication * coreAPI = NULL;
  * lock must be held by the thread that accesses any module-wide accessable
  * data structures.
  */
-static Mutex * rpcLock;
+static struct MUTEX * rpcLock;
 
+static struct GE_Context * ectx;
 
 /* *************** RPC registration ****************** */
 
@@ -118,14 +119,14 @@ static int RPC_register(const char *name,
 			RPC_Function callback) {
   RegisteredRPC * rrpc;
 
-  GNUNET_ASSERT(name != NULL);
-  GNUNET_ASSERT(callback != NULL);
+  GE_ASSERT(ectx, name != NULL);
+  GE_ASSERT(ectx, callback != NULL);
   MUTEX_LOCK (rpcLock);
   rrpc = vectorGetFirst(list_of_callbacks);
   while (rrpc != NULL) {
     if (0 == strcmp(rrpc->name, name)) {
       MUTEX_UNLOCK (rpcLock);
-      LOG(LOG_WARNING,
+      GE_LOG(ectx, GE_WARNING | GE_BULK | GE_USER,
 	  _("%s::%s - RPC %s:%p could not be registered:"
 	    " another callback is already using this name (%p)\n"),
 	  __FILE__, __FUNCTION__,
@@ -139,7 +140,7 @@ static int RPC_register(const char *name,
   rrpc->callback = callback;
   rrpc->async_callback = NULL;
   vectorInsertLast(list_of_callbacks, rrpc);
-  LOG(LOG_DEBUG,
+  GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
       "%s::%s - Registered RPC %d: %s\n",
       __FILE__, __FUNCTION__,
       vectorSize(list_of_callbacks), name);
@@ -158,14 +159,14 @@ static int RPC_register_async(const char *name,
 			      ASYNC_RPC_Function callback) {
   RegisteredRPC * rrpc;
 
-  GNUNET_ASSERT(name != NULL);
-  GNUNET_ASSERT(callback != NULL);
+  GE_ASSERT(ectx, name != NULL);
+  GE_ASSERT(ectx, callback != NULL);
   MUTEX_LOCK (rpcLock);
   rrpc = vectorGetFirst(list_of_callbacks);
   while (rrpc != NULL) {
     if (0 == strcmp(rrpc->name, name)) {
       MUTEX_UNLOCK (rpcLock);
-      LOG(LOG_WARNING,
+      GE_LOG(ectx, GE_WARNING | GE_BULK | GE_USER,
 	  _("%s::%s - RPC %s:%p could not be registered:"
 	    " another callback is already using this name (%p)\n"),
 	  __FILE__, __FUNCTION__,
@@ -179,7 +180,7 @@ static int RPC_register_async(const char *name,
   rrpc->callback = NULL;
   rrpc->async_callback = callback;
   vectorInsertLast(list_of_callbacks, rrpc);
-  LOG(LOG_DEBUG,
+  GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
       "%s::%s - Registered asynchronous RPC %d: %s\n",
       __FILE__, __FUNCTION__,
       vectorSize(list_of_callbacks), name);
@@ -200,14 +201,14 @@ static int RPC_unregister(const char *name,
 			  RPC_Function callback) {
   RegisteredRPC * rrpc;
 
-  GNUNET_ASSERT(name != NULL);
+  GE_ASSERT(ectx, name != NULL);
   MUTEX_LOCK(rpcLock);
   rrpc = vectorGetFirst(list_of_callbacks);
   while (rrpc != NULL) {
     if (0 == strcmp(rrpc->name, name)) {
       if ( (rrpc->callback != callback) &&
 	   (callback != NULL) ) {
-	LOG(LOG_WARNING,
+	GE_LOG(ectx, GE_WARNING | GE_BULK | GE_USER,
 	    _("%s::%s - RPC %s:%p could not be unregistered:"
 	      " another callback registered under that name: %p\n"),
 	    __FILE__, __FUNCTION__,
@@ -219,7 +220,7 @@ static int RPC_unregister(const char *name,
       FREE(rrpc->name);
       FREE(rrpc);
       MUTEX_UNLOCK(rpcLock);
-      LOG(LOG_DEBUG,
+      GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
 	  "%s::%s - Unregistered RPC %s\n",
 	  __FILE__, __FUNCTION__,
 	  name);
@@ -228,7 +229,7 @@ static int RPC_unregister(const char *name,
     rrpc = vectorGetNext(list_of_callbacks);
   }
   MUTEX_UNLOCK(rpcLock);
-  LOG(LOG_WARNING,
+  GE_LOG(ectx, GE_WARNING | GE_BULK | GE_USER,
       _("%s::%s - RPC %s:%p could not be unregistered: not found\n"),
       __FILE__, __FUNCTION__,
       name, callback);
@@ -247,14 +248,14 @@ static int RPC_unregister_async(const char *name,
 				ASYNC_RPC_Function callback) {
   RegisteredRPC * rrpc;
 
-  GNUNET_ASSERT(name != NULL);
+  GE_ASSERT(ectx, name != NULL);
   MUTEX_LOCK(rpcLock);
   rrpc = vectorGetFirst(list_of_callbacks);
   while (rrpc != NULL) {
     if (0 == strcmp(rrpc->name, name)) {
       if ( (rrpc->async_callback != callback) &&
 	   (callback != NULL) ) {
-	LOG(LOG_WARNING,
+	GE_LOG(ectx, GE_WARNING | GE_BULK | GE_USER,
 	    _("%s::%s - RPC %s:%p could not be unregistered:"
 	      " another callback registered under that name: %p\n"),
 	    __FILE__, __FUNCTION__,
@@ -266,7 +267,7 @@ static int RPC_unregister_async(const char *name,
       FREE(rrpc->name);
       FREE(rrpc);
       MUTEX_UNLOCK(rpcLock);
-      LOG(LOG_DEBUG,
+      GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
 	  "%s::%s - Unregistered asynchronous RPC %s\n",
 	  __FILE__, __FUNCTION__,
 	  name);
@@ -275,7 +276,7 @@ static int RPC_unregister_async(const char *name,
     rrpc = vectorGetNext(list_of_callbacks);
   }
   MUTEX_UNLOCK(rpcLock);
-  LOG(LOG_WARNING,
+  GE_LOG(ectx, GE_WARNING | GE_BULK | GE_USER,
       _("%s::%s - async RPC %s:%p could not be unregistered: not found\n"),
       __FILE__, __FUNCTION__,
       name, callback);
@@ -350,8 +351,9 @@ static PeerInfo * getPeerInfo(const PeerIdentity * id) {
 
   pi = (PeerInfo*) vectorGetFirst(peerInformation);
   while (pi != NULL) {
-    if (hostIdentityEquals(id,
-			   &pi->identity))
+    if (0 == memcmp(id,
+		    &pi->identity,
+		    sizeof(PeerIdentity)))
       return pi;
     pi = (PeerInfo*) vectorGetNext(peerInformation);
   }
@@ -424,7 +426,7 @@ static void notifyPeerRequest(PeerIdentity * peer,
       }
     }
     pi->agedActivitySend |= 0x80000000;
-    pi->lastRequestTimes[pi->oldestRTIndex] = cronTime(NULL);
+    pi->lastRequestTimes[pi->oldestRTIndex] = get_time();
     pi->lastRequestId[pi->oldestRTIndex] = messageID;
     pi->oldestRTIndex = (pi->oldestRTIndex+1) % MTRACK_COUNT;
     MUTEX_UNLOCK(rpcLock);
@@ -434,9 +436,10 @@ static void notifyPeerRequest(PeerIdentity * peer,
   memset(pi, 0, sizeof(PeerInfo));
   pi->identity = *peer;
   pi->agedActivitySend = 0x80000000;
-  pi->lastRequestTimes[0] = cronTime(NULL);
+  pi->lastRequestTimes[0] = get_time();
   pi->lastRequestId[0] = messageID;
   pi->oldestRTIndex = 1;
+  vectorInsertLast(peerInformation, pi);
   MUTEX_UNLOCK(rpcLock);
 }
 
@@ -453,14 +456,15 @@ static void notifyPeerReply(const PeerIdentity * peer,
   MUTEX_LOCK(rpcLock);
   pi = vectorGetFirst(peerInformation);
   while (pi != NULL) {
-    if (hostIdentityEquals(peer,
-			   &pi->identity)) {
+    if (0 == memcmp(peer,
+		    &pi->identity,
+		    sizeof(PeerIdentity))) {
       for (i=0;i<MTRACK_COUNT;i++) {
 	if (pi->lastRequestId[i] == messageID) {
 	  if (pi->lastRequestTimes[i] != 0) { /* resend */
 	    pi->averageResponseTime
 	      = (pi->averageResponseTime * (MTRACK_COUNT-1) +
-		 cronTime(NULL) - pi->lastRequestTimes[i]) / MTRACK_COUNT;
+		 get_time() - pi->lastRequestTimes[i]) / MTRACK_COUNT;
 	    pi->agedActivityRecv |= 0x80000000;
 	    pi->lastRequestTimes[i] = 0;
 	  }
@@ -488,7 +492,7 @@ static void notifyPeerReply(const PeerIdentity * peer,
  * indicate the number of return values.
  */
 typedef struct {
-  P2P_MESSAGE_HEADER header;
+  MESSAGE_HEADER header;
   TIME_T timestamp;
   unsigned int sequenceNumber;
   unsigned int importance;
@@ -514,7 +518,7 @@ typedef struct {
  * times out).
  */
 typedef struct {
-  P2P_MESSAGE_HEADER header;
+  MESSAGE_HEADER header;
   /**
    * The number of the original request for which this is the
    * ACK.
@@ -623,16 +627,17 @@ static unsigned int rpcIdentifier = 0;
  * each CallInstance.  Not renewed if the call times out,
  * deleted if the appropriate response is received.
  */
-static void retryRPCJob(CallInstance * call) {
+static void retryRPCJob(void * ctx) {
+  CallInstance * call = ctx;
   cron_t now;
 
-  cronTime(&now);
-  GNUNET_ASSERT( (cronTime(NULL) + 1 * cronMINUTES > call->expirationTime) ||
-		 (call->expirationTime - cronTime(NULL) < 1 * cronHOURS) );
+  now = get_time();
+  GE_ASSERT(ectx,  (get_time() + 1 * cronMINUTES > call->expirationTime) ||
+		 (call->expirationTime - get_time() < 1 * cronHOURS) );
   MUTEX_LOCK(rpcLock);
   if (now > call->expirationTime) {
 #if DEBUG_RPC
-    LOG(LOG_DEBUG,
+    GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
 	"Completed RPC %p (timeout).\n",
 	call);
 #endif
@@ -669,7 +674,7 @@ static void retryRPCJob(CallInstance * call) {
 			       ntohs(call->msg->header.type)));
 #if DEBUG_RPC
       if (ntohs(call->msg->header.type) == P2P_PROTO_rpc_REQ) {
-	LOG(LOG_DEBUG,
+	GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
 	    "Sending RPC request %p: '%.*s' (expires in %llums, last attempt %llums ago; attempt %u).\n",
 	    call,
 	    ntohs(call->msg->functionNameLength),
@@ -678,7 +683,7 @@ static void retryRPCJob(CallInstance * call) {
 	    now - call->lastAttempt,
 	    call->attempts);
       } else {
-	LOG(LOG_DEBUG,
+	GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
 	    "Sending RPC reply %p (expires in %llums, last attempt %llums ago, attempt %u).\n",
 	    call,
 	    call->expirationTime - now,
@@ -693,12 +698,13 @@ static void retryRPCJob(CallInstance * call) {
 		       ntohl(call->msg->importance),
 		       maxdelay);
     }
-    GNUNET_ASSERT( (cronTime(NULL) + 1 * cronMINUTES > call->expirationTime) ||
-		   (call->expirationTime - cronTime(NULL) < 1 * cronHOURS) );
-    addCronJob((CronJob) &retryRPCJob,
-	       call->repetitionFrequency,
-	       0,
-	       call);
+    GE_ASSERT(ectx,  (get_time() + 1 * cronMINUTES > call->expirationTime) ||
+		   (call->expirationTime - get_time() < 1 * cronHOURS) );
+    cron_add_job(coreAPI->cron,
+		 &retryRPCJob,
+		 call->repetitionFrequency,
+		 0,
+		 call);
   }
   MUTEX_UNLOCK(rpcLock);
 }
@@ -837,13 +843,14 @@ static void async_rpc_complete_callback(RPC_Param * results,
 			      results);
   vectorInsertLast(incomingCalls, calls);
 
-  GNUNET_ASSERT( (cronTime(NULL) + 1 * cronMINUTES > calls->expirationTime) ||
-		 (calls->expirationTime - cronTime(NULL) < 1 * cronHOURS) );
+  GE_ASSERT(ectx,  (get_time() + 1 * cronMINUTES > calls->expirationTime) ||
+		 (calls->expirationTime - get_time() < 1 * cronHOURS) );
   /* for right now: schedule cron job to send reply! */
-  addCronJob((CronJob)&retryRPCJob,
-	     0,
-	     0,
-	     calls);
+  cron_add_job(coreAPI->cron,
+	       &retryRPCJob,
+	       0,
+	       0,
+	       calls);
   MUTEX_UNLOCK (rpcLock);
 }
 
@@ -854,7 +861,7 @@ static void async_rpc_complete_callback(RPC_Param * results,
  * reply.
  */
 static int handleRPCMessageReq(const PeerIdentity *sender,
-			       const P2P_MESSAGE_HEADER * message) {
+			       const MESSAGE_HEADER * message) {
   P2P_rpc_MESSAGE * req;
   CallInstance * calls;
   unsigned int sq;
@@ -867,15 +874,17 @@ static int handleRPCMessageReq(const PeerIdentity *sender,
 
   if ( (ntohs(message->type) != P2P_PROTO_rpc_REQ) ||
        (ntohs(message->size) < sizeof(P2P_rpc_MESSAGE)) ) {
-    LOG (LOG_WARNING,
-	 _("Invalid message of type %u received.  Dropping.\n"),
-	 ntohs(message->type));
+    GE_LOG(ectx,
+	   GE_WARNING | GE_REQUEST | GE_ADMIN,
+	   _("Invalid message of type %u received.  Dropping.\n"),
+	   ntohs(message->type));
     return SYSERR;
   }
   req = (P2P_rpc_MESSAGE *) message;
   sq = ntohl(req->sequenceNumber);
 #if DEBUG_RPC
-  LOG(LOG_DEBUG,
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
       "Received RPC request with id %u.\n",
       sq);
 #endif
@@ -894,8 +903,9 @@ static int handleRPCMessageReq(const PeerIdentity *sender,
     if (calls->sequenceNumber < minSQ)
       minSQ = calls->sequenceNumber;
     if ( (calls->sequenceNumber == sq) &&
-	 (hostIdentityEquals(&calls->receiver,
-			     sender)) )
+	 (0 == memcmp(&calls->receiver,
+		      sender,
+		      sizeof(PeerIdentity))) )
       break;
     calls = vectorGetNext(incomingCalls);
   }
@@ -907,15 +917,15 @@ static int handleRPCMessageReq(const PeerIdentity *sender,
 	pi->averageResponseTime *= 2;
     }
     RPC_STATUS("", "received duplicate request", calls);
-    calls->expirationTime = cronTime(NULL) + MAX_RPC_TIMEOUT;
-    LOG(LOG_DEBUG,
+    calls->expirationTime = get_time() + MAX_RPC_TIMEOUT;
+    GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
 	"Dropping RPC request %u, duplicate.\n",
 	sq);
     MUTEX_UNLOCK(rpcLock);
     return OK; /* seen before */
   }
   if (minSQ > sq) {
-    LOG(LOG_DEBUG,
+    GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
 	"Dropping RPC request %u, sequence number too old (current minimum is %u).\n",
 	sq,
 	minSQ);
@@ -932,7 +942,7 @@ static int handleRPCMessageReq(const PeerIdentity *sender,
     if (argumentValues != NULL)
       RPC_paramFree(argumentValues);
     MUTEX_UNLOCK(rpcLock);
-    LOG(LOG_WARNING,
+    GE_LOG(ectx, GE_WARNING | GE_BULK | GE_USER,
 	_("Dropping RPC request %u: message malformed.\n"));
     return SYSERR; /* message malformed */
   }
@@ -950,7 +960,7 @@ static int handleRPCMessageReq(const PeerIdentity *sender,
   FREE(functionName);
   calls->sequenceNumber = sq;
   calls->receiver = *sender;
-  calls->expirationTime = cronTime(NULL) + MAX_RPC_TIMEOUT;
+  calls->expirationTime = get_time() + MAX_RPC_TIMEOUT;
   calls->lastAttempt = 0;
   calls->attempts = 0;
   calls->finishedCallback = NULL;
@@ -992,31 +1002,35 @@ static int handleRPCMessageReq(const PeerIdentity *sender,
  * Also always sends an ACK.
  */
 static int handleRPCMessageRes(const PeerIdentity * sender,
-			       const P2P_MESSAGE_HEADER * message) {
+			       const MESSAGE_HEADER * message) {
   P2P_rpc_MESSAGE * res;
   CallInstance * call;
 
   if ( (ntohs(message->type) != P2P_PROTO_rpc_RES) ||
        (ntohs(message->size) < sizeof(P2P_rpc_MESSAGE)) ) {
-    LOG(LOG_WARNING,
+    GE_LOG(ectx, GE_WARNING | GE_BULK | GE_USER,
 	_("Invalid message of type %u received.  Dropping.\n"),
 	ntohs(message->type));
     return SYSERR;
   }
   res = (P2P_rpc_MESSAGE *) message;
 #if DEBUG_RPC
-  LOG(LOG_DEBUG,
-      "Received RPC reply with id %u.\n",
-      ntohl(res->sequenceNumber));
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "Received RPC reply with id %u.\n",
+	 ntohl(res->sequenceNumber));
 #endif
 
-  suspendCron();
+  cron_suspend(coreAPI->cron,
+	       NO);
   MUTEX_LOCK (rpcLock);
 
   /* Locate the CallInstance structure. */
   call = vectorGetFirst(outgoingCalls);
   while (call != NULL) {
-    if ( hostIdentityEquals(&call->receiver, sender) &&
+    if ( (0 == memcmp(&call->receiver,
+		      sender,
+		      sizeof(PeerIdentity))) &&
 	 (call->sequenceNumber == ntohl(res->sequenceNumber)) )
       break;
     call = vectorGetNext(outgoingCalls);
@@ -1052,9 +1066,10 @@ static int handleRPCMessageRes(const PeerIdentity * sender,
     notifyPeerReply(sender,
 		    MINGLE(call->sequenceNumber,
 			   P2P_PROTO_rpc_REQ));
-    delCronJob((CronJob) &retryRPCJob,
-	       0,
-	       call);
+    cron_del_job(coreAPI->cron,
+		 &retryRPCJob,
+		 0,
+		 call);
     FREE(call->msg);
     FREE(call);
     if (reply != NULL)
@@ -1065,7 +1080,8 @@ static int handleRPCMessageRes(const PeerIdentity * sender,
 	  0,/* not important, ACK should be tiny enough to go through anyway */
 	  0 /* right away */);
   MUTEX_UNLOCK (rpcLock);
-  resumeCron();
+  cron_resume_jobs(coreAPI->cron,
+		   NO);
   return OK;
 }
 
@@ -1074,31 +1090,35 @@ static int handleRPCMessageRes(const PeerIdentity * sender,
  * Handle a peer-to-peer message of type P2P_PROTO_rpc_ACK.
  */
 static int handleRPCMessageAck(const PeerIdentity *sender,
-			       const P2P_MESSAGE_HEADER * message) {
+			       const MESSAGE_HEADER * message) {
   RPC_ACK_Message * ack;
   CallInstance *call;
 
   if ( (ntohs(message->type) != P2P_PROTO_rpc_ACK) ||
        (ntohs(message->size) != sizeof(RPC_ACK_Message)) ) {
-    LOG (LOG_WARNING,
-	 _("Invalid message of type %u received.  Dropping.\n"),
-         ntohs (message->type));
+    GE_LOG(ectx,
+	   GE_WARNING | GE_REQUEST | GE_ADMIN,
+	   _("Invalid message of type %u received.  Dropping.\n"),
+	   ntohs (message->type));
     return SYSERR;
   }
 
   ack = (RPC_ACK_Message*) message;
 #if DEBUG_RPC
-  LOG(LOG_DEBUG,
+  GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
       "Received RPC ACK with id %u.\n",
       ntohl(ack->sequenceNumber));
 #endif
-  suspendCron();
+  cron_suspend(coreAPI->cron,
+	       NO);
   MUTEX_LOCK(rpcLock);
 
   /* Locate the CallInstance structure. */
   call = (CallInstance*) vectorGetFirst(incomingCalls);
   while (call != NULL) {
-    if ( hostIdentityEquals(&call->receiver, sender) &&
+    if ( (0 == memcmp(&call->receiver,
+		      sender,
+		      sizeof(PeerIdentity))) &&
 	 (call->sequenceNumber == ntohl(ack->sequenceNumber)) )
       break;
     call = (CallInstance*) vectorGetNext(incomingCalls);
@@ -1110,9 +1130,10 @@ static int handleRPCMessageAck(const PeerIdentity *sender,
     notifyPeerReply(sender,
 		    MINGLE(ntohl(ack->sequenceNumber),
 			   P2P_PROTO_rpc_RES));
-    delCronJob((CronJob) &retryRPCJob,
-	       0,
-	       call);
+    cron_del_job(coreAPI->cron,
+		 &retryRPCJob,
+		 0,
+		 call);
     vectorRemoveObject(incomingCalls,
 		       call);
     FREE(call->msg);
@@ -1124,20 +1145,21 @@ static int handleRPCMessageAck(const PeerIdentity *sender,
 	pi->averageResponseTime *= 2;
     }
 #if DEBUG_RPC
-    LOG(LOG_DEBUG,
+    GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
 	"ACK is a duplicate (or invalid).\n");
 #endif
   }
 
   MUTEX_UNLOCK (rpcLock);
-  resumeCron();
+  cron_resume_jobs(coreAPI->cron,
+		   NO);
   return OK;
 }
 
 /* ********************* RPC service functions ******************** */
 
 typedef struct {
-  Semaphore * sem;
+  struct SEMAPHORE * sem;
   RPC_Param * result;
   unsigned short ec;
 } RPC_EXEC_CLS;
@@ -1190,14 +1212,14 @@ static int RPC_execute(const PeerIdentity *receiver,
   CallInstance * call;
 
   MUTEX_LOCK(rpcLock);
-  cls.sem = SEMAPHORE_NEW(0);
+  cls.sem = SEMAPHORE_CREATE(0);
   cls.result = returnParam;
   call = MALLOC(sizeof(CallInstance));
   RPC_STATUS(name, "started synchronously", call);
   call->lastAttempt = 0;
   call->attempts = 0;
   call->repetitionFrequency = getExpectedResponseTime(receiver);
-  call->expirationTime = cronTime(NULL) + timeout;
+  call->expirationTime = get_time() + timeout;
   call->receiver = *receiver;
   call->sequenceNumber = rpcIdentifier++;
   call->msg = buildMessage(RPC_ERROR_OK,
@@ -1208,15 +1230,17 @@ static int RPC_execute(const PeerIdentity *receiver,
   call->finishedCallback = (RPCFinishedCallback) &RPC_execute_callback;
   call->rpcCallbackArgs = &cls;
   vectorInsertLast(outgoingCalls, call);
-  GNUNET_ASSERT( (cronTime(NULL) + 1 * cronMINUTES > call->expirationTime) ||
-		 (call->expirationTime - cronTime(NULL) < 1 * cronHOURS) );
-  addCronJob((CronJob) &retryRPCJob,
-	     0,
-	     0,
-	     call);
+  GE_ASSERT(ectx,
+	    (get_time() + 1 * cronMINUTES > call->expirationTime) ||
+	    (call->expirationTime - get_time() < 1 * cronHOURS) );
+  cron_add_job(coreAPI->cron,
+	       &retryRPCJob,
+	       0,
+	       0,
+	       call);
   MUTEX_UNLOCK (rpcLock);
-  SEMAPHORE_DOWN(cls.sem);
-  SEMAPHORE_FREE(cls.sem);
+  SEMAPHORE_DOWN(cls.sem, YES);
+  SEMAPHORE_DESTROY(cls.sem);
   RPC_STATUS(name, "completed synchronously", call);
   return cls.ec;
 }
@@ -1263,7 +1287,7 @@ static RPC_Record * RPC_start(const PeerIdentity * receiver,
   RPC_Record * ret;
 
   if (timeout > 1 * cronHOURS) {
-    LOG(LOG_WARNING,
+    GE_LOG(ectx, GE_WARNING | GE_BULK | GE_USER,
 	_("`%s' called with timeout above 1 hour (bug?)\n"),
 	__FUNCTION__);
     timeout = 1 * cronHOURS;
@@ -1279,7 +1303,7 @@ static RPC_Record * RPC_start(const PeerIdentity * receiver,
   ret->call->lastAttempt = 0;
   ret->call->attempts = 0;
   ret->call->repetitionFrequency = getExpectedResponseTime(receiver);
-  ret->call->expirationTime = cronTime(NULL) + timeout;
+  ret->call->expirationTime = get_time() + timeout;
   ret->call->receiver = *receiver;
   ret->call->sequenceNumber = rpcIdentifier++;
   ret->call->msg = buildMessage(RPC_ERROR_OK,
@@ -1291,12 +1315,13 @@ static RPC_Record * RPC_start(const PeerIdentity * receiver,
     (RPCFinishedCallback) &RPC_async_callback;
   ret->call->rpcCallbackArgs = ret;
   vectorInsertLast(outgoingCalls, ret->call);
-  GNUNET_ASSERT( (cronTime(NULL) + 1 * cronMINUTES > ret->call->expirationTime) ||
-		 (ret->call->expirationTime - cronTime(NULL) < 1 * cronHOURS) );
-  addCronJob((CronJob) &retryRPCJob,
-	     0,
-	     0,
-	     ret->call);
+  GE_ASSERT(ectx,  (get_time() + 1 * cronMINUTES > ret->call->expirationTime) ||
+		 (ret->call->expirationTime - get_time() < 1 * cronHOURS) );
+  cron_add_job(coreAPI->cron,
+	       &retryRPCJob,
+	       0,
+	       0,
+	       ret->call);
   MUTEX_UNLOCK (rpcLock);
   return ret;
 }
@@ -1310,17 +1335,16 @@ static RPC_Record * RPC_start(const PeerIdentity * receiver,
  */
 static int RPC_stop(RPC_Record * record) {
   int ret;
-  int cronRunning;
 
   RPC_STATUS("", "stopped", record);
-  cronRunning = isCronRunning();
-  if (cronRunning)
-    suspendIfNotCron();
-  delCronJob((CronJob) &retryRPCJob,
-	     0,
-	     record->call);
-  if (cronRunning)
-    resumeIfNotCron();
+  cron_suspend(coreAPI->cron,
+	       YES);
+  cron_del_job(coreAPI->cron,
+	       &retryRPCJob,
+	       0,
+	       record->call);
+  cron_resume_jobs(coreAPI->cron,
+		   YES);
   MUTEX_LOCK(rpcLock);
   if (NULL != vectorRemoveObject(outgoingCalls, record->call)) {
     FREE(record->call->msg);
@@ -1341,9 +1365,10 @@ static int RPC_stop(RPC_Record * record) {
 void release_module_rpc() {
   CallInstance * call;
 
-  delCronJob(&agePeerStats,
-	     PEER_TRACKING_TIME_INTERVAL,
-	     NULL);
+  cron_del_job(coreAPI->cron,
+	       &agePeerStats,
+	       PEER_TRACKING_TIME_INTERVAL,
+	       NULL);
   coreAPI->unregisterHandler(P2P_PROTO_rpc_REQ,
 			     &handleRPCMessageReq);
   coreAPI->unregisterHandler(P2P_PROTO_rpc_RES,
@@ -1359,9 +1384,10 @@ void release_module_rpc() {
   if (NULL != incomingCalls) {
     while(vectorSize (incomingCalls) > 0) {
       call = (CallInstance*) vectorRemoveLast(incomingCalls);
-      delCronJob((CronJob)&retryRPCJob,
-		 0,
-		 call);
+      cron_del_job(coreAPI->cron,
+		   &retryRPCJob,
+		   0,
+		   call);
       FREE(call->msg);
       FREE(call);
     }
@@ -1371,9 +1397,10 @@ void release_module_rpc() {
   if (NULL != outgoingCalls) {
     while(vectorSize (outgoingCalls) > 0) {
       call = (CallInstance*) vectorRemoveLast(outgoingCalls);
-      delCronJob((CronJob) &retryRPCJob,
-		 0,
-		 call);
+      cron_del_job(coreAPI->cron,
+		   &retryRPCJob,
+		   0,
+		   call);
       FREE(call->msg);
       FREE(call);
     }
@@ -1384,7 +1411,7 @@ void release_module_rpc() {
     while(vectorSize(list_of_callbacks) > 0) {
       RegisteredRPC * rpc;
       rpc = (RegisteredRPC*) vectorRemoveLast(list_of_callbacks);
-      LOG(LOG_ERROR,
+      GE_LOG(ectx, GE_ERROR | GE_BULK | GE_USER,
 	  _("RPC not unregistered: %s:%p\n"),
 	  rpc->name, rpc->callback);
       FREE(rpc->name);
@@ -1404,13 +1431,14 @@ RPC_ServiceAPI * provide_module_rpc(CoreAPIForApplication * capi) {
   static RPC_ServiceAPI rpcAPI;
   int rvalue;
 
+  ectx = capi->ectx;
   rpcLock = capi->getConnectionModuleLock();
   coreAPI = capi;
   peerInformation = vectorNew(16);
   incomingCalls = vectorNew(16);
   outgoingCalls = vectorNew(16);
   list_of_callbacks = vectorNew(16);
-  LOG(LOG_DEBUG,
+  GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
       _("`%s' registering handlers %d %d %d\n"),
       "rpc",
       P2P_PROTO_rpc_REQ,
@@ -1431,7 +1459,7 @@ RPC_ServiceAPI * provide_module_rpc(CoreAPIForApplication * capi) {
     rvalue = SYSERR;
   if (rvalue == SYSERR) {
     release_module_rpc();
-    LOG(LOG_WARNING,
+    GE_LOG(ectx, GE_WARNING | GE_BULK | GE_USER,
 	_("Failed to initialize `%s' service.\n"),
 	"rpc");
     return NULL;
@@ -1443,10 +1471,11 @@ RPC_ServiceAPI * provide_module_rpc(CoreAPIForApplication * capi) {
     rpcAPI.RPC_unregister_async = &RPC_unregister_async;
     rpcAPI.RPC_start = &RPC_start;
     rpcAPI.RPC_stop = &RPC_stop;
-    addCronJob(&agePeerStats,
-	       PEER_TRACKING_TIME_INTERVAL,
-	       PEER_TRACKING_TIME_INTERVAL,
-	       NULL);
+    cron_add_job(coreAPI->cron,
+		 &agePeerStats,
+		 PEER_TRACKING_TIME_INTERVAL,
+		 PEER_TRACKING_TIME_INTERVAL,
+		 NULL);
     return &rpcAPI;
   }
 }
@@ -1459,14 +1488,14 @@ static void testCallback(const PeerIdentity * sender,
   unsigned int dl;
   char * data;
 
-  LOG(LOG_DEBUG,
+  GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
       "RPC callback invoked!\n");
   if ( (OK == RPC_paramValueByName(arguments,
 				   "command",
 				   &dl,
 				   (void**)&data)) &&
        (strncmp("Hello", data, dl) == 0) ) {
-    LOG(LOG_DEBUG,
+    GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
 	"RPC callback received Hello command!\n");
     RPC_paramAdd(results,
 		 "response",
@@ -1476,21 +1505,21 @@ static void testCallback(const PeerIdentity * sender,
 }
 
 static void async_RPC_Complete_callback(RPC_Param * results,
-					Semaphore * sign) {
+					struct SEMAPHORE * sign) {
   unsigned int dl;
   char * reply;
 
-  SEMAPHORE_DOWN(sign);
+  SEMAPHORE_DOWN(sign, YES);
   if ( (OK != RPC_paramValueByName(results,
 				   "response",
 				   &dl,
 				   (void**)&reply)) ||
        (strncmp("Hello RPC World",
 		reply, dl) != 0) ) {
-    LOG(LOG_WARNING,
+    GE_LOG(ectx, GE_WARNING | GE_BULK | GE_USER,
 	_("RPC async reply invalid.\n"));
   } else
-    LOG(LOG_DEBUG,
+    GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
 	"RPC async reply received.\n");
 }
 
@@ -1503,20 +1532,21 @@ int initialize_module_rpc(CoreAPIForApplication * capi) {
   char * reply;
   int code;
   RPC_Record * record;
-  Semaphore * sign;
+  struct SEMAPHORE * sign;
 
-  LOG(LOG_DEBUG,
-      "RPC testcase starting\n");
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "RPC testcase starting\n");
   rpcAPI = capi->requestService("rpc");
   if (rpcAPI == NULL) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     return SYSERR;
   }
   ret = OK;
 
   if (OK != rpcAPI->RPC_register("testFunction",
 				 &testCallback)) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     ret = SYSERR;
   }
 
@@ -1525,7 +1555,7 @@ int initialize_module_rpc(CoreAPIForApplication * capi) {
 	       "command",
 	       strlen("Hello")+1,
 	       "Hello");
-  sign = SEMAPHORE_NEW(0);
+  sign = SEMAPHORE_CREATE(0);
   record = rpcAPI->RPC_start(coreAPI->myIdentity,
 			     "testFunction",
 			     args,
@@ -1542,7 +1572,7 @@ int initialize_module_rpc(CoreAPIForApplication * capi) {
 			     0,
 			     5 * cronSECONDS);
   if (code != RPC_ERROR_OK) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     ret = SYSERR;
   }
   RPC_paramFree(args);
@@ -1552,25 +1582,25 @@ int initialize_module_rpc(CoreAPIForApplication * capi) {
 				   (void**)&reply)) ||
        (strncmp("Hello RPC World",
 		reply, dl) != 0) ) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     ret = SYSERR;
   }
   RPC_paramFree(rets);
-  gnunet_util_sleep(1 * cronSECONDS);
+  PTHREAD_SLEEP(1 * cronSECONDS);
   if (RPC_ERROR_OK != rpcAPI->RPC_stop(record))
-    LOG(LOG_WARNING,
+    GE_LOG(ectx, GE_WARNING | GE_BULK | GE_USER,
 	_("async RPC reply not received.\n"));
 
   if (OK != rpcAPI->RPC_unregister("testFunction",
 				   &testCallback)) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     ret = SYSERR;
   }
   if (OK != capi->releaseService(rpcAPI)) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     ret = SYSERR;
   }
-  LOG(LOG_DEBUG,
+  GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
       "RPC testcase completed with status %s\n",
       ret == OK ? "SUCCESS" : "FAILURE");
   return ret;

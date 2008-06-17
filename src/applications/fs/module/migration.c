@@ -69,7 +69,7 @@ static int stat_on_demand_migration_attempts;
 /**
  * Lock used to access content.
  */
-static Mutex lock;
+static struct MUTEX * lock;
 
 /**
  * The content that we are currently trying
@@ -78,7 +78,9 @@ static Mutex lock;
  * first time).
  */
 static Datastore_Value * content;
-				
+			
+static struct GE_Context * ectx;
+	
 /**
  * Callback method for pushing content into the network.
  * The method chooses either a "recently" deleted block
@@ -107,9 +109,9 @@ activeMigrationCallback(const PeerIdentity * receiver,
   cron_t et;
   cron_t now;
   unsigned int anonymity;
-  Datastore_Value *enc;    
+  Datastore_Value *enc;
 
-  MUTEX_LOCK(&lock);
+  MUTEX_LOCK(lock);
   if (content != NULL) {
     size = sizeof(GapWrapper) + ntohl(content->size) - sizeof(Datastore_Value);
     if (size > padding) {
@@ -123,42 +125,53 @@ activeMigrationCallback(const PeerIdentity * receiver,
 				   &key,
 				   &content,
 				   0)) {
-      MUTEX_UNLOCK(&lock);
+      MUTEX_UNLOCK(lock);
 #if DEBUG_MIGRATION
-      LOG(LOG_DEBUG,
-	  "Migration: random lookup in datastore failed.\n");
+      GE_LOG(ectx,
+	     GE_DEBUG | GE_REQUEST | GE_USER,
+	     "Migration: random lookup in datastore failed.\n");
 #endif
       return 0;
     }
   }
-  
+
+#if DEBUG_MIGRATION
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_BULK | GE_USER,
+	 "Migration: random lookup in datastore returned type %d.\n",
+	 ntohl(content->type));
+#endif
   if (ntohl(content->type) == ONDEMAND_BLOCK) {
-    if (ONDEMAND_getIndexed(datastore, content, &key, &enc) != OK) {
+    if (ONDEMAND_getIndexed(datastore,
+			    content,
+			    &key,
+			    &enc) != OK) {
       FREE(content);
       content = NULL;
-      MUTEX_UNLOCK(&lock);
+      MUTEX_UNLOCK(lock);
       return 0;
     }
     if (stats != NULL)
-      stats->change(stat_on_demand_migration_attempts, 1); 
+      stats->change(stat_on_demand_migration_attempts, 1);
 
     FREE(content);
     content = enc;
   }
-  
+
   size = sizeof(GapWrapper) + ntohl(content->size) - sizeof(Datastore_Value);
   if (size > padding) {
-    MUTEX_UNLOCK(&lock);
+    MUTEX_UNLOCK(lock);
 #if DEBUG_MIGRATION
-    LOG(LOG_DEBUG,
-	"Available content of size %u too big for available space (%u)\n",
-	size, 
-	padding);
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "Available content of size %u too big for available space (%u)\n",
+	   size,
+	   padding);
 #endif
     return 0;
   }
   et = ntohll(content->expirationTime);
-  cronTime(&now);
+  now = get_time();
   if (et > now) {
     et -= now;
     et = et % MAX_MIGRATION_EXP;
@@ -170,7 +183,8 @@ activeMigrationCallback(const PeerIdentity * receiver,
     /* ret > 0; (if DHT succeeds) fixme for DHT */
   }
   if ( (ret == 0) &&
-       (OK == checkCoverTraffic(traffic,
+       (OK == checkCoverTraffic(ectx,
+				traffic,
 				anonymity)) ) {
     gw = MALLOC(size);
     gw->dc.size = htonl(size);
@@ -184,24 +198,26 @@ activeMigrationCallback(const PeerIdentity * receiver,
 			  padding);
     FREE(gw);
 #if DEBUG_MIGRATION
-    LOG(LOG_DEBUG,
-	"gap's tryMigrate returned %u\n",
-	ret);
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "gap's tryMigrate returned %u\n",
+	   ret);
 #endif
   } else {
 #if DEBUG_MIGRATION
-    LOG(LOG_DEBUG,
-	"Migration: anonymity requirements not satisfied.\n");
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "Migration: anonymity requirements not satisfied.\n");
 #endif
   }
   if (ret > 0) {
     FREE(content);
     content = NULL;
   }
-  MUTEX_UNLOCK(&lock);
+  MUTEX_UNLOCK(lock);
   if ( (ret > 0)&&
        (stats != NULL) )
-      stats->change(stat_migration_count, 1); 
+      stats->change(stat_migration_count, 1);
 
   return ret;
 }
@@ -211,24 +227,27 @@ void initMigration(CoreAPIForApplication * capi,
 		   GAP_ServiceAPI * g,
 		   DHT_ServiceAPI * d,
 		   Traffic_ServiceAPI * t) {
-  MUTEX_CREATE(&lock);
+  ectx = capi->ectx;
+  lock = MUTEX_CREATE(NO);
   coreAPI = capi;
   datastore = ds;
   gap = g;
   dht = d;
   traffic = t;
-  coreAPI->registerSendCallback(512,
+  coreAPI->registerSendCallback(GAP_ESTIMATED_DATA_SIZE,
 				&activeMigrationCallback);
   stats = capi->requestService("stats");
   if (stats != NULL) {
-    stat_migration_count = stats->create(gettext_noop("# blocks migrated"));
-    stat_on_demand_migration_attempts = stats->create(gettext_noop("# on-demand block migration attempts"));
+    stat_migration_count
+      = stats->create(gettext_noop("# blocks migrated"));
+    stat_on_demand_migration_attempts
+      = stats->create(gettext_noop("# on-demand block migration attempts"));
   }
 
 }
 
 void doneMigration() {
-  coreAPI->unregisterSendCallback(512,
+  coreAPI->unregisterSendCallback(GAP_ESTIMATED_DATA_SIZE,
 				  &activeMigrationCallback);
   if (stats != NULL) {
     coreAPI->releaseService(stats);
@@ -241,7 +260,8 @@ void doneMigration() {
   traffic = NULL;
   FREENONNULL(content);
   content = NULL;
-  MUTEX_DESTROY(&lock);
+  MUTEX_DESTROY(lock);
+  lock = NULL;
 }
 
 /* end of migration.c */

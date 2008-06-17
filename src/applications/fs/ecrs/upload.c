@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004, 2005 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -46,11 +46,12 @@
  * level+1 and clear the level.  iblocks is guaranteed to be big
  * enough.
  */
-static int pushBlock(GNUNET_TCP_SOCKET * sock,
+static int pushBlock(struct ClientServerConnection * sock,
                      const CHK * chk,
                      unsigned int level,
                      Datastore_Value ** iblocks,
-		     unsigned int prio) {
+		     unsigned int prio,
+		     cron_t expirationTime) {
   unsigned int size;
   unsigned int present;
   Datastore_Value * value;
@@ -61,9 +62,9 @@ static int pushBlock(GNUNET_TCP_SOCKET * sock,
 #endif
 
   size = ntohl(iblocks[level]->size);
-  GNUNET_ASSERT(size > sizeof(Datastore_Value));
+  GE_ASSERT(NULL, size > sizeof(Datastore_Value));
   size -= sizeof(Datastore_Value);
-  GNUNET_ASSERT(size - sizeof(DBlock) <= IBLOCK_SIZE);
+  GE_ASSERT(NULL, size - sizeof(DBlock) <= IBLOCK_SIZE);
   present = (size - sizeof(DBlock)) / sizeof(CHK);
   db = (DBlock*) &iblocks[level][1];
   if (present == CHK_PER_INODE) {
@@ -73,38 +74,23 @@ static int pushBlock(GNUNET_TCP_SOCKET * sock,
     fileBlockGetQuery(db,
                       size,
                       &ichk.query);
-#if DEBUG_UPLOAD
-    IFLOG(LOG_DEBUG,
-          hash2enc(&ichk.query,
-                   &enc));
-    LOG(LOG_DEBUG,
-        "Query for current iblock at level %u is %s\n",
-        level,
-        &enc);
-#endif
     if (OK != pushBlock(sock,
                         &ichk,
                         level+1,
                         iblocks,
-			prio))
+			prio,
+			expirationTime))
       return SYSERR;
     fileBlockEncode(db,
                     size,
                     &ichk.query,
                     &value);
     if (value == NULL) {
-      BREAK();
+      GE_BREAK(NULL, 0);
       return SYSERR;
     }
     value->prio = htonl(prio);
-#if DEBUG_UPLOAD
-    IFLOG(LOG_DEBUG,
-          hash2enc(&ichk.query,
-                   &enc));
-    LOG(LOG_DEBUG,
-        "Publishing block (query: %s)\n",
-        &enc);
-#endif
+    value->expirationTime = htonll(expirationTime);
     if (OK != FS_insert(sock,
                         value)) {
       FREE(value);
@@ -118,7 +104,7 @@ static int pushBlock(GNUNET_TCP_SOCKET * sock,
          chk,
          sizeof(CHK));
   size += sizeof(CHK) + sizeof(Datastore_Value);
-  GNUNET_ASSERT(size < MAX_BUFFER_SIZE);
+  GE_ASSERT(NULL, size < MAX_BUFFER_SIZE);
   iblocks[level]->size = htonl(size);
 
   return OK;
@@ -135,7 +121,9 @@ static int pushBlock(GNUNET_TCP_SOCKET * sock,
  * @return SYSERR if the upload failed (i.e. not enough space
  *  or gnunetd not running)
  */
-int ECRS_uploadFile(const char * filename,
+int ECRS_uploadFile(struct GE_Context * ectx,
+		    struct GC_Configuration * cfg,
+		    const char * filename,
                     int doIndex,
                     unsigned int anonymityLevel,
                     unsigned int priority,
@@ -155,57 +143,61 @@ int ECRS_uploadFile(const char * filename,
   Datastore_Value * dblock;
   DBlock * db;
   Datastore_Value * value;
-  GNUNET_TCP_SOCKET * sock;
+  struct ClientServerConnection * sock;
   HashCode512 fileId;
-  CHK chk;
+  CHK mchk;
   cron_t eta;
   cron_t start;
   cron_t now;
-  char * uris;
   FileIdentifier fid;
 #if DEBUG_UPLOAD
   EncName enc;
 #endif
 
-  cronTime(&start);
-  memset(&chk, 0, sizeof(CHK));
-  if (isDirectory(filename)) {
-    BREAK();
-    /* Should not happen */
-    LOG(LOG_ERROR, "Cannot upload file `%s', it seems to be a directory!", filename);
+  GE_ASSERT(ectx, cfg != NULL);
+  start = get_time();
+  memset(&mchk, 0, sizeof(CHK));
+  if (YES != disk_file_test(ectx,
+			    filename)) {
+    GE_LOG(ectx,
+	   GE_ERROR | GE_BULK | GE_USER,
+	   _("`%s' is not a file.\n"),
+	   filename);
     return SYSERR;
   }
-  if (0 == assertIsFile(filename)) {
-    LOG(LOG_ERROR,
-        _("`%s' is not a file.\n"),
-        filename);
-    return SYSERR;
-  }
-  if (OK != getFileSize(filename,
-                        &filesize)) {
-    LOG(LOG_ERROR, _("Cannot get size of file `%s'"), filename);
+  if (OK != disk_file_size(ectx,
+			   filename,
+			   &filesize,
+			   YES)) {
+    GE_LOG(ectx,
+	   GE_ERROR | GE_BULK | GE_USER,
+	   _("Cannot get size of file `%s'"),
+	   filename);
 
     return SYSERR;
   }
-  sock = getClientSocket();
+  sock = client_connection_create(ectx, cfg);
   if (sock == NULL) {
-    LOG(LOG_ERROR,
-        _("Failed to connect to gnunetd."));
+    GE_LOG(ectx,
+	   GE_ERROR | GE_BULK | GE_USER,
+	   _("Failed to connect to gnunetd."));
     return SYSERR;
   }
   eta = 0;
   if (upcb != NULL)
     upcb(filesize, 0, eta, upcbClosure);
   if (doIndex) {
-    if (SYSERR == getFileHash(filename,
+    if (SYSERR == getFileHash(ectx,
+			      filename,
                               &fileId)) {
-      LOG(LOG_ERROR,
-          _("Cannot hash `%s'.\n"),
-          filename);
-      releaseClientSocket(sock);
+      GE_LOG(ectx,
+	     GE_ERROR | GE_BULK | GE_USER,
+	     _("Cannot hash `%s'.\n"),
+	     filename);
+      connection_destroy(sock);
       return SYSERR;
     }
-    cronTime(&now);
+    now = get_time();
     eta = now + 2 * (now - start);
     /* very rough estimate: hash reads once through the file,
        we'll do that once more and write it.  But of course
@@ -217,23 +209,35 @@ int ECRS_uploadFile(const char * filename,
 
     switch (FS_initIndex(sock, &fileId, filename)) {
     case SYSERR:
-      LOG(LOG_ERROR,
-          _("Initialization for indexing file `%s' failed.\n"),
-          filename);
-      releaseClientSocket(sock);
+      GE_LOG(ectx,
+	     GE_ERROR | GE_BULK | GE_USER,
+	     _("Initialization for indexing file `%s' failed.\n"),
+	     filename);
+      connection_destroy(sock);
       return SYSERR;
     case NO:
-      LOG(LOG_ERROR,
-          _("Indexing file `%s' failed. Trying to insert file...\n"),
-          filename);
+      GE_LOG(ectx,
+	     GE_ERROR | GE_BULK | GE_USER,
+	     _("Indexing file `%s' failed. Trying to insert file...\n"),
+	     filename);
       doIndex = YES;
+      break;
+    default:
+      break;
     }
   }
   treedepth = computeDepth(filesize);
-
-  fd = fileopen(filename, O_RDONLY | O_LARGEFILE);
+  fd = disk_file_open(ectx,
+		      filename,
+		      O_RDONLY | O_LARGEFILE);
   if (fd == -1) {
-    LOG_FILE_STRERROR(LOG_WARNING, "OPEN", filename);
+    GE_LOG(ectx,
+     GE_ERROR | GE_BULK | GE_USER,
+     _("Cannot open file `%s': `%s'"),
+     filename,
+     STRERROR(errno));
+
+    connection_destroy(sock);
     return SYSERR;
   }
 
@@ -270,14 +274,16 @@ int ECRS_uploadFile(const char * filename,
              0,
              DBLOCK_SIZE);
     }
-    GNUNET_ASSERT(sizeof(Datastore_Value) + size + sizeof(DBlock) < MAX_BUFFER_SIZE);
+    GE_ASSERT(ectx,
+	      sizeof(Datastore_Value) + size + sizeof(DBlock) < MAX_BUFFER_SIZE);
     dblock->size = htonl(sizeof(Datastore_Value) + size + sizeof(DBlock));
     if (size != READ(fd,
                      &db[1],
                      size)) {
-      LOG_FILE_STRERROR(LOG_WARNING,
-                        "READ",
-                        filename);
+      GE_LOG_STRERROR_FILE(ectx,
+			   GE_ERROR | GE_BULK | GE_ADMIN | GE_USER,
+			   "READ",
+			   filename);
       goto FAILURE;
     }
     if (tt != NULL)
@@ -285,115 +291,136 @@ int ECRS_uploadFile(const char * filename,
         goto FAILURE;
     fileBlockGetKey(db,
                     size + sizeof(DBlock),
-                    &chk.key);
+                    &mchk.key);
     fileBlockGetQuery(db,
                       size + sizeof(DBlock),
-                      &chk.query);
+                      &mchk.query);
 #if DEBUG_UPLOAD
-    IFLOG(LOG_DEBUG,
-          hash2enc(&chk.query,
-                   &enc));
-    LOG(LOG_DEBUG,
-        "Query for current block of size %u is %s\n",
-        size,
-        &enc);
+    IF_GELOG(ectx,
+	     GE_DEBUG | GE_REQUEST | GE_USER,
+	     hash2enc(&mchk.query,
+		      &enc));
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "Query for current block of size %u is %s\n",
+	   size,
+	   &enc);
 #endif
     if (doIndex) {
       if (SYSERR == FS_index(sock,
                              &fileId,
                              dblock,
                              pos)) {
-                                LOG(LOG_ERROR, _("Indexing data failed at position %i.\n"), pos);
-                                goto FAILURE;
-                        }
+	GE_LOG(ectx,
+	       GE_ERROR | GE_BULK | GE_USER,
+	       _("Indexing data failed at position %i.\n"), pos);
+	goto FAILURE;
+      }
     } else {
       value = NULL;
       if (OK !=
           fileBlockEncode(db,
                           size + sizeof(DBlock),
-                          &chk.query,
-                          &value))
+                          &mchk.query,
+                          &value)) {
+        GE_BREAK(ectx, 0);
         goto FAILURE;
-      GNUNET_ASSERT(value != NULL);
+      }
+      GE_ASSERT(ectx, value != NULL);
       *value = *dblock; /* copy options! */
+
       if (SYSERR == FS_insert(sock,
                               value)) {
+        GE_BREAK(ectx, 0);
         FREE(value);
         goto FAILURE;
       }
       FREE(value);
     }
     pos += size;
-    cronTime(&now);
+    now = get_time();
     if (pos > 0) {
       eta = (cron_t) (start +
                       (((double)(now - start)/(double)pos))
                       * (double)filesize);
     }
     if (OK != pushBlock(sock,
-                        &chk,
+                        &mchk,
                         0, /* dblocks are on level 0 */
                         iblocks,
-			priority))
+			priority,
+			expirationTime)) {
+      GE_BREAK(ectx, 0);
       goto FAILURE;
+    }
   }
   if (tt != NULL)
     if (OK != tt(ttClosure))
       goto FAILURE;
 #if DEBUG_UPLOAD
-  LOG(LOG_DEBUG,
-      "Tree depth is %u, walking up tree.\n",
-      treedepth);
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "Tree depth is %u, walking up tree.\n",
+	 treedepth);
 #endif
   for (i=0;i<treedepth;i++) {
     size = ntohl(iblocks[i]->size) - sizeof(Datastore_Value);
-    GNUNET_ASSERT(size < MAX_BUFFER_SIZE);
+    GE_ASSERT(ectx, size < MAX_BUFFER_SIZE);
     if (size == sizeof(DBlock)) {
 #if DEBUG_UPLOAD
-      LOG(LOG_DEBUG,
-          "Level %u is empty\n",
-          i);
+      GE_LOG(ectx,
+	     GE_DEBUG | GE_REQUEST | GE_USER,
+	     "Level %u is empty\n",
+	     i);
 #endif
       continue;
     }
     db = (DBlock*) &iblocks[i][1];
     fileBlockGetKey(db,
                     size,
-                    &chk.key);
+                    &mchk.key);
 #if DEBUG_UPLOAD
-    LOG(LOG_DEBUG,
-        "Computing query for %u bytes content.\n",
-        size);
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "Computing query for %u bytes content.\n",
+	   size);
 #endif
     fileBlockGetQuery(db,
                       size,
-                      &chk.query);
+                      &mchk.query);
 #if DEBUG_UPLOAD
-    IFLOG(LOG_DEBUG,
-          hash2enc(&chk.query,
-                   &enc));
-    LOG(LOG_DEBUG,
-        "Query for current block at level %u is `%s'.\n",
-        i,
-        &enc);
+    IF_GELOG(ectx,
+	     GE_DEBUG | GE_REQUEST | GE_USER,
+	     hash2enc(&mchk.query,
+		      &enc));
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "Query for current block at level %u is `%s'.\n",
+	   i,
+	   &enc);
 #endif
     if (OK != pushBlock(sock,
-                        &chk,
+                        &mchk,
                         i+1,
                         iblocks,
-			priority))
-      goto FAILURE;
-    fileBlockEncode(db,
-                    size,
-                    &chk.query,
-                    &value);
-    if (value == NULL) {
-      BREAK();
+			priority,
+			expirationTime)) {
+      GE_BREAK(ectx, 0);
       goto FAILURE;
     }
+    fileBlockEncode(db,
+                    size,
+                    &mchk.query,
+                    &value);
+    if (value == NULL) {
+      GE_BREAK(ectx, 0);
+      goto FAILURE;
+    }
+    value->expirationTime = htonll(expirationTime);
     value->prio = htonl(priority);
     if (OK != FS_insert(sock,
                         value)) {
+      GE_BREAK(ectx, 0);
       FREE(value);
       goto FAILURE;
     }
@@ -402,10 +429,10 @@ int ECRS_uploadFile(const char * filename,
     iblocks[i] = NULL;
   }
 #if DEBUG_UPLOAD
-  IFLOG(LOG_DEBUG,
-        hash2enc(&chk.query,
+  IF_GELOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
+        hash2enc(&mchk.query,
                  &enc));
-  LOG(LOG_DEBUG,
+  GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
       "Query for top block is %s\n",
       &enc);
 #endif
@@ -414,24 +441,26 @@ int ECRS_uploadFile(const char * filename,
   db = (DBlock*) &iblocks[treedepth][1];
 
   fid.chk = *(CHK*)&(db[1]);
-  uris = createFileURI(&fid);
-  *uri = ECRS_stringToUri(uris);
-  FREE(uris);
+  *uri = MALLOC(sizeof(URI));
+  (*uri)->type = chk;
+  (*uri)->data.fi = fid;
 
   /* free resources */
   FREENONNULL(iblocks[treedepth]);
   FREE(iblocks);
   FREE(dblock);
-  closefile(fd);
-  releaseClientSocket(sock);
+  if (upcb != NULL)
+    upcb(filesize, filesize, eta, upcbClosure);
+  CLOSE(fd);
+  connection_destroy(sock);
   return OK;
  FAILURE:
   for (i=0;i<=treedepth;i++)
     FREENONNULL(iblocks[i]);
   FREE(iblocks);
   FREE(dblock);
-  closefile(fd);
-  releaseClientSocket(sock);
+  CLOSE(fd);
+  connection_destroy(sock);
   return SYSERR;
 }
 

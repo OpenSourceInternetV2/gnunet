@@ -32,6 +32,7 @@
 
 #include "platform.h"
 #include "gnunet_core.h"
+#include "gnunet_directories.h"
 #include "gnunet_protocols.h"
 #include "gnunet_topology_service.h"
 #include "gnunet_identity_service.h"
@@ -74,6 +75,8 @@ static Transport_ServiceAPI * transport;
 
 static Pingpong_ServiceAPI * pingpong;
 
+static struct GE_Context * ectx;
+
 /**
  * How many peers are we connected to in relation
  * to our ideal number?  (ideal = 1.0, too few: < 1,
@@ -98,8 +101,15 @@ static unsigned int friendCount;
 static int allowConnection(const PeerIdentity * peer) {
   int i;
 
+  if ( (coreAPI->myIdentity != NULL) &&
+       (0 == memcmp(coreAPI->myIdentity,
+		    peer,
+		    sizeof(PeerIdentity))) )
+    return SYSERR; /* disallow connections to self */
   for (i=friendCount-1;i>=0;i--)
-    if (hostIdentityEquals(&friends[i], peer))
+    if (0 == memcmp(&friends[i],
+		    peer,
+		    sizeof(PeerIdentity)))
       return OK;
   return SYSERR;
 }
@@ -113,19 +123,24 @@ static int allowConnection(const PeerIdentity * peer) {
  * @param proto what transport protocol are we looking at
  * @param im updated structure used to select the peer
  */
-static void scanHelperCount(const PeerIdentity * id,
-			    const unsigned short proto,	
-			    int confirmed,
-			    IndexMatch * im) {
-  if (hostIdentityEquals(coreAPI->myIdentity, id))
-    return;
+static int scanHelperCount(const PeerIdentity * id,
+			   const unsigned short proto,	
+			   int confirmed,
+			   void * cls) {
+  IndexMatch * im = cls;
+
+  if (0 == memcmp(coreAPI->myIdentity,
+		  id,
+		  sizeof(PeerIdentity)))
+    return OK;
   if (coreAPI->computeIndex(id) != im->index)
-    return;
+    return OK;
   if ( (YES == transport->isAvailable(proto)) &&
        (OK == allowConnection(id)) ) {
     im->matchCount++;
     im->costSelector += transport->getCost(proto);
   }
+  return OK;
 }
 
 /**
@@ -136,22 +151,28 @@ static void scanHelperCount(const PeerIdentity * id,
  * @param proto the protocol of the current peer
  * @param im structure responsible for the selection process
  */
-static void scanHelperSelect(const PeerIdentity * id,
-			     const unsigned short proto,
-			     int confirmed,
-			     IndexMatch * im) {
-  if (hostIdentityEquals(coreAPI->myIdentity, id))
-    return;
+static int scanHelperSelect(const PeerIdentity * id,
+			    const unsigned short proto,
+			    int confirmed,
+			    void * cls) {
+  IndexMatch * im = cls;
+  if (0 == memcmp(coreAPI->myIdentity,
+		  id,
+		  sizeof(PeerIdentity)))
+    return OK;
   if (coreAPI->computeIndex(id) != im->index)
-    return;
+    return OK;
   if ( (OK == allowConnection(id)) &&
        (YES == transport->isAvailable(proto)) ) {
     im->costSelector -= transport->getCost(proto);
     if ( (im->matchCount == 0) ||
-	 (im->costSelector < 0) )
+	 (im->costSelector < 0) ) {
       im->match = *id;
+      return SYSERR; /* abort iteration */
+    }
     im->matchCount--;
   }
+  return OK;
 }
 
 /**
@@ -166,12 +187,12 @@ static void scanForHosts(unsigned int index) {
   cron_t now;
   EncName enc;
 
-  cronTime(&now);
+  now = get_time();
   indexMatch.index = index;
   indexMatch.matchCount = 0;
   indexMatch.costSelector = 0;
   identity->forEachHost(now,
-			(HostIterator)&scanHelperCount,
+			&scanHelperCount,
 			&indexMatch);
   if (indexMatch.matchCount == 0)
     return; /* no matching peers found! */
@@ -180,22 +201,24 @@ static void scanForHosts(unsigned int index) {
       = weak_randomi(indexMatch.costSelector/4)*4;
   indexMatch.match = *(coreAPI->myIdentity);
   identity->forEachHost(now,
-			(HostIterator)&scanHelperSelect,
+			&scanHelperSelect,
 			&indexMatch);
-  if (hostIdentityEquals(coreAPI->myIdentity,
-			 &indexMatch.match)) {
-    BREAK(); /* should not happen, at least not often... */
+  if (0 == memcmp(coreAPI->myIdentity,
+		  &indexMatch.match,
+		  sizeof(PeerIdentity))) {
+    GE_BREAK(ectx, 0); /* should not happen, at least not often... */
     return;
   }
   if (coreAPI->computeIndex(&indexMatch.match) != index) {
-    BREAK(); /* should REALLY not happen */
+    GE_BREAK(ectx, 0); /* should REALLY not happen */
     return;
   }
   hash2enc(&indexMatch.match.hashPubKey,
 	   &enc);
-  LOG(LOG_DEBUG,
-      "Topology: trying to connect to `%s'.\n",
-      &enc);
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "Topology: trying to connect to `%s'.\n",
+	 &enc);
   coreAPI->unicast(&indexMatch.match,
 		   NULL,
 		   0,
@@ -210,13 +233,14 @@ static void scanForHosts(unsigned int index) {
  *
  * @param hostId the peer that gave a sign of live
  */
-static void notifyPONG(PeerIdentity * hostId) {
+static void notifyPONG(void * cls) {
+  PeerIdentity * hostId = cls;
 #if DEBUG_TOPOLOGY
   EncName enc;
 
   hash2enc(&hostId->hashPubKey,
      &enc);
-  LOG(LOG_DEBUG,
+  GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
       "Received pong from `%s', telling core that peer is still alive.\n",
       (char*)&enc);
 #endif
@@ -237,9 +261,9 @@ static void checkNeedForPing(const PeerIdentity * peer,
 
   if (weak_randomi(LIVE_PING_EFFECTIVENESS) != 0)
     return;
-  cronTime(&now);
+  now = get_time();
   if (SYSERR == coreAPI->getLastActivityOf(peer, &act)) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     return; /* this should not happen... */
   }
 
@@ -252,14 +276,15 @@ static void checkNeedForPing(const PeerIdentity * peer,
 #if DEBUG_TOPOLOGY
     hash2enc(&hi->hashPubKey,
        &enc);
-    LOG(LOG_DEBUG,
+    GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
   "Sending ping to `%s' to prevent connection timeout.\n",
   (char*)&enc);
 #endif
-    if (OK != pingpong->ping(peer,
+    if (OK != pingpong->ping(peer,			     
+			     &notifyPONG,
+			     hi,
 			     NO,
-			     (CronJob)&notifyPONG,
-			     hi))
+			     rand()))
       FREE(hi);
   }
 }
@@ -304,8 +329,11 @@ static double estimateSaturation() {
   return saturation;
 }
 
-static int rereadConfiguration() {
-  char * tmp;
+static int rereadConfiguration(void * ctx,
+			       struct GC_Configuration * cfg,
+			       struct GE_Context * ectx,
+			       const char * section,
+			       const char * option) {
   char * fn;
   char * data;
   unsigned long long size;
@@ -313,35 +341,34 @@ static int rereadConfiguration() {
   EncName enc;
   HashCode512 hc;
 
+  if (0 != strcmp(section, "F2F"))
+    return OK;
   GROW(friends,
        friendCount,
        0);
-  tmp = getConfigurationString("F2F",
-			       "FRIENDS");
-  if (tmp == NULL) {
-    LOG(LOG_ERROR,
-	_("Need to have list of friends in configuration under `%s' in section `%s'.\n"),
-	"FRIENDS",
-	"F2F");
-    return SYSERR;
-  }
-  fn = expandFileName(tmp);
-  FREE(tmp);
-  if (0 == assertIsFile(fn)) {
-    FREE(fn);
-    return SYSERR;
-  }
-  if (OK != getFileSize(fn,
-			&size)) {
+  fn = NULL;
+  GC_get_configuration_value_filename(cfg,
+				      "F2F",
+				      "FRIENDS",
+				      VAR_DAEMON_DIRECTORY "/friends",
+				      &fn);
+  if ( (0 == disk_file_test(ectx, fn)) ||
+       (OK != disk_file_size(ectx, fn, &size, YES)) ) {
+    GE_LOG(ectx,
+	   GE_USER | GE_ADMIN | GE_ERROR | GE_IMMEDIATE,
+	   "Could not read friends list `%s'\n",
+	   fn);
     FREE(fn);
     return SYSERR;
   }
   data = MALLOC(size);
-  if (size != readFile(fn, size, data)) {
-    LOG(LOG_ERROR,
-	_("Failed to read friends list from `%s'\n"),
-	fn);
+  if (size != disk_file_read(ectx, fn, size, data)) {
+    GE_LOG(ectx,
+	   GE_ERROR | GE_BULK | GE_USER,
+	   _("Failed to read friends list from `%s'\n"),
+	   fn);
     FREE(fn);
+    FREE(data);
     return SYSERR;
   }
   FREE(fn);
@@ -354,8 +381,9 @@ static int rereadConfiguration() {
 	   &data[pos],
 	   sizeof(EncName));
     if (! isspace(enc.encoding[sizeof(EncName)-1])) {
-      LOG(LOG_WARNING,
-	  _("Syntax error in topology specification, skipping bytes.\n"));
+      GE_LOG(ectx,
+	     GE_WARNING | GE_BULK | GE_USER,
+	     _("Syntax error in topology specification, skipping bytes.\n"));
       continue;
     }
     enc.encoding[sizeof(EncName)-1] = '\0';
@@ -366,9 +394,10 @@ static int rereadConfiguration() {
 	   friendCount+1);
       friends[friendCount-1].hashPubKey = hc;
     } else {
-      LOG(LOG_WARNING,
-	  _("Syntax error in topology specification, skipping bytes `%s'.\n"),
-	  &enc);
+      GE_LOG(ectx,
+	     GE_WARNING | GE_BULK | GE_USER,
+	     _("Syntax error in topology specification, skipping bytes `%s'.\n"),
+	     &enc);
     }
     pos = pos + sizeof(EncName);
     while ( (pos < size) &&
@@ -383,29 +412,31 @@ provide_module_topology_f2f(CoreAPIForApplication * capi) {
   static Topology_ServiceAPI api;
 
   coreAPI = capi;
+  ectx = capi->ectx;
   identity = capi->requestService("identity");
   if (identity == NULL) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     return NULL;
   }
   transport = capi->requestService("transport");
   if (transport == NULL) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     capi->releaseService(identity);
     identity = NULL;
     return NULL;
   }
   pingpong = capi->requestService("pingpong");
   if (pingpong == NULL) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     capi->releaseService(identity);
     identity = NULL;
     capi->releaseService(transport);
     transport = NULL;
     return NULL;
   }
-
-  if (SYSERR == rereadConfiguration()) {
+  if (0 != GC_attach_change_listener(coreAPI->cfg,
+				     &rereadConfiguration,
+				     NULL)) {
     capi->releaseService(identity);
     identity = NULL;
     capi->releaseService(transport);
@@ -414,12 +445,12 @@ provide_module_topology_f2f(CoreAPIForApplication * capi) {
     pingpong = NULL;
     return NULL;
   }
-  registerConfigurationUpdateCallback
-    ((NotifyConfigurationUpdateCallback)&rereadConfiguration);
-  addCronJob(&cronCheckLiveness,
-	     LIVE_SCAN_FREQUENCY,
-	     LIVE_SCAN_FREQUENCY,
-	     NULL);
+
+  cron_add_job(coreAPI->cron,
+	       &cronCheckLiveness,
+	       LIVE_SCAN_FREQUENCY,
+	       LIVE_SCAN_FREQUENCY,
+	       NULL);
   api.estimateNetworkSize = &estimateNetworkSize;
   api.getSaturation = &estimateSaturation;
   api.allowConnectionFrom = &allowConnection;
@@ -427,11 +458,13 @@ provide_module_topology_f2f(CoreAPIForApplication * capi) {
 }
 
 int release_module_topology_f2f() {
-  delCronJob(&cronCheckLiveness,
-	     LIVE_SCAN_FREQUENCY,
-	     NULL);
-  unregisterConfigurationUpdateCallback
-    ((NotifyConfigurationUpdateCallback)&rereadConfiguration);
+  cron_del_job(coreAPI->cron,
+	       &cronCheckLiveness,
+	       LIVE_SCAN_FREQUENCY,
+	       NULL);
+  GC_detach_change_listener(coreAPI->cfg,
+			    &rereadConfiguration,
+			    NULL);
   coreAPI->releaseService(identity);
   identity = NULL;
   coreAPI->releaseService(transport);
@@ -451,7 +484,13 @@ static Topology_ServiceAPI * myTopology;
 int initialize_module_topology_f2f(CoreAPIForApplication * capi) {
   myCapi = capi;
   myTopology = capi->requestService("topology");
-  GNUNET_ASSERT(myTopology != NULL);
+  GE_ASSERT(ectx, myTopology != NULL);
+  GE_ASSERT(capi->ectx,
+	    0 == GC_set_configuration_value_string(capi->cfg,
+						   capi->ectx,
+						   "ABOUT",
+						   "topology",
+						   gettext_noop("maintains a friend-to-friend restricted topology")));
   return OK;
 }
 

@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet
-     (C) 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
+     (C) 2004, 2005, 2006, 2007 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -100,12 +100,16 @@ typedef struct {
    *     change?  If priority + delta < 0 the
    *     priority should be set to 0 (never go
    *     negative).
+   * @param expire new expiration time should be the
+   *     MAX of any existing expiration time and
+   *     this value
    * @return OK if a match was found and the update
    *     was successful, SYSERR on error
    */
   int (*update)(const HashCode512 * key,
 		const Datastore_Value * value,
-		int delta);
+		int delta,
+		cron_t expire);
 
   /**
    * Iterate over the items in the datastore in ascending
@@ -134,6 +138,31 @@ typedef struct {
   int (*iterateExpirationTime)(unsigned int type,
 			       Datum_Iterator iter,
 			       void * closure);
+
+
+  /**
+   * Iterate over the items in the datastore in migration
+   * order.
+   *
+   * @param iter never NULL
+   * @return the number of results, SYSERR if the
+   *   iter is non-NULL and aborted the iteration
+   */
+  int (*iterateMigrationOrder)(Datum_Iterator iter,
+			       void * closure);
+
+  /**
+   * Iterate over all the items in the datastore 
+   * as fast as possible in a single transaction
+   * (can lock datastore while this happens, focus
+   * is on doing it fast).
+   *
+   * @param iter never NULL
+   * @return the number of results, SYSERR if the
+   *   iter is non-NULL and aborted the iteration
+   */
+  int (*iterateAllNow)(Datum_Iterator iter,
+		       void * closure);
 
   /**
    * Delete an item from the datastore.

@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet
-     (C) 2001, 2002, 2003, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -83,10 +83,10 @@ typedef struct {
    * layer. This may fail if the appropriate transport mechanism is
    * not available.
    *
-   * @param helo the hello of the target node
+   * @param hello the hello of the target node
    * @return session handle on success, NULL on error
    */
-  TSession * (*connect)(const P2P_hello_MESSAGE * helo);
+  TSession * (*connect)(const P2P_hello_MESSAGE * hello);
 
   /**
    * Connect to another peer, picking any transport that
@@ -126,25 +126,14 @@ typedef struct {
    * @param session the session identifying the connection
    * @param msg the message to send
    * @param size the size of the message
+   * @param important the message is important
    * @return OK on success, SYSERR on persistent error, NO on
    *         temporary error
    */
   int (*send)(TSession * session,
 	      const void * msg,
-	      const unsigned int size);
-
-  /**
-   * Send a message.
-   * Try to be more reliable than the usual transportSend.
-   *
-   * @param session the session identifying the connection
-   * @param msg the message to send
-   * @param size the size of the message
-   * @return OK on success, SYSERR on error
-   */
-  int (*sendReliable)(TSession * session,
-		      const void * msg,
-		      const unsigned int size);
+	      unsigned int size,
+	      int important);
 
   /**
    * Close the session with the remote node. May only be called on
@@ -160,12 +149,15 @@ typedef struct {
    * @return OK if the attempt to verify is on the way,
    *        SYSERR if the transport mechanism is not supported
    */
-  int (*verifyhello)(const P2P_hello_MESSAGE * helo);
+  int (*verifyhello)(const P2P_hello_MESSAGE * hello);
 
   /**
    * Convert hello to string.
+   *
+   * @param resolve_ip should we try to resovle the IP?
    */
-  char * (*heloToString)(const P2P_hello_MESSAGE * helo);
+  char * (*helloToString)(const P2P_hello_MESSAGE * hello,
+			  int resolve_ip);
 
   /**
    * Get the MTU for a given transport type.
@@ -193,6 +185,24 @@ typedef struct {
    */
   int (*getAdvertisedhellos)(unsigned int maxLen,
 			    char * buff);
+
+  /**
+   * Test if the transport would even try to send
+   * a message of the given size and importance
+   * for the given session.<br>
+   * This function is used to check if the core should
+   * even bother to construct (and encrypt) this kind
+   * of message.
+   *
+   * @return YES if the transport would try (i.e. queue
+   *         the message or call the OS to send),
+   *         NO if the transport would just drop the message,
+   *         SYSERR if the size/session is invalid
+   */
+  int (*testWouldTry)(TSession * tsession,
+		      unsigned int size,
+		      int important);
+  
 
 } Transport_ServiceAPI;
 

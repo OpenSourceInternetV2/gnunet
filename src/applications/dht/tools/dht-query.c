@@ -1,5 +1,6 @@
 /*
       This file is part of GNUnet
+      (C) 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
 
       GNUnet is free software; you can redistribute it and/or modify
       it under the terms of the GNU General Public License as published
@@ -19,111 +20,62 @@
 
 /**
  * @file dht-query.c
- * @brief perform DHT operations (insert, lookup, remove)
+ * @brief perform DHT operations (insert, lookup)
  * @author Christian Grothoff
  */
 
 #include "platform.h"
+#include "gnunet_directories.h"
 #include "gnunet_protocols.h"
 #include "gnunet_util.h"
+#include "gnunet_util_crypto.h"
 #include "gnunet_dht_lib.h"
+#include "gnunet_util_boot.h"
+#include "gnunet_util_network_client.h"
 
-static DHT_TableId table;
+#define DEBUG_DHT_QUERY NO
 
-static void printHelp() {
-  static Help help[] = {
-    HELP_CONFIG,
-    HELP_HELP,
-    HELP_LOGLEVEL,
-    { 't', "table", "NAME",
-      gettext_noop("query table called NAME") },
-    { 'T', "timeout", "TIME",
-      gettext_noop("allow TIME ms to process each command") },
-    HELP_VERSION,
-    HELP_END,
-  };
-  formatHelp("dht-query [OPTIONS] COMMANDS",
-	     _("Query (get KEY, put KEY VALUE, remove KEY VALUE) a DHT table."),
-	     help);
-}
+/**
+ * How long should a "GET" run (or how long should
+ * content last on the network).
+ */
+static cron_t timeout;
 
-static int parseOptions(int argc,
-			char ** argv) {
-  int c;
+static struct GE_Context * ectx;
 
-  while (1) {
-    int option_index = 0;
-    static struct GNoption long_options[] = {
-      LONG_DEFAULT_OPTIONS,
-      { "table", 1, 0, 't' },
-      { "timeout", 1, 0, 'T' },
-      { 0,0,0,0 }
-    };
-    c = GNgetopt_long(argc,
-		      argv,
-		      "vhH:c:L:dt:T:",
-		      long_options,
-		      &option_index);
-    if (c == -1)
-      break;  /* No more flags to process */
-    if (YES == parseDefaultOptions(c, GNoptarg))
-      continue;
-    switch(c) {
-    case 'h':
-      printHelp();
-      return SYSERR;
-    case 't':
-      FREENONNULL(setConfigurationString("DHT-QUERY",
-					 "TABLE",
-					 GNoptarg));
-      break;
-     case 'T': {
-      unsigned int max;
-      if (1 != sscanf(GNoptarg, "%ud", &max)) {
-	LOG(LOG_FAILURE,
-	    _("You must pass a number to the `%s' option.\n"),
-	    "-T");
-	return SYSERR;
-      } else {	
-	setConfigurationInt("DHT-QUERY",
-			    "TIMEOUT",
-			    max);
-      }
-      break;
-    }
-    case 'v':
-      printf("dht-query v0.0.1\n");
-      return SYSERR;
-    default:
-      LOG(LOG_FAILURE,
-	  _("Use --help to get a list of options.\n"),
-	  c);
-      return SYSERR;
-    } /* end of parsing commandline */
-  } /* while (1) */
-  if (argc - GNoptind == 0) {
-    LOG(LOG_WARNING,
-	_("No commands specified.\n"));
-    printHelp();
-    return SYSERR;
-  }
-  setConfigurationStringList(&argv[GNoptind],
-			     argc - GNoptind);
-  return OK;
-}
+static struct GC_Configuration * cfg;
+
+static char * cfgFilename = DEFAULT_CLIENT_CONFIG_FILE;
+
+/**
+ * All gnunet-dht-query command line options
+ */
+static struct CommandLineOption gnunetqueryOptions[] = {
+  COMMAND_LINE_OPTION_CFG_FILE(&cfgFilename), /* -c */
+  COMMAND_LINE_OPTION_HELP(gettext_noop("Query (get KEY, put KEY VALUE) DHT table.")), /* -h */
+  COMMAND_LINE_OPTION_HOSTNAME, /* -H */
+  COMMAND_LINE_OPTION_LOGGING, /* -L */
+  { 'T', "timeout", "TIME",
+    gettext_noop("allow TIME ms to process a GET command or expire PUT content after ms TIME"),
+    1, &gnunet_getopt_configure_set_ulong, &timeout },
+  COMMAND_LINE_OPTION_VERSION(PACKAGE_VERSION), /* -v */
+  COMMAND_LINE_OPTION_VERBOSE,
+  COMMAND_LINE_OPTION_END,
+};
 
 static int printCallback(const HashCode512 * hash,
 			 const DataContainer * data,
-			 char * key) {
+			 void * cls) {
+  char * key = cls;
   printf("%s(%s): '%.*s'\n",
 	 "get",
 	 key,
-	 ntohl(data->size),
+	 ntohl(data->size) - sizeof(DataContainer),
 	 (char*)&data[1]);
   return OK;
 }
 
-static void do_get(GNUNET_TCP_SOCKET * sock,
+static void do_get(struct ClientServerConnection * sock,
 		   const char * key) {
   int ret;
   HashCode512 hc;
@@ -131,27 +83,31 @@ static void do_get(GNUNET_TCP_SOCKET * sock,
   hash(key,
        strlen(key),
        &hc);
-  LOG(LOG_DEBUG,
-      "Issuing '%s(%s)' command.\n",
-      "get", key);
-  ret = DHT_LIB_get(&table,
+#if DEBUG_DHT_QUERY
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "Issuing '%s(%s)' command.\n",
+	 "get", 
+	 key);
+#endif
+  if (timeout == 0)
+    timeout = 30 * cronSECONDS;
+  ret = DHT_LIB_get(cfg,
+		    ectx,
 		    DHT_STRING2STRING_BLOCK,
-		    1, /* prio */
-		    1, /* key count */
 		    &hc,
-		    getConfigurationInt("DHT-QUERY",
-					"TIMEOUT"),
-		    (DataProcessor) &printCallback,
+		    timeout,
+		    &printCallback,
 		    (void*) key);
   if (ret == 0)
-    printf("%s(%s) operation returned no results.\n",
+    printf(_("%s(%s) operation returned no results.\n"),
 	   "get",
 	   key);
 }
 
-static void do_put(GNUNET_TCP_SOCKET * sock,
+static void do_put(struct ClientServerConnection * sock,
 		   const char * key,
-		   char * value) {
+		   const char * value) {
   DataContainer * dc;
   HashCode512 hc;
 
@@ -160,131 +116,99 @@ static void do_put(GNUNET_TCP_SOCKET * sock,
 	      + strlen(value));
   dc->size = htonl(strlen(value)
 		   + sizeof(DataContainer));
-  memcpy(&dc[1], value, strlen(value));
-  LOG(LOG_DEBUG,
-      "Issuing '%s(%s,%s)' command.\n",
-      "put", key, value);
-  if (OK == DHT_LIB_put(&table,		
+  memcpy(&dc[1],
+	 value,
+	 strlen(value));
+#if DEBUG_DHT_QUERY
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 _("Issuing '%s(%s,%s)' command.\n"),
+	 "put",
+	 key,
+	 value);
+#endif
+  if (timeout == 0)
+    timeout = 30 * cronMINUTES;
+  if (OK == DHT_LIB_put(cfg,
+			ectx,
 			&hc,
-			1, /* prio */
-			getConfigurationInt("DHT-QUERY",
-					    "TIMEOUT"),
+			DHT_STRING2STRING_BLOCK,
+			timeout + get_time(), /* convert to absolute time */
 			dc)) {
     printf(_("'%s(%s,%s)' succeeded\n"),
 	   "put",
-	   key, value);
+	   key,
+	   value);
   } else {
     printf(_("'%s(%s,%s)' failed.\n"),
 	   "put",
-	   key, value);
+	   key, 
+	   value);
   }	
   FREE(dc);
 }
-
-static void do_remove(GNUNET_TCP_SOCKET * sock,
-		      const char * key,
-		      char * value) {
-  DataContainer * dc;
-  HashCode512 hc;
-
-  hash(key, strlen(key), &hc);
-  dc = MALLOC(sizeof(DataContainer)
-	      + strlen(value));
-  dc->size = htonl(strlen(value)
-		   + sizeof(DataContainer));
-  memcpy(&dc[1], value, strlen(value));
-  LOG(LOG_DEBUG,
-      "Issuing '%s(%s,%s)' command.\n",
-      "remove", key, value);
-  if (OK == DHT_LIB_remove(&table,
-			   &hc,
-			   getConfigurationInt("DHT-QUERY",
-					       "TIMEOUT"),
-			   dc)) {
-    printf(_("'%s(%s,%s)' succeeded\n"),
-	   "remove",
-	   key, value);
-  } else {
-    printf(_("'%s(%s,%s)' failed.\n"),
-	   "remove",
-	   key, value);
-  }	
-  FREE(dc);
-}
-
 
 int main(int argc,
-	 char **argv) {
-  char * tableName;
-  int count;
-  char ** commands;
+	 char * const * argv) {
   int i;
-  GNUNET_TCP_SOCKET * handle;
+  struct ClientServerConnection * handle;
 
-  if (SYSERR == initUtil(argc, argv, &parseOptions))
-    return 0;
+  i = GNUNET_init(argc,
+		  argv,
+		  "gnunet-dht-query",
+		  &cfgFilename,
+		  gnunetqueryOptions,
+		  &ectx,
+		  &cfg);
+  if (i == -1) {
+    GNUNET_fini(ectx, cfg);
+    return -1;
+  }
 
-  count = getConfigurationStringList(&commands);
-  tableName = getConfigurationString("DHT-QUERY",
-				     "TABLE");
-  if (tableName == NULL) {
-    printf(_("No table name specified, using `%s'.\n"),
-	   "test");
-    tableName = STRDUP("test");
-  }
-  if (OK != enc2hash(tableName,
-		     &table)) {
-    hash(tableName,
-	 strlen(tableName),
-	 &table);
-  }
-  FREE(tableName);
-  DHT_LIB_init();
-  handle = getClientSocket();
+  handle = client_connection_create(ectx, cfg);
   if (handle == NULL) {
     fprintf(stderr,
 	    _("Failed to connect to gnunetd.\n"));
+    GC_free(cfg);
+    GE_free_context(ectx);
     return 1;
   }
 
-  for (i=0;i<count;i++) {
-    if (0 == strcmp("get", commands[i])) {
-      if (i+2 > count)
-	errexit(_("Command `%s' requires an argument (`%s').\n"),
+  while (i < argc) {
+    if (0 == strcmp("get", argv[i])) {
+      if (i+2 > argc) {
+	fprintf(stderr,
+		_("Command `%s' requires an argument (`%s').\n"),
 		"get",
 		"key");
-      do_get(handle, commands[++i]);
+	break;
+      } else {
+	do_get(handle, argv[i+1]);
+	i += 2;
+      }
       continue;
     }
-    if (0 == strcmp("put", commands[i])) {
-      if (i+3 > count)
-	errexit(_("Command `%s' requires two arguments (`%s' and `%s').\n"),
+    if (0 == strcmp("put", argv[i])) {
+      if (i+3 > argc) {
+	fprintf(stderr,
+		_("Command `%s' requires two arguments (`%s' and `%s').\n"),
 		"put",
 		"key",
 		"value");
-      do_put(handle, commands[i+1], commands[i+2]);
-      i+=2;
+	break;
+      } else {
+	do_put(handle, argv[i+1], argv[i+2]);
+	i += 3;
+      }
       continue;
     }
-    if (0 == strcmp("remove", commands[i])) {
-      if (i+3 > count)
-	errexit(_("Command `%s' requires two arguments (`%s' and `%s').\n"),
-		"remove",
-		"key",
-		"value");
-      do_remove(handle, commands[i+1], commands[i+2]);
-      i+=2;
-      continue;
-    }
-    printf(_("Unsupported command `%s'.  Aborting.\n"),
-	   commands[i]);
+    fprintf(stderr,
+	    _("Unsupported command `%s'.  Aborting.\n"),
+	    argv[i]);
     break;
   }
-  releaseClientSocket(handle);
-  for (i=0;i<count;i++)
-    FREE(commands[i]);
-  FREE(commands);
-  DHT_LIB_done();
+  connection_destroy(handle);
+  GNUNET_fini(ectx, cfg);
   return 0;
 }
 

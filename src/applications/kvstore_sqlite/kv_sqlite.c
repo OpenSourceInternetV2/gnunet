@@ -22,14 +22,15 @@
  * @file applications/kvstore_sqlite/kv_sqlite.c
  * @brief SQLite based implementation of the kvstore service
  * @author Nils Durner
- *
+ * @author Christian Grothoff
  * @todo Indexes, statistics
- * 
+ *
  * Database: SQLite
  */
 
 #include "platform.h"
 #include "gnunet_util.h"
+#include "gnunet_directories.h"
 #include "gnunet_kvstore_service.h"
 #include <sqlite3.h>
 
@@ -40,59 +41,75 @@
  * a failure of the command 'cmd' with the message given
  * by strerror(errno).
  */
-#define DIE_SQLITE(cmd) do { errexit(_("`%s' failed at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, sqlite3_errmsg(dbh->dbh)); } while(0);
+#define DIE_SQLITE(dbh, cmd) do { GE_LOG(ectx, GE_FATAL | GE_ADMIN | GE_BULK, _("`%s' failed at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, sqlite3_errmsg(dbh)); abort(); } while(0);
 
 /**
  * Log an error message at log-level 'level' that indicates
  * a failure of the command 'cmd' on file 'filename'
  * with the message given by strerror(errno).
  */
-#define LOG_SQLITE(level, cmd) do { fprintf(stderr, _("`%s' failed at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, sqlite3_errmsg(dbh->dbh)); } while(0);
-
-static CoreAPIForApplication * coreAPI;
+#define LOG_SQLITE(dbh, level, cmd) do { GE_LOG(ectx, GE_ERROR | GE_ADMIN | GE_BULK, _("`%s' failed at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, sqlite3_errmsg(dbh)); } while(0);
 
 /**
  * @brief Wrapper for SQLite
  */
 typedef struct {
-  /* Native SQLite database handle - may not be shared between threads! */
-  sqlite3 *dbh;
-  /* Thread ID owning this handle */
-  pthread_t tid;
-  /* Synchronized access to sqlite */
-  Mutex *DATABASE_Lock_;
+
+  /**
+   * Native SQLite database handle - may not be shared between threads!
+   */
+  sqlite3 * dbh;
+
+  /**
+   * Thread ID owning this handle
+   */
+  struct PTHREAD * tid;
+
 } sqliteHandle;
 
 /**
  * @brief Information about the database
  */
 typedef struct {
-  Mutex DATABASE_Lock_;
-  /** name of the database */
-  char *name;  
-  /** filename of this database */
-  char *fn;
-  /** bytes used */
-  double payload;
-  unsigned int lastSync;
-  
-  /* Open handles */
-  unsigned int handle_count;
-  
-  /* List of open handles */
-  sqliteHandle *handles;  
 
- /* Is database closed? */
- int closed;
+  /**
+   * bytes used
+   */
+  double payload;
+
+  /**
+   * name of the database
+   */
+  char * name;
+
+  /**
+   * filename of this database
+   */
+  char * fn;
+
+  /**
+   * List of open handles
+   */
+  sqliteHandle ** handles;
+
+  /**
+   * Open handles (one per thread)
+   */
+  unsigned int handle_count;
+
+  unsigned int lastSync;
+
 } sqliteDatabase;
 
+static CoreAPIForApplication * coreAPI;
 
-static unsigned int databases = 0;
-static sqliteDatabase *dbs;
+static struct GE_Context * ectx;
 
-static sqliteHandle *getDBHandle(const char *name);
+static unsigned int databases;
 
-static Mutex databasesLock;
+static sqliteDatabase ** dbs;
+
+static struct MUTEX * lock;
 
 /**
  * @brief Encode a binary buffer "in" of size n bytes so that it contains
@@ -121,7 +138,6 @@ static int sqlite_encode_binary(const unsigned char *in,
     }
     out++;
   }
-
   return (int) (out - start);
 }
 
@@ -154,62 +170,63 @@ static int sqlite_decode_binary_n(const unsigned char *in,
  * @brief Prepare a SQL statement
  */
 static int sq_prepare(sqliteHandle *dbh,
-          const char *zSql,       /* SQL statement, UTF-8 encoded */
-          sqlite3_stmt **ppStmt) {  /* OUT: Statement handle */
+		      const char *zSql,       /* SQL statement, UTF-8 encoded */
+		      sqlite3_stmt **ppStmt) {  /* OUT: Statement handle */
   char * dummy;
+
   return sqlite3_prepare(dbh->dbh,
-       zSql,
-       strlen(zSql),
-       ppStmt,
-       (const char**) &dummy);
+			 zSql,
+			 strlen(zSql),
+			 ppStmt,
+			 (const char**) &dummy);
 }
 
 /**
- * @brief Create new database structure
+ * Get path to database file
  */
-static void new_db(sqliteDatabase *db, const char *name)
-{
-  char *dir;
-  unsigned int mem;
-  
-  memset(db, sizeof(sqliteDatabase), 0);
-  
-  MUTEX_CREATE(&db->DATABASE_Lock_);
-  
-  /* Get path to database file */
-  dir = getFileName("KEYVALUE_DATABASE", "DIR",
-           _("Configuration file must specify directory for "
-           "storing data in section `%s' under `%s'.\n"));
-           
-  if (dir != NULL)
-    mem = strlen(dir);
-  else
-    mem = 0;
-    
-  mkdirp(dir);
-    
-  mem += strlen(name) + 6; /* 6 = "/" + ".dat" */
-   
-  db->fn = (char *) MALLOC(mem);
-  sprintf(db->fn, "%s/%s.dat", dir, name);
+static char * getDBFileName(const char * name) {
+  char * dir;
+  char * fn;
+  size_t mem;
+
+  GC_get_configuration_value_filename(coreAPI->cfg,
+				      "KEYVALUE_DATABASE",
+				      "DIR",
+				      VAR_DAEMON_DIRECTORY "/kvstore/",
+				      &dir);
+  disk_directory_create(ectx, dir);
+  mem = strlen(dir) + strlen(name) + 6;
+  fn = MALLOC(mem);
+  SNPRINTF(fn,
+	   mem,
+	   "%s/%s.dat",
+	   dir,
+	   name);
   FREE(dir);
-  
-  db->name = STRDUP(name);
+  return fn;
 }
 
 /**
  * @brief Get information about an open database
  * @param name the name of the database
  */
-static sqliteDatabase *getDB(const char *name)
-{
+static sqliteDatabase * getDB(const char *name) {
   unsigned int idx;
-  
-  for(idx = 0; idx < databases; idx++)
-    if (!dbs[idx].closed && strcmp(dbs[idx].name, name) == 0)
-      return dbs + idx;
+  sqliteDatabase * db;
 
-  return NULL;
+  for (idx = 0; idx < databases; idx++)
+    if (0 == strcmp(dbs[idx]->name, name))
+      return dbs[idx];
+  db = MALLOC(sizeof(sqliteDatabase));
+  memset(db,
+	 0,
+	 sizeof(sqliteDatabase));
+  db->fn = getDBFileName(name);
+  db->name = STRDUP(name);
+  APPEND(dbs,
+	 databases,
+	 db);
+  return db;
 }
 
 /**
@@ -219,119 +236,89 @@ static sqliteDatabase *getDB(const char *name)
  *       We therefore (re)open the database in each thread.
  * @return the native SQLite database handle
  */
-static sqliteHandle *getDBHandle(const char *name) {
+static sqliteHandle * getDBHandle(const char *name) {
   unsigned int idx;
-  pthread_t this_tid;
-  sqliteHandle *dbh = NULL;
-  sqliteDatabase *db = NULL;
-  
-  MUTEX_LOCK(&databasesLock);
-  
-  /* Is database already open? */
-  db = getDB(name);  
-  if (db == NULL)
-  {
-    GROW(dbs, databases, databases + 1);
-    db = dbs + databases - 1;
-    
-    new_db(db, name);
-  }
+  sqliteHandle * dbh;
+  sqliteDatabase * db;
 
-  MUTEX_UNLOCK(&databasesLock);
-
-  MUTEX_LOCK(&db->DATABASE_Lock_);
-  
-  /* Was it opened by this thread? */
-  this_tid = pthread_self();
+  MUTEX_LOCK(lock);
+  db = getDB(name);
   for (idx = 0; idx < db->handle_count; idx++)
-    if (pthread_equal(db->handles[idx].tid, this_tid)) {
-      dbh = db->handles + idx;
-      break;
+    if (PTHREAD_TEST_SELF(db->handles[idx]->tid)) {
+      sqliteHandle * ret = db->handles[idx];
+      MUTEX_UNLOCK(lock);
+      return ret;
     }
-  
-  if (idx == db->handle_count) {
-    /* we haven't opened the DB for this thread yet */
-    GROW(db->handles,
-  	 db->handle_count,
-  	 db->handle_count + 1);
-    dbh = db->handles + db->handle_count - 1;
-    dbh->tid = this_tid;
-    dbh->DATABASE_Lock_ = &db->DATABASE_Lock_;
-
-    /* Open database */
-    if (sqlite3_open(db->fn, &dbh->dbh) != SQLITE_OK) {
-      LOG(LOG_ERROR,
-          _("Unable to initialize SQLite KVStore.\n"));
-      
-      FREE(db->fn);
-      FREE(db);
-      return NULL;
-    }
-
-    sqlite3_exec(dbh->dbh, "PRAGMA temp_store=MEMORY", NULL, NULL, NULL);
-    sqlite3_exec(dbh->dbh, "PRAGMA synchronous=OFF", NULL, NULL, NULL);
-    sqlite3_exec(dbh->dbh, "PRAGMA count_changes=OFF", NULL, NULL, NULL);
-    sqlite3_exec(dbh->dbh, "PRAGMA page_size=4096", NULL, NULL, NULL);
+  /* we haven't opened the DB for this thread yet */
+  dbh = MALLOC(sizeof(sqliteHandle));
+  dbh->tid = PTHREAD_GET_SELF();
+  if (sqlite3_open(db->fn,
+		   &dbh->dbh) != SQLITE_OK) {
+    printf("FN: %s\n", db->fn);
+    LOG_SQLITE(dbh->dbh,	
+	       GE_ERROR | GE_BULK | GE_USER,
+	       "sqlite3_open");
+    sqlite3_close(dbh->dbh);
+    MUTEX_UNLOCK(lock);
+    PTHREAD_REL_SELF(dbh->tid);
+    FREE(dbh);
+    return NULL;
   }
-
-  MUTEX_UNLOCK(&db->DATABASE_Lock_);
-
+  APPEND(db->handles,
+  	 db->handle_count,
+  	 dbh);
+  sqlite3_exec(dbh->dbh, "PRAGMA temp_store=MEMORY", NULL, NULL, NULL);
+  sqlite3_exec(dbh->dbh, "PRAGMA synchronous=OFF", NULL, NULL, NULL);
+  sqlite3_exec(dbh->dbh, "PRAGMA count_changes=OFF", NULL, NULL, NULL);
+  sqlite3_exec(dbh->dbh, "PRAGMA page_size=4096", NULL, NULL, NULL);
+  MUTEX_UNLOCK(lock);
   return dbh;
 }
 
-static void close_database(sqliteDatabase *db)
-{
+static void close_database(sqliteDatabase *db) {
   unsigned int idx;
 
   for (idx = 0; idx < db->handle_count; idx++) {
-    sqliteHandle *dbh = db->handles + idx;
-
+    sqliteHandle * dbh = db->handles[idx];
+    PTHREAD_REL_SELF(dbh->tid);
     if (sqlite3_close(dbh->dbh) != SQLITE_OK)
-      LOG_SQLITE(LOG_ERROR, "sqlite_close");
+      LOG_SQLITE(dbh->dbh,
+		 LOG_ERROR,
+		 "sqlite_close");
+    FREE(dbh);
   }
-  FREE(db->handles);
-  db->handle_count = 0;
-
-  MUTEX_DESTROY(&db->DATABASE_Lock_);
+  GROW(db->handles,
+       db->handle_count,
+       0);
   FREE(db->fn);
   FREE(db->name);
-
-  db->closed = 1;
-}
-
-static void shutdown_database(sqliteDatabase *db)
-{
   FREE(db);
-}
-
-static void sqlite_shutdown() {
-  unsigned int idx;
-  
-#if DEBUG_SQLITE
-  LOG(LOG_DEBUG, "SQLite KVStore: closing database\n");
-#endif
-
-  for (idx = 0; idx < databases; idx++)
-    if (!dbs[idx].closed)
-    {
-      close_database(dbs + idx);
-      shutdown_database(dbs + idx);
-    }
-  
-  GROW(dbs, databases, 0);
 }
 
 /**
  * @brief Delete the database.
  */
-static void dropDatabase(const char *name) {
-  sqliteDatabase *db = getDB(name);
+static void dropDatabase(const char * name) {
+  sqliteDatabase * db;
+  unsigned int idx;
+  char * fn;
 
-  char *fn = STRDUP(db->fn);
-  close_database(db);
+  MUTEX_LOCK(lock);
+  for (idx = 0; idx < databases; idx++) {
+    if (0 == strcmp(dbs[idx]->name, name)) {
+      db = dbs[idx];
+      close_database(db);
+      dbs[idx] = dbs[databases-1];
+      GROW(dbs,
+	   databases,
+	   databases - 1);
+      break;
+    }
+  }
+  fn = getDBFileName(name);
   UNLINK(fn);
   FREE(fn);
-  db->closed = 1;
+  MUTEX_UNLOCK(lock);
 }
 
 /**
@@ -339,51 +326,54 @@ static void dropDatabase(const char *name) {
  * @param table the name of the Key/Value-Table
  * @return a handle
  */
-static KVHandle *getTable(const char *database, const char *table)
-{
+static KVHandle *getTable(const char *database,
+			  const char *table) {
   sqlite3_stmt *stmt;
   unsigned int len;
   KVHandle *ret;
   sqliteHandle *dbh;
   char *idx;
-  
+
   dbh = getDBHandle(database);
-  MUTEX_LOCK(dbh->DATABASE_Lock_);
-  
-  sq_prepare(dbh, "Select 1 from sqlite_master where tbl_name = ?",
-       &stmt);
+  if (dbh == NULL)
+    return NULL;
+  sq_prepare(dbh,
+	     "Select 1 from sqlite_master where tbl_name = ?",
+	     &stmt);
   len = strlen(table);
   sqlite3_bind_text(stmt, 1, table, len, SQLITE_STATIC);
-  if (sqlite3_step(stmt) == SQLITE_DONE)
-  {
+  if (sqlite3_step(stmt) == SQLITE_DONE) {
     char *create = malloc(len + 58);
-    
-    sprintf(create, "CREATE TABLE %s (gn_key BLOB, gn_val BLOB, gn_age BIGINT)", table);
-    
+
+    sprintf(create,
+	    "CREATE TABLE %s (gn_key BLOB, gn_val BLOB, gn_age BIGINT)",
+	    table);
+
     if (sqlite3_exec(dbh->dbh, create, NULL, NULL, NULL) != SQLITE_OK)
     {
-      LOG_SQLITE(LOG_ERROR, "sqlite_create");
+      LOG_SQLITE(dbh->dbh,
+		 LOG_ERROR,
+		 "sqlite_create");
       sqlite3_finalize(stmt);
       free(create);
-      MUTEX_UNLOCK(dbh->DATABASE_Lock_);
       return NULL;
     }
-    
+
     free(create);
   }
-  sqlite3_finalize(stmt);  
+  sqlite3_finalize(stmt);
 
   /* FIXME: more indexes */
   idx = (char *) malloc(len + 34);
-  sprintf(idx, "CREATE INDEX idx_key ON %s (gn_key)", table);
+  sprintf(idx,
+	  "CREATE INDEX idx_key ON %s (gn_key)",
+	  table);
   sqlite3_exec(dbh->dbh, idx, NULL, NULL, NULL);
-  
-  MUTEX_UNLOCK(dbh->DATABASE_Lock_);
 
   ret = MALLOC(sizeof(KVHandle));
   ret->table = STRDUP(table);
   ret->db = STRDUP(database);
-  
+
   return ret;
 }
 
@@ -397,9 +387,13 @@ static KVHandle *getTable(const char *database, const char *table)
  * @param handler callback function to be called for every result (may be NULL)
  * @param closure optional parameter for handler
  */
-static void *get(KVHandle *kv, void *key, int keylen, unsigned int sort,
-  unsigned int limit, KVCallback handler, void *closure)
-{
+static void *get(KVHandle *kv,
+		 void *key,
+		 int keylen,
+		 unsigned int sort,
+		 unsigned int limit,
+		 KVCallback handler,
+		 void *closure) {
   unsigned int len, enclen, retlen;
   char *sel, *order, *where, limit_spec[30];
   sqlite3_stmt *stmt;
@@ -407,13 +401,16 @@ static void *get(KVHandle *kv, void *key, int keylen, unsigned int sort,
   sqliteHandle *dbh;
   unsigned char *key_enc;
   void *ret_dec;
-  
+
+  dbh = getDBHandle(kv->db);
+  if (dbh == NULL)
+    return NULL;
   ret = NULL;
   ret_dec = NULL;
- 
-  len = strlen(kv->table); 
+
+  len = strlen(kv->table);
   sel = MALLOC(len + 45);
-  
+
   if (key)
   {
     where = "WHERE gn_key = ?";
@@ -426,7 +423,7 @@ static void *get(KVHandle *kv, void *key, int keylen, unsigned int sort,
     key_enc = NULL;
     enclen = 0; /* make gcc happy */
   }
-  
+
   switch(sort)
   {
     case 1:
@@ -439,16 +436,18 @@ static void *get(KVHandle *kv, void *key, int keylen, unsigned int sort,
       order = "";
       break;
   }
-  
+
   if (limit != 0)
     sprintf(limit_spec, "LIMIT %u", limit);
   else
     *limit_spec = 0;
-  
-  sprintf(sel, "SELECT gn_val FROM %s %s %s %s", kv->table, where, order, limit_spec);
-  
-  dbh = getDBHandle(kv->db);
-  MUTEX_LOCK(dbh->DATABASE_Lock_);
+
+  sprintf(sel,
+	  "SELECT gn_val FROM %s %s %s %s",
+	  kv->table,
+	  where,
+	  order,
+	  limit_spec);
 
   sq_prepare(dbh, sel, &stmt);
   if (key)
@@ -471,20 +470,14 @@ static void *get(KVHandle *kv, void *key, int keylen, unsigned int sort,
         FREE(sel);
 	FREENONNULL(key_enc);
         FREE(ret_dec);
-        MUTEX_UNLOCK(dbh->DATABASE_Lock_);
         sqlite3_finalize(stmt);
-        
-        return ret;      
+
+        return ret;
       }
   }
-  
   sqlite3_finalize(stmt);
-
-  MUTEX_UNLOCK(dbh->DATABASE_Lock_);
-  
   FREE(sel);
   FREENONNULL(key_enc);
-  
   return ret_dec;
 }
 
@@ -507,20 +500,22 @@ static int put(KVHandle *kv, void *key, int keylen, void *val, int vallen,
   sqliteHandle *dbh;
   unsigned char *key_enc, *val_enc;
   unsigned int keyenc_len, valenc_len;
- 
-  len = strlen(kv->table); 
+
+  dbh = getDBHandle(kv->db);
+  if (dbh == NULL)
+    return SYSERR;
+  len = strlen(kv->table);
   ins = MALLOC(len + 68);
-  
-  sprintf(ins, "INSERT INTO %s(gn_key, gn_val, gn_age) values (?, ?, ?)", kv->table);
-  
+
+  sprintf(ins,
+	  "INSERT INTO %s(gn_key, gn_val, gn_age) values (?, ?, ?)",
+	  kv->table);
+
   key_enc = MALLOC(keylen * 2);
   keyenc_len = sqlite_encode_binary(key, keylen, key_enc);
 
   val_enc = MALLOC(vallen * 2);
   valenc_len = sqlite_encode_binary(val, vallen, val_enc);
-
-  dbh = getDBHandle(kv->db);
-  MUTEX_LOCK(dbh->DATABASE_Lock_);
 
   sq_prepare(dbh, ins, &stmt);
   sqlite3_bind_blob(stmt, 1, key_enc, keyenc_len, SQLITE_STATIC);
@@ -531,21 +526,17 @@ static int put(KVHandle *kv, void *key, int keylen, void *val, int vallen,
     FREE(ins);
     FREE(key_enc);
     FREE(val_enc);
-    LOG_SQLITE(LOG_ERROR, "put");
-    MUTEX_UNLOCK(dbh->DATABASE_Lock_);
+    LOG_SQLITE(dbh->dbh,
+	       LOG_ERROR,
+	       "put");
     sqlite3_finalize(stmt);
-    
     return SYSERR;
   }
-  
   sqlite3_finalize(stmt);
-
-  MUTEX_UNLOCK(dbh->DATABASE_Lock_);
-  
   FREE(ins);
   FREE(key_enc);
   FREE(val_enc);
-  
+
   return OK;
 }
 
@@ -565,66 +556,63 @@ static int del(KVHandle *kv, void *key, int keylen, unsigned long long age)
   sqliteHandle *dbh;
   unsigned char *keyenc;
   unsigned int keyenc_len;
- 
-  len = strlen(kv->table); 
+
+  dbh = getDBHandle(kv->db);
+  if (dbh == NULL)
+    return SYSERR;
+
+  len = strlen(kv->table);
   del = MALLOC(len + 52);
   bind = 1;
-  
+
   if (key)
     key_where = "gn_key = ?";
   else
     key_where = "";
-  
+
   if (age)
     age_where = "gn_age = ?";
   else
     age_where = "";
-  
-  sprintf(del, "DELETE from %s where %s %s %s", kv->table, key_where, age ? "or" : "", age_where);
-  
-  keyenc = MALLOC(keylen * 2);
-  keyenc_len = sqlite_encode_binary(key, keylen, keyenc);
 
-  dbh = getDBHandle(kv->db);
-  MUTEX_LOCK(dbh->DATABASE_Lock_);
+  sprintf(del, "DELETE from %s where %s %s %s", kv->table, key_where, age ? "or" : "", age_where);
+
 
   sq_prepare(dbh, del, &stmt);
-  if (key)
-  {
+  if (key) {
+    keyenc = MALLOC(keylen * 2);
+    keyenc_len = sqlite_encode_binary(key, keylen, keyenc);
     sqlite3_bind_blob(stmt, 1, keyenc, keyenc_len, SQLITE_STATIC);
     bind++;
+  } else {
+    keyenc = NULL;
   }
-  
+
   if (age)
     sqlite3_bind_int64(stmt, bind, age);
 
   if (sqlite3_step(stmt) != SQLITE_DONE)
   {
     FREE(del);
-    FREE(keyenc);
-    LOG_SQLITE(LOG_ERROR, "delete");
-    MUTEX_UNLOCK(dbh->DATABASE_Lock_);
+    FREENONNULL(keyenc);
+    LOG_SQLITE(dbh->dbh,
+	       LOG_ERROR, "delete");
     sqlite3_finalize(stmt);
-    
-    return SYSERR;      
-  }
-  
-  sqlite3_finalize(stmt);
 
-  MUTEX_UNLOCK(dbh->DATABASE_Lock_);
-  
+    return SYSERR;
+  }
+  sqlite3_finalize(stmt);
   FREE(del);
-  FREE(keyenc);
-  
-  return OK;  
+  FREENONNULL(keyenc);
+
+  return OK;
 }
 
 /**
  * @brief Close a handle to a Key/Value-Table
  * @param kv the handle to close
  */
-static void closeTable(KVHandle *kv)
-{
+static void closeTable(KVHandle *kv) {
   FREE(kv->table);
   FREE(kv->db);
 }
@@ -638,33 +626,24 @@ static int dropTable(KVHandle *kv)
 {
   sqlite3_stmt *stmt;
   sqliteHandle *dbh;
+  char * drop;
 
-  char *drop = (void *) MALLOC(12 + strlen(kv->table));
-  
-  sprintf(drop, "DROP TABLE %s", kv->table);
   dbh = getDBHandle(kv->db);
-  MUTEX_LOCK(dbh->DATABASE_Lock_);
-
+  if (dbh == NULL)
+    return SYSERR;
+  drop = MALLOC(12 + strlen(kv->table));
+  sprintf(drop, "DROP TABLE %s", kv->table);
   sq_prepare(dbh, drop, &stmt);
-
-  if (sqlite3_step(stmt) != SQLITE_DONE)
-  {
+  if (sqlite3_step(stmt) != SQLITE_DONE) {
     FREE(drop);
-    LOG_SQLITE(LOG_ERROR, "drop");
-    MUTEX_UNLOCK(dbh->DATABASE_Lock_);
+    LOG_SQLITE(dbh->dbh,
+	       LOG_ERROR, "drop");
     sqlite3_finalize(stmt);
-    
     return SYSERR;
   }
-  
   sqlite3_finalize(stmt);
-
-  MUTEX_UNLOCK(dbh->DATABASE_Lock_);
-
   FREE(drop);
-  
   closeTable(kv);
-
   return OK;
 }
 
@@ -672,15 +651,15 @@ KVstore_ServiceAPI *
 provide_module_kvstore_sqlite(CoreAPIForApplication * capi) {
   static KVstore_ServiceAPI api;
 
+  ectx = capi->ectx;
 #if DEBUG_SQLITE
-  LOG(LOG_DEBUG,
-      "SQLite: initializing database\n");
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "KV-SQLite: initializing database\n");
 #endif
 
-  MUTEX_CREATE(&databasesLock);
-
+  lock = MUTEX_CREATE(NO);
   coreAPI = capi;
-
   api.closeTable = &closeTable;
   api.del = &del;
   api.get = &get;
@@ -695,14 +674,19 @@ provide_module_kvstore_sqlite(CoreAPIForApplication * capi) {
  * Shutdown the module.
  */
 void release_module_kvstore_sqlite() {
-  sqlite_shutdown();
+  unsigned int idx;
+
+  for (idx = 0; idx < databases; idx++)
+    close_database(dbs[idx]);
+  GROW(dbs, databases, 0);
+
 #if DEBUG_SQLITE
-  LOG(LOG_DEBUG,
-      "SQLite KVStore: database shutdown\n");
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "SQLite KVStore: database shutdown\n");
 #endif
 
-  MUTEX_DESTROY(&databasesLock);
-
+  MUTEX_DESTROY(lock);
   coreAPI = NULL;
 }
 

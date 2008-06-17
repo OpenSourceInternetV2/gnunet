@@ -42,6 +42,8 @@
 
 #include "platform.h"
 #include "gnunet_util.h"
+#include "gnunet_util_cron.h"
+
 #include "fragmentation.c"
 
 static PeerIdentity mySender;
@@ -57,7 +59,10 @@ static void handleHelper(const PeerIdentity * sender,
 			 const unsigned int len,
 			 int wasEncrypted,
 			 TSession  * ts) {
-  GNUNET_ASSERT(hostIdentityEquals(sender, &mySender));
+  GE_ASSERT(NULL,
+	    0 == memcmp(sender,
+			&mySender,
+			sizeof(PeerIdentity)));
   myMsg = resultBuffer;
   memcpy(resultBuffer, msg, len);
   myMsgLen = len;
@@ -67,8 +72,8 @@ static void handleHelper(const PeerIdentity * sender,
  * Wait long enough to force all fragments to timeout.
  */
 static void makeTimeout() {
-  gnunet_util_sleep(DEFRAGMENTATION_TIMEOUT*2);
-  defragmentationPurgeCron();
+  PTHREAD_SLEEP(DEFRAGMENTATION_TIMEOUT*2);
+  defragmentationPurgeCron(NULL);
 }
 
 /**
@@ -81,7 +86,7 @@ static void makeTimeout() {
  * @param length of the data portion
  * @param id the identity of the fragment
  */
-static P2P_MESSAGE_HEADER * makeFragment(unsigned short start,
+static MESSAGE_HEADER * makeFragment(unsigned short start,
 					 unsigned short size,
 					 unsigned short tot,
 					 int id) {
@@ -111,10 +116,10 @@ static void checkPacket(int id,
 			unsigned int len) {
   int i;
 
-  GNUNET_ASSERT(myMsg != NULL);
-  GNUNET_ASSERT(myMsgLen == len);
+  GE_ASSERT(NULL, myMsg != NULL);
+  GE_ASSERT(NULL, myMsgLen == len);
   for (i=0;i<len;i++)
-    GNUNET_ASSERT(myMsg[i] == (char) (i+id));
+    GE_ASSERT(NULL, myMsg[i] == (char) (i+id));
   myMsgLen = 0;
   myMsg = NULL;
 }
@@ -123,50 +128,50 @@ static void checkPacket(int id,
 /* **************** actual testcases ***************** */
 
 static void testSimpleFragment() {
-  P2P_MESSAGE_HEADER * pep;
+  MESSAGE_HEADER * pep;
 
   pep = makeFragment(0, 16, 32, 42);
   processFragment(&mySender, pep);
-  GNUNET_ASSERT(myMsg == NULL);
+  GE_ASSERT(NULL, myMsg == NULL);
   pep = makeFragment(16, 16, 32, 42);
   processFragment(&mySender, pep);
   checkPacket(42, 32);
 }
 
 static void testSimpleFragmentTimeout() {
-  P2P_MESSAGE_HEADER * pep;
+  MESSAGE_HEADER * pep;
 
   pep = makeFragment(0, 16, 32, 42);
   processFragment(&mySender, pep);
-  GNUNET_ASSERT(myMsg == NULL);
+  GE_ASSERT(NULL, myMsg == NULL);
   makeTimeout();
   pep = makeFragment(16, 16, 32, 42);
   processFragment(&mySender, pep);
-  GNUNET_ASSERT(myMsg == NULL);
+  GE_ASSERT(NULL, myMsg == NULL);
   pep = makeFragment(0, 16, 32, 42);
   processFragment(&mySender, pep);
   checkPacket(42, 32);
 }
 
 static void testSimpleFragmentReverse() {
-  P2P_MESSAGE_HEADER * pep;
+  MESSAGE_HEADER * pep;
 
   pep = makeFragment(16, 16, 32, 42);
   processFragment(&mySender, pep);
-  GNUNET_ASSERT(myMsg == NULL);
+  GE_ASSERT(NULL, myMsg == NULL);
   pep = makeFragment(0, 16, 32, 42);
   processFragment(&mySender, pep);
   checkPacket(42, 32);
 }
 
 static void testManyFragments() {
-  P2P_MESSAGE_HEADER * pep;
+  MESSAGE_HEADER * pep;
   int i;
 
   for (i=0;i<50;i++) {
     pep = makeFragment(i*16, 16, 51*16, 42);
     processFragment(&mySender, pep);
-    GNUNET_ASSERT(myMsg == NULL);
+    GE_ASSERT(NULL, myMsg == NULL);
   }
   pep = makeFragment(50*16,16, 51*16, 42);
   processFragment(&mySender, pep);
@@ -174,13 +179,13 @@ static void testManyFragments() {
 }
 
 static void testManyFragmentsMegaLarge() {
-  P2P_MESSAGE_HEADER * pep;
+  MESSAGE_HEADER * pep;
   int i;
 
   for (i=0;i<4000;i++) {
     pep = makeFragment(i*16, 16, 4001*16, 42);
     processFragment(&mySender, pep);
-    GNUNET_ASSERT(myMsg == NULL);
+    GE_ASSERT(NULL, myMsg == NULL);
   }
   pep = makeFragment(4000*16, 16, 4001*16, 42);
   processFragment(&mySender, pep);
@@ -188,13 +193,13 @@ static void testManyFragmentsMegaLarge() {
 }
 
 static void testLastFragmentEarly() {
-  P2P_MESSAGE_HEADER * pep;
+  MESSAGE_HEADER * pep;
   int i;
 
   for (i=0;i<5;i++) {
     pep = makeFragment(i*16, 8, 6*16+8, 42);
     processFragment(&mySender, pep);
-    GNUNET_ASSERT(myMsg == NULL);
+    GE_ASSERT(NULL, myMsg == NULL);
   }
   pep = makeFragment(5*16, 24, 6*16+8, 42);
   processFragment(&mySender, pep);
@@ -206,18 +211,18 @@ static void testLastFragmentEarly() {
 }
 
 static void testManyInterleavedFragments() {
-  P2P_MESSAGE_HEADER * pep;
+  MESSAGE_HEADER * pep;
   int i;
 
   for (i=0;i<50;i++) {
     pep = makeFragment(i*16, 8, 51*16+8, 42);
     processFragment(&mySender, pep);
-    GNUNET_ASSERT(myMsg == NULL);
+    GE_ASSERT(NULL, myMsg == NULL);
   }
   for (i=0;i<50;i++) {
     pep = makeFragment(i*16+8, 8, 51*16+8, 42);
     processFragment(&mySender, pep);
-    GNUNET_ASSERT(myMsg == NULL);
+    GE_ASSERT(NULL, myMsg == NULL);
   }
   pep = makeFragment(50*16, 24, 51*16+8, 42);
   processFragment(&mySender, pep);
@@ -225,18 +230,18 @@ static void testManyInterleavedFragments() {
 }
 
 static void testManyInterleavedOverlappingFragments() {
-  P2P_MESSAGE_HEADER * pep;
+  MESSAGE_HEADER * pep;
   int i;
 
   for (i=0;i<50;i++) {
     pep = makeFragment(i*32, 16, 51*32, 42);
     processFragment(&mySender, pep);
-    GNUNET_ASSERT(myMsg == NULL);
+    GE_ASSERT(NULL, myMsg == NULL);
   }
   for (i=0;i<50;i++) {
     pep = makeFragment(i*32+8, 24, 51*32, 42);
     processFragment(&mySender, pep);
-    GNUNET_ASSERT(myMsg == NULL);
+    GE_ASSERT(NULL, myMsg == NULL);
   }
   pep = makeFragment(50*32, 32, 51*32, 42);
   processFragment(&mySender, pep);
@@ -244,13 +249,13 @@ static void testManyInterleavedOverlappingFragments() {
 }
 
 static void testManyOverlappingFragments() {
-  P2P_MESSAGE_HEADER * pep;
+  MESSAGE_HEADER * pep;
   int i;
 
   for (i=0;i<50;i++) {
     pep = makeFragment(0, i*16+16, 51*16, 42);
     processFragment(&mySender, pep);
-    GNUNET_ASSERT(myMsg == NULL);
+    GE_ASSERT(NULL, myMsg == NULL);
   }
   pep = makeFragment(50*16,16, 51*16, 42);
   processFragment(&mySender, pep);
@@ -258,18 +263,18 @@ static void testManyOverlappingFragments() {
 }
 
 static void testManyOverlappingFragmentsTimeout() {
-  P2P_MESSAGE_HEADER * pep;
+  MESSAGE_HEADER * pep;
   int i;
 
   for (i=0;i<50;i++) {
     pep = makeFragment(0, i*16+16, 51*16+8, 42);
     processFragment(&mySender, pep);
-    GNUNET_ASSERT(myMsg == NULL);
+    GE_ASSERT(NULL, myMsg == NULL);
   }
   makeTimeout();
   pep = makeFragment(50*16, 24, 51*16+8, 42);
   processFragment(&mySender, pep);
-  GNUNET_ASSERT(myMsg == NULL);
+  GE_ASSERT(NULL, myMsg == NULL);
   for (i=0;i<50;i++) {
     pep = makeFragment(0, i*16+16, 51*16+8, 42);
     processFragment(&mySender, pep);
@@ -278,7 +283,7 @@ static void testManyOverlappingFragmentsTimeout() {
 }
 
 static void testManyFragmentsMultiId() {
-  P2P_MESSAGE_HEADER * pep;
+  MESSAGE_HEADER * pep;
   int i;
   int id;
 
@@ -287,7 +292,7 @@ static void testManyFragmentsMultiId() {
       pep = makeFragment(i*16, 16, 51*16, id+5);
       mySender.hashPubKey.bits[0] = id;
       processFragment(&mySender, pep);
-      GNUNET_ASSERT(myMsg == NULL);
+      GE_ASSERT(NULL, myMsg == NULL);
     }
   }
   for (id=0;id<DEFRAG_BUCKET_COUNT;id++) {
@@ -299,7 +304,7 @@ static void testManyFragmentsMultiId() {
 }
 
 static void testManyFragmentsMultiIdCollisions() {
-  P2P_MESSAGE_HEADER * pep;
+  MESSAGE_HEADER * pep;
   int i;
   int id;
 
@@ -308,7 +313,7 @@ static void testManyFragmentsMultiIdCollisions() {
       pep = makeFragment(i*16, 16, 6*16, id+5);
       mySender.hashPubKey.bits[0] = id;
       processFragment(&mySender, pep);
-      GNUNET_ASSERT(myMsg == NULL);
+      GE_ASSERT(NULL, myMsg == NULL);
     }
   }
   for (id=0;id<DEFRAG_BUCKET_COUNT*4;id++) {
@@ -332,23 +337,6 @@ static int unregisterp2pHandler(const unsigned short type,
 }
 
 
-/**
- * Perform option parsing from the command line.
- */
-static int parser(int argc,
-		  char * argv[]) {
-  FREENONNULL(setConfigurationString("FILES",
-				     "gnunet.conf",
-				     "check.conf"));
-  FREENONNULL(setConfigurationString("GNUNETD",
-				     "_MAGIC_",
-				     "YES"));
-  FREENONNULL(setConfigurationString("GNUNETD",
-				     "LOGFILE",
-				     NULL));
-  return OK;
-}
-
 static void * requestService(const char * name) {
   return NULL;
 }
@@ -356,10 +344,8 @@ static void * requestService(const char * name) {
 int main(int argc, char * argv[]){
   CoreAPIForApplication capi;
 
-  if (OK != initUtil(argc, argv, &parser))
-    return SYSERR;
-
   memset(&capi, 0, sizeof(CoreAPIForApplication));
+  capi.cron = cron_create(NULL);
   capi.injectMessage = &handleHelper;
   capi.requestService = &requestService;
   capi.registerHandler = &registerp2pHandler;
@@ -394,6 +380,6 @@ int main(int argc, char * argv[]){
   fprintf(stderr, ".");
   release_module_fragmentation();
   fprintf(stderr, "\n");
-  doneUtil();
+  cron_destroy(capi.cron);
   return 0; /* testcase passed */
 }

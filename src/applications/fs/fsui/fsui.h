@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004, 2005 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -20,50 +20,21 @@
 
 /**
  * @file applications/fs/fsui/fsui.h
- * @brief definition of the FSUI_Context
+ * @brief internal definitions for libfsui
  * @author Christian Grothoff
  */
 #ifndef FSUI_H
 #define FSUI_H
 
 #include "gnunet_util.h"
+#include "gnunet_util_cron.h"
 #include "gnunet_ecrs_lib.h"
 #include "gnunet_blockstore.h"
-
-/**
- * Linked list of FSUI threads.
- */
-typedef struct FSUI_ThreadList {
-
-  /**
-   * FSUI threads are kept in a simple
-   * linked list
-   */
-  struct FSUI_ThreadList * next;
-
-  /**
-   * Handle to a thread.
-   */
-  PTHREAD_T handle;
-
-  /**
-   * Flag that indicates if it is safe (i.e.
-   * non-blocking) to call join on the handle.
-   * Set to YES by an FSUI thread upon exit.
-   */
-  int isDone;
-} FSUI_ThreadList;
 
 /**
  * Track record for a given result.
  */
 typedef struct {
-
-  /**
-   * For how many keys (hash of keyword) did we
-   * get this result?
-   */
-  unsigned int matchingKeyCount;
 
   /**
    * What are these keys?
@@ -74,12 +45,29 @@ typedef struct {
    * What info do we have about this result?
    */
   ECRS_FileInfo fi;
+
+  /**
+   * For how many keys (hash of keyword) did we
+   * get this result?
+   */
+  unsigned int matchingKeyCount;
+
 } ResultPending;
 
 /**
  * @brief list of active searches
  */
 typedef struct FSUI_SearchList {
+
+  /**
+   * Desired timeout (relative) for this search
+   */
+  cron_t timeout;
+
+  /**
+   * start time of the search
+   */
+  cron_t start_time;
 
   /**
    * Searches are kept in a simple linked list.
@@ -94,13 +82,7 @@ typedef struct FSUI_SearchList {
   /**
    * Handle to the thread which performs the search.
    */
-  PTHREAD_T handle;
-
-  /**
-   * Set this to YES to signal the search thread that
-   * termination is desired.  Then join on handle.
-   */
-  int signalTerminate;
+  struct PTHREAD * handle;
 
   /**
    * Which URI are we searching?
@@ -108,9 +90,28 @@ typedef struct FSUI_SearchList {
   struct ECRS_URI * uri;
 
   /**
+   * What downloads belong to this search?
+   */
+  struct FSUI_DownloadList ** my_downloads;
+
+  /**
+   * List of all results found so far.
+   */
+  ECRS_FileInfo * resultsReceived;
+
+  ResultPending * unmatchedResultsReceived;
+
+  void * cctx;
+
+  /**
    * Desired anonymity level for this search
    */
   unsigned int anonymityLevel;
+
+  /**
+   * Maximum number of results requested.
+   */
+  unsigned int maxResults;
 
   /**
    * Of how many individual queries does the
@@ -124,9 +125,9 @@ typedef struct FSUI_SearchList {
   unsigned int sizeResultsReceived;
 
   /**
-   * List of all results found so far.
+   * Number of downloads associated with this search.
    */
-  ECRS_FileInfo * resultsReceived;
+  unsigned int my_downloads_size;
 
   /**
    * Size of the queue of results that matched at least
@@ -135,71 +136,36 @@ typedef struct FSUI_SearchList {
    */
   unsigned int sizeUnmatchedResultsReceived;
 
-  ResultPending * unmatchedResultsReceived;
+  FSUI_State state;
 
 } FSUI_SearchList;
-
-/**
- * Current state of a download.
- *
- * PENDING means that the download is waiting for a thread
- * to be assigned to run it.  Downloads start in this state,
- * and during shutdown are serialized in this state.<br>
- *
- * ACTIVE means that there is currently a thread running
- * the download (and that thread is allowed to continue).<br>
- *
- * COMPLETED means that the download is finished (but the
- * thread has not been joined yet).  The download thread
- * makes the transition from PENDING to COMPLETED when it
- * is about to terminate.<br>
- *
- * COMPLETED_JOINED means that the download is finished and
- * the thread has been joined.<br>
- *
- * ABORTED means that the user is causing the download to be
- * terminated early (but the thread has not been joined yet).  The
- * controller or the download thread make this transition; the
- * download thread is supposed to terminate shortly after the state is
- * moved to ABORTED.<br>
- *
- * ABORTED_JOINED means that the download did not complete
- * successfully, should not be restarted and that the thread
- * has been joined.<br>
- *
- * ERROR means that some fatal error is causing the download to be
- * terminated early (but the thread has not been joined yet).  The
- * controller or the download thread make this transition; the
- * download thread is supposed to terminate shortly after the state is
- * moved to ERROR.<br>
- *
- * ERROR_JOINED means that the download did not complete successfully,
- * should not be restarted and that the thread has been joined.<br>
- *
- * SUSPENDING is used to notify the download thread that it
- * should terminate because of an FSUI shutdown.  After this
- * termination the code that joins the thread should move
- * the state into PENDING (a new thread would not be started
- * immediately because "threadPoolSize" will be 0 until FSUI
- * resumes).
- */
-typedef enum {
-  FSUI_DOWNLOAD_PENDING = 0,
-  FSUI_DOWNLOAD_ACTIVE = 1,
-  FSUI_DOWNLOAD_COMPLETED = 2,
-  FSUI_DOWNLOAD_COMPLETED_JOINED = 3,
-  FSUI_DOWNLOAD_ABORTED = 4,
-  FSUI_DOWNLOAD_ABORTED_JOINED = 5,
-  FSUI_DOWNLOAD_ERROR = 6,
-  FSUI_DOWNLOAD_ERROR_JOINED = 7,
-  FSUI_DOWNLOAD_SUSPENDING = 8,
-} FSUI_DownloadState;
-
 
 /**
  * @brief list of active downloads
  */
 typedef struct FSUI_DownloadList {
+
+  /**
+   * How many bytes is this download in total
+   * (including files in directory).
+   */
+  unsigned long long total;
+
+  /**
+   * How many bytes have been retrieved so far?
+   */
+  unsigned long long completed;
+
+  /**
+   * URI for this download.
+   */
+  ECRS_FileInfo fi;
+
+  /**
+   * Filename for this download.
+   */
+  char * filename;
+
   /**
    * Next in the linked list of all downloads
    * kept in FSUI context.
@@ -220,57 +186,51 @@ typedef struct FSUI_DownloadList {
   struct FSUI_DownloadList * child;
 
   /**
+   * Search that this download belongs to (maybe NULL)
+   */
+  struct FSUI_SearchList * search;
+
+  /**
    * FSUI context for this download.
    */
   struct FSUI_Context * ctx;
 
   /**
-   * State of the download.
+   * Client context for the downloadx
    */
-  FSUI_DownloadState state;
+  void * cctx;
 
   /**
    * Currently assigned thread (if any).
    */
-  PTHREAD_T handle;
+  struct PTHREAD * handle;
 
   /**
-   * How many bytes is this download in total
-   * (including files in directory).
+   * FIs of completed sub-downloads.
    */
-  unsigned long long total;
+  struct ECRS_URI ** completedDownloads;
 
   /**
-   * How many bytes have been retrieved so far?
+   * When did the download start?  Note that if a download is resumed,
+   * this time is set such that the total time is accurate, not the
+   * absolute start time.<p>
+   * While the download thread is running, this is the
+   * absolute start time assuming the thread ran continuously.
    */
-  unsigned long long completed;
+  cron_t startTime;
 
   /**
-   * How many bytes have been retrieved so far for this particular file only.
+   * While the download thread is suspended, this is the
+   * total amount of time that all threads have consumed so far.
+   * While the download thread is running, startTime should
+   * be used instead (since runTime maybe outdated).
    */
-  unsigned long long completedFile;
-
-  /**
-   * URI for this download.
-   */
-  struct ECRS_URI * uri;
-
-  /**
-   * Filename for this download.
-   */
-  char * filename;
+  cron_t runTime;
 
   /**
    * Is this a recursive download? (YES/NO)
    */
   int is_recursive;
-
-  /**
-   * When did the download start?  Note that if a download is resumed,
-   * this time is set such that the total time is accurate, not the
-   * absolute start time.
-   */
-  cron_t startTime;
 
   /**
    * Is this file a directory?  Set to YES either if the first block
@@ -295,28 +255,136 @@ typedef struct FSUI_DownloadList {
   unsigned int anonymityLevel;
 
   /**
-   * FIs of completed sub-downloads.
-   */
-  struct ECRS_URI ** completedDownloads;
-
-  /**
    * Number of completed sub-downloads.
    */
   unsigned int completedDownloadsCount;
 
+  /**
+   * State of the download.
+   */
+  FSUI_State state;
+
 } FSUI_DownloadList;
+
+/**
+ * Context for the unindex thread.
+ */
+typedef struct FSUI_UnindexList {
+
+  cron_t start_time;
+
+  struct FSUI_UnindexList * next;
+
+  struct PTHREAD * handle;
+
+  char * filename;
+
+  struct FSUI_Context * ctx;
+
+  void * cctx;
+
+  FSUI_State state;
+
+} FSUI_UnindexList;
+
+
+/**
+ * Shared context for upload of entire structure.
+ */
+typedef struct FSUI_UploadShared {
+
+  cron_t expiration;
+
+  DirectoryScanCallback dsc;
+
+  void * dscClosure;
+		
+  EXTRACTOR_ExtractorList * extractors;
+
+  struct FSUI_Context * ctx;
+
+  struct PTHREAD * handle;
+
+  /**
+   * Keywords to be used for all uploads.
+   */
+  struct ECRS_URI * global_keywords;
+
+  char * extractor_config;
+
+  int doIndex;
+
+  unsigned int anonymityLevel;
+
+  unsigned int priority;
+
+  int individualKeywords;
+
+} FSUI_UploadShared;
+
+/**
+ * Context for each file upload.
+ */
+typedef struct FSUI_UploadList {
+
+  unsigned long long completed;
+
+  unsigned long long total;
+
+  cron_t start_time;
+
+  struct FSUI_UploadShared * shared;
+
+  struct FSUI_UploadList * next;
+
+  struct FSUI_UploadList * child;
+
+  struct FSUI_UploadList * parent;
+
+  /**
+   * Metadata for this file.
+   */
+  struct ECRS_MetaData * meta;
+
+  /**
+   * Keywords to be used for this upload.
+   */
+  struct ECRS_URI * keywords;
+
+  /**
+   * URI for this file (set upon completion).
+   */
+  struct ECRS_URI * uri;
+
+  char * filename;
+
+  /**
+   * FSUI-client context.
+   */
+  void * cctx;
+
+  /**
+   * State of this sub-process.
+   */
+  FSUI_State state;
+
+} FSUI_UploadList;
 
 /**
  * @brief global state of the FSUI library
  */
 typedef struct FSUI_Context {
 
+  struct GE_Context * ectx;
+
+  struct GC_Configuration * cfg;
+
   /**
    * IPC semaphore used to ensure mutual exclusion
    * between different processes of the same name
    * that all use resume.
    */
-  IPC_Semaphore * ipc;
+  struct IPC_SEMAPHORE * ipc;
 
   /**
    * Name of the tool using FSUI (used for resume).
@@ -326,7 +394,9 @@ typedef struct FSUI_Context {
   /**
    * Lock to synchronize access to the FSUI Context.
    */
-  Mutex lock;
+  struct MUTEX * lock;
+
+  struct CronManager * cron;
 
   /**
    * Callback for notifying the client about events.
@@ -344,15 +414,16 @@ typedef struct FSUI_Context {
   DataContainer * collectionData;
 
   /**
-   * Active FSUI threads that cannot be stopped and
-   * that FSUI must call join on before it may shutdown.
-   */
-  FSUI_ThreadList * activeThreads;
-
-  /**
    * List of active searches.
    */
   FSUI_SearchList * activeSearches;
+
+  /**
+   * List of active unindex operations.
+   */
+  FSUI_UnindexList * unindexOperations;
+
+  FSUI_UploadList activeUploads;
 
   /**
    * Root of the tree of downloads.  On shutdown,
@@ -374,6 +445,8 @@ typedef struct FSUI_Context {
 
 } FSUI_Context;
 
+/* ************ cross-file prototypes ************ */
+
 /**
  * Starts or stops download threads in accordance with thread pool
  * size and active downloads.  Call only while holding FSUI lock (or
@@ -381,31 +454,16 @@ typedef struct FSUI_Context {
  *
  * @return YES if change done that may require re-trying
  */
-int updateDownloadThread(FSUI_DownloadList * list);
+int FSUI_updateDownloadThread(FSUI_DownloadList * list);
 
-/**
- * Free the subtree (assumes all threads have already been stopped and
- * that the FSUI lock is either held or that we are in FSUI stop!).
- */
-void freeDownloadList(FSUI_DownloadList * list);
+void * FSUI_uploadThread(void * dl);
 
-/**
- * Cleanup the FSUI context (removes dead entries from
- * activeThreads / activeSearches / activeDownloads).
- */
-void cleanupFSUIThreadList(FSUI_Context * ctx);
+void * FSUI_searchThread(void * pos);
 
+void * FSUI_unindexThread(void * cls);
 
-/* FOR RESUME: from download.c */
-/**
- * Thread that downloads a file.
- */
-void * downloadThread(void * dl);
+void FSUI_serialize(struct FSUI_Context * ctx);
 
-/* from search.c */
-/**
- * FOR RESUME: Thread that searches for data.
- */
-void * searchThread(void /* FSUI_SearchList */ * pos);
+void FSUI_deserialize(struct FSUI_Context * ctx);
 
 #endif

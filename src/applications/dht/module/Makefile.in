@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-SOURCES = $(libgnunetdht_datastore_memory_la_SOURCES) $(libgnunetmodule_dht_la_SOURCES) $(datastore_memory_test_SOURCES)
+SOURCES = $(libgnunetmodule_dht_la_SOURCES)
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -37,50 +37,41 @@ NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
 host_triplet = @host@
-check_PROGRAMS = datastore_memory_test$(EXEEXT)
 subdir = src/applications/dht/module
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/m4/ac_define_dir.m4 \
-	$(top_srcdir)/m4/gettext.m4 $(top_srcdir)/m4/gtk-2.0.m4 \
-	$(top_srcdir)/m4/guile.m4 $(top_srcdir)/m4/iconv.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/m4/gettext.m4 \
+	$(top_srcdir)/m4/gtk-2.0.m4 $(top_srcdir)/m4/iconv.m4 \
 	$(top_srcdir)/m4/lib-ld.m4 $(top_srcdir)/m4/lib-link.m4 \
-	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libgcrypt.m4 \
-	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/pkg.m4 \
-	$(top_srcdir)/m4/po.m4 $(top_srcdir)/m4/progtest.m4 \
-	$(top_srcdir)/acinclude.m4 $(top_srcdir)/configure.ac
+	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libcurl.m4 \
+	$(top_srcdir)/m4/libgcrypt.m4 $(top_srcdir)/m4/libxml2.m4 \
+	$(top_srcdir)/m4/mkdir.m4 $(top_srcdir)/m4/nls.m4 \
+	$(top_srcdir)/m4/pkg.m4 $(top_srcdir)/m4/po.m4 \
+	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/acinclude.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
 CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
-am__installdirs = "$(DESTDIR)$(libdir)" "$(DESTDIR)$(plugindir)"
-libLTLIBRARIES_INSTALL = $(INSTALL)
+am__installdirs = "$(DESTDIR)$(plugindir)"
 pluginLTLIBRARIES_INSTALL = $(INSTALL)
-LTLIBRARIES = $(lib_LTLIBRARIES) $(plugin_LTLIBRARIES)
-libgnunetdht_datastore_memory_la_DEPENDENCIES =  \
-	$(top_builddir)/src/util/libgnunetutil.la
-am_libgnunetdht_datastore_memory_la_OBJECTS = datastore_memory.lo
-libgnunetdht_datastore_memory_la_OBJECTS =  \
-	$(am_libgnunetdht_datastore_memory_la_OBJECTS)
+LTLIBRARIES = $(plugin_LTLIBRARIES)
 libgnunetmodule_dht_la_DEPENDENCIES =  \
+	$(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
+	$(top_builddir)/src/util/containers/libgnunetutil_containers.la \
 	$(top_builddir)/src/util/libgnunetutil.la \
+	$(top_builddir)/src/util/cron/libgnunetutil_cron.la \
 	$(top_builddir)/src/applications/rpc/libgnunetmodule_rpc_util.la
-am_libgnunetmodule_dht_la_OBJECTS = dht.lo datastore_dht_master.lo \
-	cs.lo
+am_libgnunetmodule_dht_la_OBJECTS = cs.lo dstore.lo routing.lo \
+	service.lo table.lo
 libgnunetmodule_dht_la_OBJECTS = $(am_libgnunetmodule_dht_la_OBJECTS)
-am_datastore_memory_test_OBJECTS = datastore_memory_test.$(OBJEXT)
-datastore_memory_test_OBJECTS = $(am_datastore_memory_test_OBJECTS)
-datastore_memory_test_DEPENDENCIES = $(top_builddir)/src/applications/dht/module/libgnunetdht_datastore_memory.la \
-	$(top_builddir)/src/util/libgnunetutil.la
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
-@AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/cs.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/datastore_dht_master.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/datastore_memory.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/datastore_memory_test.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/dht.Plo
+@AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/cs.Plo ./$(DEPDIR)/dstore.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/routing.Plo ./$(DEPDIR)/service.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/table.Plo
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) \
@@ -89,12 +80,8 @@ LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) \
 CCLD = $(CC)
 LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(libgnunetdht_datastore_memory_la_SOURCES) \
-	$(libgnunetmodule_dht_la_SOURCES) \
-	$(datastore_memory_test_SOURCES)
-DIST_SOURCES = $(libgnunetdht_datastore_memory_la_SOURCES) \
-	$(libgnunetmodule_dht_la_SOURCES) \
-	$(datastore_memory_test_SOURCES)
+SOURCES = $(libgnunetmodule_dht_la_SOURCES)
+DIST_SOURCES = $(libgnunetmodule_dht_la_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -122,7 +109,6 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 CYGWIN_FALSE = @CYGWIN_FALSE@
 CYGWIN_TRUE = @CYGWIN_TRUE@
-DATADIR = @DATADIR@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
 DLLTOOL = @DLLTOOL@
@@ -139,25 +125,25 @@ FFLAGS = @FFLAGS@
 GMSGFMT = @GMSGFMT@
 GNUNETGTK_CFLAGS = @GNUNETGTK_CFLAGS@
 GNUNETGTK_LIBS = @GNUNETGTK_LIBS@
+GREP = @GREP@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
-GUILE = @GUILE@
-GUILE_CONFIG = @GUILE_CONFIG@
-GUILE_TOOLS = @GUILE_TOOLS@
-HAVE_CURSES_FALSE = @HAVE_CURSES_FALSE@
-HAVE_CURSES_TRUE = @HAVE_CURSES_TRUE@
+HAVE_DIALOG_FALSE = @HAVE_DIALOG_FALSE@
+HAVE_DIALOG_TRUE = @HAVE_DIALOG_TRUE@
 HAVE_GTK_FALSE = @HAVE_GTK_FALSE@
 HAVE_GTK_TRUE = @HAVE_GTK_TRUE@
 HAVE_GUILE_FALSE = @HAVE_GUILE_FALSE@
 HAVE_GUILE_TRUE = @HAVE_GUILE_TRUE@
 HAVE_IPV6_FALSE = @HAVE_IPV6_FALSE@
 HAVE_IPV6_TRUE = @HAVE_IPV6_TRUE@
+HAVE_MHD_FALSE = @HAVE_MHD_FALSE@
+HAVE_MHD_TRUE = @HAVE_MHD_TRUE@
 HAVE_MYSQL_FALSE = @HAVE_MYSQL_FALSE@
 HAVE_MYSQL_TRUE = @HAVE_MYSQL_TRUE@
-HAVE_PDCURSES_FALSE = @HAVE_PDCURSES_FALSE@
-HAVE_PDCURSES_TRUE = @HAVE_PDCURSES_TRUE@
 HAVE_SQLITE_FALSE = @HAVE_SQLITE_FALSE@
 HAVE_SQLITE_TRUE = @HAVE_SQLITE_TRUE@
+HAVE_XML2_FALSE = @HAVE_XML2_FALSE@
+HAVE_XML2_TRUE = @HAVE_XML2_TRUE@
 HAVE_ZLIB_FALSE = @HAVE_ZLIB_FALSE@
 HAVE_ZLIB_TRUE = @HAVE_ZLIB_TRUE@
 INSTALL_DATA = @INSTALL_DATA@
@@ -169,6 +155,8 @@ INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 INTLLIBS = @INTLLIBS@
 LDFLAGS = @LDFLAGS@
 LIBADD_DL = @LIBADD_DL@
+LIBCURL = @LIBCURL@
+LIBCURL_CPPFLAGS = @LIBCURL_CPPFLAGS@
 LIBGCRYPT_CFLAGS = @LIBGCRYPT_CFLAGS@
 LIBGCRYPT_CONFIG = @LIBGCRYPT_CONFIG@
 LIBGCRYPT_LIBS = @LIBGCRYPT_LIBS@
@@ -179,11 +167,12 @@ LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
-LOCALEDIR = @LOCALEDIR@
 LTDLINCL = @LTDLINCL@
 LTLIBICONV = @LTLIBICONV@
 LTLIBINTL = @LTLIBINTL@
 LTLIBOBJS = @LTLIBOBJS@
+MACOSX_FALSE = @MACOSX_FALSE@
+MACOSX_TRUE = @MACOSX_TRUE@
 MAKEINFO = @MAKEINFO@
 MINGW_FALSE = @MINGW_FALSE@
 MINGW_TRUE = @MINGW_TRUE@
@@ -216,15 +205,13 @@ VERSION = @VERSION@
 XFREEBSD_FALSE = @XFREEBSD_FALSE@
 XFREEBSD_TRUE = @XFREEBSD_TRUE@
 XGETTEXT = @XGETTEXT@
-ac_ct_AR = @ac_ct_AR@
-ac_ct_AS = @ac_ct_AS@
+XML2_CONFIG = @XML2_CONFIG@
+XML_CPPFLAGS = @XML_CPPFLAGS@
+XML_LIBS = @XML_LIBS@
+_libcurl_config = @_libcurl_config@
 ac_ct_CC = @ac_ct_CC@
 ac_ct_CXX = @ac_ct_CXX@
-ac_ct_DLLTOOL = @ac_ct_DLLTOOL@
 ac_ct_F77 = @ac_ct_F77@
-ac_ct_OBJDUMP = @ac_ct_OBJDUMP@
-ac_ct_RANLIB = @ac_ct_RANLIB@
-ac_ct_STRIP = @ac_ct_STRIP@
 am__fastdepCC_FALSE = @am__fastdepCC_FALSE@
 am__fastdepCC_TRUE = @am__fastdepCC_TRUE@
 am__fastdepCXX_FALSE = @am__fastdepCXX_FALSE@
@@ -239,24 +226,30 @@ build_cpu = @build_cpu@
 build_os = @build_os@
 build_vendor = @build_vendor@
 datadir = @datadir@
+datarootdir = @datarootdir@
+docdir = @docdir@
+dvidir = @dvidir@
 exec_prefix = @exec_prefix@
-guile_available = @guile_available@
 host = @host@
 host_alias = @host_alias@
 host_cpu = @host_cpu@
 host_os = @host_os@
 host_vendor = @host_vendor@
+htmldir = @htmldir@
 includedir = @includedir@
 infodir = @infodir@
 install_sh = @install_sh@
 libdir = @libdir@
 libexecdir = @libexecdir@
+localedir = @localedir@
 localstatedir = @localstatedir@
 mandir = @mandir@
 mkdir_p = @mkdir_p@
 oldincludedir = @oldincludedir@
+pdfdir = @pdfdir@
 prefix = @prefix@
 program_transform_name = @program_transform_name@
+psdir = @psdir@
 sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 subdirs = @subdirs@
@@ -267,38 +260,22 @@ plugindir = $(libdir)/GNUnet
 plugin_LTLIBRARIES = \
   libgnunetmodule_dht.la 
 
-lib_LTLIBRARIES = \
-  libgnunetdht_datastore_memory.la 
-
 libgnunetmodule_dht_la_SOURCES = \
-  dht.c \
-  datastore_dht_master.c \
-  datastore_dht_master.h \
-  cs.c 
+  cs.c \
+  dstore.c dstore.h \
+  routing.c routing.h \
+  service.c \
+  table.c table.h 
 
-libgnunetmodule_dht_la_LIBADD = \
+libgnunetmodule_dht_la_LIBADD = -lm \
+ $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
+ $(top_builddir)/src/util/containers/libgnunetutil_containers.la \
  $(top_builddir)/src/util/libgnunetutil.la \
+ $(top_builddir)/src/util/cron/libgnunetutil_cron.la \
  $(top_builddir)/src/applications/rpc/libgnunetmodule_rpc_util.la
 
 libgnunetmodule_dht_la_LDFLAGS = \
   -export-dynamic -avoid-version -module
-
-libgnunetdht_datastore_memory_la_SOURCES = \
-  datastore_memory.c 
-
-libgnunetdht_datastore_memory_la_LIBADD = \
- $(top_builddir)/src/util/libgnunetutil.la 
-
-libgnunetdht_datastore_memory_la_LDFLAGS = \
-  -export-dynamic 
-
-TESTS = $(check_PROGRAMS)
-datastore_memory_test_SOURCES = \
-  datastore_memory_test.c
-
-datastore_memory_test_LDADD = \
-  $(top_builddir)/src/applications/dht/module/libgnunetdht_datastore_memory.la \
-  $(top_builddir)/src/util/libgnunetutil.la 
 
 all: all-am
 
@@ -333,33 +310,6 @@ $(top_srcdir)/configure:  $(am__configure_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
-install-libLTLIBRARIES: $(lib_LTLIBRARIES)
-	@$(NORMAL_INSTALL)
-	test -z "$(libdir)" || $(mkdir_p) "$(DESTDIR)$(libdir)"
-	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
-	  if test -f $$p; then \
-	    f="`echo $$p | sed -e 's|^.*/||'`"; \
-	    echo " $(LIBTOOL) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) '$$p' '$(DESTDIR)$(libdir)/$$f'"; \
-	    $(LIBTOOL) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) "$$p" "$(DESTDIR)$(libdir)/$$f"; \
-	  else :; fi; \
-	done
-
-uninstall-libLTLIBRARIES:
-	@$(NORMAL_UNINSTALL)
-	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
-	    p="`echo $$p | sed -e 's|^.*/||'`"; \
-	  echo " $(LIBTOOL) --mode=uninstall rm -f '$(DESTDIR)$(libdir)/$$p'"; \
-	  $(LIBTOOL) --mode=uninstall rm -f "$(DESTDIR)$(libdir)/$$p"; \
-	done
-
-clean-libLTLIBRARIES:
-	-test -z "$(lib_LTLIBRARIES)" || rm -f $(lib_LTLIBRARIES)
-	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
-	  dir="`echo $$p | sed -e 's|/[^/]*$$||'`"; \
-	  test "$$dir" != "$$p" || dir=.; \
-	  echo "rm -f \"$${dir}/so_locations\""; \
-	  rm -f "$${dir}/so_locations"; \
-	done
 install-pluginLTLIBRARIES: $(plugin_LTLIBRARIES)
 	@$(NORMAL_INSTALL)
 	test -z "$(plugindir)" || $(mkdir_p) "$(DESTDIR)$(plugindir)"
@@ -387,20 +337,8 @@ clean-pluginLTLIBRARIES:
 	  echo "rm -f \"$${dir}/so_locations\""; \
 	  rm -f "$${dir}/so_locations"; \
 	done
-libgnunetdht_datastore_memory.la: $(libgnunetdht_datastore_memory_la_OBJECTS) $(libgnunetdht_datastore_memory_la_DEPENDENCIES) 
-	$(LINK) -rpath $(libdir) $(libgnunetdht_datastore_memory_la_LDFLAGS) $(libgnunetdht_datastore_memory_la_OBJECTS) $(libgnunetdht_datastore_memory_la_LIBADD) $(LIBS)
 libgnunetmodule_dht.la: $(libgnunetmodule_dht_la_OBJECTS) $(libgnunetmodule_dht_la_DEPENDENCIES) 
 	$(LINK) -rpath $(plugindir) $(libgnunetmodule_dht_la_LDFLAGS) $(libgnunetmodule_dht_la_OBJECTS) $(libgnunetmodule_dht_la_LIBADD) $(LIBS)
-
-clean-checkPROGRAMS:
-	@list='$(check_PROGRAMS)'; for p in $$list; do \
-	  f=`echo $$p|sed 's/$(EXEEXT)$$//'`; \
-	  echo " rm -f $$p $$f"; \
-	  rm -f $$p $$f ; \
-	done
-datastore_memory_test$(EXEEXT): $(datastore_memory_test_OBJECTS) $(datastore_memory_test_DEPENDENCIES) 
-	@rm -f datastore_memory_test$(EXEEXT)
-	$(LINK) $(datastore_memory_test_LDFLAGS) $(datastore_memory_test_OBJECTS) $(datastore_memory_test_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -409,10 +347,10 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cs.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/datastore_dht_master.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/datastore_memory.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/datastore_memory_test.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dht.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dstore.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/routing.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/service.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/table.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -496,79 +434,6 @@ GTAGS:
 distclean-tags:
 	-rm -f TAGS ID GTAGS GRTAGS GSYMS GPATH tags
 
-check-TESTS: $(TESTS)
-	@failed=0; all=0; xfail=0; xpass=0; skip=0; \
-	srcdir=$(srcdir); export srcdir; \
-	list='$(TESTS)'; \
-	if test -n "$$list"; then \
-	  for tst in $$list; do \
-	    if test -f ./$$tst; then dir=./; \
-	    elif test -f $$tst; then dir=; \
-	    else dir="$(srcdir)/"; fi; \
-	    if $(TESTS_ENVIRONMENT) $${dir}$$tst; then \
-	      all=`expr $$all + 1`; \
-	      case " $(XFAIL_TESTS) " in \
-	      *" $$tst "*) \
-		xpass=`expr $$xpass + 1`; \
-		failed=`expr $$failed + 1`; \
-		echo "XPASS: $$tst"; \
-	      ;; \
-	      *) \
-		echo "PASS: $$tst"; \
-	      ;; \
-	      esac; \
-	    elif test $$? -ne 77; then \
-	      all=`expr $$all + 1`; \
-	      case " $(XFAIL_TESTS) " in \
-	      *" $$tst "*) \
-		xfail=`expr $$xfail + 1`; \
-		echo "XFAIL: $$tst"; \
-	      ;; \
-	      *) \
-		failed=`expr $$failed + 1`; \
-		echo "FAIL: $$tst"; \
-	      ;; \
-	      esac; \
-	    else \
-	      skip=`expr $$skip + 1`; \
-	      echo "SKIP: $$tst"; \
-	    fi; \
-	  done; \
-	  if test "$$failed" -eq 0; then \
-	    if test "$$xfail" -eq 0; then \
-	      banner="All $$all tests passed"; \
-	    else \
-	      banner="All $$all tests behaved as expected ($$xfail expected failures)"; \
-	    fi; \
-	  else \
-	    if test "$$xpass" -eq 0; then \
-	      banner="$$failed of $$all tests failed"; \
-	    else \
-	      banner="$$failed of $$all tests did not behave as expected ($$xpass unexpected passes)"; \
-	    fi; \
-	  fi; \
-	  dashes="$$banner"; \
-	  skipped=""; \
-	  if test "$$skip" -ne 0; then \
-	    skipped="($$skip tests were not run)"; \
-	    test `echo "$$skipped" | wc -c` -le `echo "$$banner" | wc -c` || \
-	      dashes="$$skipped"; \
-	  fi; \
-	  report=""; \
-	  if test "$$failed" -ne 0 && test -n "$(PACKAGE_BUGREPORT)"; then \
-	    report="Please report to $(PACKAGE_BUGREPORT)"; \
-	    test `echo "$$report" | wc -c` -le `echo "$$banner" | wc -c` || \
-	      dashes="$$report"; \
-	  fi; \
-	  dashes=`echo "$$dashes" | sed s/./=/g`; \
-	  echo "$$dashes"; \
-	  echo "$$banner"; \
-	  test -z "$$skipped" || echo "$$skipped"; \
-	  test -z "$$report" || echo "$$report"; \
-	  echo "$$dashes"; \
-	  test "$$failed" -eq 0; \
-	else :; fi
-
 distdir: $(DISTFILES)
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
@@ -597,12 +462,10 @@ distdir: $(DISTFILES)
 	  fi; \
 	done
 check-am: all-am
-	$(MAKE) $(AM_MAKEFLAGS) $(check_PROGRAMS)
-	$(MAKE) $(AM_MAKEFLAGS) check-TESTS
 check: check-am
 all-am: Makefile $(LTLIBRARIES)
 installdirs:
-	for dir in "$(DESTDIR)$(libdir)" "$(DESTDIR)$(plugindir)"; do \
+	for dir in "$(DESTDIR)$(plugindir)"; do \
 	  test -z "$$dir" || $(mkdir_p) "$$dir"; \
 	done
 install: install-am
@@ -631,8 +494,8 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-checkPROGRAMS clean-generic clean-libLTLIBRARIES \
-	clean-libtool clean-pluginLTLIBRARIES mostlyclean-am
+clean-am: clean-generic clean-libtool clean-pluginLTLIBRARIES \
+	mostlyclean-am
 
 distclean: distclean-am
 	-rm -rf ./$(DEPDIR)
@@ -652,7 +515,7 @@ info-am:
 
 install-data-am: install-pluginLTLIBRARIES
 
-install-exec-am: install-libLTLIBRARIES
+install-exec-am:
 
 install-info: install-info-am
 
@@ -678,22 +541,19 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-info-am uninstall-libLTLIBRARIES \
-	uninstall-pluginLTLIBRARIES
+uninstall-am: uninstall-info-am uninstall-pluginLTLIBRARIES
 
-.PHONY: CTAGS GTAGS all all-am check check-TESTS check-am clean \
-	clean-checkPROGRAMS clean-generic clean-libLTLIBRARIES \
+.PHONY: CTAGS GTAGS all all-am check check-am clean clean-generic \
 	clean-libtool clean-pluginLTLIBRARIES ctags distclean \
 	distclean-compile distclean-generic distclean-libtool \
 	distclean-tags distdir dvi dvi-am html html-am info info-am \
 	install install-am install-data install-data-am install-exec \
-	install-exec-am install-info install-info-am \
-	install-libLTLIBRARIES install-man install-pluginLTLIBRARIES \
-	install-strip installcheck installcheck-am installdirs \
-	maintainer-clean maintainer-clean-generic mostlyclean \
-	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
-	pdf pdf-am ps ps-am tags uninstall uninstall-am \
-	uninstall-info-am uninstall-libLTLIBRARIES \
+	install-exec-am install-info install-info-am install-man \
+	install-pluginLTLIBRARIES install-strip installcheck \
+	installcheck-am installdirs maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-compile \
+	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
+	tags uninstall uninstall-am uninstall-info-am \
 	uninstall-pluginLTLIBRARIES
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.

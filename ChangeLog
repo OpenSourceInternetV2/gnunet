@@ -1,3 +1,180 @@
+Sun Mar 25 13:47:08 MDT 2007
+	Releasing GNUnet 0.7.1c.
+
+Wed Feb 28 15:29:05 MST 2007
+	Enabled abortion of gnunet-peer-info with CTRL-C.
+
+Mon Feb 26 19:19:29 MST 2007
+	Fixed handling of -d option by gnunet-download 
+	if -f option is not given.
+
+Sat Feb 24 15:43:14 MST 2007
+	Fixed various bugs related to content expiration.
+	Completed message coverage in stats implementation.
+
+Fri Feb 23 17:55:46 MST 2007
+	Fixed potential deadlock during download shutdown sequence.
+
+Thu Feb 15 21:54:15 MST 2007
+	Added support for IO load detection.
+
+Sun Feb 11 13:53:13 MST 2007
+	Releasing GNUnet 0.7.1b.
+
+Thu Feb  8 13:21:34 MST 2007
+	Updating gettext to 0.16.1.
+	Minor bugfix in build process (#1180, #1181).
+	Minor bugfix in gnunet-search (#1179).
+
+Sun Jan 28 02:43:37 MST 2007
+	Improving support for multiple choice configuration items
+	in gnunet-setup.
+
+Sat Jan 27 16:02:02 MST 2007
+	Changing $-expansion for interpretation of configuration file
+	(again).  Also, now the base-path for gnunetd defaults to
+	"/var/lib/gnunet" instead of "/var/lib/GNUnet".  
+
+Tue Jan 23 19:48:37 MST 2007
+	Fixed problem with split-extractor keywords not being used
+	for uploads.
+
+Tue Jan 16 21:43:26 MST 2007
+	Expanded transport APIs to avoid building messages for
+	transmission just to have them rejected by blocking TCPs
+	with full transmission queues (happened quite a bit).
+
+Mon Jan  8 22:21:15 MST 2007
+	Making computation of send buffer permuations more
+	efficient (in terms of calling weak_randomi) by only
+	computing permuations over the actually selected messages.
+
+Mon Jan  8 21:34:02 MST 2007
+	Forcing -O3 for crypto library (performance critical).
+	Enforcing message queue limit for daemon (somehow got lost 
+	on the way to 0.7.1, was responsible for high CPU load).
+	Fixing cron job deletion in core (clean shutdown).
+
+Sun Dec 31 23:56:31 MST 2006
+	ncurses may need "-lm" in order to link.
+	Releasing GNUnet 0.7.1a.
+
+Sat Dec 30 00:21:49 MST 2006
+	DHT routing now seems to work (not integrated with file-sharing,
+	only for gnunet-dht-query).
+
+Fri Dec 29 09:38:53 MST 2006
+	Added UPnP support to GNUnet (IPv4 only, #843).
+
+Thu Dec 28 21:22:10 MST 2006
+	Hostname resolution with gnunet-peer-info implemented (#1076).
+	Proper linking of gnunet-pseudonym (#1161).
+	Drop group permissions when changing user (#1162).
+	gnunet-download support for directory files implemented (#1013).
+
+Thu Dec 28 20:44:45 MST 2006
+	Hopefully fixing build problems on certain systems with
+	unusual installation of iconv.
+
+Tue Dec 26 20:54:03 MST 2006
+	Added additional gnunet-gtk options to client configuration
+	specification file.
+
+Sun Dec 24 18:06:04 MST 2006
+	Limit memory utilization by select write queue.	
+	Improved select write buffering (fewer malloc/free
+	operations and less copying).
+
+Sat Dec 23 22:12:17 MST 2006
+	Updated various man pages and some configuration documentation.
+	Fixed TCP transport (did not work with NAT if port was set to 0).
+	Fixed verbose option for gnunet-transport-check.
+	Updated hostlist scripts in contrib/ to reflect new protocol IDs.
+	Allow aborting of gnunet-transport-check with CTRL-C.
+	Allow testing of bi-directional transports behind NAT with
+	gnunet-transport-check.
+	
+Fri Dec 22 19:21:25 MST 2006
+	Added option to set maximum number of file descriptors
+	(convenience for OS X users where the default is too low).
+	Releasing GNUnet 0.7.1.
+
+Thu Dec 21 20:03:07 MST 2006
+	Fixed gnunet-insert "-e" option.  Fixed various
+	crashes in client code.  Improved OS X portability.
+	
+Tue Dec 19 19:03:48 MST 2006
+	Allowing GNUnet (without gnunet-setup) to be build
+	on systems without guile.
+
+Sun Dec 17 16:54:33 MST 2006
+	Various improvements for OS X portability.
+	CPU load detection fix for Solaris.
+
+Sat Dec 16 11:42:13 MST 2006
+	Bugfixes in collection library (gnunet-pseudonym).
+	
+Mon Dec 11 21:11:54 MST 2006
+	Implemented ncurses/dialog based gnunet-setup wizard.
+	Releasing GNUnet 0.7.1pre2.
+
+Sun Dec 10 00:36:11 MST 2006
+	Fixed load calculation code.  More aggressive utilization
+	of available resources.
+
+Mon Dec  4 13:24:12 MST 2006
+	Releasing GNUnet 0.7.1pre1.
+
+Wed Nov 29 22:20:26 MST 2006
+	Fixed various bugs with (de)serialization of FSUI state
+	and closing searches with associated downloads.  Extended
+	FSUI test suite.
+
+Mon Nov 27 08:51:46 MST 2006
+	Added conversion of ECRS error messages to FSUI 
+	error event messages.
+
+Sun Nov 19 00:20:14 MST 2006
+	Improved error handling.  gnunetd now can communicate
+	text error messages to clients (not just error codes).
+	
+Wed Nov 15 23:17:36 MST 2006
+	Fixed expiration time setting.  Improved bias of
+	migration towards valuable content.
+	Releasing GNUnet 0.7.1pre0.
+
+Wed Nov  1 20:58:44 MST 2006
+	Fixed MySQL database size underreporting.
+
+Wed Nov  1 13:09:53 MST 2006
+	Fixed some problems with index creation in sqlite
+	datastore (discovered with new sqlite benchmarking
+	code).  Performance should improve significantly
+	(observed was a factor of 4-10 depending on 
+	database size and operation).
+
+Thu Oct 19 23:44:24 MDT 2006
+	Completed huge update to FSUI API (not fully debugged).
+	Major changes include:
+	* clients can associate pointer with each action
+	* abort methods can cancel action (but do not stop everything)
+	* upload and unindex operations can now be suspended and resumed
+	* cleaned up naming conventions
+	
+Thu Sep 14 23:44:17 MDT 2006
+	Breaking UDP transport protocol compatibility -- some
+	fields have to be switched around to make it work with
+	the new select code.  Expect to see some warnings when
+	interacting with 0.7.0 peers.
+
+Tue Sep  5 21:28:25 PDT 2006
+	Switched ncurses interface of gnunet-setup to use
+	external dialog library (new dependency!).
+
+Fri Aug 18 00:01:37 PDT 2006
+	Swiched http bootstrap mechanism to using libcurl
+	(new dependency!).
+
 Sat May 20 08:37:02 PDT 2006
 	Releasing GNUnet 0.7.0e.
 

@@ -43,7 +43,8 @@ typedef struct {
 
 /* apis (our advertised API and the core api ) */
 static TransportAPI natAPI;
-static CoreAPIForTransport * coreAPI = NULL;
+
+static CoreAPIForTransport * coreAPI;
 
 
 /* *************** API implementation *************** */
@@ -57,19 +58,20 @@ static CoreAPIForTransport * coreAPI = NULL;
  * @return OK on success, SYSERR on failure
  */
 static int verifyHelo(const P2P_hello_MESSAGE * helo) {
-
   if ( (ntohs(helo->senderAddressSize) != sizeof(HostAddress)) ||
        (ntohs(helo->header.size) != P2P_hello_MESSAGE_size(helo)) ||
        (ntohs(helo->header.type) != p2p_PROTO_hello) ) {
     return SYSERR; /* obviously invalid */
   } else {
-    if (testConfigurationString("NAT",
-				"LIMITED",
-				"YES")) {
+    if (YES == GC_get_configuration_value_yesno(coreAPI->cfg,
+						"NAT",
+						"LIMITED",
+						NO)) {
       /* if WE are a NAT and this is not our hello,
 	 it is invalid since NAT-to-NAT is not possible! */
-      if (equalsHashCode512(&coreAPI->myIdentity->hashPubKey,
-			    &helo->senderIdentity.hashPubKey))
+      if (0 == memcmp(&coreAPI->myIdentity->hashPubKey,
+		      &helo->senderIdentity.hashPubKey,
+		      sizeof(HashCode512)))
 	return OK;
       else
 	return SYSERR;
@@ -88,11 +90,11 @@ static int verifyHelo(const P2P_hello_MESSAGE * helo) {
 static P2P_hello_MESSAGE * createhello() {
   P2P_hello_MESSAGE * msg;
 
-  if (! testConfigurationString("NAT",
-				"LIMITED",
-				"YES"))
+  if (NO == GC_get_configuration_value_yesno(coreAPI->cfg,
+					     "NAT",
+					     "LIMITED",
+					     NO))
     return NULL;
-
   msg = MALLOC(sizeof(P2P_hello_MESSAGE) + sizeof(HostAddress));
   msg->senderAddressSize = htons(sizeof(HostAddress));
   msg->protocol          = htons(NAT_PROTOCOL_NUMBER);
@@ -136,7 +138,8 @@ int natAssociate(TSession * tsession) {
  */
 static int natSend(TSession * tsession,
 		   const void * message,
-		   const unsigned int size) {
+		   const unsigned int size,
+		   int important) {
   return SYSERR;
 }
 
@@ -168,18 +171,18 @@ static int stopTransportServer() {
 }
 
 /**
- * Reload the configuration. Should never fail.
- */
-static void reloadConfiguration(void) {
-}
-
-/**
  * Convert NAT address to a string.
  */
-static char * addressToString(const P2P_hello_MESSAGE * helo) {
+static char * addressToString(const P2P_hello_MESSAGE * hello,
+			      int do_resolve) {
   return STRDUP("NAT");
 }
 
+static int testWouldTry(TSession * tsession,
+			unsigned int size,
+			int important) {
+  return SYSERR;
+}
 
 /**
  * The exported method. Makes the core api available via a global and
@@ -194,13 +197,12 @@ TransportAPI * inittransport_nat(CoreAPIForTransport * core) {
   natAPI.createhello           = &createhello;
   natAPI.connect              = &natConnect;
   natAPI.send                 = &natSend;
-  natAPI.sendReliable         = &natSend; /* can't increase reliability */
   natAPI.associate            = &natAssociate;
   natAPI.disconnect           = &natDisconnect;
   natAPI.startTransportServer = &startTransportServer;
   natAPI.stopTransportServer  = &stopTransportServer;
-  natAPI.reloadConfiguration  = &reloadConfiguration;
   natAPI.addressToString      = &addressToString;
+  natAPI.testWouldTry         = &testWouldTry;
 
   return &natAPI;
 }

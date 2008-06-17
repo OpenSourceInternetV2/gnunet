@@ -52,7 +52,7 @@ typedef struct {
   struct DHT_PUT_RECORD * rec;
 } DHT_PUT_CLS;
 
-typedef struct LG_Job { 
+typedef struct LG_Job {
   unsigned int keyCount;
   unsigned int type;
   HashCode512 * queries;
@@ -84,21 +84,17 @@ static Datastore_ServiceAPI * datastore;
  */
 static Traffic_ServiceAPI * traffic;
 
-static Mutex lock;
+static struct MUTEX * lock;
 
 static int migration;
 
-/**
- * ID of the FS table in the DHT infrastructure.
- */
-static DHT_TableId dht_table;
+static struct SEMAPHORE * ltgSignal;
 
-static Semaphore * ltgSignal;
-
-static PTHREAD_T localGetProcessor;
+static struct PTHREAD * localGetProcessor;
 
 static LG_Job * lg_jobs;
 
+static struct GE_Context * ectx;
 
 static Datastore_Value *
 gapWrapperToDatastoreValue(const DataContainer * value,
@@ -110,7 +106,7 @@ gapWrapperToDatastoreValue(const DataContainer * value,
   cron_t now;
 
   if (ntohl(value->size) < sizeof(GapWrapper)) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     return NULL;
   }
   gw = (GapWrapper*) value;
@@ -124,7 +120,7 @@ gapWrapperToDatastoreValue(const DataContainer * value,
   dv->prio = htonl(prio);
   dv->anonymityLevel = htonl(0);
   et = ntohll(gw->timeout);
-  cronTime(&now);
+  now = get_time();
   /* bound ET to MAX_MIGRATION_EXP from now */
   if (et > now) {
     et -= now;
@@ -164,7 +160,7 @@ static int gapPut(void * closure,
 
   dv = gapWrapperToDatastoreValue(value, prio);
   if (dv == NULL) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     return SYSERR;
   }
   gw = (GapWrapper*) value;
@@ -174,26 +170,42 @@ static int gapPut(void * closure,
 			  YES,
 			  &hc)) ||
        (! equalsHashCode512(&hc, query)) ) {
-    BREAK(); /* value failed verification! */
+    GE_BREAK(ectx, 0); /* value failed verification! */
+    FREE(dv);
     return SYSERR;
   }
   if (YES != isDatumApplicable(ntohl(dv->type),
 			       ntohl(dv->size) - sizeof(Datastore_Value),
 			       (DBlock*) &dv[1],
+			       &hc,
 			       0,
 			       query)) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     FREE(dv);
     return SYSERR;
   }
+  if (ntohll(dv->expirationTime) < get_time()) {
+    /* do not do anything with expired data 
+       _except_ if it is pure content that one
+       of our clients has requested -- then we
+       should ignore expiration */
+    if (ntohl(dv->type) == D_BLOCK)
+      processResponse(query, dv);
+    FREE(dv);
+    return NO;
+  }
   processResponse(query, dv);
+
+
 #if DEBUG_FS
-  IFLOG(LOG_DEBUG,
-	hash2enc(query,
-		 &enc));
-  LOG(LOG_DEBUG,
-      "FS received GAP-PUT request (query: `%s')\n",
-      &enc);
+  IF_GELOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   hash2enc(query,
+		    &enc));
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "FS received GAP-PUT request (query: `%s')\n",
+	 &enc);
 #endif
   if (migration)
     ret = datastore->putUpdate(query,
@@ -210,12 +222,14 @@ static int get_result_callback(const HashCode512 * query,
 #if DEBUG_FS
   EncName enc;
 
-  IFLOG(LOG_DEBUG,
-	hash2enc(query,
-		 &enc));
-  LOG(LOG_DEBUG,
-      "Found reply to query `%s'.\n",
-      &enc);
+  IF_GELOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   hash2enc(query,
+		    &enc));
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "Found reply to query `%s'.\n",
+	 &enc);
 #endif
   gapPut(NULL,
 	 query,
@@ -229,35 +243,32 @@ static void get_complete_callback(DHT_GET_CLS * cls) {
   FREE(cls);
 }
 
-static void put_complete_callback(DHT_PUT_CLS * cls) {
-  dht->put_stop(cls->rec);
-  FREE(cls);
-}
-
 /**
  * Stop processing a query.
  *
  * @return SYSERR if the TCP connection should be closed, otherwise OK
  */
-static int csHandleRequestQueryStop(ClientHandle sock,
-				    const CS_MESSAGE_HEADER * req) {
+static int csHandleRequestQueryStop(struct ClientHandle * sock,
+				    const MESSAGE_HEADER * req) {
   CS_fs_request_search_MESSAGE * rs;
 #if DEBUG_FS
   EncName enc;
 #endif
 
   if (ntohs(req->size) < sizeof(CS_fs_request_search_MESSAGE)) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     return SYSERR;
   }
   rs = (CS_fs_request_search_MESSAGE*) req;
 #if DEBUG_FS
-  IFLOG(LOG_DEBUG,
-	hash2enc(&rs->query[0],
-		 &enc));
-  LOG(LOG_DEBUG,
-      "FS received QUERY STOP (query: `%s')\n",
-      &enc);
+  IF_GELOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   hash2enc(&rs->query[0],
+		    &enc));
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "FS received QUERY STOP (query: `%s')\n",
+	 &enc);
 #endif
   if (ntohl(rs->anonymityLevel) == 0) {
     /* FIXME 0.7.1: cancel with dht? */
@@ -274,19 +285,24 @@ static int csHandleRequestQueryStop(ClientHandle sock,
  *
  * @return SYSERR if the TCP connection should be closed, otherwise OK
  */
-static int csHandleCS_fs_request_insert_MESSAGE(ClientHandle sock,
-						const CS_MESSAGE_HEADER * req) {
+static int csHandleCS_fs_request_insert_MESSAGE(struct ClientHandle * sock,
+						const MESSAGE_HEADER * req) {
   const CS_fs_request_insert_MESSAGE * ri;
   Datastore_Value * datum;
-  int ret;
+  struct GE_Context * cectx;
   HashCode512 query;
+  int ret;
   unsigned int type;
 #if DEBUG_FS
   EncName enc;
 #endif
 
+  cectx = coreAPI->createClientLogContext(GE_USER | GE_EVENTKIND | GE_ROUTEKIND,
+					  sock);
   if (ntohs(req->size) < sizeof(CS_fs_request_insert_MESSAGE)) {
-    BREAK();
+    GE_BREAK(ectx, 0);
+    GE_BREAK(cectx, 0);
+    GE_free_context(cectx);
     return SYSERR;
   }
   ri = (const CS_fs_request_insert_MESSAGE*) req;
@@ -301,37 +317,40 @@ static int csHandleCS_fs_request_insert_MESSAGE(ClientHandle sock,
 			(const DBlock*)&ri[1],
 			YES,
 			&query)) {
-    BREAK();
+    GE_BREAK(ectx, 0);
+    GE_BREAK(cectx, 0);
     FREE(datum);
+    GE_free_context(cectx);
     return SYSERR;
   }
   type = getTypeOfBlock(ntohs(ri->header.size) - sizeof(CS_fs_request_insert_MESSAGE),
 			(const DBlock*) &ri[1]);
 #if DEBUG_FS
-  IFLOG(LOG_DEBUG,
-	hash2enc(&query,
-		 &enc));
-  LOG(LOG_DEBUG,
-      "FS received REQUEST INSERT (query: `%s', type: %u, priority %u)\n",
-      &enc,
-      type,
-      ntohl(ri->prio));
+  IF_GELOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   hash2enc(&query,
+		    &enc));
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "FS received REQUEST INSERT (query: `%s', type: %u, priority %u)\n",
+	 &enc,
+	 type,
+	 ntohl(ri->prio));
 #endif
   datum->type = htonl(type);
   memcpy(&datum[1],
 	 &ri[1],
 	 ntohs(req->size) - sizeof(CS_fs_request_insert_MESSAGE));
-  MUTEX_LOCK(&lock);
+  MUTEX_LOCK(lock);
   ret = datastore->put(&query,
 		       datum);
-  MUTEX_UNLOCK(&lock);
+  MUTEX_UNLOCK(lock);
   if ( (ntohl(ri->anonymityLevel) == 0) &&
        (dht != NULL) ) {
     GapWrapper * gw;
     unsigned int size;
     cron_t now;
     cron_t et;
-    DHT_PUT_CLS * cls;
 
     size = sizeof(GapWrapper) +
       ntohs(ri->header.size) - sizeof(CS_fs_request_insert_MESSAGE) -
@@ -341,7 +360,7 @@ static int csHandleCS_fs_request_insert_MESSAGE(ClientHandle sock,
     gw->dc.size = htonl(size);
     et = ntohll(ri->expiration);
     /* expiration time normalization and randomization */
-    cronTime(&now);
+    now = get_time();
     if (et > now) {
       et -= now;
       et = et % MAX_MIGRATION_EXP;
@@ -353,16 +372,15 @@ static int csHandleCS_fs_request_insert_MESSAGE(ClientHandle sock,
     memcpy(&gw[1],
 	   &ri[1],
 	   size - sizeof(GapWrapper));
-    cls = MALLOC(sizeof(DHT_PUT_CLS));
-    cls->rec = dht->put_start(&dht_table,
-			      &query,
-			      15 * cronSECONDS, /* FIXME 0.7.1: better timeout for DHT PUT operation */
-			      &gw->dc,
-			      (DHT_OP_Complete) &put_complete_callback,
-			      cls);
+    dht->put(&query,
+	     0, /* FIXME 0.7.1: type? */
+	     size,
+	     et,
+	     (const char*) gw);
+    FREE(gw);
   }
-
   FREE(datum);
+  GE_free_context(cectx);
   return coreAPI->sendValueToClient(sock,
 				    ret);
 }
@@ -370,15 +388,20 @@ static int csHandleCS_fs_request_insert_MESSAGE(ClientHandle sock,
 /**
  * Process a request to symlink a file
  */
-static int csHandleCS_fs_request_init_index_MESSAGE(ClientHandle sock,
-						    const CS_MESSAGE_HEADER * req) {
+static int csHandleCS_fs_request_init_index_MESSAGE(struct ClientHandle * sock,
+						    const MESSAGE_HEADER * req) {
   int ret;
   char *fn;
   CS_fs_request_init_index_MESSAGE *ri;
   int fnLen;
+  struct GE_Context * cectx;
 
+  cectx = coreAPI->createClientLogContext(GE_USER | GE_EVENTKIND | GE_ROUTEKIND,
+					  sock);
   if (ntohs(req->size) < sizeof(CS_fs_request_init_index_MESSAGE)) {
-    BREAK();
+    GE_BREAK(ectx, 0);
+    GE_BREAK(cectx, 0);
+    GE_free_context(cectx);
     return SYSERR;
   }
 
@@ -386,22 +409,27 @@ static int csHandleCS_fs_request_init_index_MESSAGE(ClientHandle sock,
 
   fnLen = ntohs(ri->header.size) - sizeof(CS_fs_request_init_index_MESSAGE);
 #if WINDOWS
-  if (fnLen > _MAX_PATH)
+  if (fnLen > _MAX_PATH) {
+    GE_BREAK(cectx, 0);
+    GE_free_context(cectx);
     return SYSERR;
+  }
 #endif
   fn = MALLOC(fnLen + 1);
   strncpy(fn, (char*) &ri[1], fnLen+1);
   fn[fnLen] = 0;
-
-  ret = ONDEMAND_initIndex(&ri->fileId,
-          fn);
+  ret = ONDEMAND_initIndex(cectx,
+			   &ri->fileId,
+			   fn);
 
   FREE(fn);
 #if DEBUG_FS
-  LOG(LOG_DEBUG,
-      "Sending confirmation (%s) of index initialization request to client\n",
-      ret == OK ? "success" : "failure");
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "Sending confirmation (%s) of index initialization request to client\n",
+	 ret == OK ? "success" : "failure");
 #endif
+  GE_free_context(cectx);
   return coreAPI->sendValueToClient(sock,
             ret);
 }
@@ -411,17 +439,23 @@ static int csHandleCS_fs_request_init_index_MESSAGE(ClientHandle sock,
  *
  * @return SYSERR if the TCP connection should be closed, otherwise OK
  */
-static int csHandleCS_fs_request_index_MESSAGE(ClientHandle sock,
-					       const CS_MESSAGE_HEADER * req) {
+static int csHandleCS_fs_request_index_MESSAGE(struct ClientHandle * sock,
+					       const MESSAGE_HEADER * req) {
   int ret;
   const CS_fs_request_index_MESSAGE * ri;
+  struct GE_Context * cectx;
 
+  cectx = coreAPI->createClientLogContext(GE_USER | GE_EVENTKIND | GE_ROUTEKIND,
+					  sock);
   if (ntohs(req->size) < sizeof(CS_fs_request_index_MESSAGE)) {
-    BREAK();
+    GE_BREAK(ectx, 0);
+    GE_BREAK(cectx, 0);
+    GE_free_context(cectx);
     return SYSERR;
   }
   ri = (const CS_fs_request_index_MESSAGE*) req;
-  ret = ONDEMAND_index(datastore,
+  ret = ONDEMAND_index(cectx,
+		       datastore,
 		       ntohl(ri->prio),
 		       ntohll(ri->expiration),
 		       ntohll(ri->fileOffset),
@@ -430,10 +464,12 @@ static int csHandleCS_fs_request_index_MESSAGE(ClientHandle sock,
 		       ntohs(ri->header.size) - sizeof(CS_fs_request_index_MESSAGE),
 		       (const DBlock*) &ri[1]);
 #if DEBUG_FS
-  LOG(LOG_DEBUG,
-      "Sending confirmation (%s) of index request to client\n",
-      ret == OK ? "success" : "failure");
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "Sending confirmation (%s) of index request to client\n",
+	 ret == OK ? "success" : "failure");
 #endif
+  GE_free_context(cectx);
   return coreAPI->sendValueToClient(sock,
 				    ret);
 }
@@ -454,19 +490,21 @@ static int completeValue(const HashCode512 * key,
 		    &comp[1],
 		    ntohl(value->size) - sizeof(Datastore_Value))) ) {
 #if DEBUG_FS
-    LOG(LOG_DEBUG,
-	"`%s' found value that does not match (%u, %u).\n",
-	__FUNCTION__,
-	ntohl(comp->size),
-	ntohl(value->size));
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "`%s' found value that does not match (%u, %u).\n",
+	   __FUNCTION__,
+	   ntohl(comp->size),
+	   ntohl(value->size));
 #endif
     return OK;
   }
   *comp = *value; /* make copy! */
 #if DEBUG_FS
-  LOG(LOG_DEBUG,
-      "`%s' found value that matches.\n",
-      __FUNCTION__);
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "`%s' found value that matches.\n",
+	 __FUNCTION__);
 #endif
   return SYSERR;
 }
@@ -476,8 +514,8 @@ static int completeValue(const HashCode512 * key,
  *
  * @return SYSERR if the TCP connection should be closed, otherwise OK
  */
-static int csHandleCS_fs_request_delete_MESSAGE(ClientHandle sock,
-						const CS_MESSAGE_HEADER * req) {
+static int csHandleCS_fs_request_delete_MESSAGE(struct ClientHandle * sock,
+						const MESSAGE_HEADER * req) {
   int ret;
   const CS_fs_request_delete_MESSAGE * rd;
   Datastore_Value * value;
@@ -486,9 +524,14 @@ static int csHandleCS_fs_request_delete_MESSAGE(ClientHandle sock,
 #if DEBUG_FS
   EncName enc;
 #endif
+  struct GE_Context * cectx;
 
+  cectx = coreAPI->createClientLogContext(GE_USER | GE_EVENTKIND | GE_ROUTEKIND,
+					  sock);
   if (ntohs(req->size) < sizeof(CS_fs_request_delete_MESSAGE)) {
-    BREAK();
+    GE_BREAK(ectx, 0);
+    GE_BREAK(cectx, 0);
+    GE_free_context(cectx);
     return SYSERR;
   }
   rd = (const CS_fs_request_delete_MESSAGE*) req;
@@ -507,19 +550,23 @@ static int csHandleCS_fs_request_delete_MESSAGE(ClientHandle sock,
 			NO,
 			&query)) {
     FREE(value);
-    BREAK();
+    GE_BREAK(ectx, 0);
+    GE_BREAK(cectx, 0);
+    GE_free_context(cectx);
     return SYSERR;
   }
 #if DEBUG_FS
-  IFLOG(LOG_DEBUG,
-	hash2enc(&query,
-		 &enc));
-  LOG(LOG_DEBUG,
-      "FS received REQUEST DELETE (query: `%s', type: %u)\n",
-      &enc,
-      type);
+  IF_GELOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   hash2enc(&query,
+		    &enc));
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "FS received REQUEST DELETE (query: `%s', type: %u)\n",
+	 &enc,
+	 type);
 #endif
-  MUTEX_LOCK(&lock);
+  MUTEX_LOCK(lock);
   if (SYSERR == datastore->get(&query,
 			       type,
 			       &completeValue,
@@ -528,13 +575,15 @@ static int csHandleCS_fs_request_delete_MESSAGE(ClientHandle sock,
 			 value);
   else /* not found */
     ret = SYSERR;
-  MUTEX_UNLOCK(&lock);
+  MUTEX_UNLOCK(lock);
   FREE(value);
 #if DEBUG_FS
-  LOG(LOG_DEBUG,
-      "Sending confirmation (%s) of delete request to client\n",
-      ret != SYSERR ? "success" : "failure");
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "Sending confirmation (%s) of delete request to client\n",
+	 ret != SYSERR ? "success" : "failure");
 #endif
+  GE_free_context(cectx);
   return coreAPI->sendValueToClient(sock,
 				    ret);
 }
@@ -542,23 +591,31 @@ static int csHandleCS_fs_request_delete_MESSAGE(ClientHandle sock,
 /**
  * Process a client request unindex content.
  */
-static int csHandleCS_fs_request_unindex_MESSAGE(ClientHandle sock,
-						 const CS_MESSAGE_HEADER * req) {
+static int csHandleCS_fs_request_unindex_MESSAGE(struct ClientHandle * sock,
+						 const MESSAGE_HEADER * req) {
   int ret;
   CS_fs_request_unindex_MESSAGE * ru;
+  struct GE_Context * cectx;
 
+  cectx = coreAPI->createClientLogContext(GE_USER | GE_EVENTKIND | GE_ROUTEKIND,
+					  sock);
   if (ntohs(req->size) != sizeof(CS_fs_request_unindex_MESSAGE)) {
-    BREAK();
+    GE_BREAK(ectx, 0);
+    GE_BREAK(cectx, 0);
+    GE_free_context(cectx);
     return SYSERR;
   }
   ru = (CS_fs_request_unindex_MESSAGE*) req;
 #if DEBUG_FS
-  LOG(LOG_DEBUG,
-      "FS received REQUEST UNINDEX\n");
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "FS received REQUEST UNINDEX\n");
 #endif
-  ret = ONDEMAND_unindex(datastore,
+  ret = ONDEMAND_unindex(cectx,
+			 datastore,
 			 ntohl(ru->blocksize),
 			 &ru->fileId);
+  GE_free_context(cectx);
   return coreAPI->sendValueToClient(sock,
 				    ret);
 }
@@ -567,19 +624,20 @@ static int csHandleCS_fs_request_unindex_MESSAGE(ClientHandle sock,
  * Process a client request to test if certain
  * data is indexed.
  */
-static int csHandleCS_fs_request_test_index_MESSAGEed(ClientHandle sock,
-						      const CS_MESSAGE_HEADER * req) {
+static int csHandleCS_fs_request_test_index_MESSAGEed(struct ClientHandle * sock,
+						      const MESSAGE_HEADER * req) {
   int ret;
   RequestTestindex * ru;
 
   if (ntohs(req->size) != sizeof(RequestTestindex)) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     return SYSERR;
   }
   ru = (RequestTestindex*) req;
 #if DEBUG_FS
-  LOG(LOG_DEBUG,
-      "FS received REQUEST TESTINDEXED\n");
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "FS received REQUEST TESTINDEXED\n");
 #endif
   ret = ONDEMAND_testindexed(datastore,
 			     &ru->fileId);
@@ -591,11 +649,12 @@ static int csHandleCS_fs_request_test_index_MESSAGEed(ClientHandle sock,
  * Process a client request to obtain the current
  * averge priority.
  */
-static int csHandleRequestGetAvgPriority(ClientHandle sock,
-					 const CS_MESSAGE_HEADER * req) {
+static int csHandleRequestGetAvgPriority(struct ClientHandle * sock,
+					 const MESSAGE_HEADER * req) {
 #if DEBUG_FS
-  LOG(LOG_DEBUG,
-      "FS received REQUEST GETAVGPRIORITY\n");
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "FS received REQUEST GETAVGPRIORITY\n");
 #endif
   return coreAPI->sendValueToClient(sock,
 				    gap->getAvgPriority());
@@ -632,12 +691,14 @@ static int gapGetConverter(const HashCode512 * key,
   EncName enc;
 
 #if DEBUG_FS
-  IFLOG(LOG_DEBUG,
-	hash2enc(key,
-		 &enc));
-  LOG(LOG_DEBUG,
-      "Converting reply for query `%s' for gap.\n",
-      &enc);
+  IF_GELOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   hash2enc(key,
+		    &enc));
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "Converting reply for query `%s' for gap.\n",
+	 &enc);
 #endif
   if (ntohl(invalue->type) == ONDEMAND_BLOCK) {
     if (OK != ONDEMAND_getIndexed(datastore,
@@ -653,25 +714,30 @@ static int gapGetConverter(const HashCode512 * key,
   ret = isDatumApplicable(ntohl(value->type),
 			  ntohl(value->size) - sizeof(Datastore_Value),
 			  (const DBlock*) &value[1],
+			  key,
 			  ggc->keyCount,
 			  ggc->keys);
   if (ret == SYSERR) {
-    IFLOG(LOG_WARNING,
-	  hash2enc(key,
-		   &enc));
-    LOG(LOG_WARNING,
-	"Converting reply for query `%s' for gap failed (datum not applicable).\n",
-	&enc);
+    IF_GELOG(ectx,
+	     GE_WARNING | GE_BULK | GE_USER,
+	     hash2enc(key,
+		      &enc));
+    GE_LOG(ectx,
+	   GE_WARNING | GE_BULK | GE_USER,
+	   "Converting reply for query `%s' for gap failed (datum not applicable).\n",
+	   &enc);
     FREENONNULL(xvalue);
     return SYSERR; /* no query will ever match */
   }
   if (ret == NO) {
-    IFLOG(LOG_WARNING,
-	  hash2enc(key,
-		   &enc));
-    LOG(LOG_WARNING,
-	"Converting reply for query `%s' for gap failed (type not applicable).\n",
-	&enc);
+    IF_GELOG(ectx,
+	     GE_WARNING | GE_BULK | GE_USER,
+	     hash2enc(key,
+		      &enc));
+    GE_LOG(ectx,
+	   GE_WARNING | GE_BULK | GE_USER,
+	   "Converting reply for query `%s' for gap failed (type not applicable).\n",
+	   &enc);
     FREENONNULL(xvalue);
     return OK; /* Additional filtering based on type;
 		  i.e., namespace request and namespace
@@ -683,25 +749,28 @@ static int gapGetConverter(const HashCode512 * key,
 
   level
     = ntohl(value->anonymityLevel);
-  if (OK != checkCoverTraffic(traffic,
+  if (OK != checkCoverTraffic(ectx,
+			      traffic,
 			      level)) {
     /* traffic required by module not loaded;
        refuse to hand out data that requires
        anonymity! */
     FREENONNULL(xvalue);
-    IFLOG(LOG_WARNING,
-	  hash2enc(key,
-		   &enc));
-    LOG(LOG_WARNING,
-	"Converting reply for query `%s' for gap failed (insufficient cover traffic).\n",
-	&enc);
+    IF_GELOG(ectx,
+	     GE_WARNING | GE_BULK | GE_USER,
+	     hash2enc(key,
+		      &enc));
+    GE_LOG(ectx,
+	   GE_WARNING | GE_BULK | GE_USER,
+	   "Converting reply for query `%s' for gap failed (insufficient cover traffic).\n",
+	   &enc);
     return OK;
   }
   gw = MALLOC(size);
   gw->dc.size = htonl(size);
   et = ntohll(value->expirationTime);
   /* expiration time normalization and randomization */
-  cronTime(&now);
+  now = get_time();
   if (et > now) {
     et -= now;
     et = et % MAX_MIGRATION_EXP;
@@ -745,13 +814,15 @@ static int gapGet(void * closure,
 #if DEBUG_FS
   EncName enc;
 
-  IFLOG(LOG_DEBUG,
-	hash2enc(&keys[0],
-		 &enc));
-  LOG(LOG_DEBUG,
-      "GAP requests content for `%s' of type %u\n",
-      &enc,
-      type);
+  IF_GELOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   hash2enc(&keys[0],
+		    &enc));
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "GAP requests content for `%s' of type %u\n",
+	 &enc,
+	 type);
 #endif
   myClosure.count = 0;
   myClosure.keyCount = keyCount;
@@ -787,7 +858,7 @@ static int gapGet(void * closure,
 static int gapDel(void * closure,
 		  const HashCode512 * key,
 		  const DataContainer * value) {
-  BREAK(); /* gap does not use 'del'! */
+  GE_BREAK(ectx, 0); /* gap does not use 'del'! */
   return SYSERR;
 }
 
@@ -801,131 +872,8 @@ static int gapDel(void * closure,
 static int gapIterate(void * closure,		
 		      DataProcessor processor,
 		      void * cls) {
-  BREAK(); /* gap does not use 'iterate' */
+  GE_BREAK(ectx, 0); /* gap does not use 'iterate' */
   return SYSERR;
-}
-
-
-/**
- * Callback that converts the Datastore_Value values
- * from the datastore to Blockstore values for the
- * DHT routing protocol.
- */
-static int dhtGetConverter(const HashCode512 * key,
-			   const Datastore_Value * invalue,
-			   void * cls) {
-  GGC * ggc = (GGC*) cls;
-  GapWrapper * gw;
-  int ret;
-  unsigned int size;
-  cron_t et;
-  cron_t now;
-  const Datastore_Value * value;
-  Datastore_Value * xvalue;
-
-  if (ntohl(invalue->type) == ONDEMAND_BLOCK) {
-    if (OK != ONDEMAND_getIndexed(datastore,
-				  invalue,
-				  key,
-				  &xvalue))
-      return SYSERR;
-    value = xvalue;
-  } else {
-    xvalue = NULL;
-    value = invalue;
-  }
-
-  ret = isDatumApplicable(ntohl(value->type),
-			  ntohl(value->size) - sizeof(Datastore_Value),
-			  (const DBlock*) &value[1],
-			  ggc->keyCount,
-			  ggc->keys);
-  if (ret == SYSERR) {
-    FREENONNULL(xvalue);
-    return SYSERR; /* no query will ever match */
-  }
-  if (ret == NO) {
-    FREENONNULL(xvalue);
-    return OK; /* Additional filtering based on type;
-		  i.e., namespace request and namespace
-		  in reply does not match namespace in query */
-  }
-  size = sizeof(GapWrapper) +
-    ntohl(value->size) -
-    sizeof(Datastore_Value);
-
-  if (ntohl(value->anonymityLevel) != 0) {
-    FREENONNULL(xvalue);
-    return OK; /* do not allow anonymous content to leak through DHT */
-  }
-
-  gw = MALLOC(size);
-  gw->dc.size = htonl(size);
-  et = ntohll(value->expirationTime);
-  /* expiration time normalization and randomization */
-  cronTime(&now);
-  if (et > now) {
-    et -= now;
-    et = et % MAX_MIGRATION_EXP;
-    if (et > 0)
-      et = weak_randomi(et);
-    et = et + now;
-  }
-  gw->timeout = htonll(et);
-  memcpy(&gw[1],
-	 &value[1],
-	 size - sizeof(GapWrapper));
-
-  if (ggc->resultCallback != NULL)
-    ret = ggc->resultCallback(key,
-			      &gw->dc,
-			      ggc->resCallbackClosure);
-  else
-    ret = OK;
-  FREE(gw);
-  FREENONNULL(xvalue);
-  return ret;
-}
-
-/**
- * Lookup an item in the datastore.
- *
- * @param key the value to lookup
- * @param resultCallback function to call for each result that was found
- * @param resCallbackClosure extra argument to resultCallback
- * @return number of results, SYSERR on error
- */
-static int dhtGet(void * closure,
-		  unsigned int type,
-		  unsigned int prio,
-		  unsigned int keyCount,
-		  const HashCode512 * keys,
-		  DataProcessor resultCallback,
-		  void * resCallbackClosure) {
-  int ret;
-  GGC myClosure;
-  EncName enc;
-
-  IFLOG(LOG_DEBUG,
-	hash2enc(&keys[0],
-		 &enc));
-  LOG(LOG_DEBUG,
-      "DHT requests content for %s of type %u\n",
-      &enc,
-      type);
-  myClosure.keyCount = keyCount;
-  myClosure.keys = keys;
-  myClosure.resultCallback = resultCallback;
-  myClosure.resCallbackClosure = resCallbackClosure;
-  ret = datastore->get(&keys[0],
-		       type,
-		       &dhtGetConverter,
-		       &myClosure);
-  if (ret != SYSERR)
-    ret = myClosure.count; /* return number of actual
-			      results (unfiltered) that
-			      were found */
-  return ret;
 }
 
 static int replyHashFunction(const DataContainer * content,
@@ -935,7 +883,7 @@ static int replyHashFunction(const DataContainer * content,
 
   size = ntohl(content->size);
   if (size < sizeof(GapWrapper)) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     memset(id, 0, sizeof(HashCode512));
     return SYSERR;
   }
@@ -957,7 +905,7 @@ static int uniqueReplyIdentifier(const DataContainer * content,
 
   size = ntohl(content->size);
   if (size < sizeof(GapWrapper)) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     return NO;
   }
   gw = (const GapWrapper*) content;
@@ -982,7 +930,7 @@ static int uniqueReplyIdentifier(const DataContainer * content,
 
 static int fastPathProcessor(const HashCode512 * query,
 			     const DataContainer * value,
-			     void * cls) { 
+			     void * cls) {
   Datastore_Value * dv;
 
   dv = gapWrapperToDatastoreValue(value, 0);
@@ -1026,15 +974,15 @@ static int fastPathProcessorFirst(const HashCode512 * query,
 static void * localGetter(void * noargs) {
   LG_Job * job;
   while (1) {
-    SEMAPHORE_DOWN(ltgSignal);
-    MUTEX_LOCK(&lock);
+    SEMAPHORE_DOWN(ltgSignal, YES);
+    MUTEX_LOCK(lock);
     if (lg_jobs == NULL) {
-      MUTEX_UNLOCK(&lock);
+      MUTEX_UNLOCK(lock);
       break;
     }
     job = lg_jobs;
     lg_jobs = job->next;
-    MUTEX_UNLOCK(&lock);
+    MUTEX_UNLOCK(lock);
     gapGet(NULL,
 	   job->type,
 	   EXTREME_PRIORITY,
@@ -1059,10 +1007,10 @@ static void queueLG_Job(unsigned int type,
   memcpy(job->queries,
 	 queries,
 	 sizeof(HashCode512) * keyCount);
-  MUTEX_LOCK(&lock);
+  MUTEX_LOCK(lock);
   job->next = lg_jobs;
   lg_jobs = job;
-  MUTEX_UNLOCK(&lock);
+  MUTEX_UNLOCK(lock);
   SEMAPHORE_UP(ltgSignal);
 }
 
@@ -1071,8 +1019,8 @@ static void queueLG_Job(unsigned int type,
  *
  * @return SYSERR if the TCP connection should be closed, otherwise OK
  */
-static int csHandleRequestQueryStart(ClientHandle sock,
-				     const CS_MESSAGE_HEADER * req) {
+static int csHandleRequestQueryStart(struct ClientHandle * sock,
+				     const MESSAGE_HEADER * req) {
   const CS_fs_request_search_MESSAGE * rs;
   unsigned int keyCount;
 #if DEBUG_FS
@@ -1082,20 +1030,22 @@ static int csHandleRequestQueryStart(ClientHandle sock,
   int done;
 
   if (ntohs(req->size) < sizeof(CS_fs_request_search_MESSAGE)) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     return SYSERR;
   }
   rs = (const CS_fs_request_search_MESSAGE*) req;
-#if DEBUG_FS 
-  IFLOG(LOG_DEBUG,
-	hash2enc(&rs->query[0],
-		 &enc));
-  LOG(LOG_DEBUG,
-      "FS received QUERY START (query: `%s', ttl %llu, priority %u, anonymity %u)\n",
-      &enc,
-      ntohll(rs->expiration) - cronTime(NULL),
-      ntohl(rs->prio),
-      ntohl(rs->anonymityLevel));
+#if DEBUG_FS
+  IF_GELOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   hash2enc(&rs->query[0],
+		    &enc));
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "FS received QUERY START (query: `%s', ttl %llu, priority %u, anonymity %u)\n",
+	 &enc,
+	 ntohll(rs->expiration) - get_time(),
+	 ntohl(rs->prio),
+	 ntohl(rs->anonymityLevel));
 #endif
   type = ntohl(rs->type);
   trackQuery(&rs->query[0],
@@ -1114,9 +1064,10 @@ static int csHandleRequestQueryStart(ClientHandle sock,
 	 &done);
   if (done == YES) {
 #if DEBUG_FS
-    LOG(LOG_DEBUG,
-	"FS successfully took GAP shortcut for `%s'.\n",
-	&enc);
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "FS successfully took GAP shortcut for `%s'.\n",
+	   &enc);
 #endif
     return OK;	
   }
@@ -1137,9 +1088,7 @@ static int csHandleRequestQueryStart(ClientHandle sock,
 
     cls = MALLOC(sizeof(DHT_GET_CLS));
     cls->prio = ntohl(rs->prio);
-    cls->rec = dht->get_start(&dht_table,
-			      type,
-			      keyCount,
+    cls->rec = dht->get_start(type,
 			      &rs->query[0],
 			      ntohll(rs->expiration),
 			      (DataProcessor) &get_result_callback,
@@ -1162,52 +1111,60 @@ static int fastGet(const HashCode512 * key) {
  */
 int initialize_module_fs(CoreAPIForApplication * capi) {
   static Blockstore dsGap;
-  static Blockstore dsDht;
+  unsigned long long quota;
 
-  GNUNET_ASSERT(sizeof(CHK) == 128);
-  GNUNET_ASSERT(sizeof(DBlock) == 4);
-  GNUNET_ASSERT(sizeof(IBlock) == 132);
-  GNUNET_ASSERT(sizeof(KBlock) == 524);
-  GNUNET_ASSERT(sizeof(SBlock) == 724);
-  GNUNET_ASSERT(sizeof(NBlock) == 716);
-  GNUNET_ASSERT(sizeof(KNBlock) == 1244);
-  
-  migration = testConfigurationString("FS",
-				      "ACTIVEMIGRATION",
-				      "YES");
-  hash("GNUNET_FS",
-       strlen("GNUNET_FS"),
-       &dht_table);
-  if (getConfigurationInt("FS",
-			  "QUOTA") <= 0) {
-    LOG(LOG_ERROR,
-	_("You must specify a postive number for `%s' in the configuration in section `%s'.\n"),
-	"QUOTA", "FS");
+  ectx = capi->ectx;
+  GE_ASSERT(ectx, sizeof(CHK) == 128);
+  GE_ASSERT(ectx, sizeof(DBlock) == 4);
+  GE_ASSERT(ectx, sizeof(IBlock) == 132);
+  GE_ASSERT(ectx, sizeof(KBlock) == 524);
+  GE_ASSERT(ectx, sizeof(SBlock) == 724);
+  GE_ASSERT(ectx, sizeof(NBlock) == 716);
+  GE_ASSERT(ectx, sizeof(KNBlock) == 1244);
+  migration = GC_get_configuration_value_yesno(capi->cfg,
+					       "FS",
+					       "ACTIVEMIGRATION",
+					       YES);
+  if (migration == SYSERR)
+    return SYSERR;
+  if (GC_get_configuration_value_number(capi->cfg,
+					"FS",
+					"QUOTA",
+					1,
+					((unsigned long long)-1)/1024,
+					1024,
+					&quota) == -1) {
+    GE_LOG(ectx,
+	   GE_ERROR | GE_BULK | GE_USER,
+	   _("You must specify a postive number for `%s' in the configuration in section `%s'.\n"),
+	   "QUOTA", "FS");
     return SYSERR;
   }
   datastore = capi->requestService("datastore");
   if (datastore == NULL) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     return SYSERR;
   }
   traffic = capi->requestService("traffic");
   gap = capi->requestService("gap");
   if (gap == NULL) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     capi->releaseService(datastore);
     return SYSERR;
   }
   /* dht = capi->requestService("dht"); */
   dht = NULL;
-  ltgSignal = SEMAPHORE_NEW(0);
-  if (0 != PTHREAD_CREATE(&localGetProcessor,
-			  &localGetter,
-			  NULL,
-			  32 * 1024))
-    DIE_STRERROR("pthread_create");
+  ltgSignal = SEMAPHORE_CREATE(0);
+  localGetProcessor = PTHREAD_CREATE(&localGetter,
+				     NULL,
+				     32 * 1024);
+  if (localGetProcessor == NULL)
+    GE_DIE_STRERROR(ectx,
+		    GE_ADMIN | GE_FATAL | GE_BULK,
+		    "pthread_create");
   coreAPI = capi;
-  ONDEMAND_init();
-  MUTEX_CREATE(&lock);
+  ONDEMAND_init(capi);
+  lock = MUTEX_CREATE(NO);
   dsGap.closure = NULL;
   dsGap.get = &gapGet;
   dsGap.put = &gapPut;
@@ -1218,56 +1175,49 @@ int initialize_module_fs(CoreAPIForApplication * capi) {
   gap->init(&dsGap,
 	    &uniqueReplyIdentifier,
 	    (ReplyHashFunction) &replyHashFunction);
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 _("`%s' registering client handlers %d %d %d %d %d %d %d %d %d\n"),
+	 "fs",
+	 CS_PROTO_gap_QUERY_START,
+	 CS_PROTO_gap_QUERY_STOP,
+	 CS_PROTO_gap_INSERT,
+	 CS_PROTO_gap_INDEX,
+	 CS_PROTO_gap_DELETE,
+	 CS_PROTO_gap_UNINDEX,
+	 CS_PROTO_gap_TESTINDEX,
+	 CS_PROTO_gap_GET_AVG_PRIORITY,
+	 CS_PROTO_gap_INIT_INDEX);
 
-  if (dht != NULL) {
-    dsDht.closure = NULL;
-    dsDht.get = &dhtGet;
-    dsDht.put = &gapPut; /* exactly the same method for gap/dht*/
-    dsDht.del = &gapDel; /* exactly the same method for gap/dht*/
-    dsDht.iterate = &gapIterate;  /* exactly the same method for gap/dht*/
-    dsDht.fast_get = &fastGet;
-    dht->join(&dsDht, &dht_table);
-  }
-
-  LOG(LOG_DEBUG,
-      _("`%s' registering client handlers %d %d %d %d %d %d %d %d %d\n"),
-      "fs",
-      CS_PROTO_gap_QUERY_START,
-      CS_PROTO_gap_QUERY_STOP,
-      CS_PROTO_gap_INSERT,
-      CS_PROTO_gap_INDEX,
-      CS_PROTO_gap_DELETE,
-      CS_PROTO_gap_UNINDEX,
-      CS_PROTO_gap_TESTINDEX,
-      CS_PROTO_gap_GET_AVG_PRIORITY,
-      CS_PROTO_gap_INIT_INDEX);
-
-  GNUNET_ASSERT(SYSERR != capi->registerClientHandler(CS_PROTO_gap_QUERY_START,
+  GE_ASSERT(ectx, SYSERR != capi->registerClientHandler(CS_PROTO_gap_QUERY_START,
 						      &csHandleRequestQueryStart));
-  GNUNET_ASSERT(SYSERR != capi->registerClientHandler(CS_PROTO_gap_QUERY_STOP,
+  GE_ASSERT(ectx, SYSERR != capi->registerClientHandler(CS_PROTO_gap_QUERY_STOP,
 						      &csHandleRequestQueryStop));
-  GNUNET_ASSERT(SYSERR != capi->registerClientHandler(CS_PROTO_gap_INSERT,
+  GE_ASSERT(ectx, SYSERR != capi->registerClientHandler(CS_PROTO_gap_INSERT,
 						      &csHandleCS_fs_request_insert_MESSAGE));
-  GNUNET_ASSERT(SYSERR != capi->registerClientHandler(CS_PROTO_gap_INDEX,
+  GE_ASSERT(ectx, SYSERR != capi->registerClientHandler(CS_PROTO_gap_INDEX,
 						      &csHandleCS_fs_request_index_MESSAGE));
-  GNUNET_ASSERT(SYSERR != capi->registerClientHandler(CS_PROTO_gap_INIT_INDEX,
+  GE_ASSERT(ectx, SYSERR != capi->registerClientHandler(CS_PROTO_gap_INIT_INDEX,
 						      &csHandleCS_fs_request_init_index_MESSAGE));
-  GNUNET_ASSERT(SYSERR != capi->registerClientHandler(CS_PROTO_gap_DELETE,
+  GE_ASSERT(ectx, SYSERR != capi->registerClientHandler(CS_PROTO_gap_DELETE,
 						      &csHandleCS_fs_request_delete_MESSAGE));
-  GNUNET_ASSERT(SYSERR != capi->registerClientHandler(CS_PROTO_gap_UNINDEX,
+  GE_ASSERT(ectx, SYSERR != capi->registerClientHandler(CS_PROTO_gap_UNINDEX,
 						      &csHandleCS_fs_request_unindex_MESSAGE));
-  GNUNET_ASSERT(SYSERR != capi->registerClientHandler(CS_PROTO_gap_TESTINDEX,
+  GE_ASSERT(ectx, SYSERR != capi->registerClientHandler(CS_PROTO_gap_TESTINDEX,
 						      &csHandleCS_fs_request_test_index_MESSAGEed));
-  GNUNET_ASSERT(SYSERR != capi->registerClientHandler(CS_PROTO_gap_GET_AVG_PRIORITY,
+  GE_ASSERT(ectx, SYSERR != capi->registerClientHandler(CS_PROTO_gap_GET_AVG_PRIORITY,
 						      &csHandleRequestGetAvgPriority));
   initMigration(capi,
 		datastore,
 		gap,
 		dht,
 		traffic);
-  setConfigurationString("ABOUT",
-			 "fs",
-			 gettext_noop("enables (anonymous) file-sharing"));
+  GE_ASSERT(capi->ectx,
+	    0 == GC_set_configuration_value_string(capi->cfg,
+						   capi->ectx,
+						   "ABOUT",
+						   "fs",
+						   gettext_noop("enables (anonymous) file-sharing")));
   return OK;
 }
 
@@ -1276,31 +1226,23 @@ void done_module_fs() {
   void * unused;
 
   doneMigration();
-  if (dht != NULL) {
-    LOG(LOG_INFO,
-	"Leaving DHT (this may take a while).");
-    dht->leave(&dht_table);
-    LOG(LOG_INFO,
-	"Leaving DHT complete.");
-
-  }
-  GNUNET_ASSERT(SYSERR != coreAPI->unregisterClientHandler(CS_PROTO_gap_QUERY_START,
+  GE_ASSERT(ectx, SYSERR != coreAPI->unregisterClientHandler(CS_PROTO_gap_QUERY_START,
 							   &csHandleRequestQueryStart));
-  GNUNET_ASSERT(SYSERR != coreAPI->unregisterClientHandler(CS_PROTO_gap_QUERY_STOP,
+  GE_ASSERT(ectx, SYSERR != coreAPI->unregisterClientHandler(CS_PROTO_gap_QUERY_STOP,
 							   &csHandleRequestQueryStop));
-  GNUNET_ASSERT(SYSERR != coreAPI->unregisterClientHandler(CS_PROTO_gap_INSERT,
+  GE_ASSERT(ectx, SYSERR != coreAPI->unregisterClientHandler(CS_PROTO_gap_INSERT,
 							   &csHandleCS_fs_request_insert_MESSAGE));
-  GNUNET_ASSERT(SYSERR != coreAPI->unregisterClientHandler(CS_PROTO_gap_INDEX,
+  GE_ASSERT(ectx, SYSERR != coreAPI->unregisterClientHandler(CS_PROTO_gap_INDEX,
 							   &csHandleCS_fs_request_index_MESSAGE));
-  GNUNET_ASSERT(SYSERR != coreAPI->unregisterClientHandler(CS_PROTO_gap_INIT_INDEX,
+  GE_ASSERT(ectx, SYSERR != coreAPI->unregisterClientHandler(CS_PROTO_gap_INIT_INDEX,
 							   &csHandleCS_fs_request_init_index_MESSAGE));
-  GNUNET_ASSERT(SYSERR != coreAPI->unregisterClientHandler(CS_PROTO_gap_DELETE,
+  GE_ASSERT(ectx, SYSERR != coreAPI->unregisterClientHandler(CS_PROTO_gap_DELETE,
 							   &csHandleCS_fs_request_delete_MESSAGE));
-  GNUNET_ASSERT(SYSERR != coreAPI->unregisterClientHandler(CS_PROTO_gap_UNINDEX,
+  GE_ASSERT(ectx, SYSERR != coreAPI->unregisterClientHandler(CS_PROTO_gap_UNINDEX,
 							   &csHandleCS_fs_request_unindex_MESSAGE));
-  GNUNET_ASSERT(SYSERR != coreAPI->unregisterClientHandler(CS_PROTO_gap_TESTINDEX,
+  GE_ASSERT(ectx, SYSERR != coreAPI->unregisterClientHandler(CS_PROTO_gap_TESTINDEX,
 							   &csHandleCS_fs_request_test_index_MESSAGEed));
-  GNUNET_ASSERT(SYSERR != coreAPI->unregisterClientHandler(CS_PROTO_gap_GET_AVG_PRIORITY,
+  GE_ASSERT(ectx, SYSERR != coreAPI->unregisterClientHandler(CS_PROTO_gap_GET_AVG_PRIORITY,
 							   &csHandleRequestGetAvgPriority));
   doneQueryManager();
   while (lg_jobs != NULL) {
@@ -1310,7 +1252,7 @@ void done_module_fs() {
     lg_jobs = job;
   }
   SEMAPHORE_UP(ltgSignal); /* lg_jobs == NULL => thread will terminate */
-  PTHREAD_JOIN(&localGetProcessor,
+  PTHREAD_JOIN(localGetProcessor,
 	       &unused);
   coreAPI->releaseService(datastore);
   datastore = NULL;
@@ -1325,8 +1267,11 @@ void done_module_fs() {
     traffic = NULL;
   }
   coreAPI = NULL;
-  MUTEX_DESTROY(&lock);
+  MUTEX_DESTROY(lock);
+  lock = NULL;
   ONDEMAND_done();
+  SEMAPHORE_DESTROY(ltgSignal);
+  ltgSignal = NULL;
 }
 
 /**

@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2004, 2005 Christian Grothoff (and other contributing authors)
+     (C) 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -22,55 +22,32 @@
  * @file applications/fs/fsui/downloadtest.c
  * @brief testcase for fsui download persistence (upload-download)
  * @author Christian Grothoff
- *
- * Todo:
- * - test more features of download (recursive, multiple files
- *   in parallel, etc.)
  */
 
 #include "platform.h"
 #include "gnunet_util.h"
 #include "gnunet_fsui_lib.h"
+#include "gnunet_util_config_impl.h"
+#include "gnunet_util_network_client.h"
+#include "gnunet_util_crypto.h"
 
 #define DEBUG_VERBOSE NO
 
-#define CHECK(a) if (!(a)) { ok = NO; BREAK(); goto FAILURE; }
+#define CHECK(a) if (!(a)) { ok = NO; GE_BREAK(ectx, 0); goto FAILURE; }
 
 static volatile int suspendRestart = 0;
 
-static int parseCommandLine(int argc,
-			    char * argv[]) {
-  FREENONNULL(setConfigurationString("GNUNETD",
-				     "_MAGIC_",
-				     "NO"));
-  FREENONNULL(setConfigurationString("GNUNETD",
-				     "LOGFILE",
-				     NULL));
-  FREENONNULL(setConfigurationString("GNUNET",
-				     "LOGLEVEL",
-				     "ERROR"));
-  FREENONNULL(setConfigurationString("GNUNET",
-				     "GNUNETD-CONFIG",
-				     "check.conf"));
-  return OK;
-}
+static struct GE_Context * ectx;
 
 static char * makeName(unsigned int i) {
-  char * name;
   char * fn;
 
-  fn = STRDUP("/tmp/gnunet-fsuidownloadtest");
-  name = expandFileName(fn);
-  mkdirp(name);
-  FREE(fn);
-  fn = MALLOC(strlen(name) + 40);
+  fn = MALLOC(strlen("/tmp/gnunet-fsui-downloadtest/FSUITEST") + 14);
   SNPRINTF(fn,
-	   strlen(name) + 40,
-	   "%s%sFSUITEST%u",
-	   DIR_SEPARATOR_STR,
-	   name,
+	   strlen("/tmp/gnunet-fsui-downloadtest/FSUITEST") + 14,
+	   "/tmp/gnunet-fsui-downloadtest/FSUITEST%u",
 	   i);
-  FREE(name);
+  disk_directory_create_for_file(NULL, fn);
   return fn;
 }
 
@@ -78,14 +55,76 @@ static volatile enum FSUI_EventType lastEvent;
 static volatile enum FSUI_EventType waitForEvent;
 static struct FSUI_Context * ctx;
 static struct ECRS_URI * upURI;
+static struct FSUI_SearchList * search;
+static struct FSUI_DownloadList * download;
 
-static void eventCallback(void * cls,
-			  const FSUI_Event * event) {
+static void * eventCallback(void * cls,
+			    const FSUI_Event * event) {
   char * fn;
 
   switch(event->type) {
+  case FSUI_search_suspended:
+    search = NULL;
+    break;
+  case FSUI_download_suspended:
+    download = NULL;
+    break;
+  case FSUI_search_resumed:
+#if DEBUG_VERBOSE
+    printf("Search resuming\n");
+#endif
+    search = event->data.SearchResumed.sc.pos;
+    break;
+  case FSUI_download_resumed:
+#if DEBUG_VERBOSE
+    printf("Download resuming\n");
+#endif
+    download = event->data.DownloadResumed.dc.pos;
+    break;
+  case FSUI_search_completed:
+#if DEBUG_VERBOSE
+    printf("Search completed\n");
+#endif
+    if (download == NULL) {
+      fprintf(stderr,
+	      "ERROR: Search completed but download not started!\n");
+    }
+    break;
   case FSUI_search_result:
+#if DEBUG_VERBOSE
     printf("Received search result\n");
+#endif
+    if (download == NULL) {
+      char * u;
+
+      if (! ECRS_equalsUri(upURI,
+			   event->data.SearchResult.fi.uri)) {
+#if DEBUG_VERBOSE
+	printf("Received search result for different file (download not started).\n");
+#endif
+	return NULL; /* ignore */
+      }
+      fn = makeName(43);
+      u = ECRS_uriToString(event->data.SearchResult.fi.uri);
+#if DEBUG_VERBOSE
+      printf("Download started: %s.\n", u);
+#endif
+      FREE(u);
+      download = FSUI_startDownload(ctx,
+				    0,
+				    NO,
+				    event->data.SearchResult.fi.uri,
+				    event->data.SearchResult.fi.meta,
+				    fn,
+				    NULL,
+				    NULL);
+      if (download == NULL) {
+	GE_BREAK(ectx, 0);
+	return NULL;
+      }
+      FREE(fn);
+      suspendRestart = 4;
+    }
     break;
   case FSUI_upload_progress:
 #if DEBUG_VERBOSE
@@ -94,13 +133,22 @@ static void eventCallback(void * cls,
 	   event->data.UploadProgress.total);
 #endif
     break;
-  case FSUI_upload_complete:
-    upURI = ECRS_dupUri(event->data.UploadComplete.uri);
+  case FSUI_upload_completed:
+    upURI = ECRS_dupUri(event->data.UploadCompleted.uri);
+#if DEBUG_VERBOSE
     printf("Upload complete.\n");
+#endif
     break;
-  case FSUI_download_complete:
+  case FSUI_download_completed:
+#if DEBUG_VERBOSE
     printf("Download complete.\n");
-    break;
+#endif
+    FSUI_abortSearch(ctx,
+		     search);
+    FSUI_stopSearch(ctx,
+		    search);
+    search = NULL;
+   break;
   case FSUI_download_progress:
 #if DEBUG_VERBOSE
     printf("Download is progressing (%llu/%llu)...\n",
@@ -115,22 +163,42 @@ static void eventCallback(void * cls,
 	   event->data.UnindexProgress.total);
 #endif
     break;
-  case FSUI_unindex_complete:
+  case FSUI_unindex_completed:
+#if DEBUG_VERBOSE
     printf("Unindex complete.\n");
+#endif
     break;
   case FSUI_unindex_error:
   case FSUI_upload_error:
   case FSUI_download_error:
   case FSUI_search_error:
-    errexit("Received ERROR: %d\n",
+    fprintf(stderr,
+	    "Received ERROR: %d\n",
 	    event->type);
+    GE_BREAK(ectx, 0);
+    break;
   case FSUI_download_aborted:
 #if DEBUG_VERBOSE
     printf("Received download aborted event.\n");
 #endif
     break;
-  case FSUI_gnunetd_connected:
-  case FSUI_gnunetd_disconnected:
+  case FSUI_unindex_suspended:
+  case FSUI_upload_suspended:
+#if DEBUG_VERBOSE
+    fprintf(stderr,
+	    "Received SUSPENDING: %d\n",
+	    event->type);
+#endif
+    break;
+  case FSUI_upload_started:
+  case FSUI_upload_stopped:
+  case FSUI_download_started:
+  case FSUI_download_stopped:
+  case FSUI_search_started:
+  case FSUI_search_aborted:
+  case FSUI_search_stopped:
+  case FSUI_unindex_started:
+  case FSUI_unindex_stopped:
     break;
   default:
     printf("Unexpected event: %d\n",
@@ -138,34 +206,19 @@ static void eventCallback(void * cls,
     break;
   }
   if (lastEvent == waitForEvent)
-    return; /* ignore all other events */
+    return NULL; /* ignore all other events */
   lastEvent = event->type;
-  if (event->type == FSUI_search_result) {
-    char * u;
-
-    if (! ECRS_equalsUri(upURI,
-			 event->data.SearchResult.fi.uri))
-      return; /* ignore */
-    fn = makeName(43);
-    u = ECRS_uriToString(event->data.SearchResult.fi.uri);
-    printf("Download started: %s.\n", u);
-    FREE(u);
-    if (OK !=
-	FSUI_startDownload(ctx,
-			   0,
-			   event->data.SearchResult.fi.uri,
-			   fn))
-      errexit("Failed to start download.\n");
-    FREE(fn);
-    suspendRestart = 4;
-  }
+  return NULL;
 }
 
 #define FILESIZE (1024 * 1024 * 2)
 
+#define START_DAEMON 1
 
 int main(int argc, char * argv[]){
+#if START_DAEMON
   pid_t daemon;
+#endif
   int ok;
   int i;
   struct ECRS_URI * uri = NULL;
@@ -180,24 +233,33 @@ int main(int argc, char * argv[]){
   char * buf;
   struct ECRS_MetaData * meta;
   struct ECRS_URI * kuri = NULL;
+  struct GC_Configuration * cfg;
+  struct FSUI_UnindexList * unindex = NULL;
+  struct FSUI_UploadList * upload = NULL;
 
-  if (OK != initUtil(argc,
-		     argv,
-		     &parseCommandLine))
-    return -1;
-#if 1
-  daemon = startGNUnetDaemon(NO);
-  GNUNET_ASSERT(daemon > 0);
-#else
-  daemon = -1;
-#endif
   ok = YES;
-  startCron();
-  GNUNET_ASSERT(OK == waitForGNUnetDaemonRunning(2 * cronMINUTES));
-  gnunet_util_sleep(5 * cronSECONDS); /* give apps time to start */
-
+  cfg = GC_create_C_impl();
+  if (-1 == GC_parse_configuration(cfg,
+				   "check.conf")) {
+    GC_free(cfg);
+    return -1;
+  }
+#if START_DAEMON
+  daemon  = os_daemon_start(NULL,
+			    cfg,
+			    "peer.conf",
+			    NO);
+  GE_ASSERT(NULL, daemon > 0);
+  CHECK(OK == connection_wait_for_running(NULL,
+					  cfg,
+					  30 * cronSECONDS));
+  PTHREAD_SLEEP(5 * cronSECONDS); /* give apps time to start */
   /* ACTUAL TEST CODE */
-  ctx = FSUI_start("fsuidownloadtest",
+#endif
+  ctx = FSUI_start(NULL,
+		   cfg,
+		   "fsuidownloadtest",
+		   32,
 		   YES,
 		   &eventCallback,
 		   NULL);
@@ -206,58 +268,77 @@ int main(int argc, char * argv[]){
   buf = MALLOC(FILESIZE);
   for (i=0;i<FILESIZE;i++)
     buf[i] = weak_randomi(256);
-  writeFile(fn,
-	    buf,
-	    FILESIZE,
-	    "600");
+  disk_file_write(ectx,
+		  fn,
+		  buf,
+		  FILESIZE,
+		  "600");
   FREE(buf);
   meta = ECRS_createMetaData();
-  kuri = FSUI_parseListKeywordURI(2,
+  kuri = ECRS_parseListKeywordURI(ectx,
+				  2,
 				  (const char**)keywords);
-  waitForEvent = FSUI_upload_complete;
-  CHECK(OK ==
-	FSUI_upload(ctx,
-		    fn,
-		    0,
-		    YES,
-		    NO,
-		    meta,
-		    kuri));
+  waitForEvent = FSUI_upload_completed;
+  upload = FSUI_startUpload(ctx,
+			    fn,
+			    (DirectoryScanCallback) &disk_directory_scan,
+			    NULL,		
+			    0,
+			    0,
+			    YES,
+			    NO,
+			    NO,
+			    get_time() + 5 * cronHOURS,
+			    meta,
+			    kuri,
+			    kuri);
+  CHECK(upload != NULL);
   ECRS_freeUri(kuri);
   kuri = NULL;
   ECRS_freeMetaData(meta);
   prog = 0;
-  while (lastEvent != FSUI_upload_complete) {
+  while (lastEvent != FSUI_upload_completed) {
     prog++;
-    CHECK(prog < 1000);
-    gnunet_util_sleep(50 * cronMILLIS);
+    CHECK(prog < 5000);
+    PTHREAD_SLEEP(50 * cronMILLIS);
+    if (GNUNET_SHUTDOWN_TEST() == YES)
+      break;
   }
+  FSUI_stopUpload(ctx, upload);
   SNPRINTF(keyword,
 	   40,
 	   "%s %s %s",
 	   keywords[0],
 	   _("AND"),
 	   keywords[1]);
-  uri = FSUI_parseCharKeywordURI(keyword);
-  waitForEvent = FSUI_download_complete;
-  CHECK(OK == FSUI_startSearch(ctx,
-			       0,
-			       uri));
+  uri = ECRS_parseCharKeywordURI(ectx,
+				 keyword);
+  waitForEvent = FSUI_download_completed;
+  search = FSUI_startSearch(ctx,
+			    0,
+			    10000,
+			    240 * cronSECONDS,
+			    uri);
+  CHECK(search != NULL);
   prog = 0;
-  while (lastEvent != FSUI_download_complete) {
+  while (search != NULL) {
     prog++;
     CHECK(prog < 10000);
-    gnunet_util_sleep(50 * cronMILLIS);
+    PTHREAD_SLEEP(50 * cronMILLIS);
     if ( (suspendRestart > 0) &&
 	 (weak_randomi(4) == 0) ) {
-      suspendCron();
 #if 1
 #if DEBUG_VERBOSE
       printf("Testing FSUI suspend-resume\n");
 #endif
       FSUI_stop(ctx); /* download possibly incomplete
 			 at this point, thus testing resume */
-      ctx = FSUI_start("fsuidownloadtest",
+      CHECK(search == NULL);
+      CHECK(download == NULL);
+      ctx = FSUI_start(NULL,
+		       cfg,
+		       "fsuidownloadtest",
+		       32,
 		       YES,
 		       &eventCallback,
 		       NULL);
@@ -265,40 +346,40 @@ int main(int argc, char * argv[]){
       printf("Resumed...\n");
 #endif
 #endif
-      resumeCron();
       suspendRestart--;
     }
+    if (GNUNET_SHUTDOWN_TEST() == YES)
+      break;
   }
-  CHECK(OK == FSUI_stopSearch(ctx,
-			      uri));
-  waitForEvent = FSUI_unindex_complete;
-  CHECK(OK == FSUI_unindex(ctx, fn));
+  CHECK(search == NULL);
+  CHECK(download != NULL);
+  waitForEvent = FSUI_unindex_completed;
+  unindex = FSUI_startUnindex(ctx, fn);
+  CHECK(unindex != NULL);
   prog = 0;
-  while (lastEvent != FSUI_unindex_complete) {
+  while (lastEvent != FSUI_unindex_completed) {
     prog++;
-    CHECK(prog < 1000);
-    gnunet_util_sleep(50 * cronMILLIS);
+    CHECK(prog < 5000);
+    PTHREAD_SLEEP(50 * cronMILLIS);
     CHECK(lastEvent != FSUI_unindex_error);
+    if (GNUNET_SHUTDOWN_TEST() == YES)
+      break;
   }
-  CHECK(lastEvent == FSUI_unindex_complete);
+  CHECK(lastEvent == FSUI_unindex_completed);
   /* END OF TEST CODE */
  FAILURE:
+  if (ctx != NULL) {
+    if (unindex != NULL)
+      FSUI_stopUnindex(ctx,
+		       unindex);
+    if (download != NULL)
+      FSUI_stopDownload(ctx,
+			download);
+    FSUI_stop(ctx);
+  }
   if (fn != NULL) {
     UNLINK(fn);
     FREE(fn);
-  }
-  if (ctx != NULL) {
-    FSUI_stopSearch(ctx,
-		    uri);
-    fn = makeName(43);
-    FSUI_stopDownload(ctx,
-		      uri,
-		      fn);
-    FREE(fn);
-    FSUI_clearCompletedDownloads(ctx,
-				 NULL,
-				 NULL);
-    FSUI_stop(ctx);
   }
   if (uri != NULL)
     ECRS_freeUri(uri);
@@ -311,10 +392,10 @@ int main(int argc, char * argv[]){
   if (upURI != NULL)
     ECRS_freeUri(upURI);
 
-  stopCron();
-  GNUNET_ASSERT(OK == stopGNUnetDaemon());
-  GNUNET_ASSERT(OK == waitForGNUnetDaemonTermination(daemon));
-  doneUtil();
+#if START_DAEMON
+  GE_BREAK(NULL, OK == os_daemon_stop(NULL, daemon));
+#endif
+  GC_free(cfg);
   return (ok == YES) ? 0 : 1;
 }
 

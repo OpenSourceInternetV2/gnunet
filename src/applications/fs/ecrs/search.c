@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004, 2005 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -41,6 +41,11 @@ typedef struct {
   struct FS_SEARCH_HANDLE * handle;
 
   /**
+   * The keys (for the search).
+   */
+  HashCode512 * keys;
+
+  /**
    * When does this query time-out (we may want
    * to refresh it at that point).
    */
@@ -51,6 +56,11 @@ typedef struct {
    * this query?
    */
   cron_t lastTransmission;
+
+  /**
+   * The key (for decryption)
+   */
+  HashCode512 decryptKey;
 
   /**
    * With which priority does the query run?
@@ -66,16 +76,6 @@ typedef struct {
    * How many keys are there?
    */
   unsigned int keyCount;
-
-  /**
-   * The keys (for the search).
-   */
-  HashCode512 * keys;
-
-  /**
-   * The key (for decryption)
-   */
-  HashCode512 decryptKey;
 
 } PendingSearch;
 
@@ -99,11 +99,6 @@ typedef struct {
   struct FS_SEARCH_CONTEXT * sctx;
 
   /**
-   * Number of queries running at the moment.
-   */
-  unsigned int queryCount;
-
-  /**
    * queryCount pending searches.
    */
   PendingSearch ** queries;
@@ -112,9 +107,18 @@ typedef struct {
 
   void * spcbClosure;
 
+  struct MUTEX * lock;
+
+  struct GE_Context * ectx;
+
+  struct GC_Configuration * cfg;
+
   int aborted;
 
-  Mutex lock;
+  /**
+   * Number of queries running at the moment.
+   */
+  unsigned int queryCount;
 
 } SendQueriesContext;
 
@@ -140,12 +144,12 @@ static void addPS(unsigned int type,
 	 sizeof(HashCode512) * keyCount);
   ps->decryptKey = *dkey;
   ps->handle = NULL;
-  MUTEX_LOCK(&sqc->lock);
+  MUTEX_LOCK(sqc->lock);
   GROW(sqc->queries,
        sqc->queryCount,
        sqc->queryCount+1);
   sqc->queries[sqc->queryCount-1] = ps;
-  MUTEX_UNLOCK(&sqc->lock);
+  MUTEX_UNLOCK(sqc->lock);
 }
 
 /**
@@ -154,9 +158,12 @@ static void addPS(unsigned int type,
  */
 static void addQueryForURI(const struct ECRS_URI * uri,
 			   SendQueriesContext * sqc) {
+  struct GE_Context * ectx = sqc->ectx;
+
   switch (uri->type) {
   case chk:
-    LOG(LOG_ERROR,
+    GE_LOG(ectx,
+	   GE_ERROR | GE_BULK | GE_USER,
 	_("CHK URI not allowed for search.\n"));
     break;
   case sks: {
@@ -185,8 +192,9 @@ static void addQueryForURI(const struct ECRS_URI * uri,
     int i;
 
 #if DEBUG_SEARCH
-    LOG(LOG_DEBUG,
-	"Computing queries (this may take a while).\n");
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "Computing queries (this may take a while).\n");
 #endif
     for (i=0;i<uri->data.ksk.keywordCount;i++) {
       hash(uri->data.ksk.keywords[i],
@@ -206,17 +214,19 @@ static void addQueryForURI(const struct ECRS_URI * uri,
       freePrivateKey(pk);
     }	
 #if DEBUG_SEARCH
-    LOG(LOG_DEBUG,
-	"Queries ready.\n");
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "Queries ready.\n");
 #endif
     break;
   }
   case loc:
-    LOG(LOG_ERROR,
-	_("LOC URI not allowed for search.\n"));
+    GE_LOG(ectx,
+	   GE_ERROR | GE_BULK | GE_USER,
+	   _("LOC URI not allowed for search.\n"));
     break;
   default:
-    BREAK();
+    GE_BREAK(ectx, 0);
     /* unknown URI type */
     break;
   }
@@ -252,7 +262,7 @@ static int computeIdAtTime(const SBlock * sb,
 	    c);
     return OK;
   }
-  GNUNET_ASSERT(ntohl(sb->updateInterval) != 0);
+  GE_ASSERT(NULL, ntohl(sb->updateInterval) != 0);
   pos = ntohl(sb->creationTime);
   deltaId(&sb->identifierIncrement,
 	  &sb->nextIdentifier,
@@ -281,14 +291,16 @@ static int processNBlock(const NBlock * nb,
 			 const HashCode512 * key,
 			 unsigned int size,
 			 SendQueriesContext * sqc) {
+  struct GE_Context * ectx = sqc->ectx;
   ECRS_FileInfo fi;
   struct ECRS_URI uri;
   int ret;
 
-  fi.meta = ECRS_deserializeMetaData((const char*)&nb[1],
+  fi.meta = ECRS_deserializeMetaData(ectx,
+				     (const char*)&nb[1],
 				     size - sizeof(NBlock));
   if (fi.meta == NULL) {
-    BREAK(); /* nblock malformed */
+    GE_BREAK(ectx, 0); /* nblock malformed */
     return SYSERR;
   }
   fi.uri = &uri;
@@ -315,6 +327,7 @@ static int processNBlock(const NBlock * nb,
 static int receiveReplies(const HashCode512 * key,
 			  const Datastore_Value * value,
 			  SendQueriesContext * sqc) {
+  struct GE_Context * ectx = sqc->ectx;
   unsigned int type;
   ECRS_FileInfo fi;
   int i;
@@ -326,9 +339,10 @@ static int receiveReplies(const HashCode512 * key,
   type = ntohl(value->type);
   size = ntohl(value->size) - sizeof(Datastore_Value);
 #if DEBUG_SEARCH
-  LOG(LOG_DEBUG,
-      "Search received reply of type %u and size %u.\n",
-      type, size);
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "Search received reply of type %u and size %u.\n",
+	 type, size);
 #endif
   if (OK != getQueryFor(size,
 			(const DBlock*) &value[1],
@@ -344,6 +358,7 @@ static int receiveReplies(const HashCode512 * key,
 	 (YES == isDatumApplicable(type,
 				   size,
 				   (const DBlock*) &value[1],
+				   &query,
 				   ps->keyCount,
 				   ps->keys)) ) {
       switch (type) {
@@ -360,12 +375,13 @@ static int receiveReplies(const HashCode512 * key,
 	kb = MALLOC(size);
 	memcpy(kb, &value[1], size);
 #if DEBUG_SEARCH
-	IFLOG(LOG_DEBUG,
+	IF_GELOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
 	      hash2enc(&ps->decryptKey,
 		       &enc));
-	LOG(LOG_DEBUG,
-	    "Decrypting KBlock with key %s.\n",
-	    &enc);
+	GE_LOG(ectx,
+	       GE_DEBUG | GE_REQUEST | GE_USER,
+	       "Decrypting KBlock with key %s.\n",
+	       &enc);
 #endif
 	ECRS_decryptInPlace(&ps->decryptKey,
 			    &kb[1],
@@ -375,22 +391,24 @@ static int receiveReplies(const HashCode512 * key,
 		(((const char*)kb)[j] != '\0') )
 	  j++;
 	if (j == size) {
-	  BREAK(); /* kblock malformed */
+	  GE_BREAK(ectx, 0); /* kblock malformed */
 	  FREE(kb);
 	  return SYSERR;
 	}
 	dstURI = (const char*) &kb[1];
 	j++;
-	fi.meta = ECRS_deserializeMetaData(&((const char*)kb)[j],
+	fi.meta = ECRS_deserializeMetaData(ectx,
+					   &((const char*)kb)[j],
 					   size - j);
 	if (fi.meta == NULL) {
-	  BREAK(); /* kblock malformed */
+	  GE_BREAK(ectx, 0); /* kblock malformed */
 	  FREE(kb);
 	  return SYSERR;
 	}
-	fi.uri = ECRS_stringToUri(dstURI);
+	fi.uri = ECRS_stringToUri(ectx,
+				  dstURI);
 	if (fi.uri == NULL) {
-	  BREAK(); /* kblock malformed */
+	  GE_BREAK(ectx, 0); /* kblock malformed */
 	  ECRS_freeMetaData(fi.meta);
 	  FREE(kb);
 	  return SYSERR;
@@ -461,22 +479,24 @@ static int receiveReplies(const HashCode512 * key,
 		(((char*) &sb[1])[j] != '\0') )
 	  j++;
 	if (j == size) {
-	  BREAK(); /* sblock malformed */
+	  GE_BREAK(ectx, 0); /* sblock malformed */
 	  FREE(sb);
 	  return SYSERR;
 	}
 	dstURI = (const char*) &sb[1];
 	j++;
-	fi.meta = ECRS_deserializeMetaData(&dstURI[j],
+	fi.meta = ECRS_deserializeMetaData(ectx,
+					   &dstURI[j],
 					   size - j);
 	if (fi.meta == NULL) {
-	  BREAK(); /* kblock malformed */
+	  GE_BREAK(ectx, 0); /* kblock malformed */
 	  FREE(sb);
 	  return SYSERR;
 	}
-	fi.uri = ECRS_stringToUri(dstURI);
+	fi.uri = ECRS_stringToUri(ectx,
+				  dstURI);
 	if (fi.uri == NULL) {
-	  BREAK(); /* sblock malformed */
+	  GE_BREAK(ectx, 0); /* sblock malformed */
 	  ECRS_freeMetaData(fi.meta);
 	  FREE(sb);
 	  return SYSERR;
@@ -505,7 +525,7 @@ static int receiveReplies(const HashCode512 * key,
 	  return ret; /* have latest version */
 	}
 	if (ps->keyCount != 2) {
-	  BREAK();
+	  GE_BREAK(ectx, 0);
 	  FREE(sb);
 	  return SYSERR;
 	}
@@ -519,7 +539,7 @@ static int receiveReplies(const HashCode512 * key,
 	return ret;
       }
       default:
-	BREAK();
+	GE_BREAK(ectx, 0);
 	break;
       } /* end switch */
     } /* for all matches */
@@ -535,7 +555,9 @@ static int receiveReplies(const HashCode512 * key,
  * @param uri specifies the search parameters
  * @param uri set to the URI of the uploaded file
  */
-int ECRS_search(const struct ECRS_URI * uri,
+int ECRS_search(struct GE_Context * ectx,
+		struct GC_Configuration * cfg,
+		const struct ECRS_URI * uri,
 		unsigned int anonymityLevel,
 		cron_t timeout,
 		ECRS_SearchProgressCallback spcb,
@@ -550,25 +572,30 @@ int ECRS_search(const struct ECRS_URI * uri,
   cron_t new_ttl;
   unsigned int new_priority;
 
-  cronTime(&ctx.start);
-  cronTime(&now);
+  ctx.start = get_time();
+  now = get_time();
   timeout += now;
+  ctx.ectx = ectx;
+  ctx.cfg = cfg;
   ctx.timeout = timeout;
   ctx.queryCount = 0;
   ctx.queries = NULL;
   ctx.spcb = spcb;
   ctx.spcbClosure = spcbClosure;
   ctx.aborted = NO;
-  MUTEX_CREATE_RECURSIVE(&ctx.lock);
-  ctx.sctx = FS_SEARCH_makeContext(&ctx.lock);
+  ctx.lock = MUTEX_CREATE(YES);
+  ctx.sctx = FS_SEARCH_makeContext(ectx,
+				   cfg,
+				   ctx.lock);
   addQueryForURI(uri,
 		 &ctx);
   while ( (OK == tt(ttClosure)) &&
+	  (NO == GNUNET_SHUTDOWN_TEST())  &&
 	  (timeout > now) &&
 	  (ctx.aborted == NO) ) {
     remTime = timeout - now;
 
-    MUTEX_LOCK(&ctx.lock);
+    MUTEX_LOCK(ctx.lock);
     for (i=0;i<ctx.queryCount;i++) {
       ps = ctx.queries[i];
       if ( (now < ps->timeout) &&
@@ -594,10 +621,11 @@ int ECRS_search(const struct ECRS_URI * uri,
       ps->priority = new_priority;
       ps->lastTransmission = now;
 #if DEBUG_SEARCH
-      LOG(LOG_DEBUG,
-	  "ECRS initiating FS search with timeout %llus and priority %u.\n",
-	  (ps->timeout - now) / cronSECONDS,
-	  ps->priority);
+      GE_LOG(ectx,
+	     GE_DEBUG | GE_REQUEST | GE_USER,
+	     "ECRS initiating FS search with timeout %llus and priority %u.\n",
+	     (ps->timeout - now) / cronSECONDS,
+	     ps->priority);
 #endif
       ps->handle
 	= FS_start_search(ctx.sctx,
@@ -610,13 +638,13 @@ int ECRS_search(const struct ECRS_URI * uri,
 			  (Datum_Iterator) &receiveReplies,
 			  &ctx);
     }
-    MUTEX_UNLOCK(&ctx.lock);
+    MUTEX_UNLOCK(ctx.lock);
     if (! ( (OK == tt(ttClosure)) &&
 	    (timeout > now) &&
 	    (ctx.aborted == NO) ) )
       break;
-    gnunet_util_sleep(100 * cronMILLIS);
-    cronTime(&now);
+    PTHREAD_SLEEP(100 * cronMILLIS);
+    now = get_time();
   }
   for (i=0;i<ctx.queryCount;i++) {
     if (ctx.queries[i]->handle != NULL)
@@ -629,7 +657,7 @@ int ECRS_search(const struct ECRS_URI * uri,
        ctx.queryCount,
        0);
   FS_SEARCH_destroyContext(ctx.sctx);
-  MUTEX_DESTROY(&ctx.lock);
+  MUTEX_DESTROY(ctx.lock);
   return OK;
 }
 

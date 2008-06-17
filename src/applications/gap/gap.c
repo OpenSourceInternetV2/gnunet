@@ -1,22 +1,22 @@
 /*
-      This file is part of GNUnet
-     (C) 2001, 2002, 2003, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
-
-      GNUnet is free software; you can redistribute it and/or modify
-      it under the terms of the GNU General Public License as published
-      by the Free Software Foundation; either version 2, or (at your
-      option) any later version.
-
-      GNUnet is distributed in the hope that it will be useful, but
-      WITHOUT ANY WARRANTY; without even the implied warranty of
-      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-      General Public License for more details.
-
-      You should have received a copy of the GNU General Public License
-      along with GNUnet; see the file COPYING.  If not, write to the
-      Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-      Boston, MA 02110-1301, USA.
- */
+  This file is part of GNUnet
+  (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007 Christian Grothoff (and other contributing authors)
+  
+  GNUnet is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published
+  by the Free Software Foundation; either version 2, or (at your
+  option) any later version.
+  
+  GNUnet is distributed in the hope that it will be useful, but
+  WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  General Public License for more details.
+  
+  You should have received a copy of the GNU General Public License
+  along with GNUnet; see the file COPYING.  If not, write to the
+  Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+  Boston, MA 02110-1301, USA.
+*/
 
 /**
  * @file gap/gap.c
@@ -48,7 +48,7 @@
  * Avoiding concurrent lookups for the same ITE: lock to grant
  * access to peers to perform a lookup that matches this ITE entry.
  */
-static Mutex lookup_exclusion;
+static struct MUTEX * lookup_exclusion;
 
 /**
  * GNUnet core.
@@ -138,7 +138,7 @@ static IndirectionTableEntry * ROUTING_indTable_;
 /**
  * Size of the indirection table specified in gnunet.conf
  */
-static unsigned int indirectionTableSize;
+static unsigned long long indirectionTableSize;
 
 /**
  * Constant but peer-dependent value that randomizes the construction
@@ -155,7 +155,7 @@ static QueryRecord queries[QUERY_RECORD_COUNT];
 /**
  * Mutex for all gap structures.
  */
-static Mutex * lock;
+static struct MUTEX * lock;
 
 /**
  * Linked list tracking reply statistics.  Synchronize access using
@@ -172,17 +172,21 @@ static unsigned int rewardPos = 0;
 /**
  * Hard CPU limit
  */
-static int hardCPULimit;
+static unsigned long long hardCPULimit;
 
 /**
  * Hard network upload limit.
  */
-static int hardUpLimit;
+static unsigned long long hardUpLimit;
 
 #if DO_HISTOGRAM
 static int histogram[65536];
 static int hist_total;
 #endif
+
+static struct GE_Context * ectx;
+
+static struct GC_Configuration * cfg;
 
 /* ****************** helper functions ***************** */
 
@@ -211,7 +215,8 @@ static int adjustTTL(int ttl, unsigned int prio) {
 static QUERY_POLICY
 evaluateQuery(const PeerIdentity * sender,
 	      unsigned int * priority) {
-  unsigned int netLoad = getNetworkLoadUp();
+  unsigned int netLoad = os_network_monitor_get_load(coreAPI->load_monitor,
+						     Upload);
 
   if ( (netLoad == (unsigned int) -1) ||
        (netLoad < IDLE_LOAD_THRESHOLD) ) {
@@ -233,8 +238,8 @@ evaluateQuery(const PeerIdentity * sender,
 /**
  * Map the id to an index into the bitmap array.
  */
-static unsigned int getIndex(PID_INDEX id) {
-  return id % (8*BITMAP_SIZE);
+static unsigned int getIndex(const PeerIdentity * peer) {
+  return ((unsigned int*)peer)[0] % (8*BITMAP_SIZE);
 }
 
 static void setBit(QueryRecord * qr,
@@ -248,6 +253,7 @@ static int getBit(const QueryRecord * qr,
   unsigned char theBit = (1 << (bit & 7));
   return (qr->bitmap[bit>>3] & theBit) > 0;
 }
+
 
 /* ************* tracking replies, routing queries ********** */
 
@@ -294,6 +300,8 @@ static void ageRTD(void * unused) {
 	  rpos = rprev->next;
 	continue;
       }
+      rprev = rpos;
+      rpos = rprev->next;
     }
     /* if we have no counts for a peer anymore,
        free pos entry */
@@ -346,7 +354,7 @@ static void updateResponseData(PID_INDEX origin,
     pos->next = NULL;
     pos->responseList = NULL;
     pos->queryOrigin = origin;
-    change_pid_rc(origin, 1);  
+    change_pid_rc(origin, 1);
     if (prev == NULL)
       rtdList = pos;
     else
@@ -408,7 +416,7 @@ fillInQuery(const PeerIdentity * receiver,
   QueryRecord * qr;
   PID_INDEX receiverId;
 
-  cronTime(&now);
+  now = get_time();
   receiverId = intern_pid(receiver);
   MUTEX_LOCK(lock);
   start = pos;
@@ -416,13 +424,13 @@ fillInQuery(const PeerIdentity * receiver,
   while (padding - delta > sizeof(P2P_gap_query_MESSAGE)) {
     qr = &queries[pos];
     if ( (qr->expires > now) &&
-	 (0 == getBit(qr, getIndex(receiverId))) &&
+	 (0 == getBit(qr, getIndex(receiver))) &&
 	 (receiverId != qr->noTarget) &&
 	 (! (equalsHashCode512(&receiver->hashPubKey,
 			       &qr->msg->returnTo.hashPubKey)) ) &&
 	 (padding - delta >= ntohs(qr->msg->header.size) ) ) {
       setBit(&queries[pos],
-	     getIndex(receiverId));
+	     getIndex(receiver));
       memcpy(&((char*)position)[delta],
 	     qr->msg,
 	     ntohs(qr->msg->header.size));
@@ -453,6 +461,10 @@ static void hotpathSelectionCode(const PeerIdentity * peer,
   int distance;
   PID_INDEX id;
   unsigned int idx;
+#if DEBUG_GAP
+  EncName enc;
+  EncName enc2;
+#endif
 
   id = intern_pid(peer);
   /* compute some basic ranking based on historical
@@ -463,6 +475,7 @@ static void hotpathSelectionCode(const PeerIdentity * peer,
       break;
     pos = pos->next;
   }
+  rp = NULL;
   if (pos != NULL) {
     rp = pos->responseList;
     while (rp != NULL) {
@@ -486,15 +499,40 @@ static void hotpathSelectionCode(const PeerIdentity * peer,
   ranking += weak_randomi(0xFFFF); /* 2 "response equivalents" random chance for everyone */
   if (id == qr->noTarget)
     ranking = 0; /* no chance for blocked peers */
-  idx = getIndex(id);
-#if DEBUG_GAP 
-  LOG(LOG_DEBUG,
-      "Ranking for %u: %u\n",
-      idx,
-      ranking);
+  idx = getIndex(peer);
+#if DEBUG_GAP
+  hash2enc(&qr->msg->queries[0],
+	   &enc);
+  ((char*)&enc)[6] = '\0';
+  hash2enc(&peer->hashPubKey,
+	   &enc2);
+  ((char*)&enc2)[6] = '\0';
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "Q %s peer %2u (%s) ranks (responses: %2u, distance %4d): %u%s\n",
+	 &enc,
+	 idx,
+	 &enc2,
+	 rp == NULL ? 0 : rp->responseCount,
+	 distance,
+	 ranking,
+	 id == qr->noTarget ? " (no target)" : "");
 #endif
-  qr->rankings[idx] = ranking; 
+  qr->rankings[idx] = ranking;
   change_pid_rc(id, -1);
+}
+
+/**
+ * Return 1 if the current network (upstream) or CPU load is
+ * too high, 0 if the load is ok.
+ */
+static int loadTooHigh() {
+  return ( (hardCPULimit > 0) &&
+	   (os_cpu_get_load(ectx,
+			    coreAPI->cfg) >= hardCPULimit) ) ||
+    ( (hardUpLimit > 0) &&
+      (os_network_monitor_get_load(coreAPI->load_monitor,
+				   Upload) >= hardUpLimit) );
 }
 
 /**
@@ -515,29 +553,28 @@ static void sendToSelected(const PeerIdentity * peer,
     return;  /* never send back to source */
 
   /* Load above hard limit? */
-  if ( ( (hardCPULimit > 0) && 
-	 (getCPULoad() >= hardCPULimit) ) ||
-       ( (hardUpLimit > 0) && 
-	 (getNetworkLoadUp() >= hardUpLimit) ) )
+  if (loadTooHigh())
     return;
-  
+
   id = intern_pid(peer);
   if (id == qr->noTarget) {
     change_pid_rc(id, -1);
     return; /* never send back to source */
   }
 
-  if (getBit(qr, getIndex(id)) == 1) {
+  if (getBit(qr, getIndex(peer)) == 1) {
 #if DEBUG_GAP
-    IFLOG(LOG_DEBUG,
-	  hash2enc(&peer->hashPubKey,
-		   &encp);
-	  hash2enc(&qr->msg->queries[0],
-		   &encq));
-    LOG(LOG_DEBUG,
-	"Sending query `%s' to `%s'\n",
-	&encq,
-	&encp);
+    IF_GELOG(ectx,
+	     GE_DEBUG | GE_REQUEST | GE_USER,
+	     hash2enc(&peer->hashPubKey,
+		      &encp);
+	     hash2enc(&qr->msg->queries[0],
+		      &encq));
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "Sending query `%s' to `%s'\n",
+	   &encq,
+	   &encp);
 #endif
     if (stats != NULL)
       stats->change(stat_routing_forwards, 1);
@@ -568,7 +605,7 @@ static void forwardQuery(const P2P_gap_query_MESSAGE * msg,
   unsigned long long sel;
   unsigned long long pos;
 
-  cronTime(&now);
+  now = get_time();
   MUTEX_LOCK(lock);
 
   oldestIndex = -1;
@@ -617,6 +654,9 @@ static void forwardQuery(const P2P_gap_query_MESSAGE * msg,
     }
   }
   if (oldestIndex == -1) {				
+    memset(&dummy,
+	   0,
+	   sizeof(QueryRecord));
     qr = &dummy;
   } else {
     qr = &queries[oldestIndex];
@@ -633,6 +673,8 @@ static void forwardQuery(const P2P_gap_query_MESSAGE * msg,
     memset(&qr->bitmap[0],
 	   0,
 	   BITMAP_SIZE);
+    if (qr->noTarget != 0)
+      change_pid_rc(qr->noTarget, -1);
     if (excludePeer != NULL)
       qr->noTarget = intern_pid(excludePeer);
     else
@@ -659,7 +701,7 @@ static void forwardQuery(const P2P_gap_query_MESSAGE * msg,
 	  pos += qr->rankings[j];
 	  if (pos > sel) {
 	    setBit(qr, j);
-	    GNUNET_ASSERT(rankingSum >= qr->rankings[j]);
+	    GE_ASSERT(ectx, rankingSum >= qr->rankings[j]);
 	    rankingSum -= qr->rankings[j];
 	    qr->rankings[j] = 0;
 	    break;
@@ -673,8 +715,10 @@ static void forwardQuery(const P2P_gap_query_MESSAGE * msg,
     coreAPI->forAllConnectedNodes
       (&sendToSelected,
        qr);
-    if (qr == &dummy)
+    if (qr == &dummy) {
+      change_pid_rc(dummy.noTarget, -1);
       FREE(dummy.msg);
+    }
   }
   MUTEX_UNLOCK(lock);
 }
@@ -710,12 +754,13 @@ static int dequeueQuery(const HashCode512 * query) {
 /**
  * Compute the hashtable index of a host id.
  */
-static unsigned int computeRoutingIndex(const HashCode512 * query) {
+static unsigned int
+computeRoutingIndex(const HashCode512 * query) {
   unsigned int res
     = (((unsigned int*)query)[0] ^
        ((unsigned int*)query)[1] / (1 + random_qsel))
     % indirectionTableSize;
-  GNUNET_ASSERT(res < indirectionTableSize);
+  GE_ASSERT(ectx, res < indirectionTableSize);
 #if DO_HISTOGRAM
   histogram[res % 65536]++;
   if (++hist_total % 10000 == 0) {
@@ -736,13 +781,13 @@ static unsigned int computeRoutingIndex(const HashCode512 * query) {
  *     NULL for the local peer
  */
 static int useContent(const PeerIdentity * hostId,
-		      const P2P_gap_reply_MESSAGE * pmsg);
+		      const MESSAGE_HEADER * pmsg);
 
 /**
  * Call useContent "later" and then free the pmsg.
  */
 static void useContentLater(void * data) {
-  P2P_gap_reply_MESSAGE * pmsg = data;
+  MESSAGE_HEADER * pmsg = data;
   useContent(NULL,
 	     pmsg);
   FREE(pmsg);
@@ -770,12 +815,14 @@ static int queueReply(const PeerIdentity * sender,
 #if DEBUG_GAP
   EncName enc;
 
-  IFLOG(LOG_DEBUG,
-	hash2enc(primaryKey,
-		 &enc));
-  LOG(LOG_DEBUG,
-      "Gap queues reply to query `%s' for later use.\n",
-      &enc);
+  IF_GELOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   hash2enc(primaryKey,
+		    &enc));
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "Gap queues reply to query `%s' for later use.\n",
+	 &enc);
 #endif
 
 #if EXTRA_CHECKS
@@ -790,15 +837,17 @@ static int queueReply(const PeerIdentity * sender,
   if (! equalsHashCode512(&ite->primaryKey,
 			  primaryKey) ) {
 #if DEBUG_GAP
-    LOG(LOG_DEBUG,
-	"GAP: Dropping reply, routing table has no query associated with it (anymore)\n");
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "GAP: Dropping reply, routing table has no query associated with it (anymore)\n");
 #endif
     return NO; /* we don't care for the reply (anymore) */
   }
   if (YES == ite->successful_local_lookup_in_delay_loop) {
 #if DEBUG_GAP
-    LOG(LOG_DEBUG,
-	"GAP: Dropping reply, found reply locally during delay\n");
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "GAP: Dropping reply, found reply locally during delay\n");
 #endif
     return NO; /* wow, really bad concurrent DB lookup and processing for
 		  the same query.  Well, at least we should not also
@@ -806,7 +855,7 @@ static int queueReply(const PeerIdentity * sender,
   }
   size = sizeof(P2P_gap_reply_MESSAGE) + ntohl(data->size) - sizeof(DataContainer);
   if (size >= MAX_BUFFER_SIZE) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     return SYSERR;
   }
   ite->successful_local_lookup_in_delay_loop = YES;
@@ -822,10 +871,11 @@ static int queueReply(const PeerIdentity * sender,
 	 size - sizeof(P2P_gap_reply_MESSAGE));
   /* delay reply, delay longer if we are busy (makes it harder
      to predict / analyze, too). */
-  addCronJob(&useContentLater,
-	     weak_randomi(TTL_DECREMENT),
-	     0,
-	     pmsg);
+  cron_add_job(coreAPI->cron,
+	       &useContentLater,
+	       weak_randomi(TTL_DECREMENT),
+	       0,
+	       pmsg);
   return YES;
 }
 
@@ -886,20 +936,22 @@ static int addToSlot(int mode,
 		     unsigned int priority,
 		     PID_INDEX sender) {
   unsigned int i;
-  cron_t now;  
+  cron_t now;
 #if DEBUG__GAP
   EncName enc;
 
-  IFLOG(LOG_DEBUG,
-	hash2enc(query,
-		 &enc));
-  LOG(LOG_DEBUG,
-      "GAP: Queueing query '%s' in slot %p\n",
-      &enc,
-      ite);
+  IF_GELOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   hash2enc(query,
+		    &enc));
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "GAP: Queueing query '%s' in slot %p\n",
+	 &enc,
+	 ite);
 #endif
-  GNUNET_ASSERT(sender != 0); /* do NOT add to RT for local clients! */
-  cronTime(&now);
+  GE_ASSERT(ectx, sender != 0); /* do NOT add to RT for local clients! */
+  now = get_time();
   if ( (stats != NULL) &&
        (ite->ttl == 0) )
        stats->change(stat_routing_slots_used, 1);
@@ -919,7 +971,8 @@ static int addToSlot(int mode,
 	if (ite->destination[i] == sender)
 	  return SYSERR;
       if (ite->hostsWaiting >= MAX_HOSTS_WAITING) {
-	decrement_pid_rcs(ite->destination, ite->hostsWaiting);
+	decrement_pid_rcs(ite->destination,
+			  ite->hostsWaiting);
 	if (stats != NULL)
 	  stats->change(stat_memory_destinations, - ite->hostsWaiting);
 	GROW(ite->destination,
@@ -933,7 +986,8 @@ static int addToSlot(int mode,
       ite->primaryKey = *query;
       if (stats != NULL)
 	stats->change(stat_memory_destinations, - ite->hostsWaiting);
-      decrement_pid_rcs(ite->destination, ite->hostsWaiting);
+      decrement_pid_rcs(ite->destination,
+			ite->hostsWaiting);
       GROW(ite->destination,
 	   ite->hostsWaiting,
 	   0);
@@ -941,7 +995,7 @@ static int addToSlot(int mode,
       ite->priority = priority;
     }
   } else { /* GROW mode */
-    GNUNET_ASSERT(equalsHashCode512(query,
+    GE_ASSERT(ectx, equalsHashCode512(query,
 				    &ite->primaryKey));
     for (i=0;i<ite->hostsWaiting;i++)
       if (sender == ite->destination[i])
@@ -1005,15 +1059,15 @@ static int needsForwarding(const HashCode512 * query,
   cron_t new_ttl;
   int equal_to_pending;
 
-  cronTime(&now);
+  now = get_time();
   ite = &ROUTING_indTable_[computeRoutingIndex(query)];
   equal_to_pending = equalsHashCode512(query, &ite->primaryKey);
   if ( (stats != NULL) &&
-       (equal_to_pending) ) 
-    stats->change(stat_routing_request_duplicates, 1);    
-  
+       (equal_to_pending) )
+    stats->change(stat_routing_request_duplicates, 1);
+
   new_ttl = now + ttl;
-  if ( (ite->ttl < now) && 
+  if ( (ite->ttl < now) &&
        (ite->ttl < now - (cron_t) (TTL_DECREMENT * 10L)) &&
        (ttl > - TTL_DECREMENT * 5) ) {
     addToSlot(ITE_REPLACE, ite, query, ttl, priority, sender);
@@ -1260,7 +1314,7 @@ static int needsForwarding(const HashCode512 * query,
  * @param msg the message to route
  */
 static void sendReply(IndirectionTableEntry * ite,
-		      const P2P_MESSAGE_HEADER * msg) {
+		      const MESSAGE_HEADER * msg) {
   unsigned int j;
   unsigned int maxDelay;
   cron_t now;
@@ -1271,7 +1325,7 @@ static void sendReply(IndirectionTableEntry * ite,
 
   if (stats != NULL)
     stats->change(stat_routing_successes, 1);
-  cronTime(&now);
+  now = get_time();
   if (now < ite->ttl)
     maxDelay = ite->ttl - now;
   else
@@ -1281,12 +1335,14 @@ static void sendReply(IndirectionTableEntry * ite,
     resolve_pid(ite->destination[j],
 		&recv);
 #if DEBUG_GAP
-    IFLOG(LOG_DEBUG,
-	  hash2enc(&recv.hashPubKey,
-		   &enc));
-    LOG(LOG_DEBUG,
-	"GAP sending reply to `%s'\n",
-	&enc);
+    IF_GELOG(ectx,
+	     GE_DEBUG | GE_REQUEST | GE_USER,
+	     hash2enc(&recv.hashPubKey,
+		      &enc));
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "GAP sending reply to `%s'\n",
+	   &enc);
 #endif
     coreAPI->unicast(&recv,
 		     msg,
@@ -1333,23 +1389,23 @@ queryLocalResultCallback(const HashCode512 * primaryKey,
       primaryKey);
 #endif
 
-  /* check seen */
-  ite = &ROUTING_indTable_[computeRoutingIndex(primaryKey)];
   if (rhf == NULL)
     return OK; /* drop, not fully initialized! */
+  /* check seen */
+  ite = &ROUTING_indTable_[computeRoutingIndex(primaryKey)];
   rhf(value,
       &hc);
   for (i=0;i<ite->seenIndex;i++)
     if (equalsHashCode512(&hc,
 			  &ite->seen[i]))
       return OK; /* drop, duplicate result! */
-  for (i=0;i<cls->valueCount;i++) 
+  for (i=0;i<cls->valueCount;i++)
     if (equalsHashCode512(&hc,
 			  &cls->hashes[i]))
-      return OK; /* drop, duplicate entry in DB! */  
+      return OK; /* drop, duplicate entry in DB! */
   if ( (cls->valueCount > MAX_SEEN_VALUES) &&
        (weak_randomi(cls->valueCount) > 8) )
-      return OK; /* statistical drop, too many replies to keep in memory */  
+      return OK; /* statistical drop, too many replies to keep in memory */
   GROW(cls->values,
        cls->valueCount,
        cls->valueCount+1);
@@ -1358,7 +1414,7 @@ queryLocalResultCallback(const HashCode512 * primaryKey,
   memcpy(cls->values[cls->valueCount-1],
 	 value,
 	 ntohl(value->size));
-  if (cls->hashCount < cls->valueCount) 
+  if (cls->hashCount < cls->valueCount)
     GROW(cls->hashes,
 	 cls->hashCount,
 	 cls->hashCount * 2 + 8);
@@ -1400,16 +1456,13 @@ static int execQuery(const PeerIdentity * sender,
 #endif
 
   /* Load above hard limit? */
-  if ( ( (hardCPULimit > 0) && 
-	 (getCPULoad() >= hardCPULimit) ) ||
-       ( (hardUpLimit > 0) && 
-	 (getNetworkLoadUp() >= hardUpLimit) ) ) 
-    return SYSERR;  
+  if (loadTooHigh())
+    return SYSERR;
 
   senderID = intern_pid(sender);
-  GNUNET_ASSERT( (senderID != 0) || (sender == NULL) );
+  GE_ASSERT(ectx,  (senderID != 0) || (sender == NULL) );
   ite = &ROUTING_indTable_[computeRoutingIndex(&query->queries[0])];
-  MUTEX_LOCK(&lookup_exclusion);
+  MUTEX_LOCK(lookup_exclusion);
   i = -1;
   if (sender != NULL) {
     if ( ( (policy & QUERY_ANSWER) > 0) &&
@@ -1441,15 +1494,18 @@ static int execQuery(const PeerIdentity * sender,
     doForward = NO;
 
 #if DEBUG_GAP
-  IFLOG(LOG_DEBUG,
-        hash2enc(&query->queries[0],
-		 &enc));
-  LOG(LOG_DEBUG,
-      "GAP is executing request for `%s':%s%s (%d)\n",
-      &enc,
-      doForward ? " forwarding" : "",
-      isRouted ? " routing" : "",
-      i);
+  IF_GELOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   hash2enc(&query->queries[0],
+		    &enc));
+  ((char*)&enc)[6] = '\0';
+  GE_LOG(ectx,
+	 GE_INFO | GE_IMMEDIATE | GE_USER,
+	 "GAP is executing request for `%s':%s%s (%d)\n",
+	 &enc,
+	 doForward ? " forwarding" : "",
+	 isRouted ? " routing" : "",
+	 i);
 #endif
   if ( (stats != NULL) &&
        (isRouted || doForward) )
@@ -1472,7 +1528,8 @@ static int execQuery(const PeerIdentity * sender,
 
   if (cls.valueCount > 0) {
     perm = permute(WEAK, cls.valueCount);
-    max = getNetworkLoadDown();
+    max = os_network_monitor_get_load(coreAPI->load_monitor,
+				      Download);
     if (max > 100)
       max = 100;
     if (max == -1)
@@ -1490,7 +1547,7 @@ static int execQuery(const PeerIdentity * sender,
 			      &query->queries[0],
 			      cls.values[perm[i]])) &&
 	   (stats != NULL) )
-	stats->change(stat_routing_local_results, 1);      
+	stats->change(stat_routing_local_results, 1);
       /* even for local results, always do 'put'
 	 (at least to give back results to local client &
 	 to update priority; but only do this for
@@ -1519,7 +1576,7 @@ static int execQuery(const PeerIdentity * sender,
        0);
 
 
-  MUTEX_UNLOCK(&lookup_exclusion);
+  MUTEX_UNLOCK(lookup_exclusion);
   if (doForward) {
     forwardQuery(query,
 		 sender);
@@ -1543,7 +1600,8 @@ static int execQuery(const PeerIdentity * sender,
  *         priority of the original request)
  */
 static int useContent(const PeerIdentity * host,
-		      const P2P_gap_reply_MESSAGE * msg) {
+		      const MESSAGE_HEADER * pmsg) {
+  const P2P_gap_reply_MESSAGE * msg;
   unsigned int i;
   HashCode512 contentHC;
   IndirectionTableEntry * ite;
@@ -1555,19 +1613,32 @@ static int useContent(const PeerIdentity * host,
   PID_INDEX hostId;
 #if DEBUG_GAP
   EncName enc;
-
-  IFLOG(LOG_DEBUG,
-	if (host != NULL)
-	  hash2enc(&host->hashPubKey,
-		   &enc));
-  LOG(LOG_DEBUG,
-      "GAP received content from `%s'\n",
-      (host != NULL) ? (const char*)&enc : "myself");
+  EncName enc2;
 #endif
-  if (ntohs(msg->header.size) < sizeof(P2P_gap_reply_MESSAGE)) {
-    BREAK();
+
+  if (host == NULL)
+    return 0; /* IGNORE local replies! */
+
+  if (ntohs(pmsg->size) < sizeof(P2P_gap_reply_MESSAGE)) {
+    GE_BREAK(ectx, 0);
     return SYSERR; /* invalid! */
   }
+  msg = (const P2P_gap_reply_MESSAGE *) pmsg;
+#if DEBUG_GAP
+  IF_GELOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   if (host != NULL)
+	     hash2enc(&host->hashPubKey,
+		      &enc));
+  hash2enc(&msg->primaryKey,
+	   &enc2);
+  ((char*)&enc2)[6] = '\0';
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "GAP received content %s from `%s'\n",
+	 &enc2,
+	 (host != NULL) ? (const char*)&enc : "myself");
+#endif
 	
   ite = &ROUTING_indTable_[computeRoutingIndex(&msg->primaryKey)];
   ite->successful_local_lookup_in_delay_loop = NO;
@@ -1575,7 +1646,7 @@ static int useContent(const PeerIdentity * host,
   prio = 0;
 
   if (rhf == NULL) {
-    if (stats != NULL) 
+    if (stats != NULL)
       stats->change(stat_routing_reply_drops, 1);
     return OK; /* not fully initialized! */
   }
@@ -1588,18 +1659,18 @@ static int useContent(const PeerIdentity * host,
       &contentHC);
 
   /* FIRST: check if seen */
-  MUTEX_LOCK(&lookup_exclusion);
+  MUTEX_LOCK(lookup_exclusion);
   for (i=0;i<ite->seenIndex;i++) {
     if (equalsHashCode512(&contentHC,
 			  &ite->seen[i])) {
-      MUTEX_UNLOCK(&lookup_exclusion);
+      MUTEX_UNLOCK(lookup_exclusion);
       FREE(value);
-      if (stats != NULL) 
+      if (stats != NULL)
 	stats->change(stat_routing_reply_dups, 1);
       return 0; /* seen before, useless */
     }
   }
-  MUTEX_UNLOCK(&lookup_exclusion);
+  MUTEX_UNLOCK(lookup_exclusion);
 
   /* SECOND: check if valid */
   ret = bs->put(bs->closure,
@@ -1608,23 +1679,25 @@ static int useContent(const PeerIdentity * host,
 		0);
   if (ret == SYSERR) {
     EncName enc;
-    
-    IFLOG(LOG_ERROR,
-	  if (host != NULL)
-	    hash2enc(&host->hashPubKey, 
-		     &enc));
-    LOG(LOG_ERROR,
-	_("GAP received invalid content from `%s'\n"),
-	(host != NULL) ? (const char*)&enc : _("myself"));    
-    BREAK();
+
+    IF_GELOG(ectx,
+	     GE_ERROR | GE_BULK | GE_USER,
+	     if (host != NULL)
+	       hash2enc(&host->hashPubKey,
+			&enc));
+    GE_LOG(ectx,
+	   GE_ERROR | GE_BULK | GE_USER,
+	   _("GAP received invalid content from `%s'\n"),
+	   (host != NULL) ? (const char*)&enc : _("myself"));
+    GE_BREAK(ectx, 0);
     FREE(value);
     return SYSERR; /* invalid */
-  }
+  }  
 
   /* THIRD: compute content priority/value and
      send remote reply (ITE processing) */
   hostId = intern_pid(host);
-  MUTEX_LOCK(&lookup_exclusion);
+  MUTEX_LOCK(lookup_exclusion);
   if (equalsHashCode512(&ite->primaryKey,
 			&msg->primaryKey) ) {	
     prio = ite->priority;
@@ -1679,14 +1752,14 @@ static int useContent(const PeerIdentity * host,
       ite->priority = 0;
       ite->type = 0;
       ite->ttl = 0;
-      if (stats != NULL) 
+      if (stats != NULL)
 	stats->change(stat_routing_slots_used, -1);
     }
   } else {
-    if (stats != NULL) 
+    if (stats != NULL)
       stats->change(stat_routing_reply_drops, 1);
   }
-  MUTEX_UNLOCK(&lookup_exclusion);
+  MUTEX_UNLOCK(lookup_exclusion);
   prio += claimReward(&msg->primaryKey);
 
   /* FOURTH: update content priority in local datastore */
@@ -1697,7 +1770,7 @@ static int useContent(const PeerIdentity * host,
 	    prio);
   }
 
-  /* FIFTH: if unique reply, stopy querying */
+  /* FIFTH: if unique reply, stop querying */
   if (uri(value,
 	  ite->type,
 	  NO, /* already verified */
@@ -1736,7 +1809,7 @@ static int init(Blockstore * datastore,
 		UniqueReplyIdentifier uid,
 		ReplyHashFunction rh) {
   if (bs != NULL) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     return SYSERR;
   }
   bs = datastore;
@@ -1773,7 +1846,7 @@ static int get_start(unsigned int type,
 
   size = sizeof(P2P_gap_query_MESSAGE) + (keyCount-1) * sizeof(HashCode512);
   if (size >= MAX_BUFFER_SIZE) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     return SYSERR; /* too many keys! */
   }
 
@@ -1787,8 +1860,9 @@ static int get_start(unsigned int type,
 
     anonymityLevel--;
     if (traffic == NULL) {
-      LOG(LOG_ERROR,
-	  _("Cover traffic requested but traffic service not loaded.  Rejecting request.\n"));
+      GE_LOG(ectx,
+	     GE_ERROR | GE_BULK | GE_USER,
+	     _("Cover traffic requested but traffic service not loaded.  Rejecting request.\n"));
       return SYSERR;
     }
     if (OK != traffic->get((TTL_DECREMENT + timeout) / TRAFFIC_TIME_UNIT,
@@ -1798,25 +1872,29 @@ static int get_start(unsigned int type,
 			   &peers,
 			   &sizes,
 			   &timevect)) {
-      LOG(LOG_WARNING,
-	  _("Failed to get traffic stats.\n"));
+      GE_LOG(ectx,
+	     GE_WARNING | GE_BULK | GE_USER,
+	     _("Failed to get traffic stats.\n"));
       return SYSERR;
     }
     if (anonymityLevel > 1000) {
       if (peers < anonymityLevel / 1000) {
-	LOG(LOG_WARNING,
-	    _("Cannot satisfy desired level of anonymity, ignoring request.\n"));
+	GE_LOG(ectx,
+	       GE_WARNING | GE_BULK | GE_USER,
+	       _("Cannot satisfy desired level of anonymity, ignoring request.\n"));
 	return SYSERR;
       }
       if (count < anonymityLevel % 1000) {
-	LOG(LOG_WARNING,
-	    _("Cannot satisfy desired level of anonymity, ignoring request.\n"));
+	GE_LOG(ectx,
+	       GE_WARNING | GE_BULK | GE_USER,
+	       _("Cannot satisfy desired level of anonymity, ignoring request.\n"));
 	return SYSERR;
       }
     } else {
       if (count < anonymityLevel) {
-	LOG(LOG_WARNING,
-	    _("Cannot satisfy desired level of anonymity, ignoring request.\n"));
+	GE_LOG(ectx,
+	       GE_WARNING | GE_BULK | GE_USER,
+	       _("Cannot satisfy desired level of anonymity, ignoring request.\n"));
 	return SYSERR;
       }
     }
@@ -1833,7 +1911,7 @@ static int get_start(unsigned int type,
   msg->priority
     = htonl(prio);
   msg->ttl
-    = htonl(adjustTTL((int)timeout - cronTime(NULL),
+    = htonl(adjustTTL((int)timeout - get_time(),
 		      prio));
   memcpy(&msg->queries[0],
 	 keys,
@@ -1843,7 +1921,7 @@ static int get_start(unsigned int type,
   ret = execQuery(NULL,
 		  prio,
 		  QUERY_ANSWER|QUERY_FORWARD|QUERY_INDIRECT,
-		  timeout - cronTime(NULL),
+		  timeout - get_time(),
 		  msg);
   FREE(msg);
   return ret;
@@ -1894,7 +1972,7 @@ tryMigrate(const DataContainer * data,
 	 size - sizeof(P2P_gap_reply_MESSAGE));
 #if EXTRA_CHECKS
   /* verify content integrity */
-  GNUNET_ASSERT(SYSERR != bs->put(bs->closure,
+  GE_ASSERT(ectx, SYSERR != bs->put(bs->closure,
 				  primaryKey,
 				  data,
 				  0));
@@ -1907,7 +1985,7 @@ tryMigrate(const DataContainer * data,
  * lookup, forward or even indirect.
  */
 static int handleQuery(const PeerIdentity * sender,
-		       const P2P_MESSAGE_HEADER * msg) {
+		       const MESSAGE_HEADER * msg) {
   QUERY_POLICY policy;
   P2P_gap_query_MESSAGE * qmsg;
   unsigned int queries;
@@ -1919,37 +1997,36 @@ static int handleQuery(const PeerIdentity * sender,
 #endif
 
   if (bs == NULL) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     return 0;
   }
-  
+
   /* Load above hard limit? */
-  if ( ( (hardCPULimit > 0) && 
-	 (getCPULoad() >= hardCPULimit) ) ||
-       ( (hardUpLimit > 0) && 
-	 (getNetworkLoadUp() >= hardUpLimit) ) ) {
+  if (loadTooHigh()) {
 #if DEBUG_GAP
     if (sender != NULL) {
-      IFLOG(LOG_DEBUG,
-	    hash2enc(&sender->hashPubKey,
-		     &enc));
+      IF_GELOG(ectx, 
+	       GE_DEBUG | GE_REQUEST | GE_USER,
+	       hash2enc(&sender->hashPubKey,
+			&enc));
     }
-    LOG(LOG_DEBUG,
-        "Dropping query from %s, this peer is too busy.\n",
-        sender == NULL ? "localhost" : (char*)&enc);
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "Dropping query from %s, this peer is too busy.\n",
+	   sender == NULL ? "localhost" : (char*)&enc);
 #endif
     return OK;
-  }  
+  }
   queries = 1 + (ntohs(msg->size) - sizeof(P2P_gap_query_MESSAGE))
     / sizeof(HashCode512);
   if ( (queries <= 0) ||
        (ntohs(msg->size) < sizeof(P2P_gap_query_MESSAGE)) ||
        (ntohs(msg->size) != sizeof(P2P_gap_query_MESSAGE) +
 	(queries-1) * sizeof(HashCode512)) ) {
-    BREAK();
+    GE_BREAK(ectx, 0);
     return SYSERR; /* malformed query */
   }
-  
+
   qmsg = MALLOC(ntohs(msg->size));
   memcpy(qmsg, msg, ntohs(msg->size));
   if (equalsHashCode512(&qmsg->returnTo.hashPubKey,
@@ -1959,7 +2036,7 @@ static int handleQuery(const PeerIdentity * sender,
        (or B directly back to A; also should not happen)
        in this case, A must just drop; however, this
        should not happen (peers should check). */
-    BREAK();
+    GE_BREAK(ectx, 0);
     FREE(qmsg);
     return OK;
   }
@@ -1983,26 +2060,29 @@ static int handleQuery(const PeerIdentity * sender,
   policy = evaluateQuery(sender,
 			 &prio);
 #if DEBUG_GAP
-  IFLOG(LOG_DEBUG,
-	hash2enc(&qmsg->queries[0],
-		 &enc));
-  LOG(LOG_DEBUG,
-      "Received GAP query `%s'.\n",
-      &enc);
+  IF_GELOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   hash2enc(&qmsg->queries[0],
+		    &enc));
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "Received GAP query `%s'.\n",
+	 &enc);
 #endif
-  if ((policy & QUERY_DROPMASK) == 0) { 
+  if ((policy & QUERY_DROPMASK) == 0) {
     /* policy says no answer/forward/indirect => direct drop;
        this happens if the peer is too busy (netload-up >= 100%).  */
     FREE(qmsg);
 #if DEBUG_GAP
     if (sender != NULL) {
-      IFLOG(LOG_DEBUG,
+      IF_GELOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
 	    hash2enc(&sender->hashPubKey,
 		     &enc));
     }
-    LOG(LOG_DEBUG,
-	"Dropping query from %s, policy decided that this peer is too busy.\n",
-	sender == NULL ? "localhost" : (const char*) &enc);
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "Dropping query from %s, policy decided that this peer is too busy.\n",
+	   sender == NULL ? "localhost" : (const char*) &enc);
 #endif
     if (stats != NULL)
       stats->change(stat_routing_direct_drops, 1);
@@ -2068,10 +2148,34 @@ provide_module_gap(CoreAPIForApplication * capi) {
   static GAP_ServiceAPI api;
   unsigned int i;
 
-  GNUNET_ASSERT(sizeof(P2P_gap_reply_MESSAGE) == 68);
-  GNUNET_ASSERT(sizeof(P2P_gap_query_MESSAGE) == 144);
-
+  ectx = capi->ectx;
+  cfg = capi->cfg;
   coreAPI = capi;
+  if ( (-1 == GC_get_configuration_value_number(cfg,
+						"LOAD",
+						"HARDCPULIMIT",
+						0,
+						100000, /* 1000 CPUs!? */
+						0, /* 0 == no limit */
+						&hardCPULimit)) ||
+       (-1 == GC_get_configuration_value_number(cfg,
+						"LOAD",
+						"HARDUPLIMIT",
+						0,
+						999999999,
+						0, /* 0 == no limit */
+						&hardUpLimit)) ||
+       (-1 == GC_get_configuration_value_number(cfg,
+						"GAP",
+						"TABLESIZE",
+						MIN_INDIRECTION_TABLE_SIZE,
+						MAX_MALLOC_CHECKED / sizeof(IndirectionTableEntry),
+						MIN_INDIRECTION_TABLE_SIZE,
+						&indirectionTableSize)) )
+    return NULL;
+  GE_ASSERT(ectx, sizeof(P2P_gap_reply_MESSAGE) == 68);
+  GE_ASSERT(ectx, sizeof(P2P_gap_query_MESSAGE) == 144);
+
   stats = capi->requestService("stats");
   if (stats != NULL) {
     stat_routing_totals             = stats->create(gettext_noop("# gap requests total received"));
@@ -2079,11 +2183,11 @@ provide_module_gap(CoreAPIForApplication * capi) {
     stat_routing_no_route_policy    = stats->create(gettext_noop("# gap requests policy: not routed"));
     stat_routing_no_answer_policy   = stats->create(gettext_noop("# gap requests policy: not answered"));
     stat_routing_processed          = stats->create(gettext_noop("# gap requests processed: attempted add to RT"));
-    stat_routing_local_results      = stats->create(gettext_noop("# gap requests processed: local result")); 
+    stat_routing_local_results      = stats->create(gettext_noop("# gap requests processed: local result"));
     stat_routing_successes          = stats->create(gettext_noop("# gap routing successes (total)"));
     stat_routing_collisions         = stats->create(gettext_noop("# gap requests dropped: collision in RT"));
     stat_routing_forwards           = stats->create(gettext_noop("# gap requests forwarded (counting each peer)"));
-    stat_routing_request_duplicates = stats->create(gettext_noop("# gap duplicate requests (pending)")); 
+    stat_routing_request_duplicates = stats->create(gettext_noop("# gap duplicate requests (pending)"));
     stat_routing_request_repeat     = stats->create(gettext_noop("# gap duplicate requests that were re-tried"));
     stat_routing_request_repeat_dttl= stats->create(gettext_noop("# gap re-try ttl difference (cummulative)"));
     stat_routing_reply_dups         = stats->create(gettext_noop("# gap reply duplicates"));
@@ -2094,30 +2198,24 @@ provide_module_gap(CoreAPIForApplication * capi) {
     stat_pending_rewards            = stats->create(gettext_noop("# gap rewards pending"));
     stat_response_count             = stats->create(gettext_noop("# gap response weights"));
   }
-  init_pid_table(stats);
+  init_pid_table(ectx,
+		 stats);
   GROW(rewards,
        rewardSize,
        MAX_REWARD_TRACKS);
-       
-  hardCPULimit = getConfigurationInt("LOAD", "HARDCPULIMIT");
-  hardUpLimit = getConfigurationInt("LOAD", "HARDUPLIMIT");
+
 
   identity = coreAPI->requestService("identity");
-  GNUNET_ASSERT(identity != NULL);
+  GE_ASSERT(ectx, identity != NULL);
   topology = coreAPI->requestService("topology");
-  GNUNET_ASSERT(topology != NULL);
+  GE_ASSERT(ectx, topology != NULL);
   traffic = coreAPI->requestService("traffic");
   if (traffic == NULL) {
-    LOG(LOG_WARNING,
+    GE_LOG(ectx, GE_WARNING | GE_BULK | GE_USER,
 	_("Traffic service failed to load; gap cannot ensure cover-traffic availability.\n"));
   }
   random_qsel = weak_randomi(0xFFFF);
-  indirectionTableSize =
-    getConfigurationInt("GAP",
-    			"TABLESIZE");
-  if (indirectionTableSize < MIN_INDIRECTION_TABLE_SIZE)
-    indirectionTableSize = MIN_INDIRECTION_TABLE_SIZE;
-  MUTEX_CREATE(&lookup_exclusion);
+  lookup_exclusion = MUTEX_CREATE(NO);
   ROUTING_indTable_
     = MALLOC(sizeof(IndirectionTableEntry)
 	     * indirectionTableSize);
@@ -2134,20 +2232,22 @@ provide_module_gap(CoreAPIForApplication * capi) {
     queries[i].msg = NULL;
   }
   lock = coreAPI->getConnectionModuleLock();
-  addCronJob(&ageRTD,
-	     2 * cronMINUTES,
-	     2 * cronMINUTES,
-	     NULL);
+  cron_add_job(capi->cron,
+	       &ageRTD,
+	       2 * cronMINUTES,
+	       2 * cronMINUTES,
+	       NULL);
 
-  LOG(LOG_DEBUG,
-      _("`%s' registering handlers %d %d\n"),
-      "gap",
-      P2P_PROTO_gap_QUERY,
-      P2P_PROTO_gap_RESULT);
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 _("`%s' registering handlers %d %d\n"),
+	 "gap",
+	 P2P_PROTO_gap_QUERY,
+	 P2P_PROTO_gap_RESULT);
   capi->registerHandler(P2P_PROTO_gap_QUERY,
 			&handleQuery);
   capi->registerHandler(P2P_PROTO_gap_RESULT,
-			(MessagePartHandler) &useContent);
+			&useContent);
   coreAPI->registerSendCallback(sizeof(P2P_gap_query_MESSAGE),
 				&fillInQuery);
 
@@ -2168,13 +2268,14 @@ void release_module_gap() {
   coreAPI->unregisterHandler(P2P_PROTO_gap_QUERY,
 			     &handleQuery);
   coreAPI->unregisterHandler(P2P_PROTO_gap_RESULT,
-			     (MessagePartHandler) &useContent);
+			     &useContent);
   coreAPI->unregisterSendCallback(sizeof(P2P_gap_query_MESSAGE),
 				  &fillInQuery);
 
-  delCronJob(&ageRTD,
-	     2 * cronMINUTES,
-	     NULL);
+  cron_del_job(coreAPI->cron,
+	       &ageRTD,
+	       2 * cronMINUTES,
+	       NULL);
 
   for (i=0;i<indirectionTableSize;i++) {
     ite = &ROUTING_indTable_[i];
@@ -2186,13 +2287,14 @@ void release_module_gap() {
     ite->seenReplyWasUnique = NO;
     if (stats != NULL)
       stats->change(stat_memory_destinations, - ite->hostsWaiting);
-    decrement_pid_rcs(ite->destination, ite->hostsWaiting);    
+    decrement_pid_rcs(ite->destination, ite->hostsWaiting);
     GROW(ite->destination,
 	 ite->hostsWaiting,
 	 0);
   }
 
-  MUTEX_DESTROY(&lookup_exclusion);
+  MUTEX_DESTROY(lookup_exclusion);
+  lookup_exclusion = NULL;
   while (rtdList != NULL) {
     pos = rtdList;
     rtdList = rtdList->next;
@@ -2228,6 +2330,8 @@ void release_module_gap() {
   coreAPI = NULL;
   bs = NULL;
   uri = NULL;
+  ectx = NULL;
+  cfg = NULL;
 }
 
 /* end of gap.c */
