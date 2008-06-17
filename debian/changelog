@@ -1,3 +1,9 @@
+gnunet (0.7.3-7) unstable; urgency=medium
+
+  * Excluding ia64 manually from architectures.
+
+ -- Daniel Baumann <daniel@debian.org>  Tue, 29 Apr 2008 16:13:00 +0200
+
 gnunet (0.7.3-6) unstable; urgency=medium
 
   * Removing watch file.

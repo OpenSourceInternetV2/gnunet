@@ -8,7 +8,8 @@ Standards-Version: 3.7.3
 Homepage: http://www.gnunet.org/
 
 Package: gnunet
-Architecture: all
+Section: net
+Architecture: alpha amd64 arm armel hppa hurd-i386 i386 m68k mips mipsel powerpc s390 sparc
 Depends: gnunet-client (= ${binary:Version}), gnunet-server (= ${binary:Version}), gnunet-tools (= ${binary:Version})
 Description: secure, trust-based peer-to-peer framework (meta)
  GNUnet is a peer-to-peer framework which focuses on providing security. All
@@ -20,7 +21,8 @@ Description: secure, trust-based peer-to-peer framework (meta)
  gnunet-tools.
 
 Package: gnunet-client
-Architecture: any
+Section: net
+Architecture: alpha amd64 arm armel hppa hurd-i386 i386 m68k mips mipsel powerpc s390 sparc
 Depends: ${shlibs:Depends}, ${misc:Depends}, gnunet-common (= ${binary:Version}), gettext
 Suggests: libextractor-plugins
 Description: secure, trust-based peer-to-peer framework (client)
@@ -33,7 +35,8 @@ Description: secure, trust-based peer-to-peer framework (client)
  gnunet-search and gnunet-download.
 
 Package: gnunet-common
-Architecture: any
+Section: net
+Architecture: alpha amd64 arm armel hppa hurd-i386 i386 m68k mips mipsel powerpc s390 sparc
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: secure, trust-based peer-to-peer framework (common)
  GNUnet is a peer-to-peer framework which focuses on providing security. All
@@ -46,7 +49,7 @@ Description: secure, trust-based peer-to-peer framework (common)
 Package: gnunet-dbg
 Section: devel
 Priority: extra
-Architecture: any
+Architecture: alpha amd64 arm armel hppa hurd-i386 i386 m68k mips mipsel powerpc s390 sparc
 Depends: gnunet-client (= ${binary:Version}), gnunet-common (= ${binary:Version}), gnunet-dev (= ${binary:Version}), gnunet-server (= ${binary:Version}), gnunet-tools (= ${binary:Version})
 Description: secure, trust-based peer-to-peer framework (debug)
  GNUnet is a peer-to-peer framework which focuses on providing security. All
@@ -57,7 +60,8 @@ Description: secure, trust-based peer-to-peer framework (debug)
  This package contains the debugging symbols.
 
 Package: gnunet-server
-Architecture: any
+Section: net
+Architecture: alpha amd64 arm armel hppa hurd-i386 i386 m68k mips mipsel powerpc s390 sparc
 Depends: ${shlibs:Depends}, ${misc:Depends}, gnunet-common (= ${binary:Version}), adduser, gettext, netbase
 Conflicts: gnunet-daemon
 Replaces: gnunet-daemon
@@ -71,7 +75,7 @@ Description: secure, trust-based peer-to-peer framework (server)
 
 Package: gnunet-dev
 Section: libdevel
-Architecture: any
+Architecture: alpha amd64 arm armel hppa hurd-i386 i386 m68k mips mipsel powerpc s390 sparc
 Depends: gnunet-server (= ${binary:Version}), gnunet-client (= ${binary:Version}), gnunet-tools (= ${binary:Version}), libextractor-dev (>= 0.5.18)
 Description: secure, trust-based peer-to-peer framework (development)
  GNUnet is a peer-to-peer framework which focuses on providing security. All
@@ -82,7 +86,8 @@ Description: secure, trust-based peer-to-peer framework (development)
  This package contains the development files.
 
 Package: gnunet-tools
-Architecture: any
+Section: net
+Architecture: alpha amd64 arm armel hppa hurd-i386 i386 m68k mips mipsel powerpc s390 sparc
 Depends: ${shlibs:Depends}, ${misc:Depends}, gnunet-common (= ${binary:Version}), gettext
 Description: secure, trust-based peer-to-peer framework (tools)
  GNUnet is a peer-to-peer framework which focuses on providing security. All
