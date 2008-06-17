@@ -1,3 +1,13 @@
+gnunet (0.6.6b-3) unstable; urgency=low
+
+  * debian/po/pt_BR.po: Updated Brazilian Portuguese translation of gnunet
+    debconf messages. Thanks to Guilherme de S. Pastore. (Closes: #306350)
+
+  * debian/po/cs.po: Added new Czech translation of gnunet debconf messages.
+    Thanks to Miroslav Kure. (Closes: #310756)
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Thu, 26 May 2005 22:15:15 +0200
+
 gnunet (0.6.6b-2) unstable; urgency=low
 
   * debian/docs: Added the file UPDATING.

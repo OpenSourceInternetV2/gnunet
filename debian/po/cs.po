@@ -1,31 +1,33 @@
-# Translators, if you are not familiar with the PO format, gettext
-# documentation is worth reading, especially sections dedicated to
-# this format, e.g. by running:
-# info -n '(gettext)PO Files'
-# info -n '(gettext)Header Entry'
-# Some information specific to po-debconf are available at
-# /usr/share/doc/po-debconf/README-trans
-# or http://www.debian.org/intl/l10n/po-debconf/README-trans
-# Developers do not need to manually edit POT or PO files.
-# 
-# 
+#
+#    Translators, if you are not familiar with the PO format, gettext
+#    documentation is worth reading, especially sections dedicated to
+#    this format, e.g. by running:
+#         info -n '(gettext)PO Files'
+#         info -n '(gettext)Header Entry'
+#
+#    Some information specific to po-debconf are available at
+#            /usr/share/doc/po-debconf/README-trans
+#         or http://www.debian.org/intl/l10n/po-debconf/README-trans
+#
+#    Developers do not need to manually edit POT or PO files.
+#
 msgid ""
 msgstr ""
-"Project-Id-Version: gnunet 0.6.6b-1\n"
+"Project-Id-Version: gnunet\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2004-12-03 08:11+0100\n"
-"PO-Revision-Date: 2005-05-26 10:42-0300\n"
-"Last-Translator: Guilherme de S. Pastore <gpastore@colband.com.br>\n"
-"Language-Team: Debian-BR <debian-l10n-portuguese@lists.debian.org>\n"
+"PO-Revision-Date: 2005-05-25 20:44+0200\n"
+"Last-Translator: Miroslav Kure <kurem@debian.cz>\n"
+"Language-Team: Czech <debian-l10n-czech@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=iso-8859-1\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
 #. Type: note
 #. Description
 #: ../gnunet.templates:3
 msgid "Former installation of GNUnet detected"
-msgstr "InstalaÁ„o anterior do GNUnet detectada"
+msgstr "Byla rozpozn√°na p≈ôedchoz√≠ instalace GNUnet"
 
 #. Type: note
 #. Description
@@ -34,8 +36,8 @@ msgid ""
 "Since there are important changes in this version, we will need to modify "
 "your GNUnet configuration file (/etc/gnunet.conf)."
 msgstr ""
-"Como h· mudanÁas importantes nesta vers„o, nÛs precisaremos modificar o seu "
-"arquivo de configuraÁ„o do GNUnet (/etc/gnunet.conf)."
+"Proto≈æe se v t√©to verzi ud√°ly v√Ωznamn√© zmƒõny, je nutn√© upravit v√°≈° "
+"konfiguraƒçn√≠ soubor /etc/gnunet.conf."
 
 #. Type: note
 #. Description
@@ -44,20 +46,20 @@ msgid ""
 "The installation process will backup /etc/gnunet.conf to /etc/gnunet.conf."
 "old, and will automatically build a new configuration file."
 msgstr ""
-"O processo de instalaÁ„o far· uma cÛpia de /etc/gnunet.conf em /etc/gnunet."
-"conf.old, e automaticamente construir· um novo arquivo de configuraÁ„o."
+"Instalaƒçn√≠ proces zaz√°lohuje /etc/gnunet.conf do /etc/gnunet.conf.old a "
+"automaticky vytvo≈ô√≠ nov√Ω konfiguraƒçn√≠ soubor."
 
 #. Type: note
 #. Description
 #: ../gnunet.templates:3
 msgid "Your personal settings will be preserved as much as possible."
-msgstr "Suas configuraÁıes pessoais ser„o preservadas o m·ximo possÌvel."
+msgstr "Va≈°e osobn√≠ nastaven√≠ bylo pokud mo≈æno zachov√°no."
 
 #. Type: note
 #. Description
 #: ../gnunet.templates:15
 msgid "Warning"
-msgstr "Aviso"
+msgstr "Varov√°n√≠"
 
 #. Type: note
 #. Description
@@ -66,15 +68,14 @@ msgid ""
 "For some obscure reason, we have failed to discover your configuration "
 "settings in /etc/gnunet.conf."
 msgstr ""
-"Por alguma raz„o desconhecida, nÛs n„o conseguimos descobrir suas "
-"configuraÁıes em /etc/gnunet.conf"
+"Z nƒõjak√©ho obskurn√≠ho d≈Øvodu jsem nemohl v /etc/gnunet.conf objevit ≈æ√°dn√© "
+"nastaven√≠."
 
 #. Type: note
 #. Description
 #: ../gnunet.templates:15
 msgid "Your old configuration file will be moved to /etc/gnunet.conf.old."
-msgstr ""
-"Seu arquivo de configuraÁ„o anterior ser· movido para /etc/gnunet.conf.old."
+msgstr "V√°≈° star√Ω konfiguraƒçn√≠ soubor bude p≈ôesunut do /etc/gnunet.conf.old."
 
 #. Type: note
 #. Description
@@ -83,8 +84,8 @@ msgid ""
 "Since some changes are *mandatory* in this file, a fresh default "
 "configuration file will now be installed"
 msgstr ""
-"J· que algumas mudanÁas s„o *obrigatÛrias* nesse arquivo, um novo arquivo de "
-"configuraÁ„o padr„o ser· instalado agora"
+"Proto≈æe jsou nƒõkter√© zmƒõny v tomto souboru *povinn√©*, nainstaluje se nyn√≠ "
+"v√Ωchoz√≠ konfiguraƒçn√≠ soubor."
 
 #. Type: note
 #. Description
@@ -92,21 +93,19 @@ msgstr ""
 msgid ""
 "Please take a look and make necessary changes in it if needed after "
 "installation."
-msgstr ""
-"Por favor, verifique e, se preciso, faÁa as mudanÁas necess·rias apÛs a "
-"instalaÁ„o."
+msgstr "Po instalaci jej projdƒõte a p≈ô√≠padnƒõ proveƒète nezbytn√© zmƒõny."
 
 #. Type: boolean
 #. Description
 #: ../gnunet.templates:30
 msgid "Launch at startup?"
-msgstr "Rodar na inicializaÁ„o?"
+msgstr "Spustit p≈ôi startu?"
 
 #. Type: boolean
 #. Description
 #: ../gnunet.templates:30
 msgid "Do you want to launch GNUnet as a system service ?"
-msgstr "VocÍ deseja rodar o GNUnet como um serviÁo do sistema?"
+msgstr "Chcete spustit GNUnet jako syst√©movou slu≈æbu p≈ôi zav√°dƒõn√≠ syst√©mu?"
 
 #. Type: boolean
 #. Description
@@ -116,21 +115,21 @@ msgid ""
 "starts.  If you decline this option, you need to launch GNUnet each time you "
 "want to use it."
 msgstr ""
-"Se vocÍ aceitar, um servidor GNUnet ser· iniciado cada vez que o seu "
-"computador for iniciado. Caso contr·rio, vocÍ precisar· rodar o GNUnet toda "
-"vez que quiser us·-lo."
+"Pokud budete souhlasit, bude se server GNUnet spou≈°tƒõt p≈ôi ka≈æd√©m startu "
+"poƒç√≠taƒçe. Zam√≠tnete-li, budete muset GNUnet spou≈°tƒõt ruƒçnƒõ poka≈æd√©, kdy ho "
+"budete cht√≠t pou≈æ√≠t."
 
 #. Type: string
 #. Description
 #: ../gnunet.templates:40
 msgid "GNUnet user:"
-msgstr "Usu·rio do GNUnet:"
+msgstr "U≈æivatel GNUnet:"
 
 #. Type: string
 #. Description
 #: ../gnunet.templates:40
 msgid "Define the user owning the GNUnet daemon process."
-msgstr "Defina o usu·rio que ser· dono do processo do daemon do GNUnet."
+msgstr "Zadejte u≈æivatele vlastn√≠c√≠ho daemon GNUnet."
 
 #. Type: string
 #. Description
@@ -139,8 +138,8 @@ msgid ""
 "For security reason, the best is to create a new user for this, and make "
 "sure that it owns no data beside GNUnet's ones."
 msgstr ""
-"Por razıes de seguranÁa, o melhor È criar um novo usu·rio para isso, e ter "
-"certeza de que ele n„o È dono de informaÁ„o alguma que n„o as do GNUnet."
+"Z bezpeƒçnostn√≠ch d≈Øvod≈Ø je nejlep≈°√≠ vytvo≈ôit nov√©ho u≈æivatele, kter√Ω "
+"nevlastn√≠ kromƒõ GNUnetu ≈æ√°dn√° jin√° data."
 
 #. Type: string
 #. Description
@@ -149,20 +148,20 @@ msgid ""
 "If you go that way, the user will automatically be created (as system user) "
 "and no login will be allowed for it."
 msgstr ""
-"Se vocÍ escolher essa opÁ„o, o usu·rio ser· criado automaticamente (como uma "
-"conta de sistema) e n„o ser· autorizado a se logar."
+"Zvol√≠te-li tuto cestu, (syst√©mov√Ω) u≈æivatel se vytvo≈ô√≠ automaticky a bude mu "
+"zak√°z√°no p≈ôihl√°≈°en√≠."
 
 #. Type: string
 #. Description
 #: ../gnunet.templates:52
 msgid "GNUnet group:"
-msgstr "Grupo do GNUnet:"
+msgstr "Skupina GNUnet:"
 
 #. Type: string
 #. Description
 #: ../gnunet.templates:52
 msgid "Define the group owning the GNUnet daemon process."
-msgstr "Defina o grupo que ser· respons·vel pelo processo de daemon do GNUnet."
+msgstr "Zadejte skupinu vlastn√≠c√≠ daemon GNUnet."
 
 #. Type: string
 #. Description
@@ -171,9 +170,8 @@ msgid ""
 "For security reason, the best is to create a new group for this, and make "
 "sure that it owns no data beside GNUnet's ones."
 msgstr ""
-"Por razıes de seguranÁa, o melhor È criar um novo grupo para isto, e ter "
-"certeza de que ele n„o È dono de nenhuma informaÁ„o, com exceÁ„o das do "
-"GNUnet."
+"Z bezpeƒçnostn√≠ch d≈Øvod≈Ø je nejlep≈°√≠ vytvo≈ôit novou skupinu, kter√° nevlastn√≠ "
+"kromƒõ GNUnetu ≈æ√°dn√° jin√° data."
 
 #. Type: string
 #. Description
@@ -182,5 +180,5 @@ msgid ""
 "Only the members of this group are allowed to start and stop the GNUnet "
 "server and  have access to GNUnet data."
 msgstr ""
-"Somente os membros deste grupo tÍm permiss„o para iniciar e parar o servidor "
-"GNUnet e tÍm acesso aos dados do GNUnet."
+"Pouze u≈æivatel√© t√©to skupiny mohou spou≈°tƒõt a zastavovat server GNUnet a "
+"maj√≠ p≈ô√≠stup k dat≈Øm GNUnetu."
