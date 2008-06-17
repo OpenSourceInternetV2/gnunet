@@ -1,3 +1,10 @@
+gnunet (0.7.2c-4) unstable; urgency=medium
+
+  * Added missing build-dependency against libncursesw5-dev,
+    now the gnunet-setup curses interface gets build again (Closes: #454701).
+
+ -- Daniel Baumann <daniel@debian.org>  Fri,  7 Dec 2007 09:30:00 +0100
+
 gnunet (0.7.2c-3) unstable; urgency=medium
 
   * Some formal cleanups:
