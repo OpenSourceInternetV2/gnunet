@@ -59,21 +59,22 @@ LOGLEVEL        = WARNING
 # In which file should gnunetd write the logs?  If you specify
 # nothing, logs are written to stderr (and note that if gnunetd runs
 # in the background, stderr is closed and all logs are discarded).
-# Default: LOGFILE         = /var/log/gnunetd/gnunetd.log
+# Default: LOGFILE         = $GNUNETD_HOME/logs
+LOGFILE         = $GNUNETD_HOME/logs
 
-# Do not change this unless you know exactly what you're doing.
-# Changing this value alone, will break the package.
-LOGFILE         = /var/log/gnunetd/gnunetd.log
+# How long should logs be kept? If you specify a value greater
+# than zero, a log is created each day with the date appended
+# to its filename. These logs are deleted after $KEEPLOG days.
+# To disable this function, set this setting to its default
+# value 0.
+KEEPLOG         = 0
 
 # In which file should gnunetd write the process-id of the server?  If
 # you run gnunetd as root, you may want to choose
 # /var/run/gnunetd.pid. It's not the default since gnunetd may not
 # have write rights at that location.
-# Default: PIDFILE         = /var/run/gnunetd/gnunetd.pid
-
-# Do not change this unless you know exactly what you're doing.
-# Changing this value alone, will break the package.
-PIDFILE         = /var/run/gnunetd/gnunetd.pid
+# Default: PIDFILE         = $GNUNETD_HOME/gnunetd.pid
+PIDFILE         = $GNUNETD_HOME/gnunetd.pid
 
 # This directory should be made available periodically --- it contains
 # information how to join GNUnet that is in no way private to the
@@ -166,7 +167,7 @@ PORT = 2087
 # Set if GNUnet fails to determine your IP.  GNUnet first tries to
 # determine your IP by looking at the IP that matches the interface
 # that is given with the option INTERFACE.
-# Under Windows, specify the index number reported by
+# Under Windows, specify the ID reported by
 #  "gnunet-win-tool -n"
 # Default: INTERFACE = eth0
 INTERFACE = eth0
@@ -228,7 +229,7 @@ TRUSTED = 127.0.0.0/8;
 # the IP to use. Typical values are eth0, ppp0, eth1, wlan0, etc.
 # 'ifconfig' will tell you what you have.  Never use 'lo', that just
 # won't work.
-# Under Windows, specify the index number reported by
+# Under Windows, specify the ID reported by
 #  "gnunet-win-tool -n".
 # Default is: INTERFACES      = eth0
 INTERFACES      = eth0
@@ -485,10 +486,10 @@ DATABASETYPE    = "gdbm"
 # believe you need it.
 #
 # The definition of ANONYMITY-RECEIVE is the following: 
-#  If the value v # is < 1000, it means that if GNUnet routes n bytes
-#  of messages from # foreign peers, it may originate n/v bytes of
-#  queries in the same # time-period.  The time-period is twice the
-#  average delay that GNUnet # deferrs forwarded queries.
+#  If the value v is < 1000, it means that if GNUnet routes n bytes
+#  of messages from foreign peers, it may originate n/v bytes of
+#  queries in the same time-period.  The time-period is twice the
+#  average delay that GNUnet deferrs forwarded queries.
 # 
 #  If the value v is >= 1000, it means that if GNUnet routes n bytes
 #  of QUERIES from at least (v % 1000) peers, it may originate

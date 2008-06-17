@@ -551,6 +551,7 @@ int transportCreateHELO(unsigned short ttype,
       ttype--;
     if (ttype == 0xFFFF) {
       FREE(perm);
+      MUTEX_UNLOCK(&tapis_lock);
       return SYSERR;
     }
     ttype = perm[ttype];

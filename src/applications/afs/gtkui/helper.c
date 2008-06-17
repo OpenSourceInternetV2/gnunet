@@ -104,7 +104,7 @@ int gtkRunSomeSaveCalls() {
   MUTEX_LOCK(&sclock);
   if (pscCount == 0) {
     MUTEX_UNLOCK(&sclock);
-    return NULL;
+    return NO;
   }
   i = randomi(pscCount);
   if (TRUE == g_idle_remove_by_data(psc[i]))

@@ -446,8 +446,8 @@ Bloomfilter * loadBloomfilter(const char * filename,
 	   &filename[i]);
   bf->statHandle_dels
     = statHandle(rbuff);
-  FREE(rbuff);
 #endif
+  FREE(rbuff);
   return bf;
 }
 

@@ -169,7 +169,7 @@ void  generate_gnunetd_conf (FILE * f) {
  fprintf(f, "%s\n","# Set if GNUnet fails to determine your IP.  GNUnet first tries to");
  fprintf(f, "%s\n","# determine your IP by looking at the IP that matches the interface");
  fprintf(f, "%s\n","# that is given with the option INTERFACE.");
- fprintf(f, "%s\n","# Under Windows, specify the index number reported by");
+ fprintf(f, "%s\n","# Under Windows, specify the ID reported by");
  fprintf(f, "%s\n","#  \"gnunet-win-tool -n\"");
  fprintf(f, "%s\n","# Default: INTERFACE = eth0");
  fprintf(f, "%s\n","INTERFACE = eth0");
@@ -231,7 +231,7 @@ void  generate_gnunetd_conf (FILE * f) {
  fprintf(f, "%s\n","# the IP to use. Typical values are eth0, ppp0, eth1, wlan0, etc.");
  fprintf(f, "%s\n","# 'ifconfig' will tell you what you have.  Never use 'lo', that just");
  fprintf(f, "%s\n","# won't work.");
- fprintf(f, "%s\n","# Under Windows, specify the index number reported by");
+ fprintf(f, "%s\n","# Under Windows, specify the ID reported by");
  fprintf(f, "%s\n","#  \"gnunet-win-tool -n\".");
  fprintf(f, "%s\n","# Default is: INTERFACES      = eth0");
  fprintf(f, "%s\n","INTERFACES      = eth0");

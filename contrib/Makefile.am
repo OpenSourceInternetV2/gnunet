@@ -13,4 +13,20 @@ EXTRA_DIST = \
  junkinsert.sh \
  junklookup.sh \
  namespacehelper.sh \
- report.sh
+ report.sh \
+ OSX/GNUnet \
+ OSX/GNUnet-config \
+ OSX/GNUnet-funcs \
+ OSX/GNUnet.icns \
+ OSX/History \
+ OSX/Info.plist \
+ OSX/Makefile \
+ OSX/README \
+ OSX/TODO \
+ OSX/build_app \
+ OSX/gnunet-gtk \
+ OSX/gnunet-peer-info \
+ OSX/gnunetd \
+ OSX/gnunetmac-nox.txt \
+ OSX/gnunetmac.txt 
+

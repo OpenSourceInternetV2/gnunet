@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2004 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2004, 2005 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -27,59 +27,124 @@
  * logging to file or stderr and with or without time-prefixing.
  */
 
-#include "gnunet_util.h"
 #include "platform.h"
+#include "gnunet_util.h"
+#include <langinfo.h>
 
-static FILE * logfile = NULL;
+/**
+ * Where to write log information to.
+ */
+static FILE * logfile;
+
+/**
+ * Current loglevel.
+ */
 static int loglevel__ = LOG_WARNING;
+
+/**
+ * Lock for logging activities.
+ */
 static Mutex logMutex;
-static int bInited = 0;
-static TLogProc customLog = NULL;
+
+/**
+ * Has the logging module been initialized?  If not, logMutex must not
+ * be used and logfile is likely NULL.  This is there
+ * because code may call logging before initialization.
+ */
+static int bInited = NO;
+
+/**
+ * Callback function for internal logging
+ * (i.e. to the user interface)
+ */
+static TLogProc customLog;
+
+/**
+ * Highest legal log level.
+ */
 static int maxLogLevel = LOG_EVERYTHING;
+
+/**
+ * Day for which the current logfile is
+ * opened (tells us when we need to switch
+ * to a new file).
+ */
 static unsigned int lastlog;
-static int keepLog;
+
+/**
+ * How long to keep logs, in days 
+ */
+static int keepLog; 
+
+/**
+ * Base value for getting configuration options; either "GNUNETD" or
+ * "GNUNET", depending on whether or not the code is used by the
+ * deamon or a client.
+ */
 static char * base;
 
+/**
+ * The different loglevels.
+ */
 static char * loglevels[] = {
-  "NOTHING",
-  "FATAL",
-  "ERROR",
-  "FAILURE",
-  "WARNING",
-  "MESSAGE",
-  "INFO",
-  "DEBUG",
-  "CRON",
-  "EVERYTHING",
+  gettext_noop("NOTHING"),
+  gettext_noop("FATAL"),
+  gettext_noop("ERROR"),
+  gettext_noop("FAILURE"),
+  gettext_noop("WARNING"),
+  gettext_noop("MESSAGE"),
+  gettext_noop("INFO"),
+  gettext_noop("DEBUG"),
+  gettext_noop("CRON"),
+  gettext_noop("EVERYTHING"),
   NULL,
 };
 
+/**
+ * Context for removeOldLog
+ */
 struct logfiledef {
-  struct tm *curtime;
-  char *logpath;
-  char *datestr;
+  struct tm curtime;
+  char * basename;
 };
 
 /**
  * Remove file if it is an old log
  */
 static void removeOldLog(const char * fil,
-		     const char * dir,
-		     struct logfiledef *def) {
-  unsigned int fillen;
-  char *logdate;
+			 const char * dir,
+			 struct logfiledef * def) {
+  struct tm t;
+  char * fullname;
+  const char * logdate;
+  const char * ret;
 
-  fillen = strlen(fil);
-  logdate = (char *) fil + fillen - 6;
-  if (fillen > 5 && atoi(logdate) + keepLog < (def->curtime->tm_year - 100) * 10000 +
-       (def->curtime->tm_mon + 1) * 100 + def->curtime->tm_mday) {
-    char *filpath;
-    
-    filpath = (char *) MALLOC(fillen + strlen(def->logpath) + 2);
-    sprintf(filpath, "%s/%s", def->logpath, fil);
-    UNLINK(filpath);
-    FREE(filpath);
+  fullname = MALLOC(strlen(dir) + strlen(fil) + 2);
+  strcpy(fullname, dir);
+  if (dir[strlen(dir)-1] != DIR_SEPARATOR)
+    strcat(fullname, DIR_SEPARATOR_STR);
+  strcat(fullname, fil);
+  if (0 != strncmp(def->basename,
+		   fullname,
+		   strlen(def->basename))) {
+    FREE(fullname);
+    return;
   }
+  logdate = &fullname[strlen(def->basename)];
+  ret = strptime(logdate,
+		 nl_langinfo(D_FMT),
+		 &t);
+  if ( (ret == NULL) ||
+       (ret[0] != '\0') ) {
+    FREE(fullname);
+    return; /* not a logfile */  
+  }
+
+  if (t.tm_year*365 + t.tm_yday + keepLog 
+      < def->curtime.tm_year*365 + def->curtime.tm_yday) 
+    UNLINK(fullname);
+  
+  FREE(fullname);
 }
 
 /**
@@ -90,44 +155,52 @@ void reopenLogFile() {
   
   logfilename
     = getConfigurationString(base,
-			     "LOGFILE");
-  
+			     "LOGFILE"); 
   if (logfilename != NULL) {
     char * fn;
-    struct tm *curtime;
-    unsigned int fnlen;
     
-    if (logfile)
+    if ( (logfile != stderr) &&
+	 (logfile != NULL) ) {
       fclose(logfile);
-
-    fn = expandFileName(logfilename);
-      
+      logfile = NULL;
+    }
+    fn = expandFileName(logfilename);     
     if (keepLog) {
-      char *logdir, *end;
+      char * logdir;
+      char * end;
       struct logfiledef def;
-      char datestr[7];
+      char datestr[80];
       time_t curtime;
       
       time(&curtime);
-      def.curtime = localtime(&curtime);
-      lastlog = def.curtime->tm_yday;
+#ifdef localtime_r
+      localtime_r(&curtime, &def.curtime);
+#else
+      def.curtime = *localtime(&curtime);
+#endif
+      lastlog = def.curtime.tm_yday;
       
       /* Format current date for filename*/
-      fnlen = strlen(fn);
-      fn = (char *) realloc(fn, fnlen + 8);
+      fn = (char *) realloc(fn, strlen(fn) + 82);
       strcat(fn, "_");
-      strftime(datestr, 7, "%y%m%d", def.curtime);
-      strcpy(fn + fnlen + 1, datestr);
+      def.basename = STRDUP(fn);
+      GNUNET_ASSERT(0 != strftime(datestr,
+				  80,
+				  nl_langinfo(D_FMT), 
+				  &def.curtime));
+      strcat(fn, datestr);
       
       /* Remove old logs */
       logdir = STRDUP(fn);
       end = logdir + strlen(logdir);
-      while(*end != DIR_SEPARATOR)
+      while (*end != DIR_SEPARATOR)
         end--;
       *end = 0;
-      def.logpath = logdir;
-      def.datestr = datestr;
-      scanDirectory(logdir, (DirectoryEntryCallback) removeOldLog, &def);
+      scanDirectory(logdir, 
+		    (DirectoryEntryCallback) removeOldLog, 
+		    &def);
+      FREE(def.basename);
+      FREE(logdir);
     }
         
     logfile = FOPEN(fn, "a+");
@@ -156,7 +229,7 @@ void *getLogfile() {
 /**
  * Convert a textual description of a loglevel into an int.
  */
-static int getLoglevel(char * log) {
+static int getLoglevel(const char * log) {
   int i;
   char * caplog;
 
@@ -167,7 +240,8 @@ static int getLoglevel(char * log) {
     caplog[i] = toupper(caplog[i]);    
   i = 0;
   while ( (loglevels[i] != NULL) &&
-	  (0 != strcmp(caplog, loglevels[i])) )
+	  ( (0 != strcmp(caplog, gettext(loglevels[i]))) &&
+	    (0 != strcmp(caplog, loglevels[i]))) )
     i++;
   free(caplog);
   if (loglevels[i] == NULL)
@@ -211,13 +285,10 @@ static void resetLogging() {
     = getLoglevel(loglevelname); /* will errexit if loglevel == NULL */
   if (! levelstatic)
     FREE(loglevelname);
-
   keepLog
     = getConfigurationInt(base,
-            "KEEPLOG");
-  
-  reopenLogFile();
-  
+			  "KEEPLOG");
+  reopenLogFile();  
   MUTEX_UNLOCK(&logMutex);
 }
 
@@ -227,7 +298,7 @@ static void resetLogging() {
 void initLogging() {
   MUTEX_CREATE_RECURSIVE(&logMutex);
  
-  bInited = 1;
+  bInited = YES;
   registerConfigurationUpdateCallback(&resetLogging);
   resetLogging();
 }
@@ -243,7 +314,7 @@ void doneLogging() {
   logfile = NULL;
   loglevel__ = 0;
   MUTEX_DESTROY(&logMutex);
-  bInited = 0;
+  bInited = NO;
 }
 
 
@@ -258,10 +329,10 @@ static void printTime() {
  
     time(&timetmp);
     tmptr = localtime(&timetmp);
-    strftime(timebuf, 
-	     64, 
-	     "%b %d %H:%M:%S ", 
-	     tmptr);
+    GNUNET_ASSERT(0 != strftime(timebuf, 
+				64, 
+				"%b %d %H:%M:%S ", 
+				tmptr));
     fputs(timebuf, 
 	  logfile);
   }
@@ -339,9 +410,9 @@ void LOG(int minLogLevel,
     
     printTime();
     if (format[0] == ' ')
-      fprintf(logfile, "%s:", loglevels[minLogLevel]);
+      fprintf(logfile, "%s:", gettext(loglevels[minLogLevel]));
     else
-      fprintf(logfile, "%s: ", loglevels[minLogLevel]);
+      fprintf(logfile, "%s: ", gettext(loglevels[minLogLevel]));
     len = vfprintf(logfile, format, args);
     fflush(logfile);
   } else

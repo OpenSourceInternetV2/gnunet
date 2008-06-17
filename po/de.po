@@ -4,12 +4,11 @@
 # This file is distributed under the same license as the GNUnet package.
 # Christian Grothoff <christian@grothoff.org>, 2004.
 #
-#: src/applications/afs/tools/gnunet-pseudonym.c:60
 msgid ""
 msgstr ""
 "Project-Id-Version: GNUnet 0.6.3a-cvs\n"
 "Report-Msgid-Bugs-To: gnunet-developers@mail.gnu.org\n"
-"POT-Creation-Date: 2005-01-23 22:04+0100\n"
+"POT-Creation-Date: 2005-02-09 16:05-0500\n"
 "PO-Revision-Date: 2004-08-21 00:55+0530\n"
 "Last-Translator: Christian Grothoff <christian@grothoff.org>\n"
 "Language-Team: German <de@li.org>\n"
@@ -2738,6 +2737,10 @@ msgid ""
 "namespace (use when creating a new pseudonym)"
 msgstr ""
 
+#: src/applications/afs/tools/gnunet-pseudonym.c:60
+msgid "change the rating for the given namespace"
+msgstr ""
+
 #: src/applications/afs/tools/gnunet-pseudonym.c:62
 msgid ""
 "use DESCRIPTION to describe the content of the namespace (use when creating "
@@ -4314,7 +4317,7 @@ msgstr ""
 msgid "Transport library '%s' did not provide required function '%s%s'.\n"
 msgstr ""
 
-#: src/server/transport.c:561 src/server/transport.c:569
+#: src/server/transport.c:562 src/server/transport.c:570
 #, c-format
 msgid "No transport of type %d known.\n"
 msgstr ""
@@ -4375,7 +4378,7 @@ msgid "Rejected blacklisted connection from %u.%u.%u.%u.\n"
 msgstr ""
 
 #: src/transports/http.c:1226 src/transports/tcp.c:1028 src/util/tcpio.c:165
-#: src/util/tcpio.c:192
+#: src/util/tcpio.c:195
 #, c-format
 msgid "Cannot connect to %u.%u.%u.%u:%u: %s\n"
 msgstr ""
@@ -4732,59 +4735,64 @@ msgstr ""
 msgid "RSA-Encoding has unexpected length %d (expected %d)!"
 msgstr ""
 
-#: src/util/identity.c:82 src/util/identity.c:122 src/util/tcpio.c:86
+#: src/util/identity.c:83 src/util/identity.c:123 src/util/tcpio.c:86
 #, c-format
 msgid "Could not find IP of host '%s': %s\n"
 msgstr ""
 
-#: src/util/identity.c:201
+#: src/util/identity.c:199
 #, c-format
 msgid ""
 "Could not find interface '%s' in '%s', trying to find another interface.\n"
 msgstr ""
 
-#: src/util/identity.c:225
+#: src/util/identity.c:223
 #, c-format
 msgid "Could not obtain IP for interface '%s' using '%s'.\n"
 msgstr ""
 
-#: src/util/identity.c:264
+#: src/util/identity.c:266
 #, c-format
 msgid "Could not find an IP address for interface '%s'.\n"
 msgstr ""
 
-#: src/util/identity.c:272
+#: src/util/identity.c:274
 #, c-format
 msgid ""
 "There is more than one IP address specified for interface '%s'.\n"
 "GNUnet will use %u.%u.%u.%u.\n"
 msgstr ""
 
-#: src/util/identity.c:290
+#: src/util/identity.c:280
+#, c-format
+msgid "GNUnet now uses the IP address %u.%u.%u.%u.\n"
+msgstr ""
+
+#: src/util/identity.c:295
 #, c-format
 msgid "Could not resolve '%s' to determine our IP address: %s\n"
 msgstr ""
 
-#: src/util/identity.c:347 src/util/identity.c:389
+#: src/util/identity.c:352 src/util/identity.c:394
 #, c-format
 msgid "Could not resolve '%s': %s\n"
 msgstr ""
 
-#: src/util/identity.c:416
+#: src/util/identity.c:421
 msgid "Could not determine IP address of the local machine!\n"
 msgstr ""
 
-#: src/util/identity.c:427
+#: src/util/identity.c:432
 msgid "Could not determine IP(v6) address of the local machine!\n"
 msgstr ""
 
-#: src/util/identity.c:439
+#: src/util/identity.c:444
 msgid ""
 "Could not find IP(v4) for this host. Please provide the IP in the "
 "configuration file.\n"
 msgstr ""
 
-#: src/util/identity.c:451
+#: src/util/identity.c:456
 msgid ""
 "Could not find IP(v6) for this host. Please provide the IP in the "
 "configuration file.\n"
@@ -4824,21 +4832,61 @@ msgstr ""
 msgid "Wrong format '%s' for network: %s\n"
 msgstr ""
 
-#: src/util/logging.c:164
+#: src/util/logging.c:90
+msgid "NOTHING"
+msgstr ""
+
+#: src/util/logging.c:91
+msgid "FATAL"
+msgstr ""
+
+#: src/util/logging.c:92
+msgid "ERROR"
+msgstr ""
+
+#: src/util/logging.c:93
+msgid "FAILURE"
+msgstr ""
+
+#: src/util/logging.c:94
+msgid "WARNING"
+msgstr ""
+
+#: src/util/logging.c:95
+msgid "MESSAGE"
+msgstr ""
+
+#: src/util/logging.c:96
+msgid "INFO"
+msgstr ""
+
+#: src/util/logging.c:97
+msgid "DEBUG"
+msgstr ""
+
+#: src/util/logging.c:98
+msgid "CRON"
+msgstr ""
+
+#: src/util/logging.c:99
+msgid "EVERYTHING"
+msgstr ""
+
+#: src/util/logging.c:237
 msgid "LOGLEVEL not specified, that is not ok.\n"
 msgstr ""
 
-#: src/util/logging.c:174
+#: src/util/logging.c:248
 #, c-format
 msgid "Invalid LOGLEVEL '%s' specified.\n"
 msgstr ""
 
-#: src/util/logging.c:282
+#: src/util/logging.c:353
 #, c-format
 msgid "Failure at %s:%d.\n"
 msgstr ""
 
-#: src/util/logging.c:288
+#: src/util/logging.c:359
 #, c-format
 msgid "Failure at at %s:%d.\n"
 msgstr ""
@@ -4909,26 +4957,26 @@ msgstr ""
 msgid "% of allowed network load (down)"
 msgstr ""
 
-#: src/util/statuscalls.c:461 src/util/statuscalls.c:656
+#: src/util/statuscalls.c:461 src/util/statuscalls.c:679
 #, c-format
 msgid "Failed to parse interface data from '%s' at %s:%d.\n"
 msgstr ""
 
-#: src/util/statuscalls.c:538
+#: src/util/statuscalls.c:561
 #, c-format
 msgid "Failed to parse interface data '%s' output at %s:%d.\n"
 msgstr ""
 
-#: src/util/statuscalls.c:840
+#: src/util/statuscalls.c:886
 #, c-format
 msgid "Could not decoding file '%s' at %s:%d.\n"
 msgstr ""
 
-#: src/util/statuscalls.c:1015
+#: src/util/statuscalls.c:1061
 msgid "Cannot query the CPU usage (Windows NT).\n"
 msgstr ""
 
-#: src/util/statuscalls.c:1035
+#: src/util/statuscalls.c:1081
 msgid "Cannot query the CPU usage (Win 9x)\n"
 msgstr ""
 

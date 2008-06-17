@@ -1,5 +1,9 @@
+Wed Feb  9 13:33:38 EST 2005
+        Fixed problems with the logrotate code.  Releasing GNUnet 0.6.6a.
+
 Sun Jan 11 19:58:13 CET 2005
 	Releasing GNUnet 0.6.6
+
 Sun Jan 11 19:24:27 CET 2005
         gnunet-gtk now resumes aborted downloads automatically.
 
