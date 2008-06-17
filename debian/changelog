@@ -1,3 +1,9 @@
+gnunet (0.7.2b-6) unstable; urgency=low
+
+  * Adding debug package.
+
+ -- Daniel Baumann <daniel@debian.org>  Wed, 26 Sep 2007 10:21:00 +0200
+
 gnunet (0.7.2b-5) unstable; urgency=low
 
   * Renamed gnunet-daemon package to gnunet-server for consistency reasons.

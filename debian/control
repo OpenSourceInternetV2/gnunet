@@ -48,6 +48,21 @@ Description: secure, trust-based peer-to-peer framework (common)
  .
  This package contains the common files.
 
+Package: gnunet-dbg
+Section: devel
+Priority: extra
+Architecture: any
+Depends: gnunet-client (= ${binary:Version}), gnunet-common (= ${binary:Version}), gnunet-dev (= ${binary:Version}), gnunet-server (= ${binary:Version}), gnunet-tools (= ${binary:Version})
+Description: secure, trust-based peer-to-peer framework (debug)
+ GNUnet is a peer-to-peer framework which focuses on providing security. All
+ link-to-link messages in the network are confidential and authenticated. The
+ framework provides a transport abstraction layer and can currently encapsulate
+ the peer-to-peer traffic in UDP, TCP, or SMTP messages.
+ .
+  Homepage: <http://www.gnunet.org/>
+ .
+ This package contains the debugging symbols.
+
 Package: gnunet-server
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, adduser, gettext, netbase
