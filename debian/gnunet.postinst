@@ -23,7 +23,7 @@ case "$1" in
     	# Source debconf library.
 	. /usr/share/debconf/confmodule
 	
-	if dpkg --compare-versions "$2" lt "0.6.4a-6" && \
+	if dpkg --compare-versions "$2" lt "0.6.4a-7" && \
 	[ -e /etc/gnunet.conf ]; then
 
 		TMP_FILE=`/bin/tempfile`
@@ -699,7 +699,7 @@ EOF
 			echo -n "Creating new GNUnet logging file directory (/var/log/gnunetd)"
 			mkdir -p /var/log/gnunetd
 			# Using default values anyway
-			mv -f /var/log/gnunetd.log* /var/log/gnunetd/ >& /dev/null || true
+			mv -f /var/log/gnunetd.log* /var/log/gnunetd/ > /dev/null 2>&1 || true
 			echo " [done]"
 			echo -n "Creating new GNUnet pid file directory (/var/run/gnunetd)"
 			mkdir -p /var/run/gnunetd
@@ -720,8 +720,9 @@ EOF
 			# Create new log and pid directory
 			echo -n "Creating new GNUnet logging file directory (/var/log/gnunetd)"
 			mkdir -p /var/log/gnunetd
-			# Using computed value
-			mv -f $LOGFILE* /var/log/gnunetd/ >& /dev/null || true
+			# Using computed value and default (in case gnunet.conf has been replaced already)
+			mv -f $LOGFILE* /var/log/gnunetd/ > /dev/null 2>&1 || true
+			mv -f /var/log/gnunetd.log* /var/log/gnunetd/ > /dev/null 2>&1 || true
 			echo " [done]"
 			echo -n "Creating new GNUnet pid file directory (/var/run/gnunetd)"
 			mkdir -p /var/run/gnunetd

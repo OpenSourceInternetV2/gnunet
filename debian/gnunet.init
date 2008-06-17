@@ -35,7 +35,7 @@ case "$1" in
 	# We should not need --background, but if not here, the invoke-rc.d hangs
 	# when using debconf
 	echo -n "Starting $DESC: "
-	if [ "$LAUNCH_AT_STARTUP" == "true" ]; then
+	if [ "$LAUNCH_AT_STARTUP" = "true" ]; then
 		start-stop-daemon --start --quiet --background --chuid  $GNUNET_USER --pidfile $PIDFILE \
 			--exec $DAEMON -- -c /etc/gnunet.conf
 		echo "$NAME."
@@ -67,13 +67,10 @@ case "$1" in
 	#	option to the "reload" entry above. If not, "force-reload" is
 	#	just the same as "restart".
 	#
-	echo -n "Restarting $DESC: "
-	start-stop-daemon --stop --quiet --pidfile \
-		$PIDFILE --exec $DAEMON
-	sleep 1
-	start-stop-daemon --start --quiet --pidfile \
-		$PIDFILE --exec $DAEMON
-	echo "$NAME."
+	echo "Restarting $DESC: $NAME..."
+	$0 stop
+        sleep 1
+        $0 start
 	;;
   *)
 	N=/etc/init.d/$NAME

@@ -1,3 +1,17 @@
+gnunet (0.6.4a-7) unstable; urgency=high
+
+  * debian/gnunet.postinst: Fixed dash support (Closes: #280422)
+    Fixed old logfile may not be moved.
+    Changed compared version for the upgrade to 0.6.4a-7.
+
+  * debian/gnunet.init: Fixed dash support.
+    Fixed possible error in restart command.
+
+  * debian/gnunet.config: Changed compared version for the upgrade to
+    0.6.4a-7. 
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Tue,  9 Nov 2004 14:47:21 +0100
+
 gnunet (0.6.4a-6) unstable; urgency=low
 
   * Backport gnunet-update.c from CVS (fix the "cannot get LOGFILE" bug). Now
