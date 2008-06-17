@@ -966,8 +966,10 @@ static int httpDirectSend(HTTPSession * httpSession,
   if (doPost == YES) {
     IPaddr ip;
 
-    if (SYSERR == getPublicIPAddress(&ip))
+    if (SYSERR == getPublicIPAddress(&ip)) {
+	  MUTEX_UNLOCK(&httplock);
       return SYSERR;
+    }
     GROW(httpSession->wbuff,
 	 httpSession->wsize,
 	 256 + ssize);
@@ -1099,9 +1101,11 @@ static P2P_hello_MESSAGE * createhello() {
 	_("HTTP: Could not determine my public IP address.\n"));
     return NULL;
   }
+#if DEBUG_HTTP
   LOG(LOG_DEBUG,
       "HTTP uses IP address %u.%u.%u.%u.\n",
       PRIP(ntohl(*(int*)&haddr->ip)));
+#endif
   haddr->port = htons(port);
   haddr->reserved = htons(0);
   msg->senderAddressSize = htons(sizeof(HostAddress));
@@ -1429,7 +1433,7 @@ static char * addressToString(const P2P_hello_MESSAGE * helo) {
  * via a global and returns the udp transport API.
  */
 TransportAPI * inittransport_http(CoreAPIForTransport * core) {
-  struct hostent *ip;
+  IPaddr ip;
   char * proxy;
   char * proxyPort;
 
@@ -1445,14 +1449,16 @@ TransportAPI * inittransport_http(CoreAPIForTransport * core) {
   proxy = getConfigurationString("GNUNETD",
 				 "HTTP-PROXY");
   if (proxy != NULL) {
-    ip = GETHOSTBYNAME(proxy);
-    if (ip == NULL) {
+    if (OK != GN_getHostByName(proxy,
+			       &ip)) {
       LOG(LOG_ERROR,
 	  _("Could not resolve name of HTTP proxy `%s'.\n"),
 	  proxy);
       theProxy.sin_addr.s_addr = 0;
     } else {
-      theProxy.sin_addr.s_addr = ((struct in_addr *)ip->h_addr)->s_addr;
+      memcpy(&theProxy.sin_addr.s_addr,
+	     &ip,
+	     sizeof(IPaddr));
       proxyPort = getConfigurationString("GNUNETD",
 					 "HTTP-PROXY-PORT");
       if (proxyPort == NULL) {

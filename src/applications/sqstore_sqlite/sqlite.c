@@ -1010,7 +1010,6 @@ static int update(const HashCode512 * key,
   return n == SQLITE_OK ? OK : SYSERR;
 }
 
-
 SQstore_ServiceAPI *
 provide_module_sqstore_sqlite(CoreAPIForApplication * capi) {
   static SQstore_ServiceAPI api;

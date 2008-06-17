@@ -84,7 +84,10 @@ static int triggerRecursiveDownload(const ECRS_FileInfo * fi,
 		    + strlen(GNUNET_DIRECTORY_EXT) + 2
 		    + strlen(filename));
   strcpy(fullName, parent->filename);
-  strcat(fullName, GNUNET_DIRECTORY_EXT);
+  if (fullName[strlen(fullName)-1] == '/')
+    fullName[strlen(fullName)-1] = '\0';
+  else
+    strcat(fullName, GNUNET_DIRECTORY_EXT);
   while (NULL != (dotdot = strstr(fullName, "..")))
     dotdot[0] = dotdot[1] = '_';
   mkdirp(fullName);
@@ -178,10 +181,12 @@ downloadProgressCallback(unsigned long long totalBytes,
 static int
 testTerminate(void * cls) {
   FSUI_DownloadList * dl = cls;
-  if (dl->signalTerminate == YES)
+
+  if (dl->signalTerminate == YES) {
     return SYSERR;
-  else
+  } else {
     return OK;
+  }
 }
 
 /**
@@ -208,11 +213,16 @@ void * downloadThread(void * cls) {
 			  &downloadProgressCallback,
 			  dl,
 			  &testTerminate,
-			  dl);
+			  dl);  
   if (ret == OK) {
     dl->finished = YES;
     totalBytes = ECRS_fileSize(dl->uri);
   } else {
+#if DEBUG_DTM
+    LOG(LOG_ERROR,
+	"Download thread for `%s' failed (aborted or error)!\n",
+	dl->filename);
+#endif
     totalBytes = 0;
   }
   root = dl;
@@ -228,18 +238,25 @@ void * downloadThread(void * cls) {
        (dl->is_directory) ) {
     char * dirBlock;
     int fd;
+    char * fn;
 
+    fn = MALLOC(strlen(dl->filename) + 3 + strlen(GNUNET_DIRECTORY_EXT));
+    strcpy(fn, dl->filename);
+    if (fn[strlen(fn)-1] == '/') {
+      fn[strlen(fn)-1] = '\0';
+      strcat(fn, GNUNET_DIRECTORY_EXT);
+    } 
 #ifdef O_LARGEFILE
-    fd = fileopen(dl->filename,
+    fd = fileopen(fn,
 		  O_LARGEFILE | O_RDONLY);
 #else
-    fd = fileopen(dl->filename,
+    fd = fileopen(fn,
 		  O_RDONLY);
 #endif
     if (fd == -1) {
       LOG_FILE_STRERROR(LOG_ERROR,
 			"OPEN",
-			dl->filename);
+			fn);
     } else {
       dirBlock = MMAP(NULL,
 		      totalBytes,
@@ -247,19 +264,24 @@ void * downloadThread(void * cls) {
 		      MAP_SHARED,
 		      fd,
 		      0);
-      /* load directory, start downloads */
-      md = NULL;
-      MUTEX_LOCK(&dl->ctx->lock);
-      ECRS_listDirectory(dirBlock,
-			 totalBytes,
-			 &md,
-			 &triggerRecursiveDownload,
-			 dl);
-      MUTEX_UNLOCK(&dl->ctx->lock);
-      ECRS_freeMetaData(md);
-      MUNMAP(dirBlock, totalBytes);
+      if (MAP_FAILED == dirBlock) {
+	LOG_FILE_STRERROR(LOG_ERROR, "MMAP", fn);	
+      } else {
+	/* load directory, start downloads */
+	md = NULL;
+	MUTEX_LOCK(&dl->ctx->lock);
+	ECRS_listDirectory(dirBlock,
+			   totalBytes,
+			   &md,
+			   &triggerRecursiveDownload,
+			   dl);
+	MUTEX_UNLOCK(&dl->ctx->lock);
+	ECRS_freeMetaData(md);
+	MUNMAP(dirBlock, totalBytes);
+      }
       closefile(fd);
     }
+    FREE(fn);
   }
   if (ret != OK) {
     if (dl->signalTerminate == YES) {
@@ -298,7 +320,7 @@ void * downloadThread(void * cls) {
       dl = dl->parent;
     }
   }
-#if DEBUG_DTM 
+#if DEBUG_DTM
   LOG(LOG_DEBUG,
       "Download thread for `%s' terminated (%s)...\n",
       dl->filename,
@@ -330,9 +352,6 @@ static int startDownload(struct FSUI_Context * ctx,
     BREAK(); /* wrong type of URI! */
     return SYSERR;
   }
-  LOG(LOG_DEBUG,
-      "Starting download of file `%s'\n",
-      filename);
   dl = MALLOC(sizeof(FSUI_DownloadList));
   memset(dl, 0, sizeof(FSUI_DownloadList));
   cronTime(&dl->startTime); 
@@ -407,13 +426,6 @@ int updateDownloadThread(FSUI_DownloadList * list) {
       list->ctx->activeDownloadThreads,
       list->ctx->threadPoolSize);
 #endif
-  LOG(LOG_DEBUG,
-      "Download thread manager investigates pending downlod of file `%s' (%d, %llu/%llu, %d)\n",
-      list->filename,
-      list->signalTerminate,
-      list->completed,
-      list->total,
-      list->finished);
   ret = NO;
   /* should this one be started? */
   if ( (list->ctx->threadPoolSize
@@ -424,7 +436,7 @@ int updateDownloadThread(FSUI_DownloadList * list) {
        (list->finished == NO) ) {
 #if DEBUG_DTM
     LOG(LOG_DEBUG,
-	"Download thread manager schedules active downlod of file `%s'\n",
+	"Download thread manager starts downlod of file `%s'\n",
 	list->filename);
 #endif
     list->signalTerminate = NO;
@@ -444,7 +456,7 @@ int updateDownloadThread(FSUI_DownloadList * list) {
        (list->signalTerminate == NO) ) {
 #if DEBUG_DTM
     LOG(LOG_DEBUG,
-	"Download thread manager aborts active downlod of file `%s' (%u/%u downloads)\n",
+	"Download thread manager aborts active download of file `%s' (%u/%u downloads)\n",
 	list->filename,
 	list->ctx->activeDownloadThreads,
 	list->ctx->threadPoolSize);
@@ -461,7 +473,7 @@ int updateDownloadThread(FSUI_DownloadList * list) {
   if (list->signalTerminate == YES) {
 #if DEBUG_DTM
     LOG(LOG_DEBUG,
-	"Download thread manager collects inactive downlod of file `%s'\n",
+	"Download thread manager collects inactive download of file `%s'\n",
 	list->filename);
 #endif
     PTHREAD_JOIN(&list->handle,

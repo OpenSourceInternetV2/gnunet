@@ -219,7 +219,9 @@ static int test(SQstore_ServiceAPI * api) {
 					 NULL,
 					 NULL));
   api->drop();
+
   return OK;
+  
  FAILURE:
   api->drop();
   return SYSERR;

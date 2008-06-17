@@ -1,3 +1,26 @@
+Thu Mar 16 22:14:01 PST 2006
+	Fixing various routing problems (resulting in better utilization
+	of bandwidth by routing more content and less queries).
+
+Wed Mar 15 00:00:14 PST 2006
+	Fixing various content migration bugs (one that disabled it,
+	one that made it unlikely that migration was even tried, and
+	then various crashes in formerly dead code).
+
+Mon Jan 23 19:04:17 PST 2006
+	Added Swedish translation.
+
+Sun Jan  1 21:35:59 PST 2006
+	Reduced amount of hashing done to be O(n) and not O(n^2) for
+	n local search results (for example, for 100 results, this can
+	make the difference between hashing 200 MB and hashing 20 MB).
+
+Sat Dec 31 17:02:37 PST 2005
+	Added support for using -k multiple times in gnunet-pseudonym.
+
+Wen Dec 28 00:22:54 CET 2005
+	Fixed deadlock in http transport.
+
 Fri Dec 23 17:17:18 PST 2005
 	Releasing GNUnet 0.7.0b.
 	

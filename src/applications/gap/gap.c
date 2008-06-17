@@ -1,6 +1,6 @@
 /*
       This file is part of GNUnet
-     (C) 2001, 2002, 2003, 2004, 2005 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
 
       GNUnet is free software; you can redistribute it and/or modify
       it under the terms of the GNU General Public License as published
@@ -14,8 +14,8 @@
 
       You should have received a copy of the GNU General Public License
       along with GNUnet; see the file COPYING.  If not, write to the
-      Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-      Boston, MA 02111-1307, USA.
+      Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+      Boston, MA 02110-1301, USA.
  */
 
 /**
@@ -35,396 +35,20 @@
  *
  */
 
-#include "platform.h"
-#include "gnunet_util.h"
-#include "gnunet_core.h"
-#include "gnunet_protocols.h"
-#include "gnunet_gap_service.h"
-#include "gnunet_identity_service.h"
-#include "gnunet_traffic_service.h"
-#include "gnunet_topology_service.h"
-
-#define DEBUG_GAP NO
-
-#define EXTRA_CHECKS YES
-
-
-/* ***************** policy constants **************** */
+#include "gap.h"
 
 /**
- * Until which load do we consider the peer idle and do not
- * charge at all?
+ * Only for debugging / system analysis!
  */
-#define IDLE_LOAD_THRESHOLD 50
+#define DO_HISTOGRAM NO
 
-/**
- * By which amount do we decrement the TTL for simple forwarding /
- * indirection of the query; in milli-seconds.  Set somewhat in
- * accordance to your network latency (above the time it'll take you
- * to send a packet and get a reply).
- */
-#define TTL_DECREMENT 5 * cronSECONDS
-
-/**
- * Send answer if local files match
- */
-#define QUERY_ANSWER   0x00020000
-
-/**
- * Forward the query, priority is encoded in QUERY_PRIORITY_BITMASK
- */
-#define QUERY_FORWARD  0x00040000
-
-/**
- * Indirect the query (use this as the originating node)
- */
-#define QUERY_INDIRECT 0x00080000
-
-/**
- * Drop the query if & with this bitmask is 0
- */
-#define QUERY_DROPMASK (QUERY_ANSWER|QUERY_FORWARD|QUERY_INDIRECT)
-
-/**
- * Bandwidth value of an (effectively) 0-priority query.
- */
-#define QUERY_BANDWIDTH_VALUE 0.01
-
-/**
- * Bandwidth value of a 0-priority content (must be
- * fairly high compared to query since content is
- * typically significantly larger -- and more valueable
- * since it can take many queries to get one piece of
- * content).
- */
-#define CONTENT_BANDWIDTH_VALUE 0.8
-
-/**
- * Default size of the bitmap that we use for marking to which
- * peers a query has already been sent to.  16 byte = 128 bits
- */
-#define BITMAP_SIZE 16
-
-/**
- * Of how many outbound queries do we simultaneously keep track?
- */
-#define QUERY_RECORD_COUNT 512
-
-/**
- * How much is a query worth 'in general' (even
- * if there is no trust relationship between
- * the peers!).  Multiplied by the number of queries
- * in the request.  20 is for '20 bytes / hash',
- * so this is kind of the base unit.
- */
-#define BASE_QUERY_PRIORITY 20
-
-/**
- * How much is a response worth 'in general'.  Since replies are
- * roughly 1k and should be much (factor of 4) preferred over queries
- * (which have a base priority of 20, which yields a base unit of
- * roughly 1 per byte).  Thus if we set this value to 4092 we'd rather
- * send a reply instead of a query unless the queries have (on
- * average) a priority that is more than double the reply priority
- * (note that querymanager multiplies the query priority with 2 to
- * compute the scheduling priority).
- */
-#define BASE_REPLY_PRIORITY 4092
-
-/**
- * minimum indirection table size, defaults to 8192 entries, reduce if
- * you have very little memory, enlarge if you start to overflow often
- * and have memory available.<p>
- *
- * If the average query lives for say 1 minute (10 hops), and you have
- * a 56k connection (= 420 kb/minute, or approximately 8000
- * queries/minute) the maximum reasonable routing table size would
- * thus be 8192 entries.  Every entry takes about 68 bytes.<p>
- *
- * The larger the value is that you pick here, the greater your
- * anonymity can become.  It also can improve your download speed.<p>
- *
- * Memory consumption:
- * <ul>
- * <li>8192 => 560k indirection table => approx. 6 MB gnunetd</li>
- * <li>65536 => 4456k indirection table => approx. 10 MB gnuentd</li>
- * </ul>
- * <p>
- * THE VALUE YOU PICK MUST BE A POWER OF 2, for example:
- * 128, 256, 512, 1024, 2048, 4092, 8192, 16384, 32768, 65536
- */
-#define MIN_INDIRECTION_TABLE_SIZE 1024
-/* #define MIN_INDIRECTION_TABLE_SIZE 8 */
-
-/**
- * Under certain cirumstances, two peers can interlock in their
- * routing such that both have a slot that is blocked exactly until
- * the other peer will make that slot available.  This is the
- * probability that one will give in.  And yes, it's a hack.  It
- * may not be needed anymore once we add collision-resistance to
- * the routing hash table.
- */
-#define TIE_BREAKER_CHANCE 4
-
-/**
- * For how many _local_ requests do we track the current, non-zero
- * request priorities for rewarding peers that send replies?  If this
- * number is too low, we will 'forget' to reward peers for good
- * replies (and our routing will degrade).  If it is too high, we'll
- * scan though a large array for each content message and waste
- * memory.<p>
- *
- * A good value reflects the number of concurrent, local queries that
- * we expect to see.
- */
-#define MAX_REWARD_TRACKS 128
-
-/**
- * ITE modes for addToSlot.
- */
-#define ITE_REPLACE 0
-#define ITE_GROW 1
-
-
-/* **************** Types ****************** */
-
-/**
- * Type of the results of the polciy module
- */
-typedef unsigned int QUERY_POLICY;
-
-/**
- * Request for content. The number of queries can
- * be determined from the header size.
- */
-typedef struct {
-  P2P_MESSAGE_HEADER header;
-
-  /**
-   * Type of the query (block type).
-   */
-  unsigned int type;
-
-  /**
-   * How important is this request (network byte order)
-   */
-  unsigned int priority;
-
-  /**
-   * Relative time to live in cronMILLIS (network byte order)
-   */
-  int ttl;
-
-  /**
-   * To whom to return results?
-   */
-  PeerIdentity returnTo;
-
-  /**
-   * Hashcodes of the file(s) we're looking for.
-   * Details depend on the query type.
-   */
-  HashCode512 queries[1];
-
-} P2P_gap_query_MESSAGE;
-
-/**
- * Return message for search result.
- */
-typedef struct {
-  P2P_MESSAGE_HEADER header;
-
-  HashCode512 primaryKey;
-
-} P2P_gap_reply_MESSAGE;
-
-/**
- * In this struct, we store information about a
- * query that is being send from the local node to
- * optimize the sending strategy.
- */
-typedef struct {
-
-  /**
-   * How often did we send this query so far?
-   */
-  unsigned int sendCount;
-
-  /**
-   * How many nodes were connected when we initated sending this
-   * query?
-   */
-  unsigned int activeConnections;
-
-  /**
-   * What is the total distance of the query to the connected nodes?
-   */
-  unsigned long long totalDistance;
-
-  /**
-   * The message that we are sending.
-   */
-  P2P_gap_query_MESSAGE * msg;
-
-  /**
-   * How important would it be to send the message to all peers in
-   * this bucket?
-   */
-  int * rankings;
-
-  /**
-   * When do we stop forwarding (!) this query?
-   */
-  cron_t expires;
-
-  /**
-   * To which peer will we never send this message?
-   */
-  PeerIdentity noTarget;
-
-  /**
-   * Bit-map marking the hostIndices (computeIndex) of nodes that have
-   * received this query already.  Note that the bit-map has a maximum
-   * size, if the index is out-of-bounds, it is hashed into the
-   * smaller size of the bitmap. There may thus be nodes with
-   * identical indices, in that case, only one of the nodes will
-   * receive the query.
-   */
-  unsigned char bitmap[BITMAP_SIZE];
-
-  /**
-   * To how many peers has / will this query be transmitted?
-   */
-  unsigned int transmissionCount;
-
-} QueryRecord;
-
-/**
- * Indirection table entry. Lists what we're looking for,
- * where to forward it, and how long to keep looking for it.
- * Keep this struct as small as possible -- an array of these
- * takes 80% of GNUnet's memory.
- */
-typedef struct {
-  /**
-   * What are we waiting for?
-   */
-  HashCode512 primaryKey;
-
-  /**
-   * For what type of reply are we waiting?
-   */
-  unsigned int type;
-
-  /**
-   * How much is this query worth to us, that is, how much would
-   * this node be willing to "pay" for an answer that matches the
-   * hash stored in this ITE? (This is NOT the inbound priority,
-   * it is the trust-adjusted inbound priority.)
-   */
-  unsigned int priority;
-
-  /**
-   * When can we forget about this entry?
-   */
-  cron_t ttl;
-
-  /**
-   * Which replies have we already seen?
-   */
-  unsigned int seenIndex;
-
-  int seenReplyWasUnique; /* YES/NO, only valid if seenIndex == 1 */
-
-  /**
-   * Hashcodes of the encrypted (!) replies that we have forwarded so far
-   */
-  HashCode512 * seen;
-
-  /**
-   * Who are these hosts?
-   */
-  PeerIdentity * destination;
-
-  /**
-   * How many hosts are waiting for an answer to this query (length of
-   * destination array)
-   */
-  unsigned int hostsWaiting;
-
-  /**
-   * Do we currently have a response in the delay loop (delays are
-   * introduced to make traffic analysis harder and thus enable
-   * anonymity)?  This marker is set to avoid looking up content again
-   * before the first content exits the delay loop.  Since this *not*
-   * looking up content again is not externally visible, it is ok to
-   * do this optimization to reduce disk accesses (see Mantis bug
-   * #407).
-   */
-  int successful_local_lookup_in_delay_loop;
-
-} IndirectionTableEntry;
+/* ********************** GLOBALS ******************** */
 
 /**
  * Avoiding concurrent lookups for the same ITE: lock to grant
  * access to peers to perform a lookup that matches this ITE entry.
  */
 static Mutex lookup_exclusion;
-
-
-/**
- * @brief structure to keep track of which peers send responses
- *  to queries from a certain peer at the moment
- * Linked list of peer ids with number of replies received.
- */
-typedef struct RL_ {
-  struct RL_ * next;
-  PeerIdentity responder;
-  unsigned int responseCount;
-} ResponseList;
-
-/**
- * Structure for tracking from which peer we got valueable replies for
- * which clients / other peers.
- */
-typedef struct RTD_ {
-
-  /**
-   * This is a linked list.
-   */
-  struct RTD_ * next;
-
-  /**
-   * For which client does this entry track replies?
-   */
-  PeerIdentity queryOrigin;
-
-  /**
-   * Linked list of peers that responded, with
-   * number of responses.
-   */
-  ResponseList * responseList;
-
-  /**
-   * Time at which we received the last reply
-   * for this client.  Used to discard old entries
-   * eventually.
-   */
-  TIME_T lastReplyReceived;
-} ReplyTrackData;
-
-/**
- * Tracking of just reward data (how much trust a peer
- * can gain for a particular reply).
- */
-typedef struct {
-  HashCode512 query;
-  unsigned int prio;
-} RewardEntry;
-
-
-
-/* ********************** GLOBALS ******************** */
 
 /**
  * GNUnet core.
@@ -435,6 +59,41 @@ static CoreAPIForApplication * coreAPI;
  * Identity service.
  */
 static Identity_ServiceAPI * identity;
+
+/**
+ * Statistics service.
+ */
+static Stats_ServiceAPI * stats;
+
+static int stat_routing_collisions;
+
+static int stat_routing_direct_drops;
+
+static int stat_routing_successes;
+
+static int stat_routing_request_repeat;
+
+static int stat_routing_request_duplicates;
+
+static int stat_routing_request_repeat_dttl;
+
+static int stat_routing_totals;
+
+static int stat_routing_slots_used;
+
+static int stat_routing_forwards;
+
+static int stat_routing_reply_drops;
+
+static int stat_routing_reply_dups;
+
+static int stat_routing_no_route_policy;
+
+static int stat_routing_no_answer_policy;
+
+static int stat_routing_local_results;
+
+static int stat_routing_processed;
 
 /**
  * Topology service.
@@ -497,9 +156,22 @@ static Mutex * lock;
 static ReplyTrackData * rtdList = NULL;
 
 static RewardEntry * rewards = NULL;
+
 static unsigned int rewardSize = 0;
+
 static unsigned int rewardPos = 0;
 
+/**
+ * Hard CPU limit
+ */
+static unsigned int hardCPULimit;
+
+static unsigned int hardUpLimit;
+
+#if DO_HISTOGRAM
+static int histogram[65536];
+static int hist_total;
+#endif
 
 /* ****************** helper functions ***************** */
 
@@ -818,6 +490,11 @@ static void sendToSelected(const PeerIdentity * id,
 			  &qr->msg->returnTo.hashPubKey)) )
     return; /* never send back to source */
 
+  /* Load above hard limit? */
+  if ((hardCPULimit && getCPULoad() >= hardCPULimit) ||
+        (hardUpLimit && getNetworkLoadUp() >= hardUpLimit) )
+    return;
+
   if (getBit(qr, getIndex(id)) == 1) {
 #if DEBUG_GAP
     IFLOG(LOG_DEBUG,
@@ -830,10 +507,11 @@ static void sendToSelected(const PeerIdentity * id,
 	&encq,
 	&encp);
 #endif
+    if (stats != NULL)
+      stats->change(stat_routing_forwards, 1);
     coreAPI->unicast(id,
 		     &qr->msg->header,
-		     BASE_QUERY_PRIORITY
-		     * ntohl(qr->msg->priority) * 2,
+		     BASE_QUERY_PRIORITY * ntohl(qr->msg->priority) * 2,
 		     TTL_DECREMENT);
   }
 }
@@ -1002,10 +680,21 @@ static int dequeueQuery(const HashCode512 * query) {
  */
 static unsigned int computeRoutingIndex(const HashCode512 * query) {
   unsigned int res
-    = (((unsigned int*)query)[0] +
-       ((unsigned int*)query)[1] * random_qsel)
+    = (((unsigned int*)query)[0] ^
+       ((unsigned int*)query)[1] / (1 + random_qsel))
     % indirectionTableSize;
   GNUNET_ASSERT(res < indirectionTableSize);
+#if DO_HISTOGRAM
+  histogram[res % 65536]++;
+  if (++hist_total % 10000 == 0) {
+    int i;
+    for (i=0;i<65536;i++)
+      if (histogram[i] != 0) {
+	printf("%d: %d\n",
+	       i, histogram[i]);
+      }
+  }
+#endif
   return res;
 }
 
@@ -1172,6 +861,10 @@ static int addToSlot(int mode,
 #endif
   GNUNET_ASSERT(sender != NULL); /* do NOT add to RT for local clients! */
   cronTime(&now);
+  if ( (stats != NULL) &&
+       (ite->ttl == 0) )
+       stats->change(stat_routing_slots_used, 1);
+
   if (mode == ITE_REPLACE) {
     GROW(ite->seen,
 	 ite->seenIndex,
@@ -1185,6 +878,8 @@ static int addToSlot(int mode,
 	if (equalsHashCode512(&ite->destination[i].hashPubKey,
 			      &sender->hashPubKey))
 	  return SYSERR;
+      if (ite->hostsWaiting >= MAX_HOSTS_WAITING)
+	ite->hostsWaiting = 0; /* RESET to avoid unbounded growth (#1014) */
     } else {
       ite->successful_local_lookup_in_delay_loop = NO;
       /* different request, flush pending queues */
@@ -1254,20 +949,27 @@ static int needsForwarding(const HashCode512 * query,
 			   int * doForward) {
   IndirectionTableEntry * ite;
   cron_t now;
+  cron_t new_ttl;
+  int equal_to_pending;
 
   cronTime(&now);
   ite = &ROUTING_indTable_[computeRoutingIndex(query)];
-
-  if ( ( ite->ttl < now - TTL_DECREMENT * 10) &&
-       ( ttl > - TTL_DECREMENT * 5) ) {
+  equal_to_pending = equalsHashCode512(query, &ite->primaryKey);
+  if ( (stats != NULL) &&
+       (equal_to_pending) ) 
+    stats->change(stat_routing_request_duplicates, 1);    
+  
+  new_ttl = now + ttl;
+  if ( (ite->ttl < now) && 
+       (ite->ttl < now - (cron_t) (TTL_DECREMENT * 10L)) &&
+       (ttl > - TTL_DECREMENT * 5) ) {
     addToSlot(ITE_REPLACE, ite, query, ttl, priority, sender);
     *isRouted = YES;
     *doForward = YES;
     return 21;
   }
   if ( ( ttl < 0) &&
-       (equalsHashCode512(query,
-			  &ite->primaryKey) ) ) {
+       (equal_to_pending) ) {
     /* if ttl is "expired" and we have
        the exact query pending, route
        replies but do NOT forward _again_! */
@@ -1281,8 +983,9 @@ static int needsForwarding(const HashCode512 * query,
     return 0;
   }
 
-  if ( (ite->ttl + (TTL_DECREMENT * topology->estimateNetworkSize()) <
-	(cron_t)(now + ttl)) &&
+  if ( (ite->ttl < new_ttl) &&
+       (ite->ttl + (cron_t) (TTL_DECREMENT * topology->estimateNetworkSize()) < new_ttl) &&
+       (ite->ttl + (cron_t) (TTL_DECREMENT * 10L) < new_ttl) &&
        (ite->ttl < now) ) {
     /* expired AND is significantly (!)
        longer expired than new query */
@@ -1292,8 +995,7 @@ static int needsForwarding(const HashCode512 * query,
 	 ite->seenIndex,
 	 0);
     ite->seenReplyWasUnique = NO;
-    if ( equalsHashCode512(query,
-			   &ite->primaryKey) &&
+    if ( (equal_to_pending) &&
 	 (YES == ite-> successful_local_lookup_in_delay_loop) ) {
       *isRouted = NO;
       *doForward = NO;
@@ -1302,25 +1004,39 @@ static int needsForwarding(const HashCode512 * query,
     } else {
       *isRouted = YES;
       *doForward = YES;
+      if ( (stats != NULL) &&
+	   (equal_to_pending) ) {
+	stats->change(stat_routing_request_repeat, 1);
+	if (ite->ttl != 0) {
+	  stats->change(stat_routing_request_repeat_dttl, new_ttl - ite->ttl);
+	}
+      }
       addToSlot(ITE_REPLACE, ite, query, ttl, priority, sender);
       return 2;
     }
   }
-  if (equalsHashCode512(query,
-			&ite->primaryKey) ) {
+  if (equal_to_pending) {
     if (ite->seenIndex == 0) {
-      if (ite->ttl + TTL_DECREMENT < (cron_t)(now + ttl)) {
+      if ( (ite->ttl < new_ttl) &&
+	   (ite->ttl + (cron_t) TTL_DECREMENT < new_ttl) ) {
 	/* ttl of new is SIGNIFICANTLY longer? */
 	/* query again */
-	addToSlot(ITE_REPLACE, ite, query, ttl, priority, sender);
 	if (YES == ite->successful_local_lookup_in_delay_loop) {
 	  *isRouted = NO; /* don't go again, we are already
 			     processing a local lookup! */
 	  *doForward = NO;
+	  addToSlot(ITE_REPLACE, ite, query, ttl, priority, sender);
 	  return 3;
 	} else {
 	  *isRouted = YES;
 	  *doForward = YES;
+	  if (stats != NULL) {
+	    stats->change(stat_routing_request_repeat, 1);
+	    if (ite->ttl != 0) {
+	      stats->change(stat_routing_request_repeat_dttl, new_ttl - ite->ttl);
+	    }
+	  }
+	  addToSlot(ITE_REPLACE, ite, query, ttl, priority, sender);	
 	  return 4;
 	}
       } else {
@@ -1352,25 +1068,32 @@ static int needsForwarding(const HashCode512 * query,
 
     /* pending == new! */
     if (ite->seenReplyWasUnique) {
-      if (ite->ttl < (cron_t)(now + ttl)) { /* ttl of new is longer? */
+      if (ite->ttl < new_ttl) { /* ttl of new is longer? */
 	/* go again */
 	GROW(ite->seen,
 	     ite->seenIndex,
 	     0);
 	ite->seenReplyWasUnique = NO;
-	addToSlot(ITE_REPLACE, ite, query, ttl, priority, sender);
 	if (YES == ite->successful_local_lookup_in_delay_loop) {
 	  *isRouted = NO;
 	  /* don't go again, we are already processing a local lookup! */
 	  *doForward = NO;
+	  addToSlot(ITE_REPLACE, ite, query, ttl, priority, sender);
 	  return 8;
 	} else {
 	  *isRouted = YES;
 	  /* only forward if new TTL is significantly higher */
-	  if (ite->ttl + TTL_DECREMENT < (cron_t)(now + ttl))
+	  if (ite->ttl + TTL_DECREMENT < new_ttl) {
 	    *doForward = YES;
-	  else
+	    if (stats != NULL) {
+	      stats->change(stat_routing_request_repeat, 1);
+	      if (ite->ttl != 0) {
+		stats->change(stat_routing_request_repeat_dttl, new_ttl - ite->ttl);
+	      }
+	    }
+	  } else
 	    *doForward = NO;
+	  addToSlot(ITE_REPLACE, ite, query, ttl, priority, sender);
 	  return 9;
 	}
       } else {
@@ -1398,7 +1121,7 @@ static int needsForwarding(const HashCode512 * query,
 	 answers that we get from now on to this additional
 	 receiver */
       int isttlHigher;
-      if (ite->ttl < (cron_t) now+ttl)
+      if (ite->ttl < new_ttl)
 	isttlHigher = NO;
       else
 	isttlHigher = YES;
@@ -1421,7 +1144,7 @@ static int needsForwarding(const HashCode512 * query,
      a unique response already, we can eagerly throw it out
      anyway, since the request has been satisfied
      completely */
-  if ( (ite->ttl + TTL_DECREMENT < (cron_t)(now + ttl) ) &&
+  if ( (ite->ttl + TTL_DECREMENT < new_ttl) &&
        (ite->ttl < now) &&
        (ite->seenReplyWasUnique) ) {
     /* we have seen the unique answer, get rid of it early */
@@ -1435,6 +1158,8 @@ static int needsForwarding(const HashCode512 * query,
   if (ttl < 0) {
     *isRouted = NO;
     *doForward = NO;
+    if (stats != NULL)
+      stats->change(stat_routing_collisions, 1);
     return 16; /* if new ttl is "expired", don't bother with priorities */
   }
 
@@ -1465,6 +1190,8 @@ static int needsForwarding(const HashCode512 * query,
      not even add ourselves to the reply set */
   *isRouted = NO;
   *doForward = NO;
+  if (stats != NULL)
+    stats->change(stat_routing_collisions, 1);
 
   return 18;
 }
@@ -1484,6 +1211,8 @@ static void sendReply(IndirectionTableEntry * ite,
   EncName enc;
 #endif
 
+  if (stats != NULL)
+    stats->change(stat_routing_successes, 1);
   cronTime(&now);
   if (now < ite->ttl)
     maxDelay = ite->ttl - now;
@@ -1502,7 +1231,7 @@ static void sendReply(IndirectionTableEntry * ite,
     coreAPI->unicast(&ite->destination[j],
 		     msg,
 		     BASE_REPLY_PRIORITY *
-		     (ite->priority+1),
+		     (ite->priority+5),
 		     /* weigh priority */
 		     maxDelay);
   }
@@ -1512,6 +1241,8 @@ struct qLRC {
   const PeerIdentity * sender;
   DataContainer ** values;
   unsigned int valueCount;
+  HashCode512 * hashes;
+  unsigned int hashCount;
 };
 
 /**
@@ -1532,7 +1263,6 @@ queryLocalResultCallback(const HashCode512 * primaryKey,
 			 void * closure) {
   struct qLRC * cls = closure;
   HashCode512 hc;
-  HashCode512 hc1;
   int i;
   IndirectionTableEntry * ite;
 
@@ -1553,14 +1283,13 @@ queryLocalResultCallback(const HashCode512 * primaryKey,
     if (equalsHashCode512(&hc,
 			  &ite->seen[i]))
       return OK; /* drop, duplicate result! */
-  for (i=0;i<cls->valueCount;i++) {
-    hash(&cls->values[i][1],
-	 ntohl(cls->values[i]->size) - sizeof(DataContainer),
-	 &hc1);
+  for (i=0;i<cls->valueCount;i++) 
     if (equalsHashCode512(&hc,
-			  &hc1))
-      return OK; /* drop, duplicate entry in DB! */
-  }
+			  &cls->hashes[i]))
+      return OK; /* drop, duplicate entry in DB! */  
+  if ( (cls->valueCount > MAX_SEEN_VALUES) &&
+       (weak_randomi(cls->valueCount) > 8) )
+      return OK; /* statistical drop, too many replies to keep in memory */  
   GROW(cls->values,
        cls->valueCount,
        cls->valueCount+1);
@@ -1569,6 +1298,11 @@ queryLocalResultCallback(const HashCode512 * primaryKey,
   memcpy(cls->values[cls->valueCount-1],
 	 value,
 	 ntohl(value->size));
+  if (cls->hashCount < cls->valueCount) 
+    GROW(cls->hashes,
+	 cls->hashCount,
+	 cls->hashCount * 2 + 8);
+  cls->hashes[cls->valueCount-1] = hc;
   return OK;
 }
 
@@ -1604,11 +1338,20 @@ static int execQuery(const PeerIdentity * sender,
   EncName enc;
 #endif
 
+  /* Load above hard limit? */
+  if ((hardCPULimit && getCPULoad() >= hardCPULimit) ||
+        (hardUpLimit && getNetworkLoadUp() >= hardUpLimit) ) {
+
+    return SYSERR;
+  }
+
   ite = &ROUTING_indTable_[computeRoutingIndex(&query->queries[0])];
   MUTEX_LOCK(&lookup_exclusion);
   i = -1;
   if (sender != NULL) {
-    if ((policy & QUERY_INDIRECT) > 0) {
+    if ( ( (policy & QUERY_ANSWER) > 0) &&
+	 ( ((policy & QUERY_INDIRECT) > 0) ||
+	   (bs->fast_get(&query->queries[0])) ) )  {
       i = needsForwarding(&query->queries[0],
 			  ttl,
 			  prio,
@@ -1617,7 +1360,13 @@ static int execQuery(const PeerIdentity * sender,
 			  &doForward);
     } else {
       isRouted = NO;
-      doForward = YES;
+      doForward = NO;
+      if (stats != NULL) {
+	if ((policy & QUERY_ANSWER) > 0)
+	  stats->change(stat_routing_no_route_policy, 1);
+	else
+	  stats->change(stat_routing_no_answer_policy, 1);
+      }
     }
   } else {
     addReward(&query->queries[0],
@@ -1639,8 +1388,13 @@ static int execQuery(const PeerIdentity * sender,
       isRouted ? " routing" : "",
       i);
 #endif
+  if ( (stats != NULL) &&
+       (isRouted || doForward) )
+    stats->change(stat_routing_processed, 1);
   cls.values = NULL;
   cls.valueCount = 0;
+  cls.hashes = NULL;
+  cls.hashCount = 0;
   cls.sender = sender;
   if ( (isRouted == YES) && /* if we can't route, lookup useless! */
        ( (policy & QUERY_ANSWER) > 0) ) {
@@ -1655,6 +1409,8 @@ static int execQuery(const PeerIdentity * sender,
   }
 
   if (cls.valueCount > 0) {
+    if (stats != NULL)
+      stats->change(stat_routing_local_results, 1);
     perm = permute(WEAK, cls.valueCount);
     max = getNetworkLoadDown();
     if (max > 100)
@@ -1696,13 +1452,16 @@ static int execQuery(const PeerIdentity * sender,
   GROW(cls.values,
        cls.valueCount,
        0);
-
+  GROW(cls.hashes,
+       cls.hashCount,
+       0);
 
 
   MUTEX_UNLOCK(&lookup_exclusion);
-  if (doForward)
+  if (doForward) {
     forwardQuery(query,
 		 sender);
+  }
   return doForward;
 }
 
@@ -1751,8 +1510,11 @@ static int useContent(const PeerIdentity * hostId,
   size = ntohs(msg->header.size) - sizeof(P2P_gap_reply_MESSAGE);
   prio = 0;
 
-  if (rhf == NULL)
+  if (rhf == NULL) {
+    if (stats != NULL) 
+      stats->change(stat_routing_reply_drops, 1);
     return OK; /* not fully initialized! */
+  }
   value = MALLOC(size + sizeof(DataContainer));
   value->size = htonl(size + sizeof(DataContainer));
   memcpy(&value[1],
@@ -1768,6 +1530,8 @@ static int useContent(const PeerIdentity * hostId,
 			  &ite->seen[i])) {
       MUTEX_UNLOCK(&lookup_exclusion);
       FREE(value);
+      if (stats != NULL) 
+	stats->change(stat_routing_reply_dups, 1);
       return 0; /* seen before, useless */
     }
   }
@@ -1821,6 +1585,25 @@ static int useContent(const PeerIdentity * hostId,
     }
     sendReply(ite,
 	      &msg->header);
+    if (ite->seenIndex > MAX_SEEN_VALUES * 2) {
+      /* kill routing entry -- we have seen so many different
+	 replies already that we cannot afford to continue
+	 to keep track of all of the responses seen (#1014) */
+      GROW(ite->destination,
+	   ite->hostsWaiting,
+	   0);
+      GROW(ite->seen,
+	   ite->seenIndex,
+	   0);
+      ite->priority = 0;
+      ite->type = 0;
+      ite->ttl = 0;
+      if (stats != NULL) 
+	stats->change(stat_routing_slots_used, -1);
+    }
+  } else {
+    if (stats != NULL) 
+      stats->change(stat_routing_reply_drops, 1);
   }
   MUTEX_UNLOCK(&lookup_exclusion);
   prio += claimReward(&msg->primaryKey, hostId);
@@ -2051,6 +1834,22 @@ static int handleQuery(const PeerIdentity * sender,
     BREAK();
     return 0;
   }
+  
+  /* Load above hard limit? */
+  if ((hardCPULimit && getCPULoad() >= hardCPULimit) ||
+        (hardUpLimit && getNetworkLoadUp() >= hardUpLimit) ) {
+#if DEBUG_GAP
+    if (sender != NULL) {
+      IFLOG(LOG_DEBUG,
+        hash2enc(&sender->hashPubKey,
+             &enc));
+    }
+    LOG(LOG_DEBUG,
+        "Dropping query from %s, this peer is too busy.\n",
+        sender == NULL ? "localhost" : &enc);
+#endif
+    return OK;
+  }
 
   queries = 1 + (ntohs(msg->size) - sizeof(P2P_gap_query_MESSAGE))
     / sizeof(HashCode512);
@@ -2074,14 +1873,17 @@ static int handleQuery(const PeerIdentity * sender,
     FREE(qmsg);
     return OK;
   }
-
+  if (stats != NULL)
+    stats->change(stat_routing_totals, 1);
 
   /* decrement ttl (always) */
   ttl = ntohl(qmsg->ttl);
   if (ttl < 0) {
     ttl = ttl - 2*TTL_DECREMENT - weak_randomi(TTL_DECREMENT);
-    if (ttl > 0) {
+    if (ttl > 0) { /* integer underflow => drop (should be very rare)! */
       FREE(qmsg);
+      if (stats != NULL)
+	stats->change(stat_routing_direct_drops, 1);
       return OK; /* just abort */
     }
   } else {
@@ -2098,7 +1900,9 @@ static int handleQuery(const PeerIdentity * sender,
       "Received GAP query `%s'.\n",
       &enc);
 #endif
-  if ((policy & QUERY_DROPMASK) == 0) {
+  if ((policy & QUERY_DROPMASK) == 0) { 
+    /* policy says no answer/forward/indirect => direct drop;
+       this happens if the peer is too busy (netload-up >= 100%).  */
     FREE(qmsg);
 #if DEBUG_GAP
     if (sender != NULL) {
@@ -2110,6 +1914,8 @@ static int handleQuery(const PeerIdentity * sender,
 	"Dropping query from %s, policy decided that this peer is too busy.\n",
 	sender == NULL ? "localhost" : &enc);
 #endif
+    if (stats != NULL)
+      stats->change(stat_routing_direct_drops, 1);
     return OK; /* straight drop. */
   }
   preference = (double) prio;
@@ -2176,9 +1982,30 @@ provide_module_gap(CoreAPIForApplication * capi) {
   GNUNET_ASSERT(sizeof(P2P_gap_query_MESSAGE) == 144);
 
   coreAPI = capi;
+  stats = capi->requestService("stats");
+  if (stats != NULL) {
+    stat_routing_totals             = stats->create(gettext_noop("# gap requests total received"));
+    stat_routing_direct_drops       = stats->create(gettext_noop("# gap requests policy: immediate drop"));
+    stat_routing_no_route_policy    = stats->create(gettext_noop("# gap requests policy: not routed"));
+    stat_routing_no_answer_policy   = stats->create(gettext_noop("# gap requests policy: not answered"));
+    stat_routing_processed          = stats->create(gettext_noop("# gap requests processed: attempted add to RT"));
+    stat_routing_local_results      = stats->create(gettext_noop("# gap requests processed: local result")); 
+    stat_routing_successes          = stats->create(gettext_noop("# gap routing successes (total)"));
+    stat_routing_collisions         = stats->create(gettext_noop("# gap requests dropped: collision in RT"));
+    stat_routing_forwards           = stats->create(gettext_noop("# gap requests forwarded (counting each peer)"));
+    stat_routing_request_duplicates = stats->create(gettext_noop("# gap duplicate requests (pending)")); 
+    stat_routing_request_repeat     = stats->create(gettext_noop("# gap duplicate requests that were re-tried"));
+    stat_routing_request_repeat_dttl= stats->create(gettext_noop("# gap re-try ttl difference (cummulative)"));
+    stat_routing_reply_dups         = stats->create(gettext_noop("# gap reply duplicates"));
+    stat_routing_reply_drops        = stats->create(gettext_noop("# gap spurious replies"));
+    stat_routing_slots_used         = stats->create(gettext_noop("# gap routing slots currently in use"));
+  }
   GROW(rewards,
        rewardSize,
        MAX_REWARD_TRACKS);
+       
+  hardCPULimit = getConfigurationInt("LOAD", "HARDCPULIMIT");
+  hardUpLimit = getConfigurationInt("LOAD", "HARDUPLIMIT");
 
   identity = coreAPI->requestService("identity");
   GNUNET_ASSERT(identity != NULL);
@@ -2289,6 +2116,10 @@ void release_module_gap() {
   GROW(rewards,
        rewardSize,
        0);
+  if (stats != NULL) {
+    coreAPI->releaseService(stats);
+    stats = NULL;
+  }
   lock = NULL;
   coreAPI = NULL;
   bs = NULL;

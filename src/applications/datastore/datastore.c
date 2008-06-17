@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004, 2005 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -72,6 +72,11 @@ static unsigned long long quota;
 static unsigned long long getSize() {
   return sq->getSize();
 }
+
+static int fastGet(const HashCode512 * query) {
+  return testAvailable(query);
+}
+
 
 static int get(const HashCode512 * query,
 	       unsigned int type,
@@ -188,7 +193,14 @@ typedef struct {
 
 static int checkExists(const HashCode512 * key,
 		       const Datastore_Value * value,
-		       CE * ce) {
+		       void * cls) {
+  CE * ce = cls;
+  
+  if ( (value->size != ce->value->size) ||
+       (0 != memcmp(&value[1],
+		    &ce->value[1],
+		    ntohl(value->size) - sizeof(Datastore_Value))) )
+    return OK; /* found another value, but different content! */
   ce->existing = MALLOC(ntohl(value->size));
   memcpy(ce->existing,
 	 value,
@@ -218,12 +230,12 @@ static int putUpdate(const HashCode512 * key,
   cls.value = value;
   sq->get(key,
 	  ntohl(value->type),
-	  (Datum_Iterator) &checkExists,
+	  &checkExists,
 	  &cls);
   if (ntohl(value->type) == D_BLOCK)
     sq->get(key,
 	    ONDEMAND_BLOCK,
-	    (Datum_Iterator) &checkExists,
+	    &checkExists,
 	    &cls);
 
   if (cls.exists) {
@@ -238,7 +250,13 @@ static int putUpdate(const HashCode512 * key,
     FREE(cls.existing);
     return OK;
   }
-
+#if DEBUG_DATASTORE
+  LOG(LOG_DEBUG,
+      "Migration: available %llu (need %u), min priority %u have %u\n",
+      available, ntohl(value->size),
+      minPriority,
+      ntohl(value->prio));
+#endif
   /* check if we have enough space / priority */
   if ( (available < ntohl(value->size) ) &&
        (minPriority > ntohl(value->prio)) )
@@ -345,6 +363,7 @@ provide_module_datastore(CoreAPIForApplication * capi) {
 
   api.getSize = &getSize;
   api.put = &put;
+  api.fast_get = &fastGet;
   api.putUpdate = &putUpdate;
   api.get = &get;
   api.getRandom = &getRandom; /* in prefetch.c */

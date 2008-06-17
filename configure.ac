@@ -21,8 +21,8 @@
 #
 #
 AC_PREREQ(2.57)
-AC_INIT([GNUnet], [0.7.0b],[bug-gnunet@gnu.org])
-AM_INIT_AUTOMAKE([GNUnet], [0.7.0b])
+AC_INIT([GNUnet], [0.7.0c],[bug-gnunet@gnu.org])
+AM_INIT_AUTOMAKE([GNUnet], [0.7.0c])
 AM_CONFIG_HEADER([config.h])
 
 AH_TOP([#define _GNU_SOURCE  1])
@@ -522,6 +522,7 @@ src/applications/fs/tools/Makefile
 src/applications/gap/Makefile
 src/applications/getoption/Makefile
 src/applications/identity/Makefile
+src/applications/kvstore_sqlite/Makefile
 src/applications/pingpong/Makefile
 src/applications/rpc/Makefile
 src/applications/session/Makefile

@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2006 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -28,8 +28,10 @@
 #include "platform.h"
 #include "prefetch.h"
 
+#define DEBUG_PREFETCH NO
+
 /* use a 64-entry RCB buffer */
-#define RCB_SIZE 128
+#define RCB_SIZE 64
 
 /* how many blocks to cache from on-demand files in a row */
 #define RCB_ONDEMAND_MAX 16
@@ -40,6 +42,13 @@
 typedef struct {
   HashCode512 key;
   Datastore_Value * value;
+  /**
+   * 0 if we have never used this content with any peer.  Otherwise
+   * the value is set to the lowest 32 bit of the peer ID (to avoid 
+   * sending it to the same peer twice).  After sending out the
+   * content twice, it is discarded.
+   */
+  int used;
 } ContentBuffer;
 
 
@@ -82,13 +91,28 @@ static int aquire(const HashCode512 * key,
   if (doneSignal != NULL)
     return SYSERR;
   MUTEX_LOCK(&lock);
+  load = 0;
+  while (randomContentBuffer[rCBPos].value != NULL) {
+    rCBPos = (rCBPos + 1) % RCB_SIZE;
+    load++;
+    if (load > RCB_SIZE) {
+      BREAK();
+      MUTEX_UNLOCK(&lock);
+      return SYSERR;
+    }
+  }  
+#if DEBUG_PREFETCH
+  LOG(LOG_DEBUG,
+      "Adding content to prefetch buffer (%u)\n",
+      rCBPos);
+#endif
   randomContentBuffer[rCBPos].key = *key;
+  randomContentBuffer[rCBPos].used = 0;
   randomContentBuffer[rCBPos].value
     = MALLOC(ntohl(value->size));
   memcpy(randomContentBuffer[rCBPos].value,
 	 value,
 	 ntohl(value->size));
-  rCBPos++;
   MUTEX_UNLOCK(&lock);
   load = getCPULoad(); /* FIXME: should use 'IO load' here */
   if (load < 10)
@@ -147,8 +171,13 @@ int getRandom(const HashCode512 * receiver,
   minIdx = -1;
   minDist = -1; /* max */
   MUTEX_LOCK(&lock);
-  for (i=0;i<rCBPos;i++) {
-    if ( (type != ntohl(randomContentBuffer[i].value->type)) ||
+  for (i=0;i<RCB_SIZE;i++) {
+    if (randomContentBuffer[i].value == NULL)
+      continue;
+    if (randomContentBuffer[i].used == *(int*) receiver)
+      continue; /* used this content for this peer already! */
+    if ( ( ( (type != ntohl(randomContentBuffer[i].value->type)) &&
+	     (type != 0) ) ) ||
 	 (sizeLimit < ntohl(randomContentBuffer[i].value->size)) )
       continue;
     dist = distanceHashCode512(&randomContentBuffer[i].key,
@@ -160,22 +189,40 @@ int getRandom(const HashCode512 * receiver,
   }
   if (minIdx == -1) {
     MUTEX_UNLOCK(&lock);
+#if DEBUG_PREFETCH
+    LOG(LOG_DEBUG,
+	"Failed to find content in prefetch buffer\n");
+#endif
     return SYSERR;
   }
+#if DEBUG_PREFETCH
+    LOG(LOG_DEBUG,
+	"Found content in prefetch buffer (%u)\n",
+	minIdx);
+#endif
   *key = randomContentBuffer[minIdx].key;
   *value = randomContentBuffer[minIdx].value;
 
-  randomContentBuffer[minIdx]
-    = randomContentBuffer[rCBPos];
-  randomContentBuffer[rCBPos].value = NULL;
+  if ( (randomContentBuffer[minIdx].used == 0) &&
+       (0 != *(int*) receiver) ) {
+    /* re-use once more! */
+    randomContentBuffer[minIdx].used = *(int*) receiver;
+    randomContentBuffer[minIdx].value = MALLOC(ntohl((*value)->size));
+    memcpy(randomContentBuffer[minIdx].value,
+	   *value,
+	   ntohl((*value)->size));
+  } else {
+    randomContentBuffer[minIdx].used = 0;
+    randomContentBuffer[minIdx].value = NULL;
+    SEMAPHORE_UP(acquireMoreSignal);
+  }
   MUTEX_UNLOCK(&lock);
-  SEMAPHORE_UP(acquireMoreSignal);
   return OK;
 }
 				
 void initPrefetch(SQstore_ServiceAPI * s) {
   sq = s;
-  memset(&randomContentBuffer,
+  memset(randomContentBuffer,
 	 0,
 	 sizeof(ContentBuffer *)*RCB_SIZE);
   acquireMoreSignal = SEMAPHORE_NEW(RCB_SIZE);
@@ -197,10 +244,10 @@ void donePrefetch() {
   SEMAPHORE_DOWN(doneSignal);
   SEMAPHORE_FREE(acquireMoreSignal);
   SEMAPHORE_FREE(doneSignal);
-  MUTEX_DESTROY(&lock);
+  PTHREAD_JOIN(&gather_thread, &unused);
   for (i=0;i<rCBPos;i++)
     FREENONNULL(randomContentBuffer[i].value);
-  PTHREAD_JOIN(&gather_thread, &unused);
+  MUTEX_DESTROY(&lock);
 }
 
 /* end of prefetch.c */

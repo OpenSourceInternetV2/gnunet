@@ -29,12 +29,16 @@
 #include "gnunet_ecrs_lib.h"
 #include "gnunet_fsui_lib.h"
 #include "fsui.h"
+#include <extractor.h>
 
 #define DEBUG_UPLOAD NO
 
-/* LE <= 0.5.8 compatibility code */
+/* LE <= 0.5.8/0.5.12 compatibility code */
 #ifndef EXTRACTOR_SPLIT
-#define EXTRACTOR_SPLIT 90
+#define EXTRACTOR_SPLIT 89
+#endif
+#ifndef EXTRACTOR_LOWERCASE
+#define EXTRACTOR_LOWERCASE 101
 #endif
 
 /**
@@ -123,6 +127,7 @@ static int uploadDirectory(UploadThreadClosure * utc,
   int lastSlash;
   FSUI_Event event;
   int handle;
+  char * mdn;
 
   GNUNET_ASSERT(utc->filename != NULL);
 
@@ -138,9 +143,14 @@ static int uploadDirectory(UploadThreadClosure * utc,
   ECRS_delFromMetaData(*meta,
 		       EXTRACTOR_FILENAME,
 		       NULL);
+  mdn = MALLOC(strlen(&dirName[lastSlash+1]) + 3);
+  strcpy(mdn, &dirName[lastSlash+1]);
+  if (mdn[strlen(mdn)-1] != '/')
+    strcat(mdn, "/");  
   ECRS_addToMetaData(*meta,
 		     EXTRACTOR_FILENAME,
-		     &dirName[lastSlash+1]);
+		     mdn);
+  FREE(mdn);
   ECRS_addToMetaData(*meta,
 		     EXTRACTOR_MIMETYPE,
 		     GNUNET_DIRECTORY_MIME);
@@ -287,9 +297,14 @@ static int dirEntryCallback(const char * filename,
 	 0);
   }
   if (ret == OK) {
+    char * mfilename = MALLOC(strlen(filename) + 2);
+    strcpy(mfilename, filename);
+    if (YES == isDirectory(fn))
+      strcat(mfilename, "/");    
     ECRS_addToMetaData(meta,
 		       EXTRACTOR_FILENAME,
-		       filename);
+		       mfilename);
+    FREE(mfilename);
     if (utc->individualKeywords) {
       keywordUri = ECRS_metaDataToUri(meta);
       if (keywordUri != NULL) {
@@ -317,6 +332,9 @@ static int dirEntryCallback(const char * filename,
       ECRS_delFromMetaData(meta,
 			   EXTRACTOR_SPLIT,
 			   NULL);
+      ECRS_delFromMetaData(meta,
+			   EXTRACTOR_LOWERCASE,
+			   NULL);
       utc->dir->fis[utc->dir->fiCount-1].meta = meta;
       utc->dir->fis[utc->dir->fiCount-1].uri = uri;
     } else {
@@ -332,7 +350,8 @@ static int dirEntryCallback(const char * filename,
 /**
  * Thread that does the upload.
  */
-static void * uploadThread(UploadThreadClosure * utc) {
+static void * uploadThread(void * cls) {
+  UploadThreadClosure * utc = cls;
   struct ECRS_URI * uri;
   struct ECRS_URI * keywordUri;
   FSUI_Event event;
@@ -546,7 +565,7 @@ int FSUI_upload(struct FSUI_Context * ctx,
   utc->tl = tl;
   tl->isDone = NO;
   if (0 != PTHREAD_CREATE(&tl->handle,
-			  (PThreadMain) &uploadThread,
+			  &uploadThread,
 			  utc,
 			  128 * 1024)) {
     LOG_STRERROR(LOG_ERROR, "PTHREAD_CREATE");
@@ -615,7 +634,7 @@ int FSUI_uploadAll(struct FSUI_Context * ctx,
   utc->tl = tl;
   tl->isDone = NO;
   if (0 != PTHREAD_CREATE(&tl->handle,
-			  (PThreadMain) &uploadThread,
+			  &uploadThread,
 			  utc,
 			  128 * 1024)) {
     LOG_STRERROR(LOG_ERROR, "PTHREAD_CREATE");

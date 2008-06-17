@@ -31,7 +31,7 @@
 #include "ecrs.h"
 #include "tree.h"
 
-#define DEBUG_DOWNLOAD YES
+#define DEBUG_DOWNLOAD NO
 
 /**
  * Highest TTL allowed? (equivalent of 25-50 HOPS distance!)
@@ -112,8 +112,12 @@ static void freeIOC(IOContext * this,
   MUTEX_DESTROY(&this->lock);
   if (YES == unlinkTreeFiles) {
     for (i=1;i<= this->treedepth;i++) {
-      fn = MALLOC(strlen(this->filename) + 3);
+      fn = MALLOC(strlen(this->filename) + 3 + strlen(GNUNET_DIRECTORY_EXT));
       strcpy(fn, this->filename);
+      if (fn[strlen(fn)-1] == '/') {
+	fn[strlen(fn)-1] = '\0';
+	strcat(fn, GNUNET_DIRECTORY_EXT);
+      }
       strcat(fn, ".A");
       fn[strlen(fn)-1]+=i;
       if (0 != UNLINK(fn))
@@ -162,8 +166,12 @@ static int createIOContext(IOContext * this,
     this->handles[i] = -1;
 
   for (i=0;i<=this->treedepth;i++) {
-    fn = MALLOC(strlen(filename) + 3);
+    fn = MALLOC(strlen(filename) + 3 + strlen(GNUNET_DIRECTORY_EXT));
     strcpy(fn, filename);
+    if (fn[strlen(fn)-1] == '/') {
+      fn[strlen(fn)-1] = '\0';
+      strcat(fn, GNUNET_DIRECTORY_EXT);
+    }
     if (i > 0) {
       strcat(fn, ".A");
       fn[strlen(fn)-1] += i;
@@ -173,7 +181,7 @@ static int createIOContext(IOContext * this,
 				S_IRUSR|S_IWUSR );
     if (this->handles[i] < 0) {
       LOG_FILE_STRERROR(LOG_FAILURE,
-			"OPEN",
+			"open",
 			fn);
       freeIOC(this, NO);
       FREE(fn);
@@ -889,9 +897,6 @@ static int nodeReceive(const HashCode512 * query,
     BREAK();
     return SYSERR; /* invalid size! */
   }
-  /* request satisfied, stop requesting! */
-  delRequest(node->ctx->rm,
-	     node);
   size -= sizeof(DBlock);
   data = MALLOC(size);
   if (SYSERR == decryptContent((char*)&((DBlock*)&reply[1])[1],
@@ -904,6 +909,8 @@ static int nodeReceive(const HashCode512 * query,
        &hc);
   if (!equalsHashCode512(&hc,
 			 &node->chk.key)) {
+    delRequest(node->ctx->rm,
+	       node);
     FREE(data);
     BREAK();
     LOG(LOG_ERROR,
@@ -929,7 +936,9 @@ static int nodeReceive(const HashCode512 * query,
     iblock_download_children(node,
 			     data,
 			     size);
-
+  /* request satisfied, stop requesting! */
+  delRequest(node->ctx->rm,
+	     node);
 
   for (i=0;i<10;i++) {
     if ( (node->ctx->completed * 10000L >
@@ -1072,14 +1081,16 @@ static void issueRequest(RequestManager * rm,
     entry->tries++;
   }
   /* warn if number of attempts goes too high */
-  if (0 == (entry->tries % MAX_TRIES)) {
+  if ( (0 == (entry->tries % MAX_TRIES)) &&
+       (entry->tries > 0) )  {
     EncName enc;
     IFLOG(LOG_WARNING,
 	  hash2enc(&entry->node->chk.key,
 		   &enc));
     LOG(LOG_WARNING,
-	_("Content `%s' seems to be not available on the network.\n"),
-	&enc);
+	_("Content `%s' seems to be not available on the network (tried %u times).\n"),
+	&enc,
+	entry->tries);
   }
 }
 
@@ -1236,10 +1247,20 @@ int ECRS_downloadFile(const struct ECRS_URI * uri,
 
   if ( (rm->requestListIndex == 0) &&
        (ctx.completed == ctx.total) &&
-       (rm->abortFlag == NO) )
+       (rm->abortFlag == NO) ) {
     ret = OK;
-  else
+  } else {
+#if 0
+    LOG(LOG_ERROR,
+	"Download ends prematurely: %d %llu == %llu %d TT: %d\n",
+	rm->requestListIndex,
+	ctx.completed,
+	ctx.total,
+	rm->abortFlag,
+	tt(ttClosure));
+#endif
     ret = SYSERR;
+  }
   destroyRequestManager(rm);
   if (ret == OK)
     freeIOC(&ioc, YES);

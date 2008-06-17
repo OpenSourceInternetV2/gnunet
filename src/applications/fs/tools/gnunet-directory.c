@@ -81,6 +81,7 @@ static void printDirectory(const char * filename) {
     printf(_("=\tError reading directory.\n"));
     return;
   }
+  md = NULL;
 #ifdef O_LARGEFILE
   fd = fileopen(name,
 		O_LARGEFILE | O_RDONLY);
@@ -88,19 +89,29 @@ static void printDirectory(const char * filename) {
   fd = fileopen(name,
 		O_RDONLY);
 #endif
-  data = MMAP(NULL,
-	      len,
-	      PROT_READ,
-	      MAP_SHARED,
-	      fd,
-	      0);
-  ret = ECRS_listDirectory(data,
-			   len,
-			   &md,
-			   &printNode,
-			   NULL);
-  MUNMAP(data, len);
-  closefile(fd);
+  if (fd == -1) {
+    LOG_FILE_STRERROR(LOG_ERROR, "open", name);
+    ret = -1;
+  } else {
+    data = MMAP(NULL,
+		len,
+		PROT_READ,
+		MAP_SHARED,
+		fd,
+		0);
+    if (data == MAP_FAILED) {
+      LOG_FILE_STRERROR(LOG_ERROR, "mmap", name);
+      ret = -1;
+    } else {
+      ret = ECRS_listDirectory(data,
+			       len,
+			       &md,
+			       &printNode,
+			       NULL);
+      MUNMAP(data, len);
+    }
+    closefile(fd);
+  }
   if (ret == -1)
     printf(_("File format error (not a GNUnet directory?)\n"));
   else
