@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: GNUnet 0.6.3a-cvs\n"
 "Report-Msgid-Bugs-To: gnunet-developers@mail.gnu.org\n"
-"POT-Creation-Date: 2005-02-09 16:05-0500\n"
+"POT-Creation-Date: 2005-02-27 22:25-0500\n"
 "PO-Revision-Date: 2004-08-21 00:55+0530\n"
 "Last-Translator: Christian Grothoff <christian@grothoff.org>\n"
 "Language-Team: German <de@li.org>\n"
@@ -22,8 +22,8 @@ msgstr ""
 msgid "Assertion failed at %s:%d.\n"
 msgstr ""
 
-#: src/include/gnunet_util.h:1274 src/include/gnunet_util.h:1281
-#: src/include/gnunet_util.h:1283 src/applications/afs/module/high_mysql.c:174
+#: src/include/gnunet_util.h:1268 src/include/gnunet_util.h:1275
+#: src/include/gnunet_util.h:1277 src/applications/afs/module/high_mysql.c:174
 #: src/applications/afs/module/high_mysql.c:181 src/util/hostkey_gcrypt.c:52
 #: src/util/hostkey_gcrypt.c:59 src/util/hostkey_openssl.c:53
 #: src/util/hostkey_openssl.c:330 src/util/hostkey_openssl.c:375
@@ -33,8 +33,8 @@ msgstr ""
 msgid "'%s' failed at %s:%d with error: %s\n"
 msgstr ""
 
-#: src/include/gnunet_util.h:1290 src/include/gnunet_util.h:1292
-#: src/include/gnunet_util.h:1299 src/applications/afs/module/low_bdb.c:85
+#: src/include/gnunet_util.h:1284 src/include/gnunet_util.h:1286
+#: src/include/gnunet_util.h:1293 src/applications/afs/module/low_bdb.c:85
 #: src/applications/afs/module/low_bdb.c:92
 #: src/applications/afs/module/low_gdbm.c:95
 #: src/applications/afs/module/low_gdbm.c:102
@@ -44,98 +44,98 @@ msgstr ""
 msgid "'%s' failed on file '%s' at %s:%d with error: %s\n"
 msgstr ""
 
-#: src/include/gnunet_util.h:2729
+#: src/include/gnunet_util.h:2723
 msgid "print this help"
 msgstr ""
 
-#: src/include/gnunet_util.h:2732
+#: src/include/gnunet_util.h:2726
 msgid "set verbosity to LEVEL"
 msgstr ""
 
-#: src/include/gnunet_util.h:2735
+#: src/include/gnunet_util.h:2729
 msgid "use configuration file FILENAME"
 msgstr ""
 
-#: src/include/gnunet_util.h:2738
+#: src/include/gnunet_util.h:2732
 msgid "specify host on which gnunetd is running"
 msgstr ""
 
-#: src/include/gnunet_util.h:2741
+#: src/include/gnunet_util.h:2735
 msgid "print the version number"
 msgstr ""
 
-#: src/include/gnunet_util.h:2744
+#: src/include/gnunet_util.h:2738
 msgid "be verbose"
 msgstr ""
 
-#: src/applications/afs/esed2/block.c:284
-#: src/applications/afs/esed2/block.c:329
-#: src/applications/afs/esed2/block.c:414
-#: src/applications/afs/esed2/block.c:478
-#: src/applications/afs/esed2/block.c:1045
-#: src/applications/afs/esed2/block.c:1129
+#: src/applications/afs/esed2/block.c:283
+#: src/applications/afs/esed2/block.c:328
+#: src/applications/afs/esed2/block.c:413
+#: src/applications/afs/esed2/block.c:477
+#: src/applications/afs/esed2/block.c:1044
+#: src/applications/afs/esed2/block.c:1128
 #, c-format
 msgid "Could not send '%s' request to gnunetd. Is gnunetd running?\n"
 msgstr ""
 
-#: src/applications/afs/esed2/block.c:290
-#: src/applications/afs/esed2/block.c:1039
+#: src/applications/afs/esed2/block.c:289
+#: src/applications/afs/esed2/block.c:1038
 #: src/applications/afs/esed2/insertutil.c:239
 #: src/applications/afs/esed2/sblock.c:327
 msgid "Server did not send confirmation of insertion.\n"
 msgstr ""
 
-#: src/applications/afs/esed2/block.c:294
-#: src/applications/afs/esed2/block.c:1042
+#: src/applications/afs/esed2/block.c:293
+#: src/applications/afs/esed2/block.c:1041
 #: src/applications/afs/esed2/insertutil.c:244
 #: src/applications/afs/esed2/sblock.c:332
 msgid "Server could not perform insertion.\n"
 msgstr ""
 
-#: src/applications/afs/esed2/block.c:335
-#: src/applications/afs/esed2/block.c:1124
+#: src/applications/afs/esed2/block.c:334
+#: src/applications/afs/esed2/block.c:1123
 msgid "Server did not send confirmation of deletion.\n"
 msgstr ""
 
-#: src/applications/afs/esed2/block.c:339
+#: src/applications/afs/esed2/block.c:338
 msgid "Server could not perform deletion.\n"
 msgstr ""
 
-#: src/applications/afs/esed2/block.c:420
+#: src/applications/afs/esed2/block.c:419
 msgid "Server did not send confirmation for indexing request.\n"
 msgstr ""
 
-#: src/applications/afs/esed2/block.c:424
+#: src/applications/afs/esed2/block.c:423
 msgid "Server could not perform indexing\n"
 msgstr ""
 
-#: src/applications/afs/esed2/block.c:484
+#: src/applications/afs/esed2/block.c:483
 msgid "Server did not send confirmation for unindex request.\n"
 msgstr ""
 
-#: src/applications/afs/esed2/block.c:488
+#: src/applications/afs/esed2/block.c:487
 msgid "Server could not perform unindexing (content already removed?).\n"
 msgstr ""
 
-#: src/applications/afs/esed2/block.c:674
+#: src/applications/afs/esed2/block.c:673
 msgid ""
 "Decrypted content does not match key. This is either a bug or a maliciously "
 "inserted file. Download aborted.\n"
 msgstr ""
 
-#: src/applications/afs/esed2/block.c:1859
-#: src/applications/afs/esed2/block.c:1879
+#: src/applications/afs/esed2/block.c:1858
+#: src/applications/afs/esed2/block.c:1878
 msgid "File corrupted (or bug)."
 msgstr ""
 
-#: src/applications/afs/esed2/block.c:1916
+#: src/applications/afs/esed2/block.c:1915
 #, c-format
 msgid ""
 "File '%s': %s of mime-type '%s' (size %u)\n"
 "%s"
 msgstr ""
 
-#: src/applications/afs/esed2/block.c:1946
+#: src/applications/afs/esed2/block.c:1945
 #, c-format
 msgid ""
 "File '%s': %s of mime-type '%s'\n"
@@ -143,7 +143,7 @@ msgid ""
 "\t%s"
 msgstr ""
 
-#: src/applications/afs/esed2/block.c:1972
+#: src/applications/afs/esed2/block.c:1971
 #, c-format
 msgid ""
 "Namespace %s (called '%.*s'):\n"
@@ -151,7 +151,7 @@ msgid ""
 "\t(Contact: '%.*s', URI: '%.*s', owner: '%.*s')"
 msgstr ""
 
-#: src/applications/afs/esed2/block.c:1991
+#: src/applications/afs/esed2/block.c:1990
 #, c-format
 msgid ""
 "Namespace %s (called '%.*s'):\n"
@@ -159,17 +159,17 @@ msgid ""
 "\t(Contact: '%.*s', URI: '%.*s', owner: '%.*s', root: '%s')"
 msgstr ""
 
-#: src/applications/afs/esed2/block.c:2015
+#: src/applications/afs/esed2/block.c:2014
 #, c-format
 msgid "Unknown format with ID %d:%d"
 msgstr ""
 
-#: src/applications/afs/esed2/block.c:2045
-#: src/applications/afs/esed2/block.c:2098
+#: src/applications/afs/esed2/block.c:2044
+#: src/applications/afs/esed2/block.c:2097
 msgid "Unsupported node type."
 msgstr ""
 
-#: src/applications/afs/esed2/block.c:2071
+#: src/applications/afs/esed2/block.c:2070
 msgid "unknown"
 msgstr ""
 
@@ -197,7 +197,7 @@ msgstr ""
 msgid "Adding to index list failed, trying insertion!\n"
 msgstr ""
 
-#: src/applications/afs/esed2/insertutil.c:491
+#: src/applications/afs/esed2/insertutil.c:497
 #, c-format
 msgid ""
 "Error inserting directory %s.\n"
@@ -205,9 +205,9 @@ msgid ""
 "Run gnunet-stats | grep \"AFS storage left\" to check.\n"
 msgstr ""
 
-#: src/applications/afs/esed2/insertutil.c:582
-#: src/applications/afs/esed2/insertutil.c:596
-#: src/applications/afs/esed2/insertutil.c:649
+#: src/applications/afs/esed2/insertutil.c:588
+#: src/applications/afs/esed2/insertutil.c:602
+#: src/applications/afs/esed2/insertutil.c:655
 msgid "Failed to insert RBlock. Is gnunetd running and space available?\n"
 msgstr ""
 
@@ -382,7 +382,7 @@ msgid "processed"
 msgstr ""
 
 #: src/applications/afs/gtkui/directory.c:379
-#: src/applications/afs/gtkui/insert.c:489
+#: src/applications/afs/gtkui/insert.c:500
 msgid "Keyword(s) used"
 msgstr ""
 
@@ -404,7 +404,7 @@ msgid "Published directory name:"
 msgstr ""
 
 #: src/applications/afs/gtkui/directory.c:448
-#: src/applications/afs/gtkui/insert.c:561
+#: src/applications/afs/gtkui/insert.c:572
 #: src/applications/afs/gtkui/namespace.c:1643
 #: src/applications/afs/gtkui/pseudonyms.c:367
 msgid "Description:"
@@ -415,22 +415,22 @@ msgid "A GNUnet directory"
 msgstr ""
 
 #: src/applications/afs/gtkui/directory.c:516
-#: src/applications/afs/gtkui/insert.c:696
-#: src/applications/afs/gtkui/insert.c:1102
+#: src/applications/afs/gtkui/insert.c:707
+#: src/applications/afs/gtkui/insert.c:1112
 msgid "Add keyword"
 msgstr ""
 
 #: src/applications/afs/gtkui/directory.c:517
-#: src/applications/afs/gtkui/insert.c:697
-#: src/applications/afs/gtkui/insert.c:1103
+#: src/applications/afs/gtkui/insert.c:708
+#: src/applications/afs/gtkui/insert.c:1113
 msgid "Delete keyword"
 msgstr ""
 
 #: src/applications/afs/gtkui/directory.c:649
 #: src/applications/afs/gtkui/download.c:897
 #: src/applications/afs/gtkui/helper.c:223
-#: src/applications/afs/gtkui/insert.c:735
-#: src/applications/afs/gtkui/insert.c:1143
+#: src/applications/afs/gtkui/insert.c:746
+#: src/applications/afs/gtkui/insert.c:1153
 #: src/applications/afs/gtkui/namespace.c:1058
 #: src/applications/afs/gtkui/pseudonyms.c:529
 #: src/applications/afs/gtkui/search.c:212
@@ -439,8 +439,8 @@ msgstr ""
 
 #: src/applications/afs/gtkui/directory.c:650
 #: src/applications/afs/gtkui/download.c:898
-#: src/applications/afs/gtkui/insert.c:736
-#: src/applications/afs/gtkui/insert.c:1144
+#: src/applications/afs/gtkui/insert.c:747
+#: src/applications/afs/gtkui/insert.c:1154
 #: src/applications/afs/gtkui/namespace.c:1059
 #: src/applications/afs/gtkui/namespace.c:1796
 #: src/applications/afs/gtkui/pseudonyms.c:530
@@ -692,69 +692,69 @@ msgstr ""
 msgid "No description specified."
 msgstr ""
 
-#: src/applications/afs/gtkui/insert.c:501
-#: src/applications/afs/gtkui/insert.c:863
+#: src/applications/afs/gtkui/insert.c:512
+#: src/applications/afs/gtkui/insert.c:874
 msgid "Edit attributes"
 msgstr ""
 
-#: src/applications/afs/gtkui/insert.c:525
+#: src/applications/afs/gtkui/insert.c:536
 msgid "Published filename:"
 msgstr ""
 
-#: src/applications/afs/gtkui/insert.c:543
+#: src/applications/afs/gtkui/insert.c:554
 msgid "Mimetype:"
 msgstr ""
 
-#: src/applications/afs/gtkui/insert.c:579
+#: src/applications/afs/gtkui/insert.c:590
 msgid "Insertion method:"
 msgstr ""
 
-#: src/applications/afs/gtkui/insert.c:594
-#: src/applications/afs/gtkui/insert.c:939
+#: src/applications/afs/gtkui/insert.c:605
+#: src/applications/afs/gtkui/insert.c:950
 msgid "Index only"
 msgstr ""
 
-#: src/applications/afs/gtkui/insert.c:596
-#: src/applications/afs/gtkui/insert.c:954
+#: src/applications/afs/gtkui/insert.c:607
+#: src/applications/afs/gtkui/insert.c:965
 msgid "Copy file to shared directory"
 msgstr ""
 
-#: src/applications/afs/gtkui/insert.c:611
-#: src/applications/afs/gtkui/insert.c:953
+#: src/applications/afs/gtkui/insert.c:622
+#: src/applications/afs/gtkui/insert.c:964
 msgid "Full insertion"
 msgstr ""
 
-#: src/applications/afs/gtkui/insert.c:777
+#: src/applications/afs/gtkui/insert.c:788
 msgid "Can't process files larger than 2 GB"
 msgstr ""
 
-#: src/applications/afs/gtkui/insert.c:851
+#: src/applications/afs/gtkui/insert.c:862
 msgid "Keyword(s) used for directory"
 msgstr ""
 
-#: src/applications/afs/gtkui/insert.c:852
+#: src/applications/afs/gtkui/insert.c:863
 msgid "Keyword(s) used for all files in directory"
 msgstr ""
 
-#: src/applications/afs/gtkui/insert.c:887
+#: src/applications/afs/gtkui/insert.c:898
 msgid "Published name of the directory:"
 msgstr ""
 
-#: src/applications/afs/gtkui/insert.c:924
+#: src/applications/afs/gtkui/insert.c:935
 msgid "Insertion method (for files in directory):"
 msgstr ""
 
-#: src/applications/afs/gtkui/insert.c:1222
+#: src/applications/afs/gtkui/insert.c:1232
 #, c-format
 msgid "'%s' is not a file!\n"
 msgstr ""
 
-#: src/applications/afs/gtkui/insert.c:1270
+#: src/applications/afs/gtkui/insert.c:1280
 msgid "Choose file to be inserted"
 msgstr ""
 
 #: src/applications/afs/gtkui/insertprogress.c:177
-#: src/applications/afs/gtkui/insertprogress.c:519
+#: src/applications/afs/gtkui/insertprogress.c:533
 #, c-format
 msgid ""
 "Successfully processed file '%s'.\n"
@@ -767,7 +767,7 @@ msgid "Successfully processed file '%s'. URI is '%s'.\n"
 msgstr ""
 
 #: src/applications/afs/gtkui/insertprogress.c:186
-#: src/applications/afs/gtkui/insertprogress.c:528
+#: src/applications/afs/gtkui/insertprogress.c:542
 #, c-format
 msgid "Insertion of file '%s' failed!\n"
 msgstr ""
@@ -1956,13 +1956,13 @@ msgid ""
 "s' under '%s'.\n"
 msgstr ""
 
-#: src/applications/afs/module/high_simple.c:280
-#: src/applications/afs/module/high_simple.c:289
+#: src/applications/afs/module/high_simple.c:283
+#: src/applications/afs/module/high_simple.c:292
 #, c-format
 msgid "pIdx database corrupt (content not indexed) in %s:%d\n"
 msgstr ""
 
-#: src/applications/afs/module/high_simple.c:708
+#: src/applications/afs/module/high_simple.c:711
 #, c-format
 msgid "pIdx database corrupt, trying to fix (%d)\n"
 msgstr ""
@@ -2225,7 +2225,7 @@ msgid "You must specify a filename (option -f)\n"
 msgstr ""
 
 #: src/applications/afs/tools/gnunet-delete.c:142
-#: src/applications/afs/tools/gnunet-insert.c:646
+#: src/applications/afs/tools/gnunet-insert.c:650
 #: src/applications/afs/tools/gnunet-pseudonym.c:382
 #: src/applications/afs/tools/gnunet-search.c:534
 #: src/applications/chat/gnunet-chat.c:148
@@ -2636,16 +2636,16 @@ msgstr ""
 msgid "Option '%s' is implied by option '%s'.\n"
 msgstr ""
 
-#: src/applications/afs/tools/gnunet-insert.c:692
+#: src/applications/afs/tools/gnunet-insert.c:698
 msgid "no filename specified"
 msgstr ""
 
-#: src/applications/afs/tools/gnunet-insert.c:726
+#: src/applications/afs/tools/gnunet-insert.c:732
 #, c-format
 msgid "Directory %s successfully indexed -- %s\n"
 msgstr ""
 
-#: src/applications/afs/tools/gnunet-insert.c:773
+#: src/applications/afs/tools/gnunet-insert.c:779
 #, c-format
 msgid ""
 "Filename (option '%s') specified but multiple files given on the command "
@@ -2653,22 +2653,22 @@ msgid ""
 "files."
 msgstr ""
 
-#: src/applications/afs/tools/gnunet-insert.c:821
-#: src/applications/afs/tools/gnunet-insert.c:830
-#: src/applications/afs/tools/gnunet-insert.c:841
-#: src/applications/afs/tools/gnunet-insert.c:848
+#: src/applications/afs/tools/gnunet-insert.c:829
+#: src/applications/afs/tools/gnunet-insert.c:838
+#: src/applications/afs/tools/gnunet-insert.c:849
+#: src/applications/afs/tools/gnunet-insert.c:856
 #, c-format
 msgid "Inserting file '%s' (%s, %s) under keyword '%s'.\n"
 msgstr ""
 
-#: src/applications/afs/tools/gnunet-insert.c:1019
+#: src/applications/afs/tools/gnunet-insert.c:1027
 #, c-format
 msgid ""
 "File '%s' (%s, %s) successfully inserted into namespace under\n"
 "\t'%s'\n"
 msgstr ""
 
-#: src/applications/afs/tools/gnunet-insert.c:1027
+#: src/applications/afs/tools/gnunet-insert.c:1035
 #, c-format
 msgid "Insertion of file into namespace failed.\n"
 msgstr ""
@@ -3839,17 +3839,17 @@ msgstr ""
 msgid "No applications defined in configuration!\n"
 msgstr ""
 
-#: src/server/core.c:652
+#: src/server/core.c:654
 #, c-format
 msgid "Could not initialize application '%s'\n"
 msgstr ""
 
-#: src/server/core.c:694
+#: src/server/core.c:696
 #, c-format
 msgid "Could not properly shutdown application '%s'.\n"
 msgstr ""
 
-#: src/server/core.c:726
+#: src/server/core.c:728
 #, c-format
 msgid "Could not properly unload application '%s'.\n"
 msgstr ""
@@ -4377,7 +4377,7 @@ msgstr ""
 msgid "Rejected blacklisted connection from %u.%u.%u.%u.\n"
 msgstr ""
 
-#: src/transports/http.c:1226 src/transports/tcp.c:1028 src/util/tcpio.c:165
+#: src/transports/http.c:1226 src/transports/tcp.c:1029 src/util/tcpio.c:165
 #: src/util/tcpio.c:195
 #, c-format
 msgid "Cannot connect to %u.%u.%u.%u:%u: %s\n"
@@ -4398,7 +4398,7 @@ msgid "# bytes sent via http"
 msgstr ""
 
 #: src/transports/http.c:1497 src/transports/smtp.c:920
-#: src/transports/tcp.c:1337 src/transports/tcp6.c:1395
+#: src/transports/tcp.c:1338 src/transports/tcp6.c:1395
 #: src/transports/udp.c:651 src/transports/udp6.c:671
 #, c-format
 msgid "MTU for '%s' is probably too low (fragmentation not implemented!)\n"
@@ -4460,20 +4460,20 @@ msgstr ""
 msgid "Received malformed message from tcp-peer connection. Closing.\n"
 msgstr ""
 
-#: src/transports/tcp.c:956
+#: src/transports/tcp.c:957
 msgid "Could not determine my public IP address.\n"
 msgstr ""
 
-#: src/transports/tcp.c:1216 src/transports/tcp6.c:1273
+#: src/transports/tcp.c:1217 src/transports/tcp6.c:1273
 #, c-format
 msgid "Failed to start transport service on port %d.\n"
 msgstr ""
 
-#: src/transports/tcp.c:1328
+#: src/transports/tcp.c:1329
 msgid "# bytes received via tcp"
 msgstr ""
 
-#: src/transports/tcp.c:1330
+#: src/transports/tcp.c:1331
 msgid "# bytes sent via tcp"
 msgstr ""
 
@@ -4620,14 +4620,14 @@ msgstr ""
 msgid "Syntax error in configuration file '%s' at line %d.\n"
 msgstr ""
 
-#: src/util/configuration.c:434
+#: src/util/configuration.c:440
 #, c-format
 msgid ""
 "Configuration file '%s' not found. I will try to create the default "
 "configuration file at that location.\n"
 msgstr ""
 
-#: src/util/configuration.c:450
+#: src/util/configuration.c:456
 #, c-format
 msgid "Cannot open configuration file '%s'\n"
 msgstr ""
@@ -4756,43 +4756,43 @@ msgstr ""
 msgid "Could not find an IP address for interface '%s'.\n"
 msgstr ""
 
-#: src/util/identity.c:274
+#: src/util/identity.c:276
 #, c-format
 msgid ""
 "There is more than one IP address specified for interface '%s'.\n"
 "GNUnet will use %u.%u.%u.%u.\n"
 msgstr ""
 
-#: src/util/identity.c:280
+#: src/util/identity.c:282
 #, c-format
 msgid "GNUnet now uses the IP address %u.%u.%u.%u.\n"
 msgstr ""
 
-#: src/util/identity.c:295
+#: src/util/identity.c:300
 #, c-format
 msgid "Could not resolve '%s' to determine our IP address: %s\n"
 msgstr ""
 
-#: src/util/identity.c:352 src/util/identity.c:394
+#: src/util/identity.c:357 src/util/identity.c:399
 #, c-format
 msgid "Could not resolve '%s': %s\n"
 msgstr ""
 
-#: src/util/identity.c:421
+#: src/util/identity.c:426
 msgid "Could not determine IP address of the local machine!\n"
 msgstr ""
 
-#: src/util/identity.c:432
+#: src/util/identity.c:437
 msgid "Could not determine IP(v6) address of the local machine!\n"
 msgstr ""
 
-#: src/util/identity.c:444
+#: src/util/identity.c:449
 msgid ""
 "Could not find IP(v4) for this host. Please provide the IP in the "
 "configuration file.\n"
 msgstr ""
 
-#: src/util/identity.c:456
+#: src/util/identity.c:461
 msgid ""
 "Could not find IP(v6) for this host. Please provide the IP in the "
 "configuration file.\n"
@@ -4832,61 +4832,61 @@ msgstr ""
 msgid "Wrong format '%s' for network: %s\n"
 msgstr ""
 
-#: src/util/logging.c:90
+#: src/util/logging.c:92
 msgid "NOTHING"
 msgstr ""
 
-#: src/util/logging.c:91
+#: src/util/logging.c:93
 msgid "FATAL"
 msgstr ""
 
-#: src/util/logging.c:92
+#: src/util/logging.c:94
 msgid "ERROR"
 msgstr ""
 
-#: src/util/logging.c:93
+#: src/util/logging.c:95
 msgid "FAILURE"
 msgstr ""
 
-#: src/util/logging.c:94
+#: src/util/logging.c:96
 msgid "WARNING"
 msgstr ""
 
-#: src/util/logging.c:95
+#: src/util/logging.c:97
 msgid "MESSAGE"
 msgstr ""
 
-#: src/util/logging.c:96
+#: src/util/logging.c:98
 msgid "INFO"
 msgstr ""
 
-#: src/util/logging.c:97
+#: src/util/logging.c:99
 msgid "DEBUG"
 msgstr ""
 
-#: src/util/logging.c:98
+#: src/util/logging.c:100
 msgid "CRON"
 msgstr ""
 
-#: src/util/logging.c:99
+#: src/util/logging.c:101
 msgid "EVERYTHING"
 msgstr ""
 
-#: src/util/logging.c:237
+#: src/util/logging.c:249
 msgid "LOGLEVEL not specified, that is not ok.\n"
 msgstr ""
 
-#: src/util/logging.c:248
+#: src/util/logging.c:260
 #, c-format
 msgid "Invalid LOGLEVEL '%s' specified.\n"
 msgstr ""
 
-#: src/util/logging.c:353
+#: src/util/logging.c:365
 #, c-format
 msgid "Failure at %s:%d.\n"
 msgstr ""
 
-#: src/util/logging.c:359
+#: src/util/logging.c:371
 #, c-format
 msgid "Failure at at %s:%d.\n"
 msgstr ""
@@ -4957,26 +4957,26 @@ msgstr ""
 msgid "% of allowed network load (down)"
 msgstr ""
 
-#: src/util/statuscalls.c:461 src/util/statuscalls.c:679
+#: src/util/statuscalls.c:461 src/util/statuscalls.c:681
 #, c-format
 msgid "Failed to parse interface data from '%s' at %s:%d.\n"
 msgstr ""
 
-#: src/util/statuscalls.c:561
+#: src/util/statuscalls.c:563
 #, c-format
 msgid "Failed to parse interface data '%s' output at %s:%d.\n"
 msgstr ""
 
-#: src/util/statuscalls.c:886
+#: src/util/statuscalls.c:890
 #, c-format
 msgid "Could not decoding file '%s' at %s:%d.\n"
 msgstr ""
 
-#: src/util/statuscalls.c:1061
+#: src/util/statuscalls.c:1065
 msgid "Cannot query the CPU usage (Windows NT).\n"
 msgstr ""
 
-#: src/util/statuscalls.c:1081
+#: src/util/statuscalls.c:1085
 msgid "Cannot query the CPU usage (Win 9x)\n"
 msgstr ""
 

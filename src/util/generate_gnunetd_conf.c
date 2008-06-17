@@ -488,10 +488,10 @@ void  generate_gnunetd_conf (FILE * f) {
  fprintf(f, "%s\n","# believe you need it.");
  fprintf(f, "%s\n","#");
  fprintf(f, "%s\n","# The definition of ANONYMITY-RECEIVE is the following: ");
- fprintf(f, "%s\n","#  If the value v # is < 1000, it means that if GNUnet routes n bytes");
- fprintf(f, "%s\n","#  of messages from # foreign peers, it may originate n/v bytes of");
- fprintf(f, "%s\n","#  queries in the same # time-period.  The time-period is twice the");
- fprintf(f, "%s\n","#  average delay that GNUnet # deferrs forwarded queries.");
+ fprintf(f, "%s\n","#  If the value v is < 1000, it means that if GNUnet routes n bytes");
+ fprintf(f, "%s\n","#  of messages from foreign peers, it may originate n/v bytes of");
+ fprintf(f, "%s\n","#  queries in the same time-period.  The time-period is twice the");
+ fprintf(f, "%s\n","#  average delay that GNUnet deferrs forwarded queries.");
  fprintf(f, "%s\n","# ");
  fprintf(f, "%s\n","#  If the value v is >= 1000, it means that if GNUnet routes n bytes");
  fprintf(f, "%s\n","#  of QUERIES from at least (v % 1000) peers, it may originate");

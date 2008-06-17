@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet
-     (C) 2001, 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -25,7 +25,7 @@
  *
  * Note that the current implementation no longer uses the exact
  * scheme from the ESED paper. Extensive documentation is forthcoming,
- * for now see http://www.ovmj.org/GNUnet/encoding.php3
+ * for now see http://gnunet.org/encoding.php3
  */
 
 #include "gnunet_afs_esed2.h"
@@ -40,9 +40,8 @@ static Block_VTBL iblock_vtbl;
 
 #define BBBSWAP(x,y) { unsigned char ttt; ttt = (y); (y) = (x); (x) = ttt;}
 static void swap_bytes(unsigned char *ptr, int len) {
-
-  int i;
 #if __BYTE_ORDER == __BIG_ENDIAN
+  int i;
   for (i = 0; i < len; i++) {
     BBBSWAP(ptr[4*i], ptr[4*i+3]);
     BBBSWAP(ptr[4*i+2], ptr[4*i+1]);

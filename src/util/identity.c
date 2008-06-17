@@ -266,7 +266,9 @@ static int getAddressFromIOCTL(IPaddr * identity) {
 	  _("Could not find an IP address for "
 	    "interface '%s'.\n"), 
 	  interfaces);
-      
+
+      GlobalFree(pTable);
+      GlobalFree(pAddrTable);
       return SYSERR;
     }
     else if (iAddrCount > 1)
@@ -281,6 +283,9 @@ static int getAddressFromIOCTL(IPaddr * identity) {
         PRIP(ntohl(dwIP)));
 
     identity->addr = dwIP;
+    
+    GlobalFree(pTable);
+    GlobalFree(pAddrTable);
   }
   else /* Win 95 */
   {

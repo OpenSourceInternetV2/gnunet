@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -633,7 +633,11 @@ int main(int argc, char ** argv) {
 			      "NO") )
     printf(_("Option '%s' is implied by option '%s'.\n"),
 	   "-X", "-x");
-  extractors = getExtractors();
+  extractors = (testConfigurationString("GNUNET-INSERT",
+					"EXTRACT-KEYWORDS",
+					"NO")) 
+    ? NULL 
+    : getExtractors();
 #endif
   
   /* fixme: other sanity checks here? */
@@ -657,7 +661,9 @@ int main(int argc, char ** argv) {
 			  (const char**) gloKeywords,
 			  gloKeywordCnt,
 #if USE_LIBEXTRACTOR
-			  extractors,
+			  (testConfigurationString("GNUNET-INSERT",
+						   "EXTRACT-KEYWORDS",
+						   "NO")) ? NULL : extractors,
 #else
 			  NULL,
 #endif
@@ -798,7 +804,9 @@ int main(int argc, char ** argv) {
 			 &mimetype,
 			 &keywords,
 			 &num_keywords,
-			 extractors);
+			 (testConfigurationString("GNUNET-INSERT",
+						  "EXTRACT-KEYWORDS",
+						  "NO")) ? NULL : extractors);
 #endif   
     if (mimetype == NULL)
       mimetype = STRDUP("unknown");

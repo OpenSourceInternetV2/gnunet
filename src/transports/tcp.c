@@ -809,6 +809,7 @@ static int tcpDirectSend(TCPSession * tcpSession,
   if (tcpSession->wpos > 0) {
     /* select already pending... */
     ret = 0;
+    success = NO;
   } else {
     success = SEND_NONBLOCKING(tcpSession->sock,
 			       mp,

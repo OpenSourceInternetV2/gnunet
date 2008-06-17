@@ -62,7 +62,7 @@ GtkItemFactory * itemFactory = NULL;
 
 static GtkWidget * main_window_input_line = NULL;
 
-static debug_flag = NO;
+static int debug_flag = NO;
 
 /**
  * Shows the info window 

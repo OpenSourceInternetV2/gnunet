@@ -119,6 +119,9 @@ HighDBHandle initContentDatabase(unsigned int i,
   mkdirp(dir);
   dbtype = getConfigurationString("AFS",
 				  "DATABASETYPE");
+  if (dbtype == NULL) 
+    errexit("You must specify a database type in section AFS under DATABASETYPE.");
+    
   nX = strlen(dir) + strlen("bucket") + 256 + strlen(dbtype);
   bucketname = MALLOC(nX);
   SNPRINTF(bucketname,
@@ -663,7 +666,7 @@ int getRandomContent(HighDBHandle handle,
   res = readContent(handle,
                     &query,
                     ce,
-                    data,
+                    (void**) data,
                     0);
   if (res == -1)
     return SYSERR;

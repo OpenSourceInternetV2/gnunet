@@ -433,6 +433,17 @@ static void button_index_clicked(GtkWidget * w,
 }
 
 /**
+ * The index/insert file button was clicked.
+ *
+ * @param w the button
+ * @param ewm state of the edit window
+ */
+static void button_index_clicked_directory(GtkWidget * w,
+					   EditDirectoryWindowModel * ewm) {
+  gtk_widget_set_sensitive(ewm->checkCopy, w == ewm->indexButton);
+}
+
+/**
  * Exit the application (called when the main window
  * is closed or the user selects File-Quit).
  */
@@ -939,7 +950,7 @@ static void editDirectoryAttributes(char * filename,
 						 _("Index only"));
   gtk_signal_connect(GTK_OBJECT(indexbutton1),
 		     "toggled",
-                     GTK_SIGNAL_FUNC(button_index_clicked),
+                     GTK_SIGNAL_FUNC(button_index_clicked_directory),
                      ewm);    
   ewm->indexButton = indexbutton1;
   gtk_box_pack_start(GTK_BOX (hbox),
@@ -954,8 +965,8 @@ static void editDirectoryAttributes(char * filename,
   check_copy = gtk_check_button_new_with_label(_("Copy file to shared directory"));
   ewm->checkCopy = check_copy;
   gtk_signal_connect(GTK_OBJECT(indexbutton2),
-	                   "toggled",
-                     GTK_SIGNAL_FUNC(button_index_clicked),
+		     "toggled",
+                     GTK_SIGNAL_FUNC(button_index_clicked_directory),
                      ewm);
   gtk_box_pack_start(GTK_BOX(hbox), 
 		     indexbutton2, 
@@ -968,14 +979,13 @@ static void editDirectoryAttributes(char * filename,
 			        "YES") == YES) {
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(indexbutton1), 
 				 TRUE);
-		doIndex = 1;
+    doIndex = 1;
   }
   else {
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(indexbutton2), 
 				 TRUE);
-		doIndex = 0;
+    doIndex = 0;
   }
-
 
   gtk_box_pack_start(GTK_BOX(hbox),
                      check_copy,

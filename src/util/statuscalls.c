@@ -508,6 +508,8 @@ static int networkUsageAdvancedDown() {
       
       rxdiff += rxnew - last_net_results[ifnum].last_in;
       last_net_results[ifnum].last_in = rxnew;
+      
+      GlobalFree(pTable);
     }
   }
   else
@@ -726,6 +728,8 @@ static int networkUsageAdvancedUp() {
       
       txdiff += txnew - last_net_results[ifnum].last_out;	  
       last_net_results[ifnum].last_out = txnew;
+      
+      GlobalFree(pTable);
     }
   }
   else

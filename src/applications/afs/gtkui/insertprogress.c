@@ -347,8 +347,7 @@ void createInsertDirectoryProgressBar(InsertDirectoryModel * ilm) {
   gtk_widget_show(window);
 }
 
-
-
+#define MYMIN(x,y) (x < y ? x : y)
 
 /**
  * Insert a single file.
@@ -374,7 +373,8 @@ static int gtkInsertDirectoryWrapper(GNUNET_TCP_SOCKET * sock,
   ifm.num_keywords = 0;
   memcpy(ifm.opDescription,
 	 ilm->opDescription,
-	 sizeof(ilm->opDescription));
+	 MYMIN(sizeof(ifm.opDescription),
+	       strlen(ilm->opDescription)));
   ifm.indexContent = ilm->indexContent;
   ifm.progressBar = ilm->progressBar;
   ifm.progressBarWindow = ilm->progressBarWindow;
@@ -490,10 +490,23 @@ void insertDirectoryGtkThread(InsertDirectoryModel * ilm) {
 #endif
   if (top != NULL) {
     unsigned int priority;
+    RootNode * r;
 
+    r = createRootNode(&top->header.fileIdentifier,
+		       ilm->description,
+		       ilm->fileName,
+		       GNUNET_DIRECTORY_MIME);
     priority = getConfigurationInt("GNUNET-INSERT",
 				   "CONTENT-PRIORITY");
     res = OK;
+    for (i=0;i<ilm->num_keywords;i++) {
+      if (SYSERR == insertRootWithKeyword(sock,
+					  r,
+					  ilm->keywords[i],
+					  priority))
+	res = SYSERR;
+    }
+#if 0
     for (i=0;i<ilm->num_keywords;i++) {
       if (SYSERR == insertRootWithKeyword(sock,
 					  top, 
@@ -501,6 +514,7 @@ void insertDirectoryGtkThread(InsertDirectoryModel * ilm) {
 					  priority))
 	res = SYSERR;
     }
+#endif
     makeRootNodeAvailable(top, DIR_CONTEXT_INSERT);
     publishToCollection(top);
   } else {

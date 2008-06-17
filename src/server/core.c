@@ -637,7 +637,9 @@ void loadApplicationModules() {
       dso);
   next = dso;
   do {
-    pos = next;
+    while (*next == ' ')
+      next++;
+    pos = next;    
     while ( (*next != '\0') &&
 	    (*next != ' ') )
       next++;

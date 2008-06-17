@@ -358,6 +358,12 @@ RootNode * createRootNode(const FileIdentifier * fid,
     = htons(ROOT_MINOR_VERSION);
   rn->header.fileIdentifier
     = *fid;
+  if (description == NULL)
+    description = "No description supplied.";
+  if (shortFN == NULL)
+    shortFN = "No filename supplied.";
+  if (mimetype == NULL)
+    mimetype = "unknown.";
   memcpy(&rn->header.description[0],
 	 description,
 	 MIN(strlen(description)+1, MAX_DESC_LEN-1));

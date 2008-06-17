@@ -1,3 +1,20 @@
+Mon Feb 28 00:33:03 EST 2005
+	Releasing GNUnet 0.6.6b.
+
+Sun Feb 27 19:27:44 EST 2005
+	Fixing mantis 839.
+
+Sun Feb 27 18:44:11 EST 2005
+	Fixing mantis 833/834.
+
+Sun Feb 27 18:15:02 EST 2005
+	Fixing serious problem with LE in gnunet-insert.
+	Fixing mantis 828.
+
+Thu Feb 17 01:14:30 EST 2005
+	Various memory leaks for Win32 fixed.
+	Added support for GNUNET(D)_CONFIG environment variable.
+
 Wed Feb  9 13:33:38 EST 2005
         Fixed problems with the logrotate code.  Releasing GNUnet 0.6.6a.
 

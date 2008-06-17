@@ -349,8 +349,8 @@ static void modelCallback(ProgressStats * stats,
 
   /* don't display more often than once/sec */
   TIME(&now);
-  if ((now-(dlm->lastDisplayTime)) < 1 &&
-      (stats->filesize != stats->progress))
+  if ( (now-(dlm->lastDisplayTime) < 1) &&
+       (stats->filesize != stats->progress))
     return;
   else
     dlm->lastDisplayTime = now;

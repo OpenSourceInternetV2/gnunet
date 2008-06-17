@@ -118,7 +118,7 @@ static void * rcbAcquire(void * unused) {
         readCount = 1;
       }
       
-      if (read == SYSERR)
+      if (readCount == SYSERR)
         ok = SYSERR;
       else
         for (i=0;i<readCount;i++) {

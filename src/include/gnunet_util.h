@@ -1149,12 +1149,6 @@ typedef struct {
   CS_TRAFFIC_INFO cs_traffic_info;
 
   /**
-   * The number of different message types we have seen
-   * in the last time.
-   */
-  unsigned int count;
-
-  /**
    * "count" traffic counters.
    */
   TRAFFIC_COUNTER counters[1];

@@ -29,7 +29,9 @@
 
 #include "platform.h"
 #include "gnunet_util.h"
+#ifndef MINGW
 #include <langinfo.h>
+#endif
 
 /**
  * Where to write log information to.
@@ -132,7 +134,11 @@ static void removeOldLog(const char * fil,
   }
   logdate = &fullname[strlen(def->basename)];
   ret = strptime(logdate,
+#ifndef MINGW
 		 nl_langinfo(D_FMT),
+#else
+     "%Y%m%d",
+#endif
 		 &t);
   if ( (ret == NULL) ||
        (ret[0] != '\0') ) {
@@ -171,6 +177,7 @@ void reopenLogFile() {
       struct logfiledef def;
       char datestr[80];
       time_t curtime;
+      char *datefmt;
       
       time(&curtime);
 #ifdef localtime_r
@@ -184,9 +191,14 @@ void reopenLogFile() {
       fn = (char *) realloc(fn, strlen(fn) + 82);
       strcat(fn, "_");
       def.basename = STRDUP(fn);
+#ifndef MINGW
+      datefmt = nl_langinfo(D_FMT);
+#else
+      datefmt = "%Y%m%d";
+#endif
       GNUNET_ASSERT(0 != strftime(datestr,
 				  80,
-				  nl_langinfo(D_FMT), 
+				  datefmt,
 				  &def.curtime));
       strcat(fn, datestr);
       
