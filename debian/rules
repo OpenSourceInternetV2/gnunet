@@ -1,44 +1,27 @@
 #!/usr/bin/make -f
 
-# Uncomment this to turn on verbose mode.
-#export DH_VERBOSE=1
+DEB_HOST_GNU_TYPE	?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
+DEB_BUILD_GNU_TYPE	?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
 
-# These are used for cross-compiling and for saving the configure script
-# from having to guess our platform (since we know it already)
-DEB_HOST_GNU_TYPE   ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
-DEB_BUILD_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
-
-CFLAGS = -Wall -g
-
-ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
-	CFLAGS += -O0
+ifneq ($(DEB_HOST_GNU_TYPE),$(DEB_BUILD_GNU_TYPE))
+	CROSS=CC=$(DEB_HOST_GNU_TYPE)-gcc
 else
-	CFLAGS += -O2
+	CROSS=
 endif
-
-config.status: configure
-	dh_testdir
-
-	# Configuring package
-	CFLAGS="$(CFLAGS)" ./configure --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr --mandir=\$${prefix}/share/man --enable-guile --enable-ipv6 disable-rpath --with-extractor=/usr --with-guile=/usr --with-libcurl=/usr --with-libgcrypt=/usr --with-mysql=/usr --with-sqlite=/usr
-
-build: build-stamp
-build-stamp: config.status
-	dh_testdir
-
-	# Building package
-	$(MAKE)
-
-	touch build-stamp
 
 clean:
 	dh_testdir
 	dh_testroot
 	rm -f build-stamp
 
-	# Cleaning package
 	[ ! -f Makefile ] || $(MAKE) distclean
 	debconf-updatepo
+
+	dh_clean
+
+config.status: configure
+	dh_testdir
+
 ifneq "$(wildcard /usr/share/misc/config.sub)" ""
 	cp -f /usr/share/misc/config.sub config.sub
 endif
@@ -46,7 +29,15 @@ ifneq "$(wildcard /usr/share/misc/config.guess)" ""
 	cp -f /usr/share/misc/config.guess config.guess
 endif
 
-	dh_clean
+	CFLAGS="$(CFLAGS)" LDFLAGS="-Wl,-z,defs" ./configure $(CROSS) --prefix=/usr --enable-guile --enable-ipv6 --disable-rpath --with-extractor=/usr --with-guile=/usr --with-libcurl=/usr --with-libgcrypt=/usr --with-mysql=/usr --with-sqlite=/usr
+
+build: build-stamp
+build-stamp: config.status
+	dh_testdir
+
+	$(MAKE)
+
+	touch build-stamp
 
 install: build
 	dh_testdir
@@ -54,48 +45,33 @@ install: build
 	dh_clean -k
 	dh_installdirs
 
-	# Installing package
 	$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp
 
 	install -D -m 0644 debian/config/gnunetd.conf debian/gnunet-server/etc/gnunetd.conf
-
 	mv debian/tmp/usr/bin/remotetest debian/tmp/usr/bin/gnunet-remotetest
 
-binary-arch: build install
-	dh_testdir -a
-	dh_testroot -a
-	dh_installchangelogs -a ChangeLog
-	dh_installdocs -a
-	dh_install -a --fail-missing --sourcedir=debian/tmp
-	dh_installdebconf -a
-	dh_installlogrotate -a
-	dh_installinit -a -n
-	dh_lintian -a
-	dh_link -a
-	dh_strip -a --dbg-package=gnunet-dbg
-	dh_compress -a
-	dh_fixperms -a
-	dh_makeshlibs -a
-	dh_installdeb -a
-	dh_shlibdeps -a
-	dh_gencontrol -a
-	dh_md5sums -a
-	dh_builddeb -a
-
-binary-indep: build install
-	dh_testdir -i
-	dh_testroot -i
-	dh_installchangelogs -i ChangeLog
-	dh_installdocs -i
-	dh_install -i
-	dh_lintian -i
-	dh_link -i
-	dh_compress -i
-	dh_fixperms -i
-	dh_installdeb -i
-	dh_gencontrol -i
-	dh_md5sums -i
-	dh_builddeb -i
-
 binary: binary-indep binary-arch
-.PHONY: build clean binary-indep binary-arch binary install configure
+
+binary-arch: build install
+	dh_testdir
+	dh_testroot
+	dh_installchangelogs ChangeLog
+	dh_installdocs
+	dh_install --fail-missing --sourcedir=debian/tmp
+	dh_installdebconf
+	dh_installlogrotate
+	dh_installinit -n
+	dh_lintian
+	dh_strip --dbg-package=gnunet-dbg
+	dh_compress
+	dh_fixperms
+	dh_makeshlibs
+	dh_installdeb
+	dh_shlibdeps
+	dh_gencontrol
+	dh_md5sums
+	dh_builddeb
+
+binary-indep:
+
+.PHONY: clean build install binary binary-arch binary-indep
