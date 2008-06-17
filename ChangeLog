@@ -1,3 +1,50 @@
+Sun Jun 17 00:09:13 MDT 2007
+	Releasing GNUnet 0.7.2.
+
+Sat Jun 16 04:43:20 MDT 2007
+	http transport is amost back, now needing the
+	new libmicrohttpd.  However, the code is still
+	highly experimental and not ready for production
+	use.
+
+Fri Jun  8 23:44:01 MDT 2007
+	Fixed bugs preventing namespace search from
+	working.  Also extended testcase to cover
+	namespace search.
+
+Tue May 29 23:15:27 MDT 2007
+	Fixed a major bug which resulted in peers without
+	traffic between them disconnecting (even if that
+	session was their only connection).  
+	Fixed another major bug where nodes would not
+	properly forward HELLOs from other peers (given
+	certain common/default configuration options).
+
+Sun May 27 22:39:48 MDT 2007
+	Added new API gnunet_testing_lib.h to make it
+	easier to write testcases that need to start 
+	gnunetd.  API is now used everywhere and the
+	ugly peer.conf files and directories are gone.
+	Fixed a bug with inserting empty directories.
+	Extended ECRS API to allow partial file download.
+
+Sat May 26 18:24:15 MDT 2007
+	Fixed bugs with testcases (changes in names and
+	structure of options were not reflected in .conf 
+	files for various testcases).
+	Fixed issues with command-line option handling (failed to 
+	override configuration file options).
+	Fixed bogus nesting in GAP routing algorithm (caused
+	random request drops).
+
+Fri May 25 12:23:38 MDT 2007
+	Finished extended URITRACK API.
+	Renamed various (minor) libraries and function calls to
+	get somewhat more consistent naming conventions.
+
+Sun Apr 15 22:15:37 MDT 2007
+	Implemented heuristic for better packing of gnunet-directories.
+
 Sun Mar 25 13:47:08 MDT 2007
 	Releasing GNUnet 0.7.1c.
 

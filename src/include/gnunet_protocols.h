@@ -136,7 +136,7 @@ extern "C" {
 #define CS_PROTO_RETURN_ERROR 4
 
 
-/* ********** CS AFS application messages ********** */
+/* ********** CS FS application messages ********** */
 
 /**
  * client to gnunetd: send queries
@@ -188,6 +188,50 @@ extern "C" {
  * client to gnunetd: initialize to index file
  */
 #define CS_PROTO_gap_INIT_INDEX 16
+
+
+/* *********** messages for identity module ************* */
+
+/**
+ * Client asks daemon for information about
+ * all known peers
+ */
+#define CS_PROTO_identity_request_INFO 25
+
+/**
+ * Deamon responds with information about a peer.
+ */
+#define CS_PROTO_identity_INFO 26
+
+/**
+ * Client asks the Daemon about how to contact
+ * it.
+ */
+#define CS_PROTO_identity_request_HELLO 27
+
+/**
+ * Client informs the Daemon about how to contact
+ * a particular peer -- or daemon informs client
+ * about how other peers should contact it.
+ */
+#define CS_PROTO_identity_HELLO 28
+
+/**
+ * Client asks the Daemon to sign a message.
+ */
+#define CS_PROTO_identity_request_SIGN 29
+
+/**
+ * Daemon sends client a signature
+ */
+#define CS_PROTO_identity_SIGNATURE 30
+
+/**
+ * Client asks the daemon to try to connect to
+ * a particular peer.
+ */
+#define CS_PROTO_identity_CONNECT 31
+
 
 /* *********** messages for traffic module ************* */
 
@@ -431,7 +475,7 @@ extern "C" {
 #define KN_BLOCK 5
 
 /**
- * DHT String2String (for dht-query/dht-join).
+ * DHT String2String (for dht-testing)
  */
 #define DHT_STRING2STRING_BLOCK 7
 

@@ -36,6 +36,8 @@
 
 #define DEBUG_TCPHANDLER NO
 
+#define TIME_HANDLERS NO
+
 /**
  * Array of the message handlers.
  */
@@ -212,6 +214,9 @@ static int select_message_handler(void * mh_cls,
   struct ClientHandle * sender = sock_ctx;
   unsigned short ptyp;
   CSHandler callback;
+#if TIME_HANDLERS
+  cron_t start;
+#endif
 
   ptyp = htons(msg->type);
   MUTEX_LOCK(handlerlock);
@@ -235,6 +240,9 @@ static int select_message_handler(void * mh_cls,
     MUTEX_UNLOCK(handlerlock);
     return SYSERR;
   } else {
+#if TIME_HANDLERS
+    start = get_time();
+#endif
     if (OK != callback(sender,
 		       msg)) {
 #if 0
@@ -247,6 +255,14 @@ static int select_message_handler(void * mh_cls,
       MUTEX_UNLOCK(handlerlock);
       return SYSERR;
     }
+#if TIME_HANDLERS
+    if (get_time() - start > cronSECONDS)
+      GE_LOG(ectx,
+	     GE_INFO | GE_DEVELOPER | GE_IMMEDIATE,
+	     "Handling message of type %u took %llu s\n",
+	     ptyp,
+	     (get_time()-start) / cronSECONDS);
+#endif
   }
   MUTEX_UNLOCK(handlerlock);
   return OK;
@@ -317,6 +333,7 @@ static int startTCPServer() {
 	   _("`%s' failed for port %d. Is gnunetd already running?\n"),
 	   "bind",
 	   listenerPort);
+    CLOSE(listenerFD);
     return SYSERR;
   }
   selector = select_create("tcpserver",
@@ -334,7 +351,9 @@ static int startTCPServer() {
 			   NULL,
 			   0 /* no memory quota */);
   if (selector == NULL) {
-    CLOSE(listenerFD);
+    CLOSE(listenerFD); /* maybe closed already
+			  depending on how select_create
+			  failed... */
     return SYSERR;
   }
   return OK;
@@ -348,8 +367,6 @@ int doneTCPServer() {
 			not gnunetd */
   unregisterCSHandler(CS_PROTO_SHUTDOWN_REQUEST,
 		      &shutdownHandler);
-  MUTEX_DESTROY(handlerlock);
-  handlerlock = NULL;
   GROW(handlers,
        max_registeredType,
        0);
@@ -358,6 +375,15 @@ int doneTCPServer() {
        0);
   FREE(trustedNetworks_);
   return OK;
+}
+
+void __attribute__ ((constructor)) gnunet_tcpserver_ltdl_init() {
+  handlerlock = MUTEX_CREATE(YES);
+}
+
+void __attribute__ ((destructor)) gnunet_tcpserver_ltdl_fini() {
+  MUTEX_DESTROY(handlerlock);
+  handlerlock = NULL;
 }
 
 /**
@@ -392,7 +418,6 @@ int initTCPServer(struct GE_Context * e,
     return SYSERR;
   }
   FREE(ch);
-  handlerlock = MUTEX_CREATE(YES);
 
   registerCSHandler(CS_PROTO_SHUTDOWN_REQUEST,
 		    &shutdownHandler);

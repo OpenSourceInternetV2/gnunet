@@ -37,8 +37,11 @@
 /**
  * after how much time of the core not being associated with a tcp
  * connection anymore do we close it?
+ *
+ * Needs to be larger than SECONDS_INACTIVE_DROP in
+ * core's connection.s
  */
-#define TCP_TIMEOUT (30 * cronSECONDS)
+#define TCP_TIMEOUT (600 * cronSECONDS)
 
 #define TARGET_BUFFER_SIZE 4092
 
@@ -109,7 +112,7 @@ static int isBlacklisted(const void * addr,
 			  ip);
   MUTEX_UNLOCK(tcpblacklistlock);
 #if DEBUG_TCP
-  if (ret != OK) 
+  if (ret != NO)
     GE_LOG(ectx,
 	   GE_DEBUG | GE_ADMIN | GE_BULK,
 	   "Rejecting connection from address %u.%u.%u.%u (blacklisted)\n",
@@ -143,13 +146,13 @@ static int isWhitelisted(const void * addr,
 #endif
     return SYSERR;
   }
-  ret = OK;
+  ret = YES;
   MUTEX_LOCK(tcpblacklistlock);
   if (allowedNetworks_ != NULL)
     ret = check_ipv4_listed(allowedNetworks_,
 			    ip);
   MUTEX_UNLOCK(tcpblacklistlock);
-  if (ret != OK) {
+  if (ret != YES) {
 #if DEBUG_TCP
     GE_LOG(ectx,
 	   GE_DEBUG | GE_ADMIN | GE_BULK,
@@ -162,7 +165,7 @@ static int isWhitelisted(const void * addr,
 
 static int isRejected(const void * addr,
 		      unsigned int addr_len) {
-  if ((YES == isBlacklisted(addr,
+  if ((NO != isBlacklisted(addr,
 			    addr_len)) ||
       (YES != isWhitelisted(addr,
 			    addr_len)))	
@@ -199,18 +202,18 @@ static unsigned short getGNUnetTCPPort() {
  * is reachable at that address). Since the reply
  * will be asynchronous, a method must be called on
  * success.
- * @param helo the Hello message to verify
+ * @param hello the Hello message to verify
  *        (the signature/crc have been verified before)
  * @return OK on success, SYSERR on error
  */
-static int verifyHelo(const P2P_hello_MESSAGE * helo) {
+static int verifyHello(const P2P_hello_MESSAGE * hello) {
   HostAddress * haddr;
 
-  haddr = (HostAddress*) &helo[1];
-  if ( (ntohs(helo->senderAddressSize) != sizeof(HostAddress)) ||
-       (ntohs(helo->header.size) != P2P_hello_MESSAGE_size(helo)) ||
-       (ntohs(helo->header.type) != p2p_PROTO_hello) ||
-       (ntohs(helo->protocol) != TCP_PROTOCOL_NUMBER) ||
+  haddr = (HostAddress*) &hello[1];
+  if ( (ntohs(hello->senderAddressSize) != sizeof(HostAddress)) ||
+       (ntohs(hello->header.size) != P2P_hello_MESSAGE_size(hello)) ||
+       (ntohs(hello->header.type) != p2p_PROTO_hello) ||
+       (ntohs(hello->protocol) != TCP_PROTOCOL_NUMBER) ||
        (YES == isBlacklisted(&haddr->ip,
 			     sizeof(IPaddr))) ||
        (YES != isWhitelisted(&haddr->ip,
@@ -218,7 +221,7 @@ static int verifyHelo(const P2P_hello_MESSAGE * helo) {
 #if DEBUG_TCP
     EncName enc;
 
-    hash2enc(&helo->senderIdentity.hashPubKey,
+    hash2enc(&hello->senderIdentity.hashPubKey,
 	     &enc);
     GE_LOG(ectx,
 	   GE_DEBUG | GE_ADMIN | GE_BULK,
@@ -226,7 +229,7 @@ static int verifyHelo(const P2P_hello_MESSAGE * helo) {
 	   &enc);
 #endif
     return SYSERR; /* obviously invalid */
-  } 
+  }
   return OK;
 }
 
@@ -255,7 +258,7 @@ static P2P_hello_MESSAGE * createhello() {
     }
     return NULL; /* TCP transport is configured SEND-only! */
   }
-  msg = (P2P_hello_MESSAGE *) MALLOC(sizeof(P2P_hello_MESSAGE) + sizeof(HostAddress));
+  msg = MALLOC(sizeof(P2P_hello_MESSAGE) + sizeof(HostAddress));
   haddr = (HostAddress*) &msg[1];
 
   if (! ( ( (upnp != NULL) &&
@@ -269,14 +272,12 @@ static P2P_hello_MESSAGE * createhello() {
     GE_LOG(ectx,
 	   GE_WARNING | GE_ADMIN | GE_USER | GE_BULK,
 	   _("TCP: Could not determine my public IP address.\n"));
-    return NULL;  
+    return NULL;
   }
-#if DEBUG_TCP
   GE_LOG(ectx,
-	 GE_DEBUG | GE_USER | GE_REQUEST,
+	 GE_INFO | GE_USER | GE_BULK,
 	 "TCP uses IP address %u.%u.%u.%u.\n",
 	 PRIP(ntohl(*(int*)&haddr->ip)));
-#endif
   haddr->port = htons(port);
   haddr->reserved = htons(0);
   msg->senderAddressSize = htons(sizeof(HostAddress));
@@ -288,11 +289,11 @@ static P2P_hello_MESSAGE * createhello() {
 /**
  * Establish a connection to a remote node.
  *
- * @param helo the hello-Message for the target node
+ * @param hello the hello-Message for the target node
  * @param tsessionPtr the session handle that is set
  * @return OK on success, SYSERR if the operation failed
  */
-static int tcpConnect(const P2P_hello_MESSAGE * helo,
+static int tcpConnect(const P2P_hello_MESSAGE * hello,
 		      TSession ** tsessionPtr) {
   static int zero = 0;
   HostAddress * haddr;
@@ -303,7 +304,7 @@ static int tcpConnect(const P2P_hello_MESSAGE * helo,
 
   if (selector == NULL)
     return SYSERR;
-  haddr = (HostAddress*) &helo[1];
+  haddr = (HostAddress*) &hello[1];
 #if DEBUG_TCP
   GE_LOG(ectx,
 	 GE_DEBUG | GE_USER | GE_BULK,
@@ -341,7 +342,7 @@ static int tcpConnect(const P2P_hello_MESSAGE * helo,
 	 sizeof(soaddr));
   soaddr.sin_family = AF_INET;
 
-  GE_ASSERT(ectx, 
+  GE_ASSERT(ectx,
 	    sizeof(struct in_addr) == sizeof(IPaddr));
   memcpy(&soaddr.sin_addr,
 	 &haddr->ip,
@@ -368,7 +369,7 @@ static int tcpConnect(const P2P_hello_MESSAGE * helo,
 	 PRIP(ntohl(*(int*)&haddr->ip)),
 	 ntohs(haddr->port));
 #endif
-  return tcpConnectHelper(helo,
+  return tcpConnectHelper(hello,
 			  s,
 			  tcpAPI.protocolNumber,
 			  tsessionPtr);
@@ -378,7 +379,7 @@ static int tcpConnect(const P2P_hello_MESSAGE * helo,
  * Start the server process to receive inbound traffic.
  * @return OK on success, SYSERR if the operation failed
  */
-static int startTransportServer(void) {
+static int startTransportServer() {
   struct sockaddr_in serverAddr;
   const int on = 1;
   unsigned short port;
@@ -493,43 +494,27 @@ static int reloadConfiguration(void * ctx,
 }
 
 /**
- * Convert TCP address to a string.
+ * Convert TCP hello to IP address
  */
-static char * 
-addressToString(const P2P_hello_MESSAGE * hello,
-		int do_resolve) {
-  char * ret;
+static int
+helloToAddress(const P2P_hello_MESSAGE * hello,
+	       void ** sa,
+	       unsigned int * sa_len) {
   const HostAddress * haddr = (const HostAddress*) &hello[1];
-  size_t n;
-  const char * hn = "";
-  struct hostent * ent;
-
-#if HAVE_GETHOSTBYADDR
-  if (do_resolve) {
-    ent = gethostbyaddr(haddr,
-			sizeof(IPaddr),
-			AF_INET);
-    if (ent != NULL)
-      hn = ent->h_name;
-  }    
-#endif
-  n = 4*4+6+6 + strlen(hn) + 10;
-  ret = MALLOC(n);
-  if (strlen(hn) > 0) {
-    SNPRINTF(ret,
-	     n,
-	     "%s (%u.%u.%u.%u) TCP (%u)",
-	     hn,
-	     PRIP(ntohl(*(int*)&haddr->ip.addr)),
-	     ntohs(haddr->port));
-  } else {
-    SNPRINTF(ret,
-	     n,
-	     "%u.%u.%u.%u TCP (%u)",
-	     PRIP(ntohl(*(int*)&haddr->ip.addr)),
-	     ntohs(haddr->port));
-  }
-  return ret;
+  struct sockaddr_in * serverAddr;
+  
+  *sa_len = sizeof(struct sockaddr_in);
+  serverAddr = MALLOC(sizeof(struct sockaddr_in));
+  *sa = serverAddr;
+  memset(serverAddr,
+	 0,
+	 sizeof(struct sockaddr_in));
+  serverAddr->sin_family   = AF_INET;
+  memcpy(&serverAddr->sin_addr,
+	 haddr,
+	 sizeof(IPaddr));
+  serverAddr->sin_port = haddr->port;
+  return OK;
 }
 
 
@@ -562,7 +547,7 @@ TransportAPI * inittransport_tcp(CoreAPIForTransport * core) {
 				       "UPNP",
 				       YES) == YES) {
     upnp = coreAPI->requestService("upnp");
-    
+
     if (upnp == NULL) {
       GE_LOG(ectx,
 	     GE_ERROR | GE_USER | GE_IMMEDIATE,
@@ -583,7 +568,7 @@ TransportAPI * inittransport_tcp(CoreAPIForTransport * core) {
   tcpAPI.protocolNumber       = TCP_PROTOCOL_NUMBER;
   tcpAPI.mtu                  = 0;
   tcpAPI.cost                 = 20000; /* about equal to udp */
-  tcpAPI.verifyHelo           = &verifyHelo;
+  tcpAPI.verifyHello          = &verifyHello;
   tcpAPI.createhello          = &createhello;
   tcpAPI.connect              = &tcpConnect;
   tcpAPI.associate            = &tcpAssociate;
@@ -591,7 +576,7 @@ TransportAPI * inittransport_tcp(CoreAPIForTransport * core) {
   tcpAPI.disconnect           = &tcpDisconnect;
   tcpAPI.startTransportServer = &startTransportServer;
   tcpAPI.stopTransportServer  = &stopTransportServer;
-  tcpAPI.addressToString      = &addressToString;
+  tcpAPI.helloToAddress       = &helloToAddress;
   tcpAPI.testWouldTry         = &tcpTestWouldTry;
 
   return &tcpAPI;

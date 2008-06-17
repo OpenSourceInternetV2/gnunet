@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet
-     (C) 2003, 2004, 2005 Christian Grothoff (and other contributing authors)
+     (C) 2003, 2004, 2005, 2007 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -28,6 +28,7 @@
 #include "gnunet_protocols.h"
 #include "gnunet_transport.h"
 #include "platform.h"
+#include "ip.h"
 
 #define DEBUG_NAT NO
 
@@ -53,31 +54,28 @@ static CoreAPIForTransport * coreAPI;
  * Verify that a hello-Message is correct (a node is reachable at that
  * address).
  *
- * @param helo the hello message to verify
+ * @param hello the hello message to verify
  *        (the signature/crc have been verified before)
  * @return OK on success, SYSERR on failure
  */
-static int verifyHelo(const P2P_hello_MESSAGE * helo) {
-  if ( (ntohs(helo->senderAddressSize) != sizeof(HostAddress)) ||
-       (ntohs(helo->header.size) != P2P_hello_MESSAGE_size(helo)) ||
-       (ntohs(helo->header.type) != p2p_PROTO_hello) ) {
-    return SYSERR; /* obviously invalid */
-  } else {
-    if (YES == GC_get_configuration_value_yesno(coreAPI->cfg,
-						"NAT",
-						"LIMITED",
-						NO)) {
-      /* if WE are a NAT and this is not our hello,
-	 it is invalid since NAT-to-NAT is not possible! */
-      if (0 == memcmp(&coreAPI->myIdentity->hashPubKey,
-		      &helo->senderIdentity.hashPubKey,
-		      sizeof(HashCode512)))
-	return OK;
-      else
-	return SYSERR;
-    }
-    return OK;
+static int verifyHello(const P2P_hello_MESSAGE * hello) {
+  if ( (ntohs(hello->senderAddressSize) != sizeof(HostAddress)) ||
+       (ntohs(hello->header.size) != P2P_hello_MESSAGE_size(hello)) ||
+       (ntohs(hello->header.type) != p2p_PROTO_hello) ) 
+    return SYSERR; /* obviously invalid */  
+  if (YES == GC_get_configuration_value_yesno(coreAPI->cfg,
+					      "NAT",
+					      "LIMITED",
+					      NO)) {
+    /* if WE are a NAT and this is not our hello,
+       it is invalid since NAT-to-NAT is not possible! */
+    if (0 == memcmp(&coreAPI->myIdentity->hashPubKey,
+		    &hello->senderIdentity.hashPubKey,
+		    sizeof(HashCode512)))
+      return OK;
+    return SYSERR;
   }
+  return OK;  
 }
 
 /**
@@ -104,11 +102,11 @@ static P2P_hello_MESSAGE * createhello() {
 
 /**
  * Establish a connection to a remote node.
- * @param helo the hello-Message for the target node
+ * @param hello the hello-Message for the target node
  * @param tsessionPtr the session handle that is to be set
  * @return always fails (returns SYSERR)
  */
-static int natConnect(const P2P_hello_MESSAGE * helo,
+static int natConnect(const P2P_hello_MESSAGE * hello,
 		      TSession ** tsessionPtr) {
   return SYSERR;
 }
@@ -158,7 +156,7 @@ static int natDisconnect(TSession * tsession) {
  *
  * @return OK on success, SYSERR if the operation failed
  */
-static int startTransportServer(void) {
+static int startTransportServer() {
   return OK;
 }
 
@@ -173,9 +171,12 @@ static int stopTransportServer() {
 /**
  * Convert NAT address to a string.
  */
-static char * addressToString(const P2P_hello_MESSAGE * hello,
-			      int do_resolve) {
-  return STRDUP("NAT");
+static int helloToAddress(const P2P_hello_MESSAGE * hello,
+			  void ** sa,
+			  unsigned int * sa_len) {
+  return getIPaddressFromPID(&hello->senderIdentity,
+			     sa,
+			     sa_len);
 }
 
 static int testWouldTry(TSession * tsession,
@@ -193,15 +194,15 @@ TransportAPI * inittransport_nat(CoreAPIForTransport * core) {
   natAPI.protocolNumber       = NAT_PROTOCOL_NUMBER;
   natAPI.mtu                  = 0;
   natAPI.cost                 = 30000;
-  natAPI.verifyHelo           = &verifyHelo;
-  natAPI.createhello           = &createhello;
+  natAPI.verifyHello          = &verifyHello;
+  natAPI.createhello          = &createhello;
   natAPI.connect              = &natConnect;
   natAPI.send                 = &natSend;
   natAPI.associate            = &natAssociate;
   natAPI.disconnect           = &natDisconnect;
   natAPI.startTransportServer = &startTransportServer;
   natAPI.stopTransportServer  = &stopTransportServer;
-  natAPI.addressToString      = &addressToString;
+  natAPI.helloToAddress       = &helloToAddress;
   natAPI.testWouldTry         = &testWouldTry;
 
   return &natAPI;

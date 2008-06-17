@@ -51,10 +51,10 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/gettext.m4 \
 	$(top_srcdir)/m4/lib-ld.m4 $(top_srcdir)/m4/lib-link.m4 \
 	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libcurl.m4 \
 	$(top_srcdir)/m4/libgcrypt.m4 $(top_srcdir)/m4/libxml2.m4 \
-	$(top_srcdir)/m4/mkdir.m4 $(top_srcdir)/m4/nls.m4 \
-	$(top_srcdir)/m4/pkg.m4 $(top_srcdir)/m4/po.m4 \
-	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/acinclude.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/m4/mkdir.m4 $(top_srcdir)/m4/mkdirp.m4 \
+	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/pkg.m4 \
+	$(top_srcdir)/m4/po.m4 $(top_srcdir)/m4/progtest.m4 \
+	$(top_srcdir)/acinclude.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
@@ -63,12 +63,13 @@ CONFIG_CLEAN_FILES =
 am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
-libgnunetfsui_la_DEPENDENCIES =  \
+libgnunetfsui_la_DEPENDENCIES = $(top_builddir)/src/applications/identity/libgnunetidentity_api.la \
 	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
 	$(top_builddir)/src/applications/fs/namespace/libgnunetnamespace.la \
 	$(top_builddir)/src/applications/fs/uritrack/libgnuneturitrack.la \
 	$(top_builddir)/src/util/cron/libgnunetutil_cron.la \
 	$(top_builddir)/src/util/loggers/libgnunetutil_logging.la \
+	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
 	$(top_builddir)/src/util/libgnunetutil.la
 am_libgnunetfsui_la_OBJECTS = deserialize.lo download.lo fsui.lo \
 	search.lo serialize.lo unindex.lo upload.lo
@@ -224,6 +225,8 @@ GNUNETGTK_LIBS = @GNUNETGTK_LIBS@
 GREP = @GREP@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
+HAVE_ADNS_FALSE = @HAVE_ADNS_FALSE@
+HAVE_ADNS_TRUE = @HAVE_ADNS_TRUE@
 HAVE_DIALOG_FALSE = @HAVE_DIALOG_FALSE@
 HAVE_DIALOG_TRUE = @HAVE_DIALOG_TRUE@
 HAVE_GTK_FALSE = @HAVE_GTK_FALSE@
@@ -262,6 +265,8 @@ LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
+LINUX_FALSE = @LINUX_FALSE@
+LINUX_TRUE = @LINUX_TRUE@
 LN_S = @LN_S@
 LTDLINCL = @LTDLINCL@
 LTLIBICONV = @LTLIBICONV@
@@ -279,6 +284,8 @@ MYSQL_CPPFLAGS = @MYSQL_CPPFLAGS@
 MYSQL_LDFLAGS = @MYSQL_LDFLAGS@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
+OPENBSD_FALSE = @OPENBSD_FALSE@
+OPENBSD_TRUE = @OPENBSD_TRUE@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
 PACKAGE_NAME = @PACKAGE_NAME@
@@ -366,11 +373,13 @@ libgnunetfsui_la_SOURCES = \
 
 libgnunetfsui_la_LIBADD = \
  -lextractor \
+ $(top_builddir)/src/applications/identity/libgnunetidentity_api.la \
  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
  $(top_builddir)/src/applications/fs/namespace/libgnunetnamespace.la \
  $(top_builddir)/src/applications/fs/uritrack/libgnuneturitrack.la \
  $(top_builddir)/src/util/cron/libgnunetutil_cron.la \
  $(top_builddir)/src/util/loggers/libgnunetutil_logging.la \
+ $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
  $(top_builddir)/src/util/libgnunetutil.la 
 
 EXTRA_DIST = \

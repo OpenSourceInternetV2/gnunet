@@ -87,7 +87,8 @@
 
 /**
  * If an established connection is inactive for 5 minutes,
- * drop.
+ * drop.  Needs to be smaller than timeouts in the
+ * transports.
  */
 #define SECONDS_INACTIVE_DROP 300
 
@@ -374,7 +375,7 @@ typedef struct BufferEntry_ {
 
   /**
    * is this host alive? timestamp of the time of the last-active
-   * point (as witnessed by some higher-level application, typically
+  * point (as witnessed by some higher-level application, typically
    * topology+pingpong)
    */
   cron_t isAlive;
@@ -694,7 +695,7 @@ void updateCurBPS(BufferEntry * be) {
   if (stats != NULL)
     stats->change(stat_total_allowed_inc,
 		  increment);
-  be->available_send_window 
+  be->available_send_window
     += increment;
 #if 0
   printf("Have %u bpm over %llu ms, adding %lld bytes\n",
@@ -706,7 +707,7 @@ void updateCurBPS(BufferEntry * be) {
   if (be->available_send_window > limit) {
     if (stats != NULL)
       stats->change(stat_total_lost_sent,
-		    be->available_send_window 
+		    be->available_send_window
 		    - limit);
     be->available_send_window = limit;
   }
@@ -759,12 +760,11 @@ approximateKnapsack(BufferEntry * be,
   max = 0;
 
   for(i = 0; i < count; i++) {
-    if(entries[i]->len <= left) {
+    if (entries[i]->len <= left) {
       entries[i]->knapsackSolution = YES;
       left -= entries[i]->len;
       max += entries[i]->pri;
-    }
-    else {
+    } else {
       entries[i]->knapsackSolution = NO;
     }
   }
@@ -791,28 +791,21 @@ static unsigned int solveKnapsack(BufferEntry * be,
   int max;
   long long *v;
   int *efflen;
-  cron_t startTime;
-  cron_t endTime;
   SendEntry ** entries;
   unsigned int count;
 #define VARR(i,j) v[(i)+(j)*(count+1)]
 
-  if(available < 0) {
-    GE_BREAK(ectx, 0);
-    return -1;
-  }
   ENTRY();
   entries = be->sendBuffer;
   count = be->sendBufferSize;
-  startTime = get_time();
 
   /* fast test: schedule everything? */
   max = 0;
-  for(i = 0; i < count; i++)
+  for (i=0;i<count;i++)
     max += entries[i]->len;
-  if(max <= available) {
+  if (max <= available) {
     /* short cut: take everything! */
-    for(i = 0; i < count; i++)
+    for (i = 0; i < count; i++)
       entries[i]->knapsackSolution = YES;
     max = 0;
     for(i = 0; i < count; i++)
@@ -826,10 +819,9 @@ static unsigned int solveKnapsack(BufferEntry * be,
      4, this is probably a good idea (TM)  :-) */
   efflen = MALLOC(sizeof(int) * count);
   max = available;
-  for(i = 0; i < count; i++) {
-    if(entries[i]->len > 0)
+  for(i = 0; i < count; i++)
+    if (entries[i]->len > 0)
       max = gcd(max, entries[i]->len);
-  }
   GE_ASSERT(ectx, max != 0);
   available = available / max;
   for(i = 0; i < count; i++)
@@ -859,19 +851,6 @@ static unsigned int solveKnapsack(BufferEntry * be,
       }
       else
         VARR(i, j) = leave_val;
-#if 0      
-      printf("i: %d j: %d (of %d) efflen: %d take: %d "
-	     "leave %d e[i-1]->pri %d VAR(i-1,j-eff) %lld VAR(i,j) %lld\n",
-	     i,
-	     j,
-	     available,
-	     efflen[i-1],
-	     take_val,
-	     leave_val,
-	     entries[i-1]->pri,
-	     VARR(i-1,j-efflen[i-1]),
-	     VARR(i,j));
-#endif
     }
   }
 
@@ -899,7 +878,6 @@ static unsigned int solveKnapsack(BufferEntry * be,
   GE_ASSERT(ectx, j == 0);
   FREE(v);
   FREE(efflen);
-  endTime = get_time();
 
   return max;
 }
@@ -941,17 +919,25 @@ static int outgoingCheck(unsigned int priority) {
   delta = load - 50;            /* now delta is in [1,50] with 50 == 100% load */
   if(delta * delta * delta > priority) {
 #if DEBUG_POLICY
-    GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
-        "Network load is too high (%d%%, priority is %u, require %d), "
-        "dropping outgoing.\n", load, priority, delta * delta * delta);
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "Network load is too high (%d%%, priority is %u, require %d), "
+	   "dropping outgoing.\n",
+	   load,
+	   priority,
+	   delta * delta * delta);
 #endif
     return SYSERR;              /* drop */
   }
   else {
 #if DEBUG_POLICY
-    GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
-        "Network load is ok (%d%%, priority is %u >= %d), "
-        "sending outgoing.\n", load, priority, delta * delta * delta);
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_REQUEST | GE_USER,
+	   "Network load is ok (%d%%, priority is %u >= %d), "
+	   "sending outgoing.\n",
+	   load,
+	   priority,
+	   delta * delta * delta);
 #endif
     return OK;                  /* allow */
   }
@@ -1002,7 +988,7 @@ static int checkSendFrequency(BufferEntry * be) {
  * @return total number of bytes of messages selected
  *   including P2P message header.
  */
-static unsigned int 
+static unsigned int
 selectMessagesToSend(BufferEntry * be,
 		     unsigned int *priority) {
   unsigned int totalMessageSize;
@@ -1132,10 +1118,15 @@ selectMessagesToSend(BufferEntry * be,
 #endif
     }
     j = 0;
-    for (i = 0; i < be->sendBufferSize; i++)
-      if (be->sendBuffer[i]->knapsackSolution == YES)
+    totalMessageSize = 0;
+    for (i = 0; i < be->sendBufferSize; i++) {
+      if (be->sendBuffer[i]->knapsackSolution == YES) {
+	totalMessageSize += be->sendBuffer[i]->len;
         j++;
-    if (j == 0) {
+      }
+    }
+    if ( (j == 0) ||
+	 (totalMessageSize > be->session.mtu - sizeof(P2P_PACKET_HEADER)) ) {
       GE_BREAK(ectx, 0);
       GE_LOG(ectx,
 	     GE_ERROR | GE_BULK | GE_DEVELOPER,
@@ -1218,7 +1209,7 @@ static void expireSendBufferEntries(BufferEntry * be) {
     entry = be->sendBuffer[i];
     if (entry == NULL)
       continue;
-    
+
     if ( (entry->transmissionTime <= expired) ||
 	 (usedBytes > msgCap) ) {
 #if DEBUG_CONNECTION
@@ -1275,7 +1266,7 @@ prepareSelectedMessages(BufferEntry * be) {
     if (entry->knapsackSolution == YES) {
       if (entry->callback != NULL) {
         tmpMsg = MALLOC(entry->len);
-        if (OK == entry->callback(tmpMsg, 
+        if (OK == entry->callback(tmpMsg,
 				  entry->closure,
 				  entry->len)) {
           entry->callback = NULL;
@@ -1324,7 +1315,7 @@ prepareSelectedMessages(BufferEntry * be) {
  * @return allocated (caller-frees) buffer with
  *         permuted SendEntries
  */
-static SendEntry ** 
+static SendEntry **
 permuteSendBuffer(BufferEntry * be,
 		  unsigned int * selected_total) {
   unsigned int tailpos;
@@ -1344,8 +1335,8 @@ permuteSendBuffer(BufferEntry * be,
       stotal++;
   }
   *selected_total = stotal;
-  if (stotal == 0) 
-    return NULL;  
+  if (stotal == 0)
+    return NULL;
   ret = MALLOC(stotal * sizeof(SendEntry *));
   j = 0;
   for (i = 0; i < be->sendBufferSize; i++) {
@@ -1358,7 +1349,7 @@ permuteSendBuffer(BufferEntry * be,
     rnd = weak_randomi(stotal);
     tmp = ret[j];
     ret[j] = ret[rnd];
-    ret[rnd] = tmp;    
+    ret[rnd] = tmp;
   }
   tailpos = stotal - 1;
   headpos = 0;
@@ -1396,12 +1387,12 @@ static void freeSelectedEntries(BufferEntry * be) {
   for (i = 0; i < be->sendBufferSize; i++) {
     entry = be->sendBuffer[i];
     GE_ASSERT(ectx, entry != NULL);
-    if(entry->knapsackSolution == YES) {
+    if (entry->knapsackSolution == YES) {
       GE_ASSERT(ectx, entry->callback == NULL);
       FREENONNULL(entry->closure);
       FREE(entry);
       be->sendBuffer[i] = NULL;
-    } else if ( (entry->callback == NULL) && 
+    } else if ( (entry->callback == NULL) &&
 		(entry->closure == NULL) ) {
       FREE(entry);
       be->sendBuffer[i] = NULL;
@@ -1536,7 +1527,6 @@ static int sendBuffer(BufferEntry * be) {
 	 be->available_send_window,
 	 be->session.mtu);
 #endif
-
   totalMessageSize = selectMessagesToSend(be, &priority);
   if (totalMessageSize == 0) {
     expireSendBufferEntries(be);
@@ -1551,9 +1541,29 @@ static int sendBuffer(BufferEntry * be) {
   }
   GE_ASSERT(ectx,
 	    totalMessageSize > sizeof(P2P_PACKET_HEADER));
-  if (YES != transport->testWouldTry(be->session.tsession,				
-				     totalMessageSize,
-				     (priority >= EXTREME_PRIORITY) ? YES : NO)) {
+  if ( (be->session.mtu != 0) &&
+       (totalMessageSize > be->session.mtu) ) {
+    GE_BREAK(ectx, 0);
+    be->inSendBuffer = NO;
+    return NO;
+  }
+  ret = transport->testWouldTry(be->session.tsession,				
+				totalMessageSize,
+				(priority >= EXTREME_PRIORITY) ? YES : NO);
+  /* ret: YES: ok to send, NO: not ready yet, SYSERR: session down
+          or serious internal error */
+  if (ret == SYSERR) {
+    /* transport session is gone! re-establish! */
+    transport->disconnect(be->session.tsession);
+    be->session.tsession = NULL;
+    ensureTransportConnected(be);
+    /* This may have changed the MTU => need to re-do
+       everything.  Since we don't want to possibly
+       loop forever, give it another shot later;
+       so even if "ensureTransportConnected" succeded,
+       abort for now! */   
+  }
+  if (YES != ret) {
     /* transport's buffer full -- no point in
        creating the actual message! */
     expireSendBufferEntries(be);
@@ -1574,7 +1584,6 @@ static int sendBuffer(BufferEntry * be) {
     be->inSendBuffer = NO;
     return NO;             /* deferr further */
   }
-
   /* get permutation of SendBuffer Entries
      such that SE_FLAGS are obeyed */
   entries = permuteSendBuffer(be, &stotal);
@@ -1582,6 +1591,7 @@ static int sendBuffer(BufferEntry * be) {
     /* no messages selected!? */
     GE_BREAK(ectx, 0);
     be->inSendBuffer = NO;
+    FREE(entries);
     return NO;
   }
 
@@ -1592,11 +1602,10 @@ static int sendBuffer(BufferEntry * be) {
   p2pHdr->sequenceNumber = htonl(be->lastSequenceNumberSend);
   p2pHdr->bandwidth = htonl(be->idealized_limit);
   p = sizeof(P2P_PACKET_HEADER);
-
   for (i = 0; i < stotal; i++) {
     SendEntry * entry = entries[i];
 
-    GE_ASSERT(ectx, 
+    GE_ASSERT(ectx,
 	      (entry != NULL) &&
 	      (entry->knapsackSolution == YES) &&
 	      (entry->callback == NULL) &&
@@ -1609,26 +1618,52 @@ static int sendBuffer(BufferEntry * be) {
 	   entry->len);
 #endif
     memcpy(&plaintextMsg[p],
-	   entry->closure, 
+	   entry->closure,
 	   entry->len);
-    p += entry->len;  
+    p += entry->len;
   }
   FREE(entries);
   entries = NULL;
-
+  if (p > totalMessageSize) {
+    GE_BREAK(ectx, 0);
+    FREE(plaintextMsg);
+    be->inSendBuffer = NO;
+    return NO;
+  }
   /* still room left? try callbacks! */
   pos = scl_nextHead;
-  while (pos != NULL) {
-    if (pos->minimumPadding + p <= totalMessageSize) {
-      p += pos->callback(&be->session.sender,
-                         &plaintextMsg[p],
-			 be->session.mtu - p);
+  while ( (pos != NULL) &&
+	  (p < totalMessageSize) ) {
+    if ( (pos->minimumPadding + p >= p) &&
+	 (pos->minimumPadding + p <= totalMessageSize) ) {
+      rsi = pos->callback(&be->session.sender,
+			  &plaintextMsg[p],
+			  totalMessageSize - p);
+      GE_BREAK(ectx,
+	       rsi + p <= totalMessageSize);
+      if ( (rsi + p < p) ||
+	   (rsi + p > totalMessageSize) ) {
+	GE_BREAK(ectx, 0);
+	FREE(plaintextMsg);
+	be->inSendBuffer = NO;
+	return NO;	
+      }
+      p += rsi;
     }
     pos = pos->next;
   }
-
+  if ( ( (be->session.mtu != 0) &&
+	 (p > be->session.mtu) )
+       || (p > totalMessageSize) ) {
+    GE_BREAK(ectx, 0);
+    FREE(plaintextMsg);
+    be->inSendBuffer = NO;
+    return NO;
+  }
   /* finally padd with noise */
   if ( (p + sizeof(MESSAGE_HEADER) <= totalMessageSize) &&
+       (p < totalMessageSize) &&
+       (p + sizeof(MESSAGE_HEADER) > p) &&
        (disable_random_padding == NO) ) {
     MESSAGE_HEADER part;
     unsigned short noiseLen = totalMessageSize - p;
@@ -1644,10 +1679,18 @@ static int sendBuffer(BufferEntry * be) {
     if (stats != NULL)
       stats->change(stat_noise_sent, noiseLen);
   }
+  if ( ( (be->session.mtu != 0) &&
+	 (p > be->session.mtu) )
+       || (p > totalMessageSize) ) {
+    GE_BREAK(ectx, 0);
+    FREE(plaintextMsg);
+    be->inSendBuffer = NO;
+    return NO;
+  }
 
   encryptedMsg = MALLOC(p);
   hash(&p2pHdr->sequenceNumber,
-       p - sizeof(HashCode512), 
+       p - sizeof(HashCode512),
        (HashCode512 *) encryptedMsg);
   ret = encryptBlock(&p2pHdr->sequenceNumber,
 		     p - sizeof(HashCode512),
@@ -1663,7 +1706,7 @@ static int sendBuffer(BufferEntry * be) {
                   ret));
 #endif
   if(stats != NULL)
-    stats->change(stat_encrypted, 
+    stats->change(stat_encrypted,
 		  p - sizeof(HashCode512));
   GE_ASSERT(ectx, be->session.tsession != NULL);
 #if DEBUG_CONNECTION
@@ -1698,7 +1741,7 @@ static int sendBuffer(BufferEntry * be) {
       j = sizeof(P2P_PACKET_HEADER);
       while (j < p) {
         MESSAGE_HEADER * part = (MESSAGE_HEADER *) &plaintextMsg[j];
-        unsigned short plen = htons(MAKE_UNALIGNED(part->size));
+        unsigned short plen = ntohs(MAKE_UNALIGNED(part->size));
         if (plen < sizeof(MESSAGE_HEADER)) {
           GE_BREAK(ectx, 0);
           break;
@@ -1866,8 +1909,9 @@ static BufferEntry *lookForHost(const PeerIdentity * hostId) {
  * @param hostId for which peer should we get/create a connection
  * @return the table entry for the host
  */
-static BufferEntry *addHost(const PeerIdentity * hostId,
-			    int establishSession) {
+static BufferEntry *
+addHost(const PeerIdentity * hostId,
+	int establishSession) {
   BufferEntry *root;
   BufferEntry *prev;
   unsigned int index;
@@ -1929,13 +1973,13 @@ static int forAllConnectedHosts(BufferEntryCallback method,
 				void *arg) {
   unsigned int i;
   int count = 0;
-  BufferEntry *be;
+  BufferEntry * be;
 
   for(i=0;i<CONNECTION_MAX_HOSTS_;i++) {
     be = CONNECTION_buffer_[i];
     while (be != NULL) {
-      if(be->status == STAT_UP) {
-        if(method != NULL)
+      if (be->status == STAT_UP) {
+        if (method != NULL)
           method(be, arg);
         count++;
       }
@@ -2003,8 +2047,8 @@ static void shutdownConnection(BufferEntry * be) {
     se->callback = NULL;
     se->closure = MALLOC(sizeof(P2P_hangup_MESSAGE));
     se->knapsackSolution = NO;
-    memcpy(se->closure, 
-	   &hangup, 
+    memcpy(se->closure,
+	   &hangup,
 	   sizeof(P2P_hangup_MESSAGE));
     appendToBuffer(be, se);
     if(stats != NULL)
@@ -2443,7 +2487,7 @@ static void scheduleInboundTraffic() {
  * frequency.  However, on my system, larger values significantly
  * impact the performance of the UDP transport for large (fragmented)
  * messages -- and 10ms does not cause any noticeable CPU load during
- * testing.  
+ * testing.
  */
 #define CDL_FREQUENCY (10 * cronMILLIS)
 
@@ -2464,7 +2508,7 @@ static void cronDecreaseLiveness(void *unused) {
   unsigned long long total_send_buffer_size;
   int load_nup;
   int load_cpu;
-  
+
   load_cpu = os_cpu_get_load(ectx, cfg);
   load_nup = os_network_monitor_get_load(load_monitor,
 					 Upload);
@@ -2555,7 +2599,7 @@ static void cronDecreaseLiveness(void *unused) {
             pos = pos->next;
           }
           FREE(msgBuf);
-        } 
+        }
         break;
       default:                 /* not up, not down - partial SETKEY exchange */
         if ( (now > root->isAlive) &&
@@ -2652,10 +2696,12 @@ int checkHeader(const PeerIdentity * sender,
   be = lookForHost(sender);
   if((be == NULL) ||
      (be->status == STAT_DOWN) || (be->status == STAT_SETKEY_SENT)) {
+#if DEBUG_CONNECTION
     GE_LOG(ectx,
 	   GE_INFO | GE_BULK | GE_USER,
 	   "Decrypting message from host `%s' failed, no sessionkey (yet)!\n",
 	   &enc);
+#endif
     /* try to establish a connection, that way, we don't keep
        getting bogus messages until the other one times out. */
     if((be == NULL) || (be->status == STAT_DOWN))
@@ -2737,7 +2783,7 @@ int checkHeader(const PeerIdentity * sender,
   if (be->available_send_window > (long long) be->max_bpm * MAX_BUF_FACT) {
     if (stats != NULL)
       stats->change(stat_total_lost_sent,
-		    be->available_send_window 
+		    be->available_send_window
 		    - (long long) be->max_bpm * MAX_BUF_FACT);
     be->available_send_window = (long long) be->max_bpm * MAX_BUF_FACT;
     be->last_bps_update = get_time();
@@ -2820,8 +2866,8 @@ void assignSessionKey(const SESSIONKEY * key,
     } else {                      /* for receiving */
       if ( ((be->status & STAT_SETKEY_RECEIVED) == 0) ||
 	   (be->skey_remote_created < age) ) {
-        if (0 != memcmp(key, 
-		       &be->skey_remote, 
+        if (0 != memcmp(key,
+		       &be->skey_remote,
 		       sizeof(SESSIONKEY))) {
           be->skey_remote = *key;
           be->lastSequenceNumberReceived = 0;
@@ -2976,8 +3022,14 @@ void considerTakeover(const PeerIdentity * sender,
   unsigned int cost;
 
   ENTRY();
-  if(tsession == NULL)
+  if (tsession == NULL)
     return;
+  if (0 != memcmp(sender,
+		  &tsession->peer,
+		  sizeof(PeerIdentity))) {
+    GE_BREAK(NULL, 0);
+    return;
+  }
   MUTEX_LOCK(lock);
   be = addHost(sender, NO);
   if (be == NULL) {
@@ -3095,7 +3147,7 @@ static int connectionConfigChangeCallback(void * ctx,
 
       GE_LOG(ectx,
 	     GE_DEBUG | GE_REQUEST | GE_USER,
-	     "connection goal is %s%d peers (%llu BPS bandwidth downstream)\n",
+	     "connection goal is %s%d peers (%llu BPM bandwidth downstream)\n",
 	     (olen == 0) ? "" : "now ",
 	     CONNECTION_MAX_HOSTS_,
 	     max_bpm);
@@ -3126,7 +3178,6 @@ void initConnection(struct GE_Context * e,
   ENTRY();
   scl_nextHead = NULL;
   scl_nextTail = NULL;
-  lock = MUTEX_CREATE(YES);
   connectionConfigChangeCallback(NULL,
 				 cfg,
 				 ectx,
@@ -3226,8 +3277,8 @@ void doneConnection() {
     be = CONNECTION_buffer_[i];
     while(be != NULL) {
 #if DEBUG_CONNECTION
-      GE_LOG(ectx, 
-	     GE_DEBUG | GE_REQUEST | GE_USER, 
+      GE_LOG(ectx,
+	     GE_DEBUG | GE_REQUEST | GE_USER,
 	     "Closing connection: shutdown\n");
 #endif
       shutdownConnection(be);
@@ -3236,7 +3287,6 @@ void doneConnection() {
       FREE(prev);
     }
   }
-  MUTEX_DESTROY(lock);
   FREENONNULL(CONNECTION_buffer_);
   CONNECTION_buffer_ = NULL;
   CONNECTION_MAX_HOSTS_ = 0;
@@ -3316,7 +3366,7 @@ void printConnectionBuffer() {
         ttype = 0;
         if(tmp->session.tsession != NULL)
           ttype = tmp->session.tsession->ttype;
-        GE_LOG(ectx, 
+        GE_LOG(ectx,
 	       GE_INFO | GE_REQUEST | GE_USER,
 	       "CONNECTION-TABLE: %3d-%1d-%2d-%4ds"
 	       " (of %ds) BPM %4llu %8ut-%3u: %s-%s-%s\n",
@@ -3441,9 +3491,9 @@ int sendPlaintext(TSession * tsession,
   P2P_PACKET_HEADER *hdr;
 
   GE_ASSERT(ectx, tsession != NULL);
-  if((transport->getMTU(tsession->ttype) > 0) &&
-     (transport->getMTU(tsession->ttype) <
-      size + sizeof(P2P_PACKET_HEADER))) {
+  if ( (transport->getMTU(tsession->ttype) > 0) &&
+       (transport->getMTU(tsession->ttype) <
+	size + sizeof(P2P_PACKET_HEADER)) ) {
     GE_BREAK(ectx, 0);
     return SYSERR;
   }
@@ -3537,7 +3587,7 @@ void unicast(const PeerIdentity * receiver,
     /* little hack for topology,
        which cannot do this directly
        due to cyclic dependencies! */
-    if (getBandwidthAssignedTo(receiver) == 0)
+    if (getBandwidthAssignedTo(receiver, NULL, NULL) != OK)
       session->tryConnect(receiver);
     return;
   }
@@ -3595,10 +3645,13 @@ unsigned int computeIndex(const PeerIdentity * hostId) {
  * @return the lock
  */
 struct MUTEX * getConnectionModuleLock() {
+  GE_ASSERT(NULL, lock != NULL);
   return lock;
 }
 
-unsigned int getBandwidthAssignedTo(const PeerIdentity * node) {
+int getBandwidthAssignedTo(const PeerIdentity * node,
+			   unsigned int * bpm,
+			   cron_t * last_seen) {
   BufferEntry *be;
   unsigned int ret;
 
@@ -3607,11 +3660,13 @@ unsigned int getBandwidthAssignedTo(const PeerIdentity * node) {
   be = lookForHost(node);
   if ( (be != NULL) &&
        (be->status == STAT_UP) ) {
-    ret = be->idealized_limit;
-    if(ret == 0)
-      ret = 1;
+    if (bpm != NULL)
+      *bpm = be->idealized_limit;
+    if (last_seen != NULL)
+      *last_seen = be->isAlive;
+    ret = OK;
   } else {
-    ret = 0;
+    ret = SYSERR;
   }
   MUTEX_UNLOCK(lock);
   return ret;
@@ -3704,6 +3759,18 @@ int unregisterSendNotify(MessagePartHandler callback) {
   MUTEX_UNLOCK(lock);
   return SYSERR;
 }
+
+
+
+
+void __attribute__ ((constructor)) gnunet_connection_ltdl_init() {
+  lock = MUTEX_CREATE(YES);
+}
+
+void __attribute__ ((destructor)) gnunet_connection_ltdl_fini() {
+  MUTEX_DESTROY(lock);
+}
+
 
 
 /* end of connection.c */

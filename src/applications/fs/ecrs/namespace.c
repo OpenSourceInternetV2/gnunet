@@ -227,11 +227,13 @@ ECRS_createNamespace(struct GE_Context * ectx,
 
   nb->rootEntry = *rootEntry;
 
-  GE_ASSERT(ectx, OK == sign(hk,
-			   mdsize + 3 * sizeof(HashCode512),
-			   &nb->identifier,
-			   &nb->signature));
+  GE_ASSERT(ectx,
+	    OK == sign(hk,
+		       mdsize + 3 * sizeof(HashCode512),
+		       &nb->identifier,
+		       &nb->signature));
   if (OK != FS_insert(sock, value)) {
+    GE_BREAK(ectx, 0);
     FREE(rootURI);
     FREE(value);
     connection_destroy(sock);
@@ -273,13 +275,15 @@ ECRS_createNamespace(struct GE_Context * ectx,
 			  &knb->nblock,
 			  size - sizeof(KBlock) - sizeof(unsigned int));
 
-      GE_ASSERT(ectx, OK == sign(pk,
-			       sizeof(NBlock) + mdsize,
-			       &knb->nblock,
-			       &knb->kblock.signature));
+      GE_ASSERT(ectx, 
+		OK == sign(pk,
+			   sizeof(NBlock) + mdsize,
+			   &knb->nblock,
+			   &knb->kblock.signature));
       /* extra check: verify sig */
       freePrivateKey(pk);
       if (OK != FS_insert(sock, knvalue)) {
+	GE_BREAK(ectx, 0);
 	FREE(rootURI);
 	ECRS_deleteNamespace(ectx, cfg, name);
 	FREE(cpy);
@@ -400,11 +404,13 @@ ECRS_addToNamespace(struct GE_Context * ectx,
   SBlock * sb;
   HashCode512 namespace;
   char * dstURI;
+  char * destPos;
   char * fileName;
   PrivateKeyEncoded * hke;
   char * dst;
   unsigned long long len;
   HashCode512 hc;
+  int ret;
 
   /* FIRST: read pseudonym! */
   fileName = getPseudonymFileName(ectx, cfg, name);
@@ -442,20 +448,21 @@ ECRS_addToNamespace(struct GE_Context * ectx,
   dstURI = ECRS_uriToString(dstU);
   mdsize = ECRS_sizeofMetaData(md,
 			       ECRS_SERIALIZE_PART);
-  size = mdsize + sizeof(SBlock) + strlen(dstURI) + 1;
+  size = mdsize + sizeof(SBlock) + strlen(dstURI) + 1;  
   if (size > MAX_SBLOCK_SIZE) {
     size = MAX_SBLOCK_SIZE;
     value = MALLOC(sizeof(Datastore_Value) +
 		   size);
     sb = (SBlock*) &value[1];
     sb->type = htonl(S_BLOCK);
-    memcpy(&sb[1],
+    destPos = (char*) &sb[1];
+    memcpy(destPos,
 	   dstURI,
 	   strlen(dstURI) + 1);
     mdsize = size - sizeof(SBlock) - strlen(dstURI) - 1;
     mdsize = ECRS_serializeMetaData(ectx,
 				    md,
-				    &((char*)&sb[1])[strlen(dstURI)+1],
+				    &destPos[strlen(dstURI)+1],
 				    mdsize,
 				    ECRS_SERIALIZE_PART);
     if (mdsize == -1) {
@@ -464,18 +471,19 @@ ECRS_addToNamespace(struct GE_Context * ectx,
       freePrivateKey(hk);
       return NULL;
     }
-    size = sizeof(SBlock) + mdsize;
+    size = sizeof(SBlock) + mdsize + strlen(dstURI) + 1;
   } else {
     value = MALLOC(sizeof(Datastore_Value) +
 		   size);
     sb = (SBlock*) &value[1];
     sb->type = htonl(S_BLOCK);
-    memcpy(&sb[1],
+    destPos = (char*) &sb[1];
+    memcpy(destPos,
 	   dstURI,
 	   strlen(dstURI) + 1);
     ECRS_serializeMetaData(ectx,
 			   md,
-			   &((char*)&sb[1])[strlen(dstURI)+1],
+			   &destPos[strlen(dstURI)+1],
 			   mdsize,
 			   ECRS_SERIALIZE_FULL);
   }
@@ -518,17 +526,19 @@ ECRS_addToNamespace(struct GE_Context * ectx,
 		      - sizeof(PublicKey)
 		      - sizeof(HashCode512));
   /* FINALLY: sign & publish SBlock */
-  GE_ASSERT(ectx, OK == sign(hk,
-			   size
-			   - sizeof(Signature)
-			   - sizeof(PublicKey)
-			   - sizeof(unsigned int),
-			   &sb->identifier,
-			   &sb->signature));
+  GE_ASSERT(ectx,
+	    OK == sign(hk,
+		       size
+		       - sizeof(Signature)
+		       - sizeof(PublicKey)
+		       - sizeof(unsigned int),
+		       &sb->identifier,
+		       &sb->signature));
   freePrivateKey(hk);
 
   sock = client_connection_create(ectx, cfg);
-  if (OK != FS_insert(sock, value)) {
+  ret = FS_insert(sock, value);
+  if (ret != OK) {
     FREE(uri);
     uri = NULL;
   }

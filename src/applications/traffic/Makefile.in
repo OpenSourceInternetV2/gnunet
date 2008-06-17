@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-SOURCES = $(libgnunetmodule_traffic_la_SOURCES) $(libgnunetmodule_traffic_api_la_SOURCES)
+SOURCES = $(libgnunetmodule_traffic_la_SOURCES) $(libgnunettraffic_api_la_SOURCES)
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -45,10 +45,10 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/gettext.m4 \
 	$(top_srcdir)/m4/lib-ld.m4 $(top_srcdir)/m4/lib-link.m4 \
 	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libcurl.m4 \
 	$(top_srcdir)/m4/libgcrypt.m4 $(top_srcdir)/m4/libxml2.m4 \
-	$(top_srcdir)/m4/mkdir.m4 $(top_srcdir)/m4/nls.m4 \
-	$(top_srcdir)/m4/pkg.m4 $(top_srcdir)/m4/po.m4 \
-	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/acinclude.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/m4/mkdir.m4 $(top_srcdir)/m4/mkdirp.m4 \
+	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/pkg.m4 \
+	$(top_srcdir)/m4/po.m4 $(top_srcdir)/m4/progtest.m4 \
+	$(top_srcdir)/acinclude.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
@@ -63,12 +63,12 @@ libgnunetmodule_traffic_la_DEPENDENCIES =  \
 am_libgnunetmodule_traffic_la_OBJECTS = traffic.lo
 libgnunetmodule_traffic_la_OBJECTS =  \
 	$(am_libgnunetmodule_traffic_la_OBJECTS)
-libgnunetmodule_traffic_api_la_DEPENDENCIES =  \
+libgnunettraffic_api_la_DEPENDENCIES =  \
 	$(top_builddir)/src/util/libgnunetutil.la \
 	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la
-am_libgnunetmodule_traffic_api_la_OBJECTS = clientapi.lo
-libgnunetmodule_traffic_api_la_OBJECTS =  \
-	$(am_libgnunetmodule_traffic_api_la_OBJECTS)
+am_libgnunettraffic_api_la_OBJECTS = clientapi.lo
+libgnunettraffic_api_la_OBJECTS =  \
+	$(am_libgnunettraffic_api_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -83,9 +83,9 @@ CCLD = $(CC)
 LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
 SOURCES = $(libgnunetmodule_traffic_la_SOURCES) \
-	$(libgnunetmodule_traffic_api_la_SOURCES)
+	$(libgnunettraffic_api_la_SOURCES)
 DIST_SOURCES = $(libgnunetmodule_traffic_la_SOURCES) \
-	$(libgnunetmodule_traffic_api_la_SOURCES)
+	$(libgnunettraffic_api_la_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -132,6 +132,8 @@ GNUNETGTK_LIBS = @GNUNETGTK_LIBS@
 GREP = @GREP@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
+HAVE_ADNS_FALSE = @HAVE_ADNS_FALSE@
+HAVE_ADNS_TRUE = @HAVE_ADNS_TRUE@
 HAVE_DIALOG_FALSE = @HAVE_DIALOG_FALSE@
 HAVE_DIALOG_TRUE = @HAVE_DIALOG_TRUE@
 HAVE_GTK_FALSE = @HAVE_GTK_FALSE@
@@ -170,6 +172,8 @@ LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
+LINUX_FALSE = @LINUX_FALSE@
+LINUX_TRUE = @LINUX_TRUE@
 LN_S = @LN_S@
 LTDLINCL = @LTDLINCL@
 LTLIBICONV = @LTLIBICONV@
@@ -187,6 +191,8 @@ MYSQL_CPPFLAGS = @MYSQL_CPPFLAGS@
 MYSQL_LDFLAGS = @MYSQL_LDFLAGS@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
+OPENBSD_FALSE = @OPENBSD_FALSE@
+OPENBSD_TRUE = @OPENBSD_TRUE@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
 PACKAGE_NAME = @PACKAGE_NAME@
@@ -262,15 +268,15 @@ target_alias = @target_alias@
 INCLUDES = -I$(top_srcdir)/src/include
 plugindir = $(libdir)/GNUnet
 lib_LTLIBRARIES = \
-  libgnunetmodule_traffic_api.la
+  libgnunettraffic_api.la
 
 plugin_LTLIBRARIES = \
   libgnunetmodule_traffic.la
 
-libgnunetmodule_traffic_api_la_SOURCES = \
+libgnunettraffic_api_la_SOURCES = \
   clientapi.c 
 
-libgnunetmodule_traffic_api_la_LIBADD = \
+libgnunettraffic_api_la_LIBADD = \
   $(top_builddir)/src/util/libgnunetutil.la \
   $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la
 
@@ -372,8 +378,8 @@ clean-pluginLTLIBRARIES:
 	done
 libgnunetmodule_traffic.la: $(libgnunetmodule_traffic_la_OBJECTS) $(libgnunetmodule_traffic_la_DEPENDENCIES) 
 	$(LINK) -rpath $(plugindir) $(libgnunetmodule_traffic_la_LDFLAGS) $(libgnunetmodule_traffic_la_OBJECTS) $(libgnunetmodule_traffic_la_LIBADD) $(LIBS)
-libgnunetmodule_traffic_api.la: $(libgnunetmodule_traffic_api_la_OBJECTS) $(libgnunetmodule_traffic_api_la_DEPENDENCIES) 
-	$(LINK) -rpath $(libdir) $(libgnunetmodule_traffic_api_la_LDFLAGS) $(libgnunetmodule_traffic_api_la_OBJECTS) $(libgnunetmodule_traffic_api_la_LIBADD) $(LIBS)
+libgnunettraffic_api.la: $(libgnunettraffic_api_la_OBJECTS) $(libgnunettraffic_api_la_DEPENDENCIES) 
+	$(LINK) -rpath $(libdir) $(libgnunettraffic_api_la_LDFLAGS) $(libgnunettraffic_api_la_OBJECTS) $(libgnunettraffic_api_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)

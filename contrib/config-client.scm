@@ -250,6 +250,17 @@ The default is to use filenames and to break larger words at spaces (and undersc
   '()
   'advanced) )
 
+(define (fs-uri-db-size builder)
+ (builder
+  "FS"
+  "URI_DB_SIZE"
+  (_ "How many entries should the URI DB table have?")
+  (_ "GNUnet uses two bytes per entry on the disk.  This database is used to keep track of how a particular URI has been used in the past.  For example, GNUnet may remember that a particular URI has been found in a search previously or corresponds to a file uploaded by the user.  This information can then be used by user-interfaces to filter URI lists, such as search results.  If the database is full, older entries will be discarded.  The default value should be sufficient without causing undue disk utilization." )
+  '()
+  #t
+  1048576
+  (cons 1 1073741824)
+  'rare) )
 
 (define (fs builder)
  (builder 
@@ -260,6 +271,7 @@ The default is to use filenames and to break larger words at spaces (and undersc
   (list 
     (fs-extractors builder)
     (fs-disable-creation-time builder)
+    (fs-uri-db-size builder)
   )
   #t 
   #f 
@@ -274,8 +286,8 @@ The default is to use filenames and to break larger words at spaces (and undersc
   (_ "Load the about plugin for the about dialog.  The daemon plugin allows starting and stopping of gnunetd and displays information about gnunetd.  The fs plugin provides the file-sharing functionality.  The stats plugin displays various statistics about gnunetd.")
   '()
   #t 
-  "about daemon fs stats" 
-  (list "MC" "about" "daemon" "fs" "stats")
+  "about daemon fs peers stats" 
+  (list "MC" "about" "daemon" "fs" "peers" "stats")
   'advanced) )
 
 (define (gnunet-gtk-stats-interval builder)
@@ -303,6 +315,19 @@ The default is to use filenames and to break larger words at spaces (and undersc
    #f
    'fs-loaded) )
 
+(define (gnunet-gtk-own builder) 
+ (builder
+   "GNUNET-GTK"
+   "DISABLE-OWN"
+   (_ "Do not show search results for files that were uploaded by us")
+   (_ "This option is useful to eliminate files that the user already has from the search.  Naturally, enabling this option maybe confusing because some obviously expected search results would no longer show up.  This option only works if the URI_DB_SIZE option under FS is not zero (since the URI DB is used to determine which files the user is sharing)")
+   '()
+   #t
+   #t
+   #f
+   'fs-loaded) )
+
+
 (define (gnunet-gtk-incomingdir builder)
  (builder
   "FS"
@@ -324,6 +349,7 @@ The default is to use filenames and to break larger words at spaces (and undersc
   (list 
     (gnunet-gtk-plugins builder)
     (gnunet-gtk-previews builder)
+    (gnunet-gtk-own builder)
     (gnunet-gtk-incomingdir builder)
     (gnunet-gtk-stats-interval builder)
   )

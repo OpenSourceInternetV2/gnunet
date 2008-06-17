@@ -15,6 +15,12 @@
 /* This is a FreeBSD system */
 #undef FREEBSD
 
+/* We have GNU adns */
+#undef HAVE_ADNS
+
+/* Define to 1 if you have the <adns.h> header file. */
+#undef HAVE_ADNS_H
+
 /* Define to 1 if you have the `argz_append' function. */
 #undef HAVE_ARGZ_APPEND
 
@@ -140,6 +146,9 @@
 /* getloadavg supported */
 #undef HAVE_GETLOADAVG
 
+/* Define to 1 if you have the `getnameinfo' function. */
+#undef HAVE_GETNAMEINFO
+
 /* Define to 1 if you have the `getrusage' function. */
 #undef HAVE_GETRUSAGE
 
@@ -190,6 +199,9 @@
 
 /* Define to 1 if you have the <langinfo.h> header file. */
 #undef HAVE_LANGINFO_H
+
+/* Define to 1 if you have the `adns' library (-ladns). */
+#undef HAVE_LIBADNS
 
 /* Define to 1 if you have a functional curl library. */
 #undef HAVE_LIBCURL

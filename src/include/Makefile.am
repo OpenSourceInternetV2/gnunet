@@ -28,6 +28,7 @@ gnunetinclude_HEADERS = \
   gnunet_fsui_lib.h \
   gnunet_gap_service.h \
   gnunet_getoption_lib.h \
+  gnunet_identity_lib.h \
   gnunet_identity_service.h \
   gnunet_kvstore_service.h \
   gnunet_namespace_lib.h \
@@ -40,6 +41,7 @@ gnunetinclude_HEADERS = \
   gnunet_state_service.h \
   gnunet_stats_lib.h \
   gnunet_stats_service.h \
+  gnunet_testing_lib.h \
   gnunet_topology_service.h \
   gnunet_traffic_lib.h \
   gnunet_traffic_service.h \
@@ -53,6 +55,7 @@ gnunetinclude_HEADERS = \
   gnunet_util_config.h \
   gnunet_util_config_impl.h \
   gnunet_util_containers.h \
+  gnunet_util_core.h \
   gnunet_util_cron.h \
   gnunet_util_crypto.h \
   gnunet_util_disk.h \

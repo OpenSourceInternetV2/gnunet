@@ -71,7 +71,6 @@ int main(int argc, char * argv[]){
   /* ACTUAL TEST CODE */
   old = NS_listNamespaces(ectx,
 			  cfg,
-			  YES,
 			  NULL,
 			  NULL);
 				
@@ -84,17 +83,17 @@ int main(int argc, char * argv[]){
 			   cfg,
 			   1,
 			   1,
-			   5000,
+			   get_time() + 10 * cronMINUTES,
 			   "test",
 			   meta,
 			   NULL,
 			   &root);
   CHECK(uri != NULL);
-  CHECK(old + 1 == NS_listNamespaces(ectx,
-				     cfg,
-				     YES,
-				     NULL,
-				     NULL));
+  newVal = NS_listNamespaces(ectx,
+			     cfg,
+			     NULL,
+			     NULL);
+  CHECK(old < newVal);
   old = NS_listNamespaceContent(ectx,
 				cfg,
 				"test",
@@ -104,7 +103,7 @@ int main(int argc, char * argv[]){
 			   cfg,
 			   1,
 			   1,
-			   5000,
+			   get_time() + 10 * cronMINUTES,
 			   "test",
 			   42,
 			   NULL,
@@ -118,7 +117,7 @@ int main(int argc, char * argv[]){
 				   "test",
 				   NULL,
 				   NULL);
-  CHECK(old + 1 == newVal);
+  CHECK(old < newVal);
   CHECK(OK == NS_deleteNamespace(ectx,
 				 cfg,
 				 "test"));

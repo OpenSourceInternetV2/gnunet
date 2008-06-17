@@ -153,7 +153,7 @@ However, active testing and qualified feedback of these features is always welco
   (nohelp) 
   '()
   #t
-  "$GNUNET_HOME/data/shared"
+  "$GNUNETD_HOME/data/shared"
   '()
   'always) )
 
@@ -185,7 +185,7 @@ If you want to setup an alternate hostlist server, you must run a permanent node
 If you do not specify a HOSTLISTURL, you must copy valid hostkeys to data/hosts manually.")
   '()
   #t
-  "http://gnunet.org/hostlist.php http://gnunet.mine.nu:8081/hostlist http://de.gnunet.org/cgi-bin/hostlist.cgi http://uk.gnunet.org/hostlist"
+  "http://gnunet.org/hostlist.php http://gnunet.mine.nu:8081/hostlist http://de.gnunet.org/cgi-bin/hostlist.cgi"
   '()
   'always) )
 
@@ -291,11 +291,10 @@ If you do not specify a HOSTLISTURL, you must copy valid hostkeys to data/hosts 
   "GNUNETD"
   "PIDFILE"
   (_ "Where should gnunetd write the PID?")
-  (_ 
-"In which file should gnunetd write the process-id of the server?  If you run gnunetd as root, you may want to choose /var/run/gnunetd.pid. It's not the default since gnunetd may not have write rights at that location." )
+  (_ "The default is no longer /var/run/gnunetd.pid since we could not delete the file on shutdown at that location." )
   '()
   #f
-  "/var/run/gnunetd.pid"
+  "/var/run/gnunetd/pid"
   '()
   'rare) )
 
@@ -313,6 +312,20 @@ If you do not specify a HOSTLISTURL, you must copy valid hostkeys to data/hosts 
   '()
   'advanced) )
  
+
+
+(define (general-autostart builder)
+ (builder
+ "GNUNETD"
+ "AUTOSTART"
+ (_ "Should gnunetd be automatically started when the system boots?")
+ (_ "Set to YES if gnunetd should be automatically started on boot.  If this option is set, gnunet-setup will install a script to start the daemon upon completion.  This option may not work on all systems.")
+ '()
+ #t
+ #f
+ #f
+ 'rare) )
+
 
 (define (general-transports builder)
  (builder
@@ -414,7 +427,7 @@ tracekit: topology visualization toolkit.  Required for gnunet-tracekit. Note th
  "NETWORK"
  "HELLOEXCHANGE"
  (_ "Disable advertising of other peers by this peer")
- (nohelp)
+ (_ "This option maybe useful during testing, but turning it off is dangerous! If in any doubt, set it to YES (which is the default).")
  '()
  #t
  #f
@@ -546,6 +559,7 @@ tracekit: topology visualization toolkit.  Required for gnunet-tracekit. Note th
     (network-port builder) 
     (network-trusted builder) 
     (general-username builder) 
+    (general-autostart builder) 
     (general-transports builder) 
     (general-applications builder) 
   )
@@ -839,7 +853,7 @@ The size of the DSTORE QUOTA is specified in MB.")
  (builder
  "TCP"
  "WHITELIST"
- (_ "Which IPs are allowed to connect? Leave empty to allow connections from any IP.")
+ (_ "Which IPs are allowed to connect? Leave empty to use the IP of your primary network interface.")
  (nohelp)
  '()
  #t

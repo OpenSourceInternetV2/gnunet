@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004, 2005 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005, 2007 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -20,13 +20,16 @@
 
 /**
  * @file transports/ip.h
- * @brief
+ * @brief code to determine the IP of the local machine
+ *        and to do DNS resolution (with caching)
  *
  * @author Christian Grothoff
  */
 
 #ifndef IP_H
 #define IP_H
+
+#include "gnunet_util.h"
 
 /**
  * @brief Determine the (external) IP of the local machine.
@@ -45,5 +48,30 @@
 int getPublicIPAddress(struct GC_Configuration * cfg,
 		       struct GE_Context * ectx,
 		       IPaddr  * address);
+
+/**
+ * We only have the PeerIdentity.  Do we have any
+ * clue about the address based on 
+ * the "accept" of the connection?  Note that the
+ * response is just the best guess.
+ * 
+ * @param sa set to the address
+ * @return OK if we found an address, SYSERR if not
+ */
+int getIPaddressFromPID(const PeerIdentity * peer,
+			void ** sa,
+			unsigned int * salen);
+
+/**
+ * We have accepted a connection from a particular
+ * address (here given as a string) and received
+ * a welcome message that claims that this connection
+ * came from a particular peer.  This information is
+ * NOT validated (and it may well be impossible for
+ * us to validate the address).  
+ */
+void setIPaddressFromPID(const PeerIdentity * peer,
+			 const void * sa,
+			 unsigned int salen);
 
 #endif

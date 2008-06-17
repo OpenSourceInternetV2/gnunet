@@ -44,12 +44,13 @@ static struct GC_Configuration * cfg;
 static struct GE_Context * ectx = NULL;
 
 static struct CronManager * cron;
+static struct LoadMonitor * mon;
 
 static char * cfgFilename = DEFAULT_DAEMON_CONFIG_FILE;
 
 static int debug_flag;
 
-static int quiet_flag;
+static int loud_flag;
 
 #ifndef WINDOWS
 /**
@@ -89,38 +90,57 @@ static void waitForSignalHandler(struct GE_Context * ectx) {
 	 "gnunetd");
 }
 
+
+static int post_detach() {
+  if (OK != changeUser(ectx, cfg))
+    return SYSERR;
+  if (OK != checkPermissions(ectx, cfg))
+    return SYSERR;
+  mon = os_network_monitor_create(ectx,
+				  cfg);
+  if (mon == NULL)
+    return SYSERR;
+  return OK;
+}
+
 /**
  * The main method of gnunetd.
  */
 int gnunet_main() {
-  struct LoadMonitor * mon;
   struct SignalHandlerContext * shc_hup;
   int filedes[2]; /* pipe between client and parent */
 
   if ( (NO == debug_flag) &&
        (OK != os_terminal_detach(ectx,
+				 cfg,
 				 filedes)) )
     return SYSERR;
-  mon = os_network_monitor_create(ectx,
-				  cfg);
-  if (mon == NULL) {
-   if (NO == debug_flag)
-     os_terminal_detach_complete(ectx,
-				filedes,
-				 NO);
-   return SYSERR;
+  if (NO != debug_flag)
+    os_write_pid_file(ectx,
+		      cfg,
+		      (unsigned int)getpid());
+  if (OK != post_detach()) {
+    if (NO == debug_flag)
+      os_terminal_detach_complete(ectx,
+				  filedes,
+				  NO);
+    else
+      os_delete_pid_file(ectx, cfg);
+    return SYSERR;
   }
   cron = cron_create(ectx);
   GE_ASSERT(ectx,
 	    cron != NULL);
 #ifndef WINDOWS
-  shc_hup = signal_handler_install(SIGHUP, &reread_config);
+  shc_hup = signal_handler_install(SIGHUP,
+				   &reread_config);
 #endif
   if (OK != initCore(ectx,
 		     cfg,
 		     cron,
 		     mon)) {
-  	GE_LOG(ectx, GE_FATAL | GE_USER | GE_IMMEDIATE,
+  	GE_LOG(ectx,
+	       GE_FATAL | GE_USER | GE_IMMEDIATE,
   		_("Core initialization failed.\n"));
   		
     cron_destroy(cron);
@@ -136,13 +156,12 @@ int gnunet_main() {
 				  NO);
     return SYSERR;
   }
-  
+
   /* enforce filesystem limits */
   capFSQuotaSize(ectx, cfg);
-  
+
   initConnection(ectx, cfg, mon, cron);
   loadApplicationModules();
-  writePIDFile(ectx, cfg);
   if (NO == debug_flag)
     os_terminal_detach_complete(ectx,
 				filedes,
@@ -152,7 +171,7 @@ int gnunet_main() {
   waitForSignalHandler(ectx);
   disableCoreProcessing();
   cron_stop(cron);
-  deletePIDFile(ectx, cfg);
+  os_delete_pid_file(ectx, cfg);
   stopTCPServer();
   unloadApplicationModules();
   doneConnection();
@@ -193,9 +212,9 @@ static struct CommandLineOption gnunetdOptions[] = {
   { 'p', "padding-disable", "YES/NO",
     gettext_noop("disable padding with random data (experimental)"), 0,
     &gnunet_getopt_configure_set_option, "GNUNETD-EXPERIMENTAL:PADDING" },
-  { 'q', "quiet", NULL,
-    gettext_noop("run in quiet mode"),
-    0, &gnunet_getopt_configure_set_one, &quiet_flag },
+  { 'l', "loud", NULL,
+    gettext_noop("print all log messages to the console (only works together with -d)"),
+    0, &gnunet_getopt_configure_set_one, &loud_flag },
 #ifndef MINGW
   { 'u', "user", "USERNAME",
     gettext_noop("specify username as which gnunetd should run"), 1,
@@ -231,18 +250,35 @@ int main(int argc,
     return 1;
   }
   if (YES == debug_flag) {
-    if (quiet_flag == 0) {
-      ectx = GE_create_context_multiplexer(ectx,
-					   GE_create_context_stderr(NO,
-								    GE_USERKIND |
-								    GE_EVENTKIND |
-								    GE_BULK |
-								    GE_IMMEDIATE));
-    }
-  }
-  if (OK != changeUser(ectx, cfg)) {
-    GNUNET_fini(ectx, cfg);
-    return 1;
+    int dev;
+    char * user_log_level;
+    GE_KIND ull;
+
+    GE_setDefaultContext(NULL);
+    GE_free_context(ectx);
+    GC_get_configuration_value_string(cfg,
+				      "LOGGING",
+				      "USER-LEVEL",
+				      "WARNING",
+				      &user_log_level);
+    dev = GC_get_configuration_value_yesno(cfg,
+					   "LOGGING",
+					   "DEVELOPER",
+					   NO);
+    ull = GE_getKIND(user_log_level);
+    ull |= (ull - 1); /* set bits for all lower log-levels */
+    if (dev == YES)
+      ull |= GE_DEVELOPER | GE_REQUEST;
+    if (loud_flag == 1)
+      ectx = GE_create_context_stderr(YES,
+				      GE_ALL);
+    else
+      ectx = GE_create_context_stderr(YES,
+				      GE_USER | GE_ADMIN
+				      | ull
+				      | GE_BULK | GE_IMMEDIATE);
+    GE_setDefaultContext(ectx);
+    FREE(user_log_level);
   }
   setFdLimit(ectx, cfg);
   if (OK != checkUpToDate(ectx,
@@ -254,15 +290,18 @@ int main(int argc,
     GNUNET_fini(ectx, cfg);
     return 1;
   }
-  
+
 #ifdef MINGW
-  if (GC_get_configuration_value_yesno(cfg, "GNUNETD", "WINSERVICE", NO) == YES) {
+  if (GC_get_configuration_value_yesno(cfg,
+				       "GNUNETD",
+				       "WINSERVICE",
+				       NO) == YES) {
     SERVICE_TABLE_ENTRY DispatchTable[] =
       {{"GNUnet", ServiceMain}, {NULL, NULL}};
     ret = (GNStartServiceCtrlDispatcher(DispatchTable) != 0);
   } else
 #endif
-  ret = gnunet_main();
+    ret = gnunet_main();
   GNUNET_fini(ectx, cfg);
   if (ret != OK)
     return 1;

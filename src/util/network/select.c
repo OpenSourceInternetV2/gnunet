@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2003, 2006 Christian Grothoff (and other contributing authors)
+     (C) 2003, 2006, 2007 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -217,6 +217,16 @@ static void destroySession(SelectHandle * sh,
 	 s->rsize,
 	 s->wsize);	
 #endif
+#if 0
+  if ( (s->pos > 0) ||
+       (s->wapos > s->wspos) )
+    fprintf(stderr,
+	    "Destroying session %p of select %p with loss of %u in read and %u in write buffer.\n",
+	    s,
+	    sh,
+	    s->pos,
+	    s->wapos - s->wspos);	
+#endif
   MUTEX_UNLOCK(sh->lock);
   sh->ch(sh->ch_cls,
 	 sh,
@@ -370,7 +380,7 @@ static int writeAndProcess(SelectHandle * sh,
     GE_LOG(sh->ectx,
 	   GE_DEBUG | GE_DEVELOPER | GE_BULK,
 	   "Sending %d bytes from session %p of select %p return %d.\n",
-	   session->wpos,
+	   session->wapos - session->wspos,
 	   sh,
 	   session,
 	   ret);	
@@ -395,6 +405,14 @@ static int writeAndProcess(SelectHandle * sh,
 	/* free compaction! */
 	session->wspos = 0;
 	session->wapos = 0;
+	if (session->wsize > sh->memory_quota) {
+	  /* if we went over quota before because of
+	     force, use this opportunity to shrink
+	     back to size! */
+	  GROW(session->wbuff,
+	       session->wsize,
+	       sh->memory_quota);
+	}
       }
       break;
     }
@@ -471,13 +489,6 @@ static void * selectThread(void * ctx) {
 #endif
 	destroySession(sh, session);
       } else {
-#if DEBUG_SELECT
-	GE_LOG(sh->ectx,
-	       GE_DEBUG | GE_DEVELOPER | GE_BULK,
-	       "Select %p adds to select set connection %p\n",
-	       sh,
-	       session);	
-#endif
 	add_to_select_set(sock, &readSet, &max);
 	add_to_select_set(sock, &errorSet, &max);
 	GE_ASSERT(NULL, session->wapos >= session->wspos);
@@ -601,7 +612,7 @@ static void * selectThread(void * ctx) {
 		      FIONREAD,
 		      &pending);
 #endif
-	if ( (error != 0) || 
+	if ( (error != 0) ||
 	     (optlen != sizeof(pending)) ) {
 	  GE_LOG_STRERROR(sh->ectx,
 			  GE_ERROR | GE_ADMIN | GE_BULK,
@@ -611,13 +622,13 @@ static void * selectThread(void * ctx) {
 #if DEBUG_SELECT
 	GE_LOG(sh->ectx,
 	       GE_DEBUG | GE_DEVELOPER | GE_BULK,
-	       "Select %p is preparing to receive %u bytes\n",
+	       "Select %p is preparing to receive %u bytes from UDP\n",
 	       sh,
 	       pending);
 #endif
-	GE_ASSERT(sh->ectx, 
+	GE_ASSERT(sh->ectx,
 		  pending >= 0);
-	if (pending >= 65536) 
+	if (pending >= 65536)
 	  pending = 65536;	
 	if (pending == 0) {
 	  /* maybe empty UDP packet was sent (see report on bug-gnunet,
@@ -668,6 +679,13 @@ static void * selectThread(void * ctx) {
 			    clientAddr,
 			    lenOfIncomingAddr);
 	      if (sctx != NULL) {
+#if DEBUG_SELECT
+		GE_LOG(sh->ectx,
+		       GE_DEBUG | GE_DEVELOPER | GE_BULK,
+		       "Select %p is passing %u bytes from UDP to handler\n",
+		       sh,
+		       size);
+#endif
 		sh->mh(sh->mh_cls,
 		       sh,
 		       NULL,
@@ -789,24 +807,25 @@ static int makeNonblocking(struct GE_Context * ectx,
  *        queueing messages (in bytes)
  * @return NULL on error
  */
-SelectHandle * select_create(const char * description,
-			     int is_udp,
-			     struct GE_Context * ectx,
-			     struct LoadMonitor * mon,
-			     int sock,
-			     unsigned int max_addr_len,
-			     cron_t timeout,
-			     SelectMessageHandler mh,
-			     void * mh_cls,
-			     SelectAcceptHandler ah,
-			     void * ah_cls,
-			     SelectCloseHandler ch,
-			     void * ch_cls,
-			     unsigned int memory_quota) {
+SelectHandle *
+select_create(const char * description,
+	      int is_udp,
+	      struct GE_Context * ectx,
+	      struct LoadMonitor * mon,
+	      int sock,
+	      unsigned int max_addr_len,
+	      cron_t timeout,
+	      SelectMessageHandler mh,
+	      void * mh_cls,
+	      SelectAcceptHandler ah,
+	      void * ah_cls,
+	      SelectCloseHandler ch,
+	      void * ch_cls,
+	      unsigned int memory_quota) {
   SelectHandle * sh;
 
   if ( (is_udp == NO) &&
-       (sock != -1) && 
+       (sock != -1) &&
        (0 != LISTEN(sock, 5)) ) {
     GE_LOG_STRERROR(ectx,
 		    GE_ERROR | GE_USER | GE_IMMEDIATE,
@@ -859,7 +878,7 @@ SelectHandle * select_create(const char * description,
     sh->listen_sock = NULL;
   sh->thread = PTHREAD_CREATE(&selectThread,
 			      sh,
-			      4 * 1024);
+			      64 * 1024);
   if (sh->thread == NULL) {
     GE_LOG_STRERROR(ectx,
 		    GE_ERROR | GE_IMMEDIATE | GE_ADMIN,
@@ -961,7 +980,8 @@ int select_write(struct SelectHandle * sh,
   }
   GE_ASSERT(NULL, session->wapos >= session->wspos);
   if ( (sh->memory_quota > 0) &&
-       (session->wapos - session->wspos + len > sh->memory_quota) ) {
+       (session->wapos - session->wspos + len > sh->memory_quota) &&
+       (force == NO) ) {
     /* not enough free space, not allowed to grow that much */
     MUTEX_UNLOCK(sh->lock);
     return NO;
@@ -984,9 +1004,10 @@ int select_write(struct SelectHandle * sh,
       while (newBufferSize < len + session->wapos - session->wspos)
 	newBufferSize *= 2;
       if ( (sh->memory_quota > 0) &&
-	   (newBufferSize > sh->memory_quota) )
+	   (newBufferSize > sh->memory_quota) &&
+	   (force == NO) )
 	newBufferSize = sh->memory_quota;
-      GE_ASSERT(NULL, 
+      GE_ASSERT(NULL,
 		newBufferSize >= len + session->wapos - session->wspos);
       newBuffer = MALLOC(newBufferSize);
       memcpy(newBuffer,
@@ -1003,7 +1024,7 @@ int select_write(struct SelectHandle * sh,
 	    session->wapos + len <= session->wsize);
   memcpy(&session->wbuff[session->wapos],
 	 msg,
-	 len);  
+	 len);
   session->wapos += len;
   MUTEX_UNLOCK(sh->lock);
   if (fresh_write)
@@ -1044,7 +1065,8 @@ int select_would_try(struct SelectHandle * sh,
   }
   GE_ASSERT(NULL, session->wapos >= session->wspos);
   if ( (sh->memory_quota > 0) &&
-       (session->wapos - session->wspos + size > sh->memory_quota) ) {
+       (session->wapos - session->wspos + size > sh->memory_quota) &&
+       (force == NO) ) {
     /* not enough free space, not allowed to grow that much */
     MUTEX_UNLOCK(sh->lock);
     return NO;

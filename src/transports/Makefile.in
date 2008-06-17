@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-SOURCES = $(libgnunettransport_http_la_SOURCES) $(libgnunettransport_nat_la_SOURCES) $(libgnunettransport_tcp_la_SOURCES) $(libgnunettransport_tcp6_la_SOURCES) $(libgnunettransport_tcp_old_la_SOURCES) $(libgnunettransport_udp_la_SOURCES) $(libgnunettransport_udp6_la_SOURCES) $(libip_la_SOURCES) $(libip6_la_SOURCES)
+SOURCES = $(libgnunetip_la_SOURCES) $(libgnunetip6_la_SOURCES) $(libgnunettransport_http_la_SOURCES) $(libgnunettransport_nat_la_SOURCES) $(libgnunettransport_tcp_la_SOURCES) $(libgnunettransport_tcp6_la_SOURCES) $(libgnunettransport_udp_la_SOURCES) $(libgnunettransport_udp6_la_SOURCES)
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -45,68 +45,68 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/gettext.m4 \
 	$(top_srcdir)/m4/lib-ld.m4 $(top_srcdir)/m4/lib-link.m4 \
 	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libcurl.m4 \
 	$(top_srcdir)/m4/libgcrypt.m4 $(top_srcdir)/m4/libxml2.m4 \
-	$(top_srcdir)/m4/mkdir.m4 $(top_srcdir)/m4/nls.m4 \
-	$(top_srcdir)/m4/pkg.m4 $(top_srcdir)/m4/po.m4 \
-	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/acinclude.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/m4/mkdir.m4 $(top_srcdir)/m4/mkdirp.m4 \
+	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/pkg.m4 \
+	$(top_srcdir)/m4/po.m4 $(top_srcdir)/m4/progtest.m4 \
+	$(top_srcdir)/acinclude.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
 CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
-am__installdirs = "$(DESTDIR)$(plugindir)"
+am__installdirs = "$(DESTDIR)$(libdir)" "$(DESTDIR)$(plugindir)"
+libLTLIBRARIES_INSTALL = $(INSTALL)
 pluginLTLIBRARIES_INSTALL = $(INSTALL)
-LTLIBRARIES = $(noinst_LTLIBRARIES) $(plugin_LTLIBRARIES)
+LTLIBRARIES = $(lib_LTLIBRARIES) $(noinst_LTLIBRARIES) \
+	$(plugin_LTLIBRARIES)
+libgnunetip_la_DEPENDENCIES =  \
+	$(top_builddir)/src/util/libgnunetutil.la
+am_libgnunetip_la_OBJECTS = ip.lo
+libgnunetip_la_OBJECTS = $(am_libgnunetip_la_OBJECTS)
+libgnunetip6_la_LIBADD =
+am_libgnunetip6_la_OBJECTS = ip6.lo
+libgnunetip6_la_OBJECTS = $(am_libgnunetip6_la_OBJECTS)
 libgnunettransport_http_la_DEPENDENCIES =  \
-	$(top_builddir)/src/util/libgnunetutil.la libip.la
+	$(top_builddir)/src/util/libgnunetutil.la libgnunetip.la
 am_libgnunettransport_http_la_OBJECTS =  \
 	libgnunettransport_http_la-http.lo
 libgnunettransport_http_la_OBJECTS =  \
 	$(am_libgnunettransport_http_la_OBJECTS)
 libgnunettransport_nat_la_DEPENDENCIES =  \
-	$(top_builddir)/src/util/libgnunetutil.la
+	$(top_builddir)/src/util/libgnunetutil.la libgnunetip.la
 am_libgnunettransport_nat_la_OBJECTS = nat.lo
 libgnunettransport_nat_la_OBJECTS =  \
 	$(am_libgnunettransport_nat_la_OBJECTS)
 libgnunettransport_tcp_la_DEPENDENCIES =  \
-	$(top_builddir)/src/util/libgnunetutil.la libip.la
+	$(top_builddir)/src/util/libgnunetutil.la libgnunetip.la
 am_libgnunettransport_tcp_la_OBJECTS = tcp.lo
 libgnunettransport_tcp_la_OBJECTS =  \
 	$(am_libgnunettransport_tcp_la_OBJECTS)
 libgnunettransport_tcp6_la_DEPENDENCIES =  \
-	$(top_builddir)/src/util/libgnunetutil.la libip6.la
+	$(top_builddir)/src/util/libgnunetutil.la libgnunetip.la \
+	libgnunetip6.la
 am_libgnunettransport_tcp6_la_OBJECTS = tcp6.lo
 libgnunettransport_tcp6_la_OBJECTS =  \
 	$(am_libgnunettransport_tcp6_la_OBJECTS)
-libgnunettransport_tcp_old_la_DEPENDENCIES =  \
-	$(top_builddir)/src/util/libgnunetutil.la libip.la
-am_libgnunettransport_tcp_old_la_OBJECTS = tcp_old.lo
-libgnunettransport_tcp_old_la_OBJECTS =  \
-	$(am_libgnunettransport_tcp_old_la_OBJECTS)
 libgnunettransport_udp_la_DEPENDENCIES =  \
-	$(top_builddir)/src/util/libgnunetutil.la libip.la
+	$(top_builddir)/src/util/libgnunetutil.la libgnunetip.la
 am_libgnunettransport_udp_la_OBJECTS = udp.lo
 libgnunettransport_udp_la_OBJECTS =  \
 	$(am_libgnunettransport_udp_la_OBJECTS)
 libgnunettransport_udp6_la_DEPENDENCIES =  \
-	$(top_builddir)/src/util/libgnunetutil.la libip6.la
+	$(top_builddir)/src/util/libgnunetutil.la libgnunetip.la \
+	libgnunetip6.la
 am_libgnunettransport_udp6_la_OBJECTS = udp6.lo
 libgnunettransport_udp6_la_OBJECTS =  \
 	$(am_libgnunettransport_udp6_la_OBJECTS)
-libip_la_LIBADD =
-am_libip_la_OBJECTS = ip.lo
-libip_la_OBJECTS = $(am_libip_la_OBJECTS)
-libip6_la_LIBADD =
-am_libip6_la_OBJECTS = ip6.lo
-libip6_la_OBJECTS = $(am_libip6_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
 @AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/ip.Plo ./$(DEPDIR)/ip6.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/libgnunettransport_http_la-http.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/nat.Plo ./$(DEPDIR)/tcp.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/tcp6.Plo ./$(DEPDIR)/tcp_old.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/udp.Plo ./$(DEPDIR)/udp6.Plo
+@AMDEP_TRUE@	./$(DEPDIR)/tcp6.Plo ./$(DEPDIR)/udp.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/udp6.Plo
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) \
@@ -115,22 +115,20 @@ LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) \
 CCLD = $(CC)
 LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(libgnunettransport_http_la_SOURCES) \
+SOURCES = $(libgnunetip_la_SOURCES) $(libgnunetip6_la_SOURCES) \
+	$(libgnunettransport_http_la_SOURCES) \
 	$(libgnunettransport_nat_la_SOURCES) \
 	$(libgnunettransport_tcp_la_SOURCES) \
 	$(libgnunettransport_tcp6_la_SOURCES) \
-	$(libgnunettransport_tcp_old_la_SOURCES) \
 	$(libgnunettransport_udp_la_SOURCES) \
-	$(libgnunettransport_udp6_la_SOURCES) $(libip_la_SOURCES) \
-	$(libip6_la_SOURCES)
-DIST_SOURCES = $(libgnunettransport_http_la_SOURCES) \
+	$(libgnunettransport_udp6_la_SOURCES)
+DIST_SOURCES = $(libgnunetip_la_SOURCES) $(libgnunetip6_la_SOURCES) \
+	$(libgnunettransport_http_la_SOURCES) \
 	$(libgnunettransport_nat_la_SOURCES) \
 	$(libgnunettransport_tcp_la_SOURCES) \
 	$(libgnunettransport_tcp6_la_SOURCES) \
-	$(libgnunettransport_tcp_old_la_SOURCES) \
 	$(libgnunettransport_udp_la_SOURCES) \
-	$(libgnunettransport_udp6_la_SOURCES) $(libip_la_SOURCES) \
-	$(libip6_la_SOURCES)
+	$(libgnunettransport_udp6_la_SOURCES)
 RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
 	html-recursive info-recursive install-data-recursive \
 	install-exec-recursive install-info-recursive \
@@ -184,6 +182,8 @@ GNUNETGTK_LIBS = @GNUNETGTK_LIBS@
 GREP = @GREP@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
+HAVE_ADNS_FALSE = @HAVE_ADNS_FALSE@
+HAVE_ADNS_TRUE = @HAVE_ADNS_TRUE@
 HAVE_DIALOG_FALSE = @HAVE_DIALOG_FALSE@
 HAVE_DIALOG_TRUE = @HAVE_DIALOG_TRUE@
 HAVE_GTK_FALSE = @HAVE_GTK_FALSE@
@@ -222,6 +222,8 @@ LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
+LINUX_FALSE = @LINUX_FALSE@
+LINUX_TRUE = @LINUX_TRUE@
 LN_S = @LN_S@
 LTDLINCL = @LTDLINCL@
 LTLIBICONV = @LTLIBICONV@
@@ -239,6 +241,8 @@ MYSQL_CPPFLAGS = @MYSQL_CPPFLAGS@
 MYSQL_LDFLAGS = @MYSQL_LDFLAGS@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
+OPENBSD_FALSE = @OPENBSD_FALSE@
+OPENBSD_TRUE = @OPENBSD_TRUE@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
 PACKAGE_NAME = @PACKAGE_NAME@
@@ -319,27 +323,31 @@ plugindir = $(libdir)/GNUnet
 @HAVE_IPV6_TRUE@  libgnunettransport_udp6.la 
 
 @HAVE_IPV6_TRUE@v6ip = \
-@HAVE_IPV6_TRUE@  libip6.la
+@HAVE_IPV6_TRUE@  libgnunetip6.la
 
 @HAVE_XML2_TRUE@build_upnp = upnp
 @HAVE_MHD_TRUE@httptransport = libgnunettransport_http.la
 SUBDIRS = $(build_upnp) .
 noinst_LTLIBRARIES = \
-  $(v6ip) \
-  libip.la
+  $(v6ip) 
+
+lib_LTLIBRARIES = \
+  libgnunetip.la
 
 
 # smtptransport = libgnunettransport_smtp.la
-libip_la_SOURCES = \
+libgnunetip_la_SOURCES = \
   ip.c ip.h
 
-libip6_la_SOURCES = \
+libgnunetip_la_LIBADD = \
+ $(top_builddir)/src/util/libgnunetutil.la
+
+libgnunetip6_la_SOURCES = \
   ip6.c ip6.h
 
 plugin_LTLIBRARIES = \
  libgnunettransport_tcp.la \
  libgnunettransport_udp.la \
- libgnunettransport_tcp_old.la \
  libgnunettransport_nat.la \
  $(v6transports) $(httptransport)
 
@@ -353,7 +361,7 @@ libgnunettransport_http_la_SOURCES = http.c
 libgnunettransport_http_la_LIBADD = \
  -lmicrohttpd @LIBCURL@ \
  $(top_builddir)/src/util/libgnunetutil.la \
- libip.la
+ libgnunetip.la
 
 libgnunettransport_http_la_LDFLAGS = \
  -export-dynamic -avoid-version -module 
@@ -364,14 +372,15 @@ libgnunettransport_http_la_CPPFLAGS = \
 libgnunettransport_tcp_la_SOURCES = tcp.c
 libgnunettransport_tcp_la_LIBADD = \
  $(top_builddir)/src/util/libgnunetutil.la \
- libip.la
+ libgnunetip.la
 
 libgnunettransport_tcp_la_LDFLAGS = \
  -export-dynamic -avoid-version -module 
 
 libgnunettransport_nat_la_SOURCES = nat.c
 libgnunettransport_nat_la_LIBADD = \
- $(top_builddir)/src/util/libgnunetutil.la
+ $(top_builddir)/src/util/libgnunetutil.la \
+ libgnunetip.la 
 
 libgnunettransport_nat_la_LDFLAGS = \
  -export-dynamic -avoid-version -module 
@@ -379,7 +388,7 @@ libgnunettransport_nat_la_LDFLAGS = \
 libgnunettransport_udp_la_SOURCES = udp.c
 libgnunettransport_udp_la_LIBADD = \
  $(top_builddir)/src/util/libgnunetutil.la \
- libip.la
+ libgnunetip.la
 
 libgnunettransport_udp_la_LDFLAGS = \
  -export-dynamic -avoid-version -module 
@@ -387,7 +396,8 @@ libgnunettransport_udp_la_LDFLAGS = \
 libgnunettransport_tcp6_la_SOURCES = tcp6.c
 libgnunettransport_tcp6_la_LIBADD = \
  $(top_builddir)/src/util/libgnunetutil.la \
- libip6.la
+ libgnunetip.la \
+ libgnunetip6.la
 
 libgnunettransport_tcp6_la_LDFLAGS = \
  -export-dynamic -avoid-version -module 
@@ -395,17 +405,10 @@ libgnunettransport_tcp6_la_LDFLAGS = \
 libgnunettransport_udp6_la_SOURCES = udp6.c
 libgnunettransport_udp6_la_LIBADD = \
  $(top_builddir)/src/util/libgnunetutil.la \
- libip6.la
+ libgnunetip.la \
+ libgnunetip6.la
 
 libgnunettransport_udp6_la_LDFLAGS = \
- -export-dynamic -avoid-version -module 
-
-libgnunettransport_tcp_old_la_SOURCES = tcp_old.c
-libgnunettransport_tcp_old_la_LIBADD = \
- $(top_builddir)/src/util/libgnunetutil.la \
- libip.la
-
-libgnunettransport_tcp_old_la_LDFLAGS = \
  -export-dynamic -avoid-version -module 
 
 all: all-recursive
@@ -441,6 +444,33 @@ $(top_srcdir)/configure:  $(am__configure_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
+install-libLTLIBRARIES: $(lib_LTLIBRARIES)
+	@$(NORMAL_INSTALL)
+	test -z "$(libdir)" || $(mkdir_p) "$(DESTDIR)$(libdir)"
+	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	  if test -f $$p; then \
+	    f="`echo $$p | sed -e 's|^.*/||'`"; \
+	    echo " $(LIBTOOL) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) '$$p' '$(DESTDIR)$(libdir)/$$f'"; \
+	    $(LIBTOOL) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) "$$p" "$(DESTDIR)$(libdir)/$$f"; \
+	  else :; fi; \
+	done
+
+uninstall-libLTLIBRARIES:
+	@$(NORMAL_UNINSTALL)
+	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	    p="`echo $$p | sed -e 's|^.*/||'`"; \
+	  echo " $(LIBTOOL) --mode=uninstall rm -f '$(DESTDIR)$(libdir)/$$p'"; \
+	  $(LIBTOOL) --mode=uninstall rm -f "$(DESTDIR)$(libdir)/$$p"; \
+	done
+
+clean-libLTLIBRARIES:
+	-test -z "$(lib_LTLIBRARIES)" || rm -f $(lib_LTLIBRARIES)
+	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	  dir="`echo $$p | sed -e 's|/[^/]*$$||'`"; \
+	  test "$$dir" != "$$p" || dir=.; \
+	  echo "rm -f \"$${dir}/so_locations\""; \
+	  rm -f "$${dir}/so_locations"; \
+	done
 
 clean-noinstLTLIBRARIES:
 	-test -z "$(noinst_LTLIBRARIES)" || rm -f $(noinst_LTLIBRARIES)
@@ -477,6 +507,10 @@ clean-pluginLTLIBRARIES:
 	  echo "rm -f \"$${dir}/so_locations\""; \
 	  rm -f "$${dir}/so_locations"; \
 	done
+libgnunetip.la: $(libgnunetip_la_OBJECTS) $(libgnunetip_la_DEPENDENCIES) 
+	$(LINK) -rpath $(libdir) $(libgnunetip_la_LDFLAGS) $(libgnunetip_la_OBJECTS) $(libgnunetip_la_LIBADD) $(LIBS)
+libgnunetip6.la: $(libgnunetip6_la_OBJECTS) $(libgnunetip6_la_DEPENDENCIES) 
+	$(LINK)  $(libgnunetip6_la_LDFLAGS) $(libgnunetip6_la_OBJECTS) $(libgnunetip6_la_LIBADD) $(LIBS)
 libgnunettransport_http.la: $(libgnunettransport_http_la_OBJECTS) $(libgnunettransport_http_la_DEPENDENCIES) 
 	$(LINK) -rpath $(plugindir) $(libgnunettransport_http_la_LDFLAGS) $(libgnunettransport_http_la_OBJECTS) $(libgnunettransport_http_la_LIBADD) $(LIBS)
 libgnunettransport_nat.la: $(libgnunettransport_nat_la_OBJECTS) $(libgnunettransport_nat_la_DEPENDENCIES) 
@@ -485,16 +519,10 @@ libgnunettransport_tcp.la: $(libgnunettransport_tcp_la_OBJECTS) $(libgnunettrans
 	$(LINK) -rpath $(plugindir) $(libgnunettransport_tcp_la_LDFLAGS) $(libgnunettransport_tcp_la_OBJECTS) $(libgnunettransport_tcp_la_LIBADD) $(LIBS)
 libgnunettransport_tcp6.la: $(libgnunettransport_tcp6_la_OBJECTS) $(libgnunettransport_tcp6_la_DEPENDENCIES) 
 	$(LINK) -rpath $(plugindir) $(libgnunettransport_tcp6_la_LDFLAGS) $(libgnunettransport_tcp6_la_OBJECTS) $(libgnunettransport_tcp6_la_LIBADD) $(LIBS)
-libgnunettransport_tcp_old.la: $(libgnunettransport_tcp_old_la_OBJECTS) $(libgnunettransport_tcp_old_la_DEPENDENCIES) 
-	$(LINK) -rpath $(plugindir) $(libgnunettransport_tcp_old_la_LDFLAGS) $(libgnunettransport_tcp_old_la_OBJECTS) $(libgnunettransport_tcp_old_la_LIBADD) $(LIBS)
 libgnunettransport_udp.la: $(libgnunettransport_udp_la_OBJECTS) $(libgnunettransport_udp_la_DEPENDENCIES) 
 	$(LINK) -rpath $(plugindir) $(libgnunettransport_udp_la_LDFLAGS) $(libgnunettransport_udp_la_OBJECTS) $(libgnunettransport_udp_la_LIBADD) $(LIBS)
 libgnunettransport_udp6.la: $(libgnunettransport_udp6_la_OBJECTS) $(libgnunettransport_udp6_la_DEPENDENCIES) 
 	$(LINK) -rpath $(plugindir) $(libgnunettransport_udp6_la_LDFLAGS) $(libgnunettransport_udp6_la_OBJECTS) $(libgnunettransport_udp6_la_LIBADD) $(LIBS)
-libip.la: $(libip_la_OBJECTS) $(libip_la_DEPENDENCIES) 
-	$(LINK)  $(libip_la_LDFLAGS) $(libip_la_OBJECTS) $(libip_la_LIBADD) $(LIBS)
-libip6.la: $(libip6_la_OBJECTS) $(libip6_la_DEPENDENCIES) 
-	$(LINK)  $(libip6_la_LDFLAGS) $(libip6_la_OBJECTS) $(libip6_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -508,7 +536,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nat.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tcp.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tcp6.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tcp_old.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/udp.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/udp6.Plo@am__quote@
 
@@ -735,7 +762,7 @@ check: check-recursive
 all-am: Makefile $(LTLIBRARIES)
 installdirs: installdirs-recursive
 installdirs-am:
-	for dir in "$(DESTDIR)$(plugindir)"; do \
+	for dir in "$(DESTDIR)$(libdir)" "$(DESTDIR)$(plugindir)"; do \
 	  test -z "$$dir" || $(mkdir_p) "$$dir"; \
 	done
 install: install-recursive
@@ -764,8 +791,8 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-recursive
 
-clean-am: clean-generic clean-libtool clean-noinstLTLIBRARIES \
-	clean-pluginLTLIBRARIES mostlyclean-am
+clean-am: clean-generic clean-libLTLIBRARIES clean-libtool \
+	clean-noinstLTLIBRARIES clean-pluginLTLIBRARIES mostlyclean-am
 
 distclean: distclean-recursive
 	-rm -rf ./$(DEPDIR)
@@ -785,7 +812,7 @@ info-am:
 
 install-data-am: install-pluginLTLIBRARIES
 
-install-exec-am:
+install-exec-am: install-libLTLIBRARIES
 
 install-info: install-info-recursive
 
@@ -811,25 +838,27 @@ ps: ps-recursive
 
 ps-am:
 
-uninstall-am: uninstall-info-am uninstall-pluginLTLIBRARIES
+uninstall-am: uninstall-info-am uninstall-libLTLIBRARIES \
+	uninstall-pluginLTLIBRARIES
 
 uninstall-info: uninstall-info-recursive
 
 .PHONY: $(RECURSIVE_TARGETS) CTAGS GTAGS all all-am check check-am \
-	clean clean-generic clean-libtool clean-noinstLTLIBRARIES \
-	clean-pluginLTLIBRARIES clean-recursive ctags ctags-recursive \
-	distclean distclean-compile distclean-generic \
-	distclean-libtool distclean-recursive distclean-tags distdir \
-	dvi dvi-am html html-am info info-am install install-am \
-	install-data install-data-am install-exec install-exec-am \
-	install-info install-info-am install-man \
+	clean clean-generic clean-libLTLIBRARIES clean-libtool \
+	clean-noinstLTLIBRARIES clean-pluginLTLIBRARIES \
+	clean-recursive ctags ctags-recursive distclean \
+	distclean-compile distclean-generic distclean-libtool \
+	distclean-recursive distclean-tags distdir dvi dvi-am html \
+	html-am info info-am install install-am install-data \
+	install-data-am install-exec install-exec-am install-info \
+	install-info-am install-libLTLIBRARIES install-man \
 	install-pluginLTLIBRARIES install-strip installcheck \
 	installcheck-am installdirs installdirs-am maintainer-clean \
 	maintainer-clean-generic maintainer-clean-recursive \
 	mostlyclean mostlyclean-compile mostlyclean-generic \
 	mostlyclean-libtool mostlyclean-recursive pdf pdf-am ps ps-am \
 	tags tags-recursive uninstall uninstall-am uninstall-info-am \
-	uninstall-pluginLTLIBRARIES
+	uninstall-libLTLIBRARIES uninstall-pluginLTLIBRARIES
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

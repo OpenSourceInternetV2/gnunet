@@ -127,6 +127,7 @@ static int getSizeRec(const char * filename,
        (gfsd->include_sym_links == YES) )
     gfsd->total += buf.st_size;
   if ( (S_ISDIR(buf.st_mode)) &&
+       (0 == ACCESS(fn, X_OK)) &&
        ( (!S_ISLNK(buf.st_mode)) ||
 	 (gfsd->include_sym_links == YES) ) ) {
     if (SYSERR ==
@@ -529,7 +530,8 @@ int disk_directory_scan(struct GE_Context * ectx,
     return SYSERR;
   }
   while ((finfo = readdir(dinfo)) != NULL) {
-    if (finfo->d_name[0] == '.')
+    if ( (0 == strcmp(finfo->d_name, ".")) ||
+	 (0 == strcmp(finfo->d_name, "..")) )	
       continue;
     if (callback != NULL) {
       if (OK != callback(finfo->d_name,
@@ -581,6 +583,10 @@ static int rmHelper(const char * fil,
  */
 int disk_directory_remove(struct GE_Context * ectx,
 			  const char * fileName) {
+  struct stat istat;
+
+  if (0 != STAT(fileName, &istat))
+    return NO; /* file may not exist... */
   if (UNLINK(fileName) == 0)
     return OK;
   if ( (errno != EISDIR) &&
@@ -723,6 +729,27 @@ int disk_file_copy(struct GE_Context * ectx,
   disk_file_close(ectx, src, in);
   disk_file_close(ectx, dst, out);
   return SYSERR;
+}
+
+/**
+ * @brief Removes special characters as ':' from a filename.
+ * @param fn the filename to canonicalize
+ */
+void disk_filename_canonicalize(char *fn) {
+  char *idx;
+  char c;
+  
+  idx = fn;
+  while (*idx) {
+    c = *idx;
+    
+    if (c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' ||
+      c == '"' || c == '<' || c == '>' || c == '|') {
+        *idx = '_';
+    }
+    
+    idx++;
+  }
 }
 
 /* end of storage.c */

@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -438,21 +438,18 @@ static double getStat(sqliteHandle * handle,
     if (i == SQLITE_DONE) {
       ret = 0;
       i = SQLITE_OK;
-    }
-    else if (i == SQLITE_ROW) {
+    } else if (i == SQLITE_ROW) {
       ret = sqlite3_column_double(stmt, 0);
       i = SQLITE_OK;
     }
   }
   sqlite3_finalize(stmt);
-
   if (i != SQLITE_OK) {
     LOG_SQLITE(handle,
 	       GE_ERROR | GE_ADMIN | GE_USER | GE_BULK,
 	       "sqlite_getStat");
     return SYSERR;
   }
-
   return ret;
 }
 
@@ -482,30 +479,29 @@ static int setStat(sqliteHandle * handle,
 
   if (sq_prepare(dbh,
 		 "INSERT INTO gn070(hash, anonLevel, type) VALUES (?, ?, ?)",
-		 &stmt) == SQLITE_OK) {
-    sqlite3_bind_text(stmt,
-		      1,
-		      key,
-		      strlen(key),
-		      SQLITE_STATIC);
-    sqlite3_bind_double(stmt,
-			2,
-			val);
-    sqlite3_bind_int(stmt,
-		     3,
-		     RESERVED_BLOCK);
-    if (sqlite3_step(stmt) != SQLITE_DONE) {
-      LOG_SQLITE(handle,
-		 GE_ERROR | GE_ADMIN | GE_USER | GE_BULK,
-		 "sqlite_setStat");
-      sqlite3_finalize(stmt);
-      return SYSERR;
-    }
-    sqlite3_finalize(stmt);
-
-    return OK;
-  } else
+		 &stmt) != SQLITE_OK)
     return SYSERR;
+  sqlite3_bind_text(stmt,
+		    1,
+		    key,
+		    strlen(key),
+		    SQLITE_STATIC);
+  sqlite3_bind_double(stmt,
+		      2,
+		      val);
+  sqlite3_bind_int(stmt,
+		   3,
+		   RESERVED_BLOCK);
+  if (sqlite3_step(stmt) != SQLITE_DONE) {
+    LOG_SQLITE(handle,
+	       GE_ERROR | GE_ADMIN | GE_USER | GE_BULK,
+	       "sqlite_setStat");
+    sqlite3_finalize(stmt);
+    return SYSERR;
+  }
+  sqlite3_finalize(stmt);
+
+  return OK;
 }
 
 /**
@@ -534,7 +530,9 @@ static int sqlite_iterate(unsigned int type,
 			  void * closure,
 			  int sortByPriority,
 			  int inverseOrder,
-			  int include_expired) {	
+			  int include_expired,
+			  int limit_nonanonymous,
+			  int limit_ondemand) {	
   sqlite3_stmt * stmt;
   int count;
   char scratch[512];
@@ -572,15 +570,22 @@ static int sqlite_iterate(unsigned int type,
       strcat(scratch,
 	     "(prio > :4 AND expire == :5) OR expire > :6)");
   }
-  if (type != 0)
+  if (type != 0) {
     strcat(scratch, " AND type = :7");
-  else
+  } else if (limit_ondemand == YES) {
+    SNPRINTF(&scratch[strlen(scratch)],
+	     512 - strlen(scratch),
+	     " AND type != %d AND type != %d",
+	     RESERVED_BLOCK,
+	     ONDEMAND_BLOCK);
+  } else {
     SNPRINTF(&scratch[strlen(scratch)],
 	     512 - strlen(scratch),
 	     " AND type != %d",
 	     RESERVED_BLOCK); /* otherwise we iterate over
 				 the stats entry, which would
 				 be bad */
+  }
   if (NO == include_expired) {
     if (type != 0)
       strcat(scratch, " AND expire > :8");
@@ -679,23 +684,26 @@ static int sqlite_iterate(unsigned int type,
 	     lastPrio,
 	     lastExp);
 #endif
-      if (iter != NULL) {
-	MUTEX_UNLOCK(db->DATABASE_Lock_);
-	if (SYSERR == iter(&datum->key,
-			   &datum->value,
-			   closure) ) {
-	  FREE(datum);
+      if ( (NO == limit_nonanonymous) ||
+	   (ntohl(datum->value.anonymityLevel) == 0) ) {
+	count++;
+	if (iter != NULL) {
+	  MUTEX_UNLOCK(db->DATABASE_Lock_);
+	  if (SYSERR == iter(&datum->key,
+			     &datum->value,
+			     closure) ) {
+	    FREE(datum);
+	    MUTEX_LOCK(db->DATABASE_Lock_);
+	    count = SYSERR;
+	    break;
+	  }
 	  MUTEX_LOCK(db->DATABASE_Lock_);
-	  count = SYSERR;
-	  break;
 	}
-	MUTEX_LOCK(db->DATABASE_Lock_);
       }
       key = datum->key;
       lastPrio = ntohl(datum->value.prio);
       lastExp  = ntohll(datum->value.expirationTime);
       FREE(datum);
-      count++;
     } else {
       if (ret != SQLITE_DONE) {
 	LOG_SQLITE(handle,
@@ -729,7 +737,26 @@ static int sqlite_iterate(unsigned int type,
 static int iterateLowPriority(unsigned int type,
 			      Datum_Iterator iter,
 			      void * closure) {
-  return sqlite_iterate(type, iter, closure, YES, NO, YES);
+  return sqlite_iterate(type, iter, closure, YES, NO, YES, NO, NO);
+}
+
+/**
+ * Call a method on content with zero anonymity.
+ *
+ * @param type limit the iteration to entries of this
+ *   type. 0 for all entries.
+ * @param on_demand limit the iteration to entries
+ *        that not on-demand?
+ * @param iter the callback method
+ * @param closure argument to all callback calls
+ * @return the number of results, SYSERR if the
+ *   iter is non-NULL and aborted the iteration
+ */
+static int iterateNonAnonymous(unsigned int type,
+			       int on_demand,
+			       Datum_Iterator iter,
+			       void * closure) {
+  return sqlite_iterate(0, iter, closure, NO, NO, NO, YES, on_demand);
 }
 
 /**
@@ -744,7 +771,7 @@ static int iterateLowPriority(unsigned int type,
 static int iterateExpirationTime(unsigned int type,
 				 Datum_Iterator iter,
 				 void * closure) {
-  return sqlite_iterate(type, iter, closure, NO, NO, YES);
+  return sqlite_iterate(type, iter, closure, NO, NO, YES, NO, NO);
 }
 
 /**
@@ -757,12 +784,12 @@ static int iterateExpirationTime(unsigned int type,
  */
 static int iterateMigrationOrder(Datum_Iterator iter,
 			         void * closure) {
-  return sqlite_iterate(0, iter, closure, NO, YES, NO);
+  return sqlite_iterate(0, iter, closure, NO, YES, NO, NO, NO);
 }
 
 /**
  * Call a method for each key in the database and
- * do so quickly in any order (can lock the 
+ * do so quickly in any order (can lock the
  * database until iteration is complete).
  *
  * @param callback the callback method
@@ -894,7 +921,7 @@ static int get(const HashCode512 * key,
 	       void * closure) {
   int ret, count = 0;
   sqlite3_stmt *stmt;
-  char scratch[97];
+  char scratch[256];
   int bind = 1;
   Datastore_Datum *datum;
   sqlite3 * dbh;
@@ -932,6 +959,7 @@ static int get(const HashCode512 * key,
     if (key)
       strcat(scratch, "hash = :2");
   }
+  strcat(scratch, " ORDER BY expire DESC");
 
   if (sq_prepare(dbh,
 		 scratch,
@@ -1066,14 +1094,15 @@ static int put(const HashCode512 * key,
   sqlite3_bind_blob(stmt, 6, key, sizeof(HashCode512), SQLITE_TRANSIENT);
   sqlite3_bind_blob(stmt, 7, &value[1], contentSize, SQLITE_TRANSIENT);
   n = sqlite3_step(stmt);
-  sqlite3_reset(stmt);
   if (n != SQLITE_DONE) {
     LOG_SQLITE(dbh,
 	       GE_ERROR | GE_ADMIN | GE_USER | GE_BULK,
 	       "sqlite_query");
+    sqlite3_reset(stmt);
     MUTEX_UNLOCK(db->DATABASE_Lock_);
     return SYSERR;
   }
+  sqlite3_reset(stmt);
   db->lastSync++;
   db->payload += getContentDatastoreSize(value);
   MUTEX_UNLOCK(db->DATABASE_Lock_);
@@ -1196,7 +1225,7 @@ static int del(const HashCode512 * key,
     MUTEX_UNLOCK(db->DATABASE_Lock_);
     return SYSERR;
   }
-
+  db->lastSync++;
   MUTEX_UNLOCK(db->DATABASE_Lock_);
 
 #if DEBUG_SQLITE
@@ -1345,6 +1374,7 @@ provide_module_sqstore_sqlite(CoreAPIForApplication * capi) {
   api.put = &put;
   api.get = &get;
   api.iterateLowPriority = &iterateLowPriority;
+  api.iterateNonAnonymous = &iterateNonAnonymous;
   api.iterateExpirationTime = &iterateExpirationTime;
   api.iterateMigrationOrder = &iterateMigrationOrder;
   api.iterateAllNow = &iterateAllNow;

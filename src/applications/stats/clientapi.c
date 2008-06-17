@@ -34,7 +34,7 @@
 /**
  * Return a descriptive name for a p2p message type
  */
-const char * 
+const char *
 STATS_p2pMessageName(unsigned short type) {
   const char *name = NULL;
 
@@ -214,7 +214,7 @@ STATS_csMessageName(unsigned short type) {
     break;
   case CS_PROTO_tbench_REPLY :
     name = "CS_PROTO_tbench_REPLY";
-    break; 
+    break;
 
   case CS_PROTO_tracekit_PROBE :
     name = "CS_PROTO_tracekit_PROBE";
@@ -317,7 +317,8 @@ int STATS_getStatistics(struct GE_Context * ectx,
     if (SYSERR == connection_read(sock,
 				  (MESSAGE_HEADER**)&statMsg))
       return SYSERR;
-    if (ntohs(statMsg->header.size) < sizeof(CS_stats_reply_MESSAGE)) {
+    if ( (ntohs(statMsg->header.size) < sizeof(CS_stats_reply_MESSAGE)) ||
+	 (((char*)statMsg)[ntohs(statMsg->header.size)-1] != '\0') ) {
       GE_BREAK(ectx, 0);
       ret = SYSERR;
       break;

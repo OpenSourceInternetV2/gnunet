@@ -69,7 +69,7 @@ static struct MUTEX * statusMutex;
 /**
  * Current CPU load, as percentage of CPU cycles not idle or
  * blocked on IO.
- */ 
+ */
 static int currentCPULoad;
 
 static int agedCPULoad = -1;
@@ -89,7 +89,7 @@ static int initMachCpuStats() {
   kern_return_t kret;
   int i,j;
 
-  kret = host_processor_info(mach_host_self(), 
+  kret = host_processor_info(mach_host_self(),
 			     PROCESSOR_CPU_LOAD_INFO,
                              &cpu_count,
                              (processor_info_array_t *)&cpu_load,
@@ -264,7 +264,7 @@ static int updateUsage(){
       vm_deallocate(mach_task_self(),
                     (vm_address_t)cpu_load,
                     (vm_size_t)(cpu_msg_count * sizeof(*cpu_load)));
-      currentIOLoad = -1; /* FIXME! */
+      currentIOLoad = -1; /* FIXME-OSX! */
       return OK;
     } else {
       GE_LOG(NULL,
@@ -340,7 +340,7 @@ static int updateUsage(){
       currentCPULoad = 100 - currentCPULoad; /* computed idle-load before! */
     } else
       currentCPULoad = -1;
-    currentIOLoad = -1; /* FIXME! */
+    currentIOLoad = -1; /* FIXME-SOLARIS! */
     last_idlecount = idlecount;
     last_totalcount = totalcount;
     return OK;
@@ -412,8 +412,8 @@ static int updateUsage(){
       dLastKernel = dKernel;
       dLastIdle = dIdle;
       dLastUser = dUser;
- 
-      currentIOLoad = -1; /* FIXME */
+
+      currentIOLoad = -1; /* FIXME-MINGW */
       return OK;
     } else {
       /* only warn once, if there is a problem with
@@ -475,8 +475,8 @@ static int updateUsage(){
                     (LPBYTE) &currentCPULoad,
 		    &dwDataSize);
     RegCloseKey(hKey);
-    currentIOLoad = -1; /* FIXME! */
-    
+    currentIOLoad = -1; /* FIXME-MINGW! */
+
     /* Stop query */
     RegOpenKeyEx(HKEY_DYN_DATA,
 		 "PerfStats\\StopStat",

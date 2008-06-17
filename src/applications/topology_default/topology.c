@@ -113,7 +113,7 @@ static int scanHelperCount(const PeerIdentity * id,
     return OK;
   if (coreAPI->computeIndex(id) != im->index)
     return OK;
-  if (0 != coreAPI->queryBPMfromPeer(id))
+  if (OK == coreAPI->queryPeerStatus(id, NULL, NULL))
     return OK;
   if (YES == transport->isAvailable(proto)) {
     im->matchCount++;
@@ -142,7 +142,7 @@ static int scanHelperSelect(const PeerIdentity * id,
     return OK;
   if (coreAPI->computeIndex(id) != im->index)
     return OK;
-  if (0 != coreAPI->queryBPMfromPeer(id))
+  if (OK == coreAPI->queryPeerStatus(id, NULL, NULL))
     return OK;
   if (YES == transport->isAvailable(proto)) {
     im->costSelector -= transport->getCost(proto);
@@ -193,7 +193,7 @@ static void scanForHosts(unsigned int index) {
   }
   if (indexMatch.costSelector > 0)
     indexMatch.costSelector
-      = weak_randomi(indexMatch.costSelector/4)*4;
+      = weak_randomi64(indexMatch.costSelector);
   indexMatch.match = *(coreAPI->myIdentity);
   identity->forEachHost(now,
 			&scanHelperSelect,
@@ -221,7 +221,7 @@ static void scanForHosts(unsigned int index) {
 		   0,
 		   0);
   identity->blacklistHost(&indexMatch.match,
-			  600 + (int) (saturation * 600),
+			  (int) (saturation * 300),
 			  NO);
 }
 
@@ -291,12 +291,13 @@ static void cronCheckLiveness(void * unused) {
     minint = 10;
   if (minint == 0)
     minint = 1;
-  for (i=slotCount-1;i>=0;i--) {
-    if (weak_randomi(LIVE_SCAN_EFFECTIVENESS) != 0)
-      continue;
-    if ( (minint > coreAPI->isSlotUsed(i)) &&
-	 (NO == autoconnect) )
-      scanForHosts(i);
+  if (NO == autoconnect) {
+    for (i=slotCount-1;i>=0;i--) {
+      if (weak_randomi(LIVE_SCAN_EFFECTIVENESS) != 0)
+	continue;
+      if (minint > coreAPI->isSlotUsed(i))	
+	scanForHosts(i);
+    }
   }
   active = coreAPI->forAllConnectedNodes
     (&checkNeedForPing,

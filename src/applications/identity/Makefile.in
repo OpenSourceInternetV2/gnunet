@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-SOURCES = $(libgnunetmodule_identity_la_SOURCES) $(identitytest_SOURCES)
+SOURCES = $(libgnunetidentity_api_la_SOURCES) $(libgnunetmodule_identity_la_SOURCES) $(identitytest_SOURCES)
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -46,18 +46,26 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/gettext.m4 \
 	$(top_srcdir)/m4/lib-ld.m4 $(top_srcdir)/m4/lib-link.m4 \
 	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libcurl.m4 \
 	$(top_srcdir)/m4/libgcrypt.m4 $(top_srcdir)/m4/libxml2.m4 \
-	$(top_srcdir)/m4/mkdir.m4 $(top_srcdir)/m4/nls.m4 \
-	$(top_srcdir)/m4/pkg.m4 $(top_srcdir)/m4/po.m4 \
-	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/acinclude.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/m4/mkdir.m4 $(top_srcdir)/m4/mkdirp.m4 \
+	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/pkg.m4 \
+	$(top_srcdir)/m4/po.m4 $(top_srcdir)/m4/progtest.m4 \
+	$(top_srcdir)/acinclude.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
 CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
-am__installdirs = "$(DESTDIR)$(plugindir)"
+am__installdirs = "$(DESTDIR)$(libdir)" "$(DESTDIR)$(plugindir)"
+libLTLIBRARIES_INSTALL = $(INSTALL)
 pluginLTLIBRARIES_INSTALL = $(INSTALL)
-LTLIBRARIES = $(plugin_LTLIBRARIES)
+LTLIBRARIES = $(lib_LTLIBRARIES) $(plugin_LTLIBRARIES)
+libgnunetidentity_api_la_DEPENDENCIES =  \
+	$(top_builddir)/src/util/libgnunetutil.la \
+	$(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
+	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la
+am_libgnunetidentity_api_la_OBJECTS = clientapi.lo
+libgnunetidentity_api_la_OBJECTS =  \
+	$(am_libgnunetidentity_api_la_OBJECTS)
 libgnunetmodule_identity_la_DEPENDENCIES =  \
 	$(top_builddir)/src/util/libgnunetutil.la \
 	$(top_builddir)/src/util/cron/libgnunetutil_cron.la \
@@ -69,12 +77,13 @@ am_identitytest_OBJECTS = identitytest.$(OBJEXT)
 identitytest_OBJECTS = $(am_identitytest_OBJECTS)
 identitytest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la \
 	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
+	$(top_builddir)/src/applications/identity/libgnunetidentity_api.la \
 	$(top_builddir)/src/server/libgnunetcore.la
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
-@AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/hostkey.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/identity.Plo \
+@AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/clientapi.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/hostkey.Plo ./$(DEPDIR)/identity.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/identitytest.Po
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -84,10 +93,10 @@ LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) \
 CCLD = $(CC)
 LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(libgnunetmodule_identity_la_SOURCES) \
-	$(identitytest_SOURCES)
-DIST_SOURCES = $(libgnunetmodule_identity_la_SOURCES) \
-	$(identitytest_SOURCES)
+SOURCES = $(libgnunetidentity_api_la_SOURCES) \
+	$(libgnunetmodule_identity_la_SOURCES) $(identitytest_SOURCES)
+DIST_SOURCES = $(libgnunetidentity_api_la_SOURCES) \
+	$(libgnunetmodule_identity_la_SOURCES) $(identitytest_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -134,6 +143,8 @@ GNUNETGTK_LIBS = @GNUNETGTK_LIBS@
 GREP = @GREP@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
+HAVE_ADNS_FALSE = @HAVE_ADNS_FALSE@
+HAVE_ADNS_TRUE = @HAVE_ADNS_TRUE@
 HAVE_DIALOG_FALSE = @HAVE_DIALOG_FALSE@
 HAVE_DIALOG_TRUE = @HAVE_DIALOG_TRUE@
 HAVE_GTK_FALSE = @HAVE_GTK_FALSE@
@@ -172,6 +183,8 @@ LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
+LINUX_FALSE = @LINUX_FALSE@
+LINUX_TRUE = @LINUX_TRUE@
 LN_S = @LN_S@
 LTDLINCL = @LTDLINCL@
 LTLIBICONV = @LTLIBICONV@
@@ -189,6 +202,8 @@ MYSQL_CPPFLAGS = @MYSQL_CPPFLAGS@
 MYSQL_LDFLAGS = @MYSQL_LDFLAGS@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
+OPENBSD_FALSE = @OPENBSD_FALSE@
+OPENBSD_TRUE = @OPENBSD_TRUE@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
 PACKAGE_NAME = @PACKAGE_NAME@
@@ -263,6 +278,9 @@ sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 INCLUDES = -I$(top_srcdir)/src/include
 plugindir = $(libdir)/GNUnet
+lib_LTLIBRARIES = \
+  libgnunetidentity_api.la
+
 plugin_LTLIBRARIES = \
   libgnunetmodule_identity.la 
 
@@ -270,9 +288,8 @@ EXTRA_DIST = \
   check.conf
 
 libgnunetmodule_identity_la_SOURCES = \
-  identity.c \
-  hostkey.c \
-  hostkey.h
+  identity.c identity.h \
+  hostkey.c hostkey.h
 
 libgnunetmodule_identity_la_LIBADD = \
  $(top_builddir)/src/util/libgnunetutil.la \
@@ -282,6 +299,14 @@ libgnunetmodule_identity_la_LIBADD = \
 libgnunetmodule_identity_la_LDFLAGS = \
   -export-dynamic -avoid-version -module
 
+libgnunetidentity_api_la_SOURCES = \
+  clientapi.c 
+
+libgnunetidentity_api_la_LIBADD = \
+  $(top_builddir)/src/util/libgnunetutil.la \
+  $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la
+
 TESTS = $(check_PROGRAMS)
 identitytest_SOURCES = \
  identitytest.c 
@@ -289,6 +314,7 @@ identitytest_SOURCES = \
 identitytest_LDADD = \
  $(top_builddir)/src/util/libgnunetutil.la \
  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+ $(top_builddir)/src/applications/identity/libgnunetidentity_api.la \
  $(top_builddir)/src/server/libgnunetcore.la  
 
 all: all-am
@@ -324,6 +350,33 @@ $(top_srcdir)/configure:  $(am__configure_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
+install-libLTLIBRARIES: $(lib_LTLIBRARIES)
+	@$(NORMAL_INSTALL)
+	test -z "$(libdir)" || $(mkdir_p) "$(DESTDIR)$(libdir)"
+	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	  if test -f $$p; then \
+	    f="`echo $$p | sed -e 's|^.*/||'`"; \
+	    echo " $(LIBTOOL) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) '$$p' '$(DESTDIR)$(libdir)/$$f'"; \
+	    $(LIBTOOL) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) "$$p" "$(DESTDIR)$(libdir)/$$f"; \
+	  else :; fi; \
+	done
+
+uninstall-libLTLIBRARIES:
+	@$(NORMAL_UNINSTALL)
+	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	    p="`echo $$p | sed -e 's|^.*/||'`"; \
+	  echo " $(LIBTOOL) --mode=uninstall rm -f '$(DESTDIR)$(libdir)/$$p'"; \
+	  $(LIBTOOL) --mode=uninstall rm -f "$(DESTDIR)$(libdir)/$$p"; \
+	done
+
+clean-libLTLIBRARIES:
+	-test -z "$(lib_LTLIBRARIES)" || rm -f $(lib_LTLIBRARIES)
+	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	  dir="`echo $$p | sed -e 's|/[^/]*$$||'`"; \
+	  test "$$dir" != "$$p" || dir=.; \
+	  echo "rm -f \"$${dir}/so_locations\""; \
+	  rm -f "$${dir}/so_locations"; \
+	done
 install-pluginLTLIBRARIES: $(plugin_LTLIBRARIES)
 	@$(NORMAL_INSTALL)
 	test -z "$(plugindir)" || $(mkdir_p) "$(DESTDIR)$(plugindir)"
@@ -351,6 +404,8 @@ clean-pluginLTLIBRARIES:
 	  echo "rm -f \"$${dir}/so_locations\""; \
 	  rm -f "$${dir}/so_locations"; \
 	done
+libgnunetidentity_api.la: $(libgnunetidentity_api_la_OBJECTS) $(libgnunetidentity_api_la_DEPENDENCIES) 
+	$(LINK) -rpath $(libdir) $(libgnunetidentity_api_la_LDFLAGS) $(libgnunetidentity_api_la_OBJECTS) $(libgnunetidentity_api_la_LIBADD) $(LIBS)
 libgnunetmodule_identity.la: $(libgnunetmodule_identity_la_OBJECTS) $(libgnunetmodule_identity_la_DEPENDENCIES) 
 	$(LINK) -rpath $(plugindir) $(libgnunetmodule_identity_la_LDFLAGS) $(libgnunetmodule_identity_la_OBJECTS) $(libgnunetmodule_identity_la_LIBADD) $(LIBS)
 
@@ -370,6 +425,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/clientapi.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hostkey.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/identity.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/identitytest.Po@am__quote@
@@ -562,7 +618,7 @@ check-am: all-am
 check: check-am
 all-am: Makefile $(LTLIBRARIES)
 installdirs:
-	for dir in "$(DESTDIR)$(plugindir)"; do \
+	for dir in "$(DESTDIR)$(libdir)" "$(DESTDIR)$(plugindir)"; do \
 	  test -z "$$dir" || $(mkdir_p) "$$dir"; \
 	done
 install: install-am
@@ -591,8 +647,8 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-checkPROGRAMS clean-generic clean-libtool \
-	clean-pluginLTLIBRARIES mostlyclean-am
+clean-am: clean-checkPROGRAMS clean-generic clean-libLTLIBRARIES \
+	clean-libtool clean-pluginLTLIBRARIES mostlyclean-am
 
 distclean: distclean-am
 	-rm -rf ./$(DEPDIR)
@@ -612,7 +668,7 @@ info-am:
 
 install-data-am: install-pluginLTLIBRARIES
 
-install-exec-am:
+install-exec-am: install-libLTLIBRARIES
 
 install-info: install-info-am
 
@@ -638,20 +694,22 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-info-am uninstall-pluginLTLIBRARIES
+uninstall-am: uninstall-info-am uninstall-libLTLIBRARIES \
+	uninstall-pluginLTLIBRARIES
 
 .PHONY: CTAGS GTAGS all all-am check check-TESTS check-am clean \
-	clean-checkPROGRAMS clean-generic clean-libtool \
-	clean-pluginLTLIBRARIES ctags distclean distclean-compile \
-	distclean-generic distclean-libtool distclean-tags distdir dvi \
-	dvi-am html html-am info info-am install install-am \
-	install-data install-data-am install-exec install-exec-am \
-	install-info install-info-am install-man \
-	install-pluginLTLIBRARIES install-strip installcheck \
-	installcheck-am installdirs maintainer-clean \
-	maintainer-clean-generic mostlyclean mostlyclean-compile \
-	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	tags uninstall uninstall-am uninstall-info-am \
+	clean-checkPROGRAMS clean-generic clean-libLTLIBRARIES \
+	clean-libtool clean-pluginLTLIBRARIES ctags distclean \
+	distclean-compile distclean-generic distclean-libtool \
+	distclean-tags distdir dvi dvi-am html html-am info info-am \
+	install install-am install-data install-data-am install-exec \
+	install-exec-am install-info install-info-am \
+	install-libLTLIBRARIES install-man install-pluginLTLIBRARIES \
+	install-strip installcheck installcheck-am installdirs \
+	maintainer-clean maintainer-clean-generic mostlyclean \
+	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
+	pdf pdf-am ps ps-am tags uninstall uninstall-am \
+	uninstall-info-am uninstall-libLTLIBRARIES \
 	uninstall-pluginLTLIBRARIES
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.

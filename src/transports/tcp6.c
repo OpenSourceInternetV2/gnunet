@@ -29,6 +29,7 @@
 #include "gnunet_transport.h"
 #include "gnunet_stats_service.h"
 #include "platform.h"
+#include "ip.h"
 #include "ip6.h"
 
 #define DEBUG_TCP6 NO
@@ -36,8 +37,11 @@
 /**
  * after how much time of the core not being associated with a tcp6
  * connection anymore do we close it?
+ *
+ * Needs to be larger than SECONDS_INACTIVE_DROP in
+ * core's connection.s
  */
-#define TCP6_TIMEOUT 30 * cronSECONDS
+#define TCP6_TIMEOUT 600 * cronSECONDS
 
 #define TARGET_BUFFER_SIZE 4092
 
@@ -171,18 +175,18 @@ static unsigned short getGNUnetTCP6Port() {
  * is reachable at that address). Since the reply
  * will be asynchronous, a method must be called on
  * success.
- * @param helo the hello message to verify
+ * @param hello the hello message to verify
  *        (the signature/crc have been verified before)
  * @return OK on success, SYSERR on error
  */
-static int verifyHelo(const P2P_hello_MESSAGE * helo) {
+static int verifyHello(const P2P_hello_MESSAGE * hello) {
   Host6Address * haddr;
 
-  haddr = (Host6Address*) &helo[1];
-  if ( (ntohs(helo->senderAddressSize) != sizeof(Host6Address)) ||
-       (ntohs(helo->header.size) != P2P_hello_MESSAGE_size(helo)) ||
-       (ntohs(helo->header.type) != p2p_PROTO_hello) ||
-       (ntohs(helo->protocol) != TCP6_PROTOCOL_NUMBER) ||
+  haddr = (Host6Address*) &hello[1];
+  if ( (ntohs(hello->senderAddressSize) != sizeof(Host6Address)) ||
+       (ntohs(hello->header.size) != P2P_hello_MESSAGE_size(hello)) ||
+       (ntohs(hello->header.type) != p2p_PROTO_hello) ||
+       (ntohs(hello->protocol) != TCP6_PROTOCOL_NUMBER) ||
        (YES == isBlacklisted(&haddr->ip,
 			     sizeof(IP6addr))) ||
        (YES != isWhitelisted(&haddr->ip,
@@ -234,11 +238,11 @@ static P2P_hello_MESSAGE * createhello() {
 /**
  * Establish a connection to a remote node.
  *
- * @param helo the hello-Message for the target node
+ * @param hello the hello-Message for the target node
  * @param tsessionPtr the session handle that is set
  * @return OK on success, SYSERR if the operation failed
  */
-static int tcp6Connect(const P2P_hello_MESSAGE * helo,
+static int tcp6Connect(const P2P_hello_MESSAGE * hello,
 		       TSession ** tsessionPtr) {
   int i;
   Host6Address * haddr;
@@ -250,7 +254,7 @@ static int tcp6Connect(const P2P_hello_MESSAGE * helo,
 
   if (selector == NULL)
     return SYSERR;
-  haddr = (Host6Address*) &helo[1];
+  haddr = (Host6Address*) &hello[1];
   memset(&hints, 0, sizeof(hints));
   hints.ai_family = PF_INET6;
   hints.ai_socktype = SOCK_STREAM;
@@ -322,7 +326,7 @@ static int tcp6Connect(const P2P_hello_MESSAGE * helo,
   if (sock == -1)
     return SYSERR;
   GE_ASSERT(ectx, s != NULL);
-  return tcpConnectHelper(helo,
+  return tcpConnectHelper(hello,
 			  s,
 			  tcp6API.protocolNumber,
 			  tsessionPtr);
@@ -332,7 +336,7 @@ static int tcp6Connect(const P2P_hello_MESSAGE * helo,
  * Start the server process to receive inbound traffic.
  * @return OK on success, SYSERR if the operation failed
  */
-static int startTransportServer(void) {
+static int startTransportServer() {
   struct sockaddr_in6 serverAddr;
   const int on = 1;
   unsigned short port;
@@ -445,50 +449,27 @@ static int reloadConfiguration(void * ctx,
 }
 
 /**
- * Convert TCP6 address to a string.
+ * Convert TCP6  hello to IPv6 address
  */
-static char * 
-addressToString(const P2P_hello_MESSAGE * hello,
-		int do_resolve) {
-  char * ret;
-  char inet6[INET6_ADDRSTRLEN];
+static int
+helloToAddress(const P2P_hello_MESSAGE * hello,
+	       void ** sa,
+	       unsigned int * sa_len) {
   const Host6Address * haddr = (const Host6Address*) &hello[1];
-  const char * hn = "";
-  struct hostent * ent;
-  size_t n;
-
-#if HAVE_GETHOSTBYADDR
-  if (do_resolve) {
-    ent = gethostbyaddr(haddr,
-			sizeof(IPaddr),
-			AF_INET);
-    if (ent != NULL)
-      hn = ent->h_name;
-  }    
-#endif
-  n = INET6_ADDRSTRLEN + 16 + strlen(hn) + 10;
-  ret = MALLOC(n);
-  if (strlen(hn) > 0) {
-    SNPRINTF(ret,
-	     n,
-	     "%s (%s) TCP6 (%u)",
-	     hn,
-	     inet_ntop(AF_INET6,
-		       haddr,
-		       inet6,
-		       INET6_ADDRSTRLEN),
-	     ntohs(haddr->port));
-  } else {
-    SNPRINTF(ret,
-	     n,
-	     "%s TCP6 (%u)",
-	     inet_ntop(AF_INET6,
-		       haddr,
-		       inet6,
-		       INET6_ADDRSTRLEN),
-	     ntohs(haddr->port));
-  }
-  return ret;
+  struct sockaddr_in6 * serverAddr;
+  
+  *sa_len = sizeof(struct sockaddr_in6);
+  serverAddr = MALLOC(sizeof(struct sockaddr_in6));
+  *sa = serverAddr;
+  memset(serverAddr,
+	 0,
+	 sizeof(struct sockaddr_in6));
+  serverAddr->sin6_family   = AF_INET6;
+  memcpy(&serverAddr->sin6_addr,
+	 haddr,
+	 sizeof(IP6addr));
+  serverAddr->sin6_port = haddr->port;
+  return OK;
 }
 
 
@@ -525,7 +506,7 @@ TransportAPI * inittransport_tcp6(CoreAPIForTransport * core) {
  tcp6API.protocolNumber       = TCP6_PROTOCOL_NUMBER;
   tcp6API.mtu                  = 0;
   tcp6API.cost                 = 19950; /* about equal to udp6 */
-  tcp6API.verifyHelo           = &verifyHelo;
+  tcp6API.verifyHello           = &verifyHello;
   tcp6API.createhello          = &createhello;
   tcp6API.connect              = &tcp6Connect;
   tcp6API.associate            = &tcpAssociate;
@@ -533,7 +514,7 @@ TransportAPI * inittransport_tcp6(CoreAPIForTransport * core) {
   tcp6API.disconnect           = &tcpDisconnect;
   tcp6API.startTransportServer = &startTransportServer;
   tcp6API.stopTransportServer  = &stopTransportServer;
-  tcp6API.addressToString      = &addressToString;
+  tcp6API.helloToAddress       = &helloToAddress;
   tcp6API.testWouldTry         = &tcpTestWouldTry;
 
   return &tcp6API;

@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2006 Christian Grothoff (and other contributing authors)
+     (C) 2006, 2007 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -29,10 +29,6 @@
 #include "gnunet_util_config_impl.h"
 #include "gnunet_util_error_loggers.h"
 #include "platform.h"
-
-#define DO_REQUEST NO
-
-#define DO_DEVELOPER NO
 
 static GE_KIND
 convertLogLevel(const char * level) {
@@ -70,6 +66,7 @@ static int configure_logging(struct GE_Context ** ectx,
   struct GE_Context * nctx;
   struct GE_Context * tetx;
   unsigned long long logrotate;
+  int dev;
 
   nctx = NULL;
   admin_log_file = NULL;
@@ -101,28 +98,33 @@ static int configure_logging(struct GE_Context ** ectx,
 				    "USER-LEVEL",
 				    "WARNING",
 				    &user_log_level);
+  dev = GC_get_configuration_value_yesno(cfg,
+					 "LOGGING",
+					 "DEVELOPER",
+					 NO);
   all = convertLogLevel(admin_log_level);
   ull = convertLogLevel(user_log_level);
+  if (dev == YES) {
+    all |= GE_DEVELOPER | GE_REQUEST;
+    ull |= GE_DEVELOPER | GE_REQUEST;
+  }
   FREE(admin_log_level);
   FREE(user_log_level);
   if (all != 0) {
     nctx = GE_create_context_logfile(NULL,
-				     all | GE_ADMIN | GE_BULK | GE_IMMEDIATE,
+				     all
+				     | GE_ADMIN
+				     | GE_BULK
+				     | GE_IMMEDIATE,
 				     admin_log_file,
 				     YES,
 				     (int) logrotate);
   }
   FREE(admin_log_file);
   if (ull != 0) {
-    tetx = GE_create_context_stderr(NO,
+    tetx = GE_create_context_stderr(YES,
 				    ull
 				    | GE_USERKIND
-#if DO_REQUEST
-				    | GE_REQUEST
-#endif
-#if DO_DEVELOPER
-                                    | GE_DEVELOPER | GE_DEBUG | GE_ADMIN
-#endif
 				    | GE_BULK
 				    | GE_IMMEDIATE);
     if (nctx == NULL)
@@ -154,7 +156,9 @@ int GNUNET_init(int argc,
 		struct GE_Context ** ectx,
 		struct GC_Configuration ** cfg) {
   int i;
-  char *path;
+  char * path;
+  int is_daemon;
+  int ret;
 
   os_init(NULL);
 
@@ -165,9 +169,11 @@ int GNUNET_init(int argc,
   FREE(path);
   textdomain("GNUnet");
 #endif
+  is_daemon = 0 == strcmp(DEFAULT_DAEMON_CONFIG_FILE, *cfgFileName);
+
   /* during startup, log all warnings and higher
      for anybody to stderr */
-  *ectx = GE_create_context_stderr(NO,
+  *ectx = GE_create_context_stderr(YES,
 				   GE_WARNING | GE_ERROR | GE_FATAL |
 				   GE_USER | GE_ADMIN | GE_DEVELOPER |
 				   GE_IMMEDIATE | GE_BULK);
@@ -183,6 +189,32 @@ int GNUNET_init(int argc,
 			   argv);
   if (i == -1)
     return -1;
+  if ( (YES != disk_file_test(*ectx,
+			      *cfgFileName)) &&
+       (! is_daemon) ) {
+    char * run;
+    char * bindir;
+    size_t max;
+
+    bindir = os_get_installation_path(IPK_BINDIR);
+    max = 128 + strlen(*cfgFileName) + strlen(bindir);
+    run = MALLOC(max);
+    SNPRINTF(run,
+	     max,
+	     "%sgnunet-setup -c %s generate-defaults",
+	     bindir,
+	     *cfgFileName);
+    FREE(bindir);
+    ret = system(run);
+    if (0 != ret)
+      GE_LOG(*ectx,
+	     GE_ERROR | GE_USER | GE_IMMEDIATE,
+	     _("Failed to run %s: %s %d\n"),
+	     run,
+	     strerror(errno),
+	     WEXITSTATUS(ret));
+    FREE(run);
+  }
   if (0 != GC_parse_configuration(*cfg,
 				  *cfgFileName))
     return -1;
@@ -211,6 +243,7 @@ int GNUNET_init(int argc,
 void GNUNET_fini(struct GE_Context * ectx,
 		 struct GC_Configuration * cfg) {
   GC_free(cfg);
+  GE_setDefaultContext(NULL);
   GE_free_context(ectx);
 }
 		

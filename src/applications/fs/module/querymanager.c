@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -25,10 +25,12 @@
  */
 
 #include "platform.h"
+#include "gnunet_stats_service.h"
 #include "gnunet_protocols.h"
 #include "gnunet_core.h"
 #include "fs.h"
 #include "querymanager.h"
+
 
 #define DEBUG_QUERYMANAGER NO
 
@@ -37,6 +39,16 @@ typedef struct {
   unsigned int type;
   struct ClientHandle * client;
 } TrackRecord;
+
+
+/**
+ * Stats service.
+ */
+static Stats_ServiceAPI * stats;
+
+static int stat_queries_tracked;
+
+static int stat_replies_transmitted;
 
 /**
  * Array of the queries we are currently sending out.
@@ -59,6 +71,8 @@ static struct GE_Context * ectx;
 static void removeEntry(unsigned int off) {
   GE_ASSERT(ectx, off < trackerCount);
   FREE(trackers[off]);
+  if (stats != NULL)
+    stats->change(stat_queries_tracked, -1);
   trackers[off] = trackers[--trackerCount];
   trackers[trackerCount] = NULL;
   if ( (trackerSize > 64) &&
@@ -85,17 +99,8 @@ static void ceh(struct ClientHandle * client) {
 void trackQuery(const HashCode512 * query,
 		unsigned int type,
 		struct ClientHandle * client) {
-  int i;
-
   GE_ASSERT(ectx, client != NULL);
   MUTEX_LOCK(queryManagerLock);
-  for (i=trackerCount-1;i>=0;i--)
-    if ( (trackers[i]->client == client) &&
-	 (equalsHashCode512(&trackers[i]->query,
-			    query)) ) {
-      MUTEX_UNLOCK(queryManagerLock);
-      return;
-    }
   if (trackerSize == trackerCount)
     GROW(trackers,
 	 trackerSize,
@@ -105,6 +110,8 @@ void trackQuery(const HashCode512 * query,
   trackers[trackerCount]->type = type;
   trackers[trackerCount]->client = client;
   trackerCount++;
+  if (stats != NULL)
+    stats->change(stat_queries_tracked, 1);
   MUTEX_UNLOCK(queryManagerLock);
 }
 
@@ -124,6 +131,8 @@ void untrackQuery(const HashCode512 * query,
 	 (equalsHashCode512(&trackers[i]->query,
 			    query)) ) {
       removeEntry(i);
+      if (stats != NULL)
+	stats->change(stat_queries_tracked, -1);
       MUTEX_UNLOCK(queryManagerLock);
       return;
     }
@@ -145,7 +154,7 @@ void processResponse(const HashCode512 * key,
   EncName enc;
 #endif
 
-  GE_ASSERT(ectx, 
+  GE_ASSERT(ectx,
 	    ntohl(value->size) > sizeof(Datastore_Value));
   if ( (ntohll(value->expirationTime) < get_time()) &&
        (ntohl(value->type) != D_BLOCK) )
@@ -182,6 +191,9 @@ void processResponse(const HashCode512 * key,
 	     &enc,
 	     i);
 #endif
+      if (stats != NULL)
+	stats->change(stat_replies_transmitted,
+		      1);
       coreAPI->sendToClient(trackers[i]->client,
 			    &rc->header);
       FREE(rc);
@@ -209,17 +221,32 @@ int initQueryManager(CoreAPIForApplication * capi) {
        trackerSize,
        64);
   queryManagerLock = MUTEX_CREATE(NO);
+  stats = capi->requestService("stats");
+  if (stats != NULL) {
+    stat_queries_tracked
+      = stats->create(gettext_noop("# FS currently tracked queries from clients"));
+    stat_replies_transmitted
+      = stats->create(gettext_noop("# FS replies passed to clients"));
+  }
   return OK;
 }
 
 void doneQueryManager() {
   int i;
-  for (i=trackerCount-1;i>=0;i--)
+
+  for (i=trackerCount-1;i>=0;i--) 
     FREE(trackers[i]);
+  
   GROW(trackers,
        trackerSize,
-       0);
+       0); 
   trackerCount = 0;
+  if (stats != NULL) {
+    stats->set(stat_queries_tracked, 0);
+    coreAPI->releaseService(stats);
+    stats = NULL;
+  }
+
   coreAPI->unregisterClientExitHandler(&ceh);
   MUTEX_DESTROY(queryManagerLock);
   coreAPI = NULL;

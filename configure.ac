@@ -21,8 +21,8 @@
 #
 #
 AC_PREREQ(2.57)
-AC_INIT([GNUnet], [0.7.1c],[bug-gnunet@gnu.org])
-AM_INIT_AUTOMAKE([GNUnet], [0.7.1c])
+AC_INIT([GNUnet], [0.7.2],[bug-gnunet@gnu.org])
+AM_INIT_AUTOMAKE([GNUnet], [0.7.2])
 AM_CONFIG_HEADER([config.h])
 
 AH_TOP([#define _GNU_SOURCE  1])
@@ -34,6 +34,7 @@ AC_PROG_CPP
 AC_PROG_INSTALL
 AC_PROG_LN_S
 AC_PROG_MAKE_SET
+AC_PROG_MKDIR_P
 AC_LIBTOOL_WIN32_DLL
 AC_CANONICAL_HOST
 
@@ -77,6 +78,7 @@ case "$host_os" in
      ;;
 linux*)
      AC_DEFINE_UNQUOTED(LINUX,1,[This is a Linux system])
+     build_target="linux"
      ;;
 freebsd*)
      AC_DEFINE_UNQUOTED(SOMEBSD,1,[This is a BSD system])
@@ -88,6 +90,7 @@ openbsd*)
      AC_DEFINE_UNQUOTED(SOMEBSD,1,[This is a BSD system])
      AC_DEFINE_UNQUOTED(OPENBSD,1,[This is an OpenBSD system])
      LIBS=`echo $LIBS | sed -e "s/-ldl//"`
+     build_target="openbsd"
      ;;
 netbsd*)
      AC_DEFINE_UNQUOTED(SOMEBSD,1,[This is a BSD system])
@@ -103,6 +106,7 @@ netbsd*)
 *arm-linux*)
      AC_DEFINE_UNQUOTED(LINUX,1,[This is a Linux system])
      CFLAGS="-D_REENTRANT -fPIC -pipe $CFLAGS"
+     build_target="linux"
      ;;
 *cygwin*)
      AC_DEFINE_UNQUOTED(CYGWIN,1,[This is a Cygwin system])
@@ -135,6 +139,8 @@ AM_CONDITIONAL(CYGWIN,  test "$build_target" = "cygwin")
 AM_CONDITIONAL(MINGW,   test "$build_target" = "mingw")
 AM_CONDITIONAL(SOLARIS, test "$build_target" = "solaris")
 AM_CONDITIONAL(XFREEBSD, test "$build_target" = "freebsd")
+AM_CONDITIONAL(OPENBSD, test "$build_target" = "openbsd")
+AM_CONDITIONAL(LINUX, test "$build_target" = "linux")
 AC_MSG_RESULT([$build_target])
 
 
@@ -434,9 +440,45 @@ AC_ARG_WITH(microhttpd,
     AC_CHECK_HEADERS(microhttpd.h,
       AC_CHECK_LIB([microhttpd], [MHD_start_daemon],
           lmhd=1))])
-
+# NO libmicrohttpd/http support for 0.7.2 release!
+lmhd=0
 AM_CONDITIONAL(HAVE_MHD, test x$lmhd = x1)
 AC_DEFINE_UNQUOTED([HAVE_MHD], $lmhd, [We have libmicrohttpd])
+
+
+
+# GNU adns
+adns=0
+AC_CHECK_LIB([adns],[adns_init])
+AC_MSG_CHECKING([for GNU adns])
+AC_ARG_WITH(adns,
+   [  --with-adns=PFX    Base of GNU adns installation],
+   [AC_MSG_RESULT([$with_adns])
+    case $with_adns in
+      no)
+        ;;
+      yes)
+        AC_CHECK_HEADERS(adns.h,
+          AC_CHECK_LIB([adns], [adns_init],
+            adns=1))
+        ;;
+      *)
+        LDFLAGS="-L$with_adns/lib $LDFLAGS"
+        CPPFLAGS="-I$with_adns/include $CPPFLAGS"
+        AC_CHECK_HEADERS(adns.h,
+          AC_CHECK_LIB([adns], [adns_init],
+            EXT_LIB_PATH="-L$with_adns/lib $EXT_LIB_PATH"
+              adns=1))
+        ;;
+    esac
+   ],
+   [AC_MSG_RESULT([--with-adns not specified])
+    AC_CHECK_HEADERS(adns.h,
+      AC_CHECK_LIB([adns], [adns_init],
+          adns=1))])
+
+AM_CONDITIONAL(HAVE_ADNS, test x$adns = x1)
+AC_DEFINE_UNQUOTED([HAVE_ADNS], $adns, [We have GNU adns])
 
 # check for gtk >= 2.6.0
 AC_MSG_CHECKING(for gtk)
@@ -496,7 +538,7 @@ AC_FUNC_VPRINTF
 AC_HEADER_SYS_WAIT
 AC_TYPE_OFF_T
 AC_TYPE_UID_T
-AC_CHECK_FUNCS([floor gethostname memmove rmdir strncasecmp strrchr strtol atoll dup2 fdatasync ftruncate gethostbyname gettimeofday memset mkdir mkfifo select socket strcasecmp strchr strdup strerror strstr clock_gettime getrusage rand uname setlocale getcwd mktime gmtime_r gmtime strlcpy strlcat ftruncate stat64 sbrk mmap mremap setrlimit gethostbyaddr initgroups getifaddrs freeifaddrs])
+AC_CHECK_FUNCS([floor gethostname memmove rmdir strncasecmp strrchr strtol atoll dup2 fdatasync ftruncate gethostbyname gettimeofday memset mkdir mkfifo select socket strcasecmp strchr strdup strerror strstr clock_gettime getrusage rand uname setlocale getcwd mktime gmtime_r gmtime strlcpy strlcat ftruncate stat64 sbrk mmap mremap setrlimit gethostbyaddr initgroups getifaddrs freeifaddrs getnameinfo])
 
 # restore LIBS
 LIBS=$SAVE_LIBS
@@ -603,6 +645,7 @@ src/applications/state/Makefile
 src/applications/stats/Makefile
 src/applications/tbench/Makefile
 src/applications/template/Makefile
+src/applications/testing/Makefile
 src/applications/topology_default/Makefile
 src/applications/topology_f2f/Makefile
 src/applications/tracekit/Makefile
@@ -650,10 +693,10 @@ then
  AC_MSG_NOTICE([NOTICE: curses based gnunet-setup frontends will not be installed.])
 fi
 
-if test "$lmhd" != 1
-then
- AC_MSG_NOTICE([NOTICE: libmicrohttpd not found, http transport will not be installed.])
-fi
+#if test "$lmhd" != 1
+#then
+# AC_MSG_NOTICE([NOTICE: libmicrohttpd not found, http transport will not be installed.])
+#fi
 
 if test "$ipv6" = "0"
 then
@@ -671,5 +714,11 @@ fi
 if test "$guile" != 1
 then
  AC_MSG_NOTICE([WARNING: Guile not found, gnunet-setup will not be installed.])
+fi
+
+
+if test "$adns" != 1
+then
+ AC_MSG_NOTICE([WARNING: GNU adns not found, will use synchronous DNS resolution.])
 fi
 

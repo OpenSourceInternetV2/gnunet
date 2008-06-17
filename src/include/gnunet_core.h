@@ -27,9 +27,8 @@
 #ifndef COREAPI_H
 #define COREAPI_H
 
-#include "gnunet_util.h"
+#include "gnunet_util_core.h"
 #include "gnunet_util_cron.h"
-#include "gnunet_util_crypto.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -76,66 +75,12 @@ extern "C" {
  * layer side
  */
 typedef struct {
-  unsigned short ttype;
   void * internal;
+
+  PeerIdentity peer;
+
+  unsigned short ttype;
 } TSession;
-
-/**
- * @brief hello.  A hello body contains the current HostAddress, the
- * host identity (hash), the time how long the HostAddress is valid, a
- * signature signing the information above and the public key of the
- * host.  The hash of the public key must match the host identity.<p>
- *
- * The signature goes over the message starting at the PeerIdentity
- * and includes the senderAddress.  Since the senderAddress may be
- * long, what is actually signed is the hash of these bytes.
- */
-typedef struct {
-  MESSAGE_HEADER header;
-
-  /**
-   * The signature
-   */
-  Signature signature;
-
-  /**
-   * The public key
-   */
-  PublicKey publicKey;
-
-  /**
-   * Whose identity follows? No, this is NOT a duplicate
-   * as a node may send us the identity of ANOTHER node!
-   */
-  PeerIdentity senderIdentity;
-
-  /**
-   * time this address expires  (network byte order)
-   */
-  TIME_T expirationTime;
-
-  /**
-   * advertised MTU for sending (replies can have a different
-   * MTU!)
-   */
-  unsigned int MTU;
-
-  /**
-   * size of the sender address
-   */
-  unsigned short senderAddressSize;
-
-  /**
-   * protocol supported by the node (only one protocol
-   * can be advertised by the same hello)
-   * Examples are UDP, TCP, etc. This field is
-   * in network byte order
-   */
-  unsigned short protocol;
-
-} P2P_hello_MESSAGE;
-
-#define P2P_hello_MESSAGE_size(helo) ((sizeof(P2P_hello_MESSAGE) + ntohs((helo)->senderAddressSize)))
 
 /**
  * Opaque handle for client connections passed by
@@ -544,11 +489,13 @@ typedef struct {
    * Query how much bandwidth is availabe FROM the given node to
    * this node in bpm (at the moment).
    *
-   * @return 0 only if we are NOT connected at all,
-   *  this way, this method can be used to test if we
-   *  are currently connected to a peer.
+   * @param bpm set to the bandwidth
+   * @param last_seen set to last time peer was confirmed up
+   * @return OK on success, SYSERR if if we are NOT connected
    */
-  unsigned int (*queryBPMfromPeer)(const PeerIdentity * node);
+  int (*queryPeerStatus)(const PeerIdentity * node,
+			 unsigned int * bpm,
+			 cron_t * last_seen);
 
   /**
    * Disconnect a particular peer. Sends a HANGUP message to the other

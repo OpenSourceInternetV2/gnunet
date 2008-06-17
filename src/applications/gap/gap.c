@@ -1,17 +1,17 @@
 /*
   This file is part of GNUnet
   (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007 Christian Grothoff (and other contributing authors)
-  
+
   GNUnet is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published
   by the Free Software Foundation; either version 2, or (at your
   option) any later version.
-  
+
   GNUnet is distributed in the hope that it will be useful, but
   WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
   General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with GNUnet; see the file COPYING.  If not, write to the
   Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
@@ -161,13 +161,13 @@ static struct MUTEX * lock;
  * Linked list tracking reply statistics.  Synchronize access using
  * the lock!
  */
-static ReplyTrackData * rtdList = NULL;
+static ReplyTrackData * rtdList;
 
-static RewardEntry * rewards = NULL;
+static RewardEntry * rewards;
 
-static unsigned int rewardSize = 0;
+static unsigned int rewardSize;
 
-static unsigned int rewardPos = 0;
+static unsigned int rewardPos;
 
 /**
  * Hard CPU limit
@@ -591,6 +591,7 @@ static void sendToSelected(const PeerIdentity * peer,
  * (depending on load, queue, etc).
  */
 static void forwardQuery(const P2P_gap_query_MESSAGE * msg,
+			 const PeerIdentity * target,
 			 const PeerIdentity * excludePeer) {
   cron_t now;
   QueryRecord * qr;
@@ -604,7 +605,15 @@ static void forwardQuery(const P2P_gap_query_MESSAGE * msg,
   unsigned long long rankingSum;
   unsigned long long sel;
   unsigned long long pos;
+  PID_INDEX tpid;
 
+  if (target != NULL) {
+    /* connect to target host -- if known */
+    coreAPI->unicast(target,
+		     NULL,
+		     ntohl(msg->priority),
+		     0);
+  }
   now = get_time();
   MUTEX_LOCK(lock);
 
@@ -669,56 +678,61 @@ static void forwardQuery(const P2P_gap_query_MESSAGE * msg,
   memcpy(qr->msg,
 	 msg,
 	 ntohs(msg->header.size));
-  if (noclear == NO) {
+  if (noclear == NO)
     memset(&qr->bitmap[0],
 	   0,
 	   BITMAP_SIZE);
-    if (qr->noTarget != 0)
-      change_pid_rc(qr->noTarget, -1);
-    if (excludePeer != NULL)
-      qr->noTarget = intern_pid(excludePeer);
-    else
-      qr->noTarget = intern_pid(coreAPI->myIdentity);
-    qr->totalDistance = 0;
-    qr->rankings = MALLOC(sizeof(int)*8*BITMAP_SIZE);
-    qr->activeConnections
-      = coreAPI->forAllConnectedNodes
-      (&hotpathSelectionCode,
-       qr);
-    /* actual selection, proportional to rankings
-       assigned by hotpathSelectionCode ... */
-    rankingSum = 0;
-    for (i=0;i<8*BITMAP_SIZE;i++)
-      rankingSum += qr->rankings[i];
-    if (qr->activeConnections > 0) {
-      /* select 4 peers for forwarding */
-      for (i=0;i<4;i++) {
-	if (rankingSum == 0)
+
+  if (qr->noTarget != 0)
+    change_pid_rc(qr->noTarget, -1);
+  if (excludePeer != NULL)
+    qr->noTarget = intern_pid(excludePeer);
+  else
+    qr->noTarget = intern_pid(coreAPI->myIdentity);
+  qr->totalDistance = 0;
+  qr->rankings = MALLOC(sizeof(int)*8*BITMAP_SIZE);
+  qr->activeConnections
+    = coreAPI->forAllConnectedNodes
+    (&hotpathSelectionCode,
+     qr);
+  /* actual selection, proportional to rankings
+     assigned by hotpathSelectionCode ... */
+  rankingSum = 0;
+  for (i=0;i<8*BITMAP_SIZE;i++)
+    rankingSum += qr->rankings[i];
+  if (qr->activeConnections > 0) {
+    /* select 4 peers for forwarding */
+    for (i=0;i<4;i++) {
+      if (rankingSum == 0)
+	break;
+      sel = weak_randomi64(rankingSum);
+      pos = 0;	
+      for (j=0;j<8*BITMAP_SIZE;j++) {
+	pos += qr->rankings[j];
+	if (pos > sel) {
+	  setBit(qr, j);
+	  GE_ASSERT(ectx, rankingSum >= qr->rankings[j]);
+	  rankingSum -= qr->rankings[j];
+	  qr->rankings[j] = 0;
 	  break;
-	sel = weak_randomi64(rankingSum);
-	pos = 0;	
-	for (j=0;j<8*BITMAP_SIZE;j++) {
-	  pos += qr->rankings[j];
-	  if (pos > sel) {
-	    setBit(qr, j);
-	    GE_ASSERT(ectx, rankingSum >= qr->rankings[j]);
-	    rankingSum -= qr->rankings[j];
-	    qr->rankings[j] = 0;
-	    break;
-	  }
 	}
       }
     }
-    FREE(qr->rankings);
-    qr->rankings = NULL;
-    /* now forward to a couple of selected nodes */
-    coreAPI->forAllConnectedNodes
-      (&sendToSelected,
-       qr);
-    if (qr == &dummy) {
-      change_pid_rc(dummy.noTarget, -1);
-      FREE(dummy.msg);
-    }
+  }
+  FREE(qr->rankings);
+  qr->rankings = NULL;
+  if (target != NULL) {
+    tpid = intern_pid(target);
+    setBit(qr, tpid);
+    change_pid_rc(tpid, -1);
+  }
+  /* now forward to a couple of selected nodes */
+  coreAPI->forAllConnectedNodes
+    (&sendToSelected,
+     qr);
+  if (qr == &dummy) {
+    change_pid_rc(dummy.noTarget, -1);
+    FREE(dummy.msg);
   }
   MUTEX_UNLOCK(lock);
 }
@@ -915,6 +929,23 @@ static unsigned int claimReward(const HashCode512 * query) {
   return ret;
 }
 
+static void resetSeen(IndirectionTableEntry * ite) {
+  if (stats != NULL)
+    stats->change(stat_memory_seen, - ite->seenIndex);
+  GROW(ite->seen,
+       ite->seenIndex,
+       0);
+}
+
+static void resetDestinations(IndirectionTableEntry * ite) {
+  decrement_pid_rcs(ite->destination,
+		    ite->hostsWaiting);
+  if (stats != NULL)
+    stats->change(stat_memory_destinations, - ite->hostsWaiting);
+  GROW(ite->destination,
+       ite->hostsWaiting,
+       0);
+}
 
 /**
  * Add an entry to the routing table. The lock on the ite
@@ -957,11 +988,7 @@ static int addToSlot(int mode,
        stats->change(stat_routing_slots_used, 1);
 
   if (mode == ITE_REPLACE) {
-    if (stats != NULL)
-      stats->change(stat_memory_seen, - ite->seenIndex);
-    GROW(ite->seen,
-	 ite->seenIndex,
-	 0);
+    resetSeen(ite);
     ite->seenReplyWasUnique = NO;
     if (equalsHashCode512(query,
 			  &ite->primaryKey)) {
@@ -970,40 +997,28 @@ static int addToSlot(int mode,
       for (i=0;i<ite->hostsWaiting;i++)
 	if (ite->destination[i] == sender)
 	  return SYSERR;
-      if (ite->hostsWaiting >= MAX_HOSTS_WAITING) {
-	decrement_pid_rcs(ite->destination,
-			  ite->hostsWaiting);
-	if (stats != NULL)
-	  stats->change(stat_memory_destinations, - ite->hostsWaiting);
-	GROW(ite->destination,
-	     ite->hostsWaiting,
-	     0); /* RESET to avoid unbounded growth (#1014) */
-      }
+      if (ite->hostsWaiting >= MAX_HOSTS_WAITING) 
+	resetDestinations(ite);      
     } else {
       ite->successful_local_lookup_in_delay_loop = NO;
       /* different request, flush pending queues */
       dequeueQuery(&ite->primaryKey);
       ite->primaryKey = *query;
-      if (stats != NULL)
-	stats->change(stat_memory_destinations, - ite->hostsWaiting);
-      decrement_pid_rcs(ite->destination,
-			ite->hostsWaiting);
-      GROW(ite->destination,
-	   ite->hostsWaiting,
-	   0);
+      resetDestinations(ite);
       ite->ttl = now + ttl;
       ite->priority = priority;
     }
   } else { /* GROW mode */
-    GE_ASSERT(ectx, equalsHashCode512(query,
-				    &ite->primaryKey));
-    for (i=0;i<ite->hostsWaiting;i++)
-      if (sender == ite->destination[i])
-	return SYSERR; /* already there! */
+    GE_ASSERT(ectx, 
+	      equalsHashCode512(query,
+				&ite->primaryKey));
     /* extend lifetime */
     if (ite->ttl < now + ttl)
       ite->ttl = now + ttl;
     ite->priority += priority;
+    for (i=0;i<ite->hostsWaiting;i++)
+      if (sender == ite->destination[i])
+	return SYSERR; /* already there! */
   }
   if (stats != NULL)
     stats->change(stat_memory_destinations, 1);
@@ -1013,11 +1028,7 @@ static int addToSlot(int mode,
   ite->destination[ite->hostsWaiting-1] = sender;
   change_pid_rc(sender, 1);
   /* again: new listener, flush seen list */
-  if (stats != NULL)
-    stats->change(stat_memory_seen, - ite->seenIndex);
-  GROW(ite->seen,
-       ite->seenIndex,
-       0);
+  resetSeen(ite);
   ite->seenReplyWasUnique = NO;
   return OK;
 }
@@ -1098,11 +1109,7 @@ static int needsForwarding(const HashCode512 * query,
        longer expired than new query */
     /* previous entry relatively expired, start using the slot --
        and kill the old seen list!*/
-    if (stats != NULL)
-      stats->change(stat_memory_seen, - ite->seenIndex);
-    GROW(ite->seen,
-	 ite->seenIndex,
-	 0);
+    resetSeen(ite);
     ite->seenReplyWasUnique = NO;
     if ( (equal_to_pending) &&
 	 (YES == ite-> successful_local_lookup_in_delay_loop) ) {
@@ -1179,11 +1186,7 @@ static int needsForwarding(const HashCode512 * query,
     if (ite->seenReplyWasUnique) {
       if (ite->ttl < new_ttl) { /* ttl of new is longer? */
 	/* go again */
-	if (stats != NULL)
-	  stats->change(stat_memory_seen, - ite->seenIndex);
-	GROW(ite->seen,
-	     ite->seenIndex,
-	     0);
+	resetSeen(ite);
 	ite->seenReplyWasUnique = NO;
 	if (YES == ite->successful_local_lookup_in_delay_loop) {
 	  *isRouted = NO;
@@ -1324,7 +1327,8 @@ static void sendReply(IndirectionTableEntry * ite,
 #endif
 
   if (stats != NULL)
-    stats->change(stat_routing_successes, 1);
+    stats->change(stat_routing_successes,
+		  1);
   now = get_time();
   if (now < ite->ttl)
     maxDelay = ite->ttl - now;
@@ -1431,6 +1435,7 @@ queryLocalResultCallback(const HashCode512 * primaryKey,
  * subsequently be routed to other peers.
  *
  * @param sender next hop in routing of the reply, NULL for us
+ * @param target peer to ask primarily (maybe NULL)
  * @param prio the effective priority of the query
  * @param ttl the relative ttl of the query
  * @param query the query itself
@@ -1439,6 +1444,7 @@ queryLocalResultCallback(const HashCode512 * primaryKey,
  *         SYSERR if not (out of resources)
  */
 static int execQuery(const PeerIdentity * sender,
+		     const PeerIdentity * target,
 		     unsigned int prio,
 		     QUERY_POLICY policy,
 		     int ttl,
@@ -1579,6 +1585,7 @@ static int execQuery(const PeerIdentity * sender,
   MUTEX_UNLOCK(lookup_exclusion);
   if (doForward) {
     forwardQuery(query,
+		 target,
 		 sender);
   }
   change_pid_rc(senderID, -1);
@@ -1593,7 +1600,7 @@ static int execQuery(const PeerIdentity * sender,
  * sure that we do not send the same reply back on the same route more
  * than once.
  *
- * @param hostId who sent the content? NULL
+ * @param host who sent the content? NULL
  *        for locally found content.
  * @param msg the p2p reply that was received
  * @return how good this content was (effective
@@ -1616,9 +1623,6 @@ static int useContent(const PeerIdentity * host,
   EncName enc2;
 #endif
 
-  if (host == NULL)
-    return 0; /* IGNORE local replies! */
-
   if (ntohs(pmsg->size) < sizeof(P2P_gap_reply_MESSAGE)) {
     GE_BREAK(ectx, 0);
     return SYSERR; /* invalid! */
@@ -1635,7 +1639,7 @@ static int useContent(const PeerIdentity * host,
   ((char*)&enc2)[6] = '\0';
   GE_LOG(ectx,
 	 GE_DEBUG | GE_REQUEST | GE_USER,
-	 "GAP received content %s from `%s'\n",
+	 "GAP received content `%s' from `%s'\n",
 	 &enc2,
 	 (host != NULL) ? (const char*)&enc : "myself");
 #endif
@@ -1658,21 +1662,7 @@ static int useContent(const PeerIdentity * host,
   rhf(value,
       &contentHC);
 
-  /* FIRST: check if seen */
-  MUTEX_LOCK(lookup_exclusion);
-  for (i=0;i<ite->seenIndex;i++) {
-    if (equalsHashCode512(&contentHC,
-			  &ite->seen[i])) {
-      MUTEX_UNLOCK(lookup_exclusion);
-      FREE(value);
-      if (stats != NULL)
-	stats->change(stat_routing_reply_dups, 1);
-      return 0; /* seen before, useless */
-    }
-  }
-  MUTEX_UNLOCK(lookup_exclusion);
-
-  /* SECOND: check if valid */
+  /* FIRST: check if valid */
   ret = bs->put(bs->closure,
 		&msg->primaryKey,
 		value,
@@ -1692,7 +1682,22 @@ static int useContent(const PeerIdentity * host,
     GE_BREAK(ectx, 0);
     FREE(value);
     return SYSERR; /* invalid */
-  }  
+  }
+
+  /* SECOND: check if seen */
+  MUTEX_LOCK(lookup_exclusion);
+  for (i=0;i<ite->seenIndex;i++) {
+    if (equalsHashCode512(&contentHC,
+			  &ite->seen[i])) {
+      MUTEX_UNLOCK(lookup_exclusion);
+      FREE(value);
+      if (stats != NULL)
+	stats->change(stat_routing_reply_dups, 1);
+      return 0; /* seen before, useless */
+    }
+  }
+  MUTEX_UNLOCK(lookup_exclusion);
+
 
   /* THIRD: compute content priority/value and
      send remote reply (ITE processing) */
@@ -1738,17 +1743,8 @@ static int useContent(const PeerIdentity * host,
       /* kill routing entry -- we have seen so many different
 	 replies already that we cannot afford to continue
 	 to keep track of all of the responses seen (#1014) */
-      if (stats != NULL)
-	stats->change(stat_memory_destinations, - ite->hostsWaiting);
-      decrement_pid_rcs(ite->destination, ite->hostsWaiting);
-      GROW(ite->destination,
-	   ite->hostsWaiting,
-	   0);
-      if (stats != NULL)
-	stats->change(stat_memory_seen, - ite->seenIndex);
-      GROW(ite->seen,
-	   ite->seenIndex,
-	   0);
+      resetDestinations(ite);
+      resetSeen(ite);
       ite->priority = 0;
       ite->type = 0;
       ite->ttl = 0;
@@ -1824,6 +1820,7 @@ static int init(Blockstore * datastore,
  * datastore on anything that is received, and the caller will be
  * listening for these puts.
  *
+ * @param target peer to ask primarily (maybe NULL)
  * @param type the type of the block that we're looking for
  * @param anonymityLevel how much cover traffic is required? 1 for none
  *        (0 does not require GAP, 1 requires GAP but no cover traffic)
@@ -1834,7 +1831,8 @@ static int init(Blockstore * datastore,
  *  buffers are full or other error, NO if we already
  *  returned the one and only reply (local hit)
  */
-static int get_start(unsigned int type,
+static int get_start(const PeerIdentity * target,
+		     unsigned int type,
 		     unsigned int anonymityLevel,
 		     unsigned int keyCount,
 		     const HashCode512 * keys,
@@ -1919,6 +1917,7 @@ static int get_start(unsigned int type,
   msg->returnTo
     = *coreAPI->myIdentity;
   ret = execQuery(NULL,
+		  target,
 		  prio,
 		  QUERY_ANSWER|QUERY_FORWARD|QUERY_INDIRECT,
 		  timeout - get_time(),
@@ -1958,7 +1957,8 @@ tryMigrate(const DataContainer * data,
   unsigned int size;
 
   size = sizeof(P2P_gap_reply_MESSAGE) + ntohl(data->size) - sizeof(DataContainer);
-  if ( (size > padding) || (size >= MAX_BUFFER_SIZE) )
+  if ( (size > padding) ||
+       (size >= MAX_BUFFER_SIZE) )
     return 0;
   reply = (P2P_gap_reply_MESSAGE*) position;
   reply->header.type
@@ -1972,10 +1972,11 @@ tryMigrate(const DataContainer * data,
 	 size - sizeof(P2P_gap_reply_MESSAGE));
 #if EXTRA_CHECKS
   /* verify content integrity */
-  GE_ASSERT(ectx, SYSERR != bs->put(bs->closure,
-				  primaryKey,
-				  data,
-				  0));
+  GE_ASSERT(ectx,
+	    SYSERR != bs->put(bs->closure,
+			      primaryKey,
+			      data,
+			      0));
 #endif
   return size;
 }
@@ -2005,7 +2006,7 @@ static int handleQuery(const PeerIdentity * sender,
   if (loadTooHigh()) {
 #if DEBUG_GAP
     if (sender != NULL) {
-      IF_GELOG(ectx, 
+      IF_GELOG(ectx,
 	       GE_DEBUG | GE_REQUEST | GE_USER,
 	       hash2enc(&sender->hashPubKey,
 			&enc));
@@ -2112,6 +2113,7 @@ static int handleQuery(const PeerIdentity * sender,
   if (ttl < 0)
     ttl = 0;
   execQuery(sender,	
+	    NULL,
 	    prio,
 	    policy,
 	    ttl,
@@ -2191,7 +2193,7 @@ provide_module_gap(CoreAPIForApplication * capi) {
     stat_routing_request_repeat     = stats->create(gettext_noop("# gap duplicate requests that were re-tried"));
     stat_routing_request_repeat_dttl= stats->create(gettext_noop("# gap re-try ttl difference (cummulative)"));
     stat_routing_reply_dups         = stats->create(gettext_noop("# gap reply duplicates"));
-    stat_routing_reply_drops        = stats->create(gettext_noop("# gap spurious replies"));
+    stat_routing_reply_drops        = stats->create(gettext_noop("# gap spurious replies (dropped)"));
     stat_routing_slots_used         = stats->create(gettext_noop("# gap routing slots currently in use"));
     stat_memory_seen                = stats->create(gettext_noop("# gap memory used for tracking seen content"));
     stat_memory_destinations        = stats->create(gettext_noop("# gap memory used for tracking routing destinations"));
@@ -2279,18 +2281,9 @@ void release_module_gap() {
 
   for (i=0;i<indirectionTableSize;i++) {
     ite = &ROUTING_indTable_[i];
-    if (stats != NULL)
-      stats->change(stat_memory_seen, - ite->seenIndex);
-    GROW(ite->seen,
-	 ite->seenIndex,
-	 0);
+    resetSeen(ite);
     ite->seenReplyWasUnique = NO;
-    if (stats != NULL)
-      stats->change(stat_memory_destinations, - ite->hostsWaiting);
-    decrement_pid_rcs(ite->destination, ite->hostsWaiting);
-    GROW(ite->destination,
-	 ite->hostsWaiting,
-	 0);
+    resetDestinations(ite);
   }
 
   MUTEX_DESTROY(lookup_exclusion);

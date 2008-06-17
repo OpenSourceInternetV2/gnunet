@@ -39,6 +39,8 @@
 #include "gnunet_stats_service.h"
 #include "traffic.h"
 
+#define DEBUG 0
+
 /**
  * How many time-units back do we keep the history of?  (must really
  * be <=32 since we use the 32 bit in an unsigned int). The memory
@@ -162,6 +164,9 @@ static unsigned int max_message_type = 0;
  */
 static TrafficCounter ** counters = NULL;
 
+#if DEBUG
+static unsigned long long server_port;
+#endif
 
 static CoreAPIForApplication * coreAPI;
 
@@ -330,13 +335,13 @@ static CS_traffic_info_MESSAGE * buildReply(unsigned int countTimeUnits) {
 
 static int trafficQueryHandler(struct ClientHandle * sock,
 			       const MESSAGE_HEADER * message) {
-  CS_traffic_request_MESSAGE * msg;
+  const CS_traffic_request_MESSAGE * msg;
   CS_traffic_info_MESSAGE * reply;
   int ret;
 
   if (sizeof(CS_traffic_request_MESSAGE) != ntohs(message->size))
     return SYSERR;
-  msg = (CS_traffic_request_MESSAGE*) message;
+  msg = (const CS_traffic_request_MESSAGE*) message;
   reply = buildReply(ntohl(msg->timePeriod));
   ret = coreAPI->sendToClient(sock, &reply->header);
   FREE(reply);
@@ -525,13 +530,23 @@ static int trafficSend(const PeerIdentity * receiver,
 /**
  * Initialize the traffic module.
  */
-Traffic_ServiceAPI * provide_module_traffic(CoreAPIForApplication * capi) {
+Traffic_ServiceAPI *
+provide_module_traffic(CoreAPIForApplication * capi) {
   static Traffic_ServiceAPI api;
 #if KEEP_RECEIVE_STATS || KEEP_TRANSMITTED_STATS
   int i;
 #endif
 
   coreAPI = capi;
+#if DEBUG
+  GC_get_configuration_value_number(capi->cfg,
+				    "NETWORK",
+				    "PORT",
+				    0,
+				    65536,
+				    2087,
+				    &server_port);
+#endif
   api.get = &getTrafficStats;
 #if KEEP_TRANSMITTED_STATS
   for (i=0;i<P2P_PROTO_MAX_USED;i++)

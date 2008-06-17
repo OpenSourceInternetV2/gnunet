@@ -38,7 +38,7 @@
 #define STATE_NAME DIR_SEPARATOR_STR "data" DIR_SEPARATOR_STR "fs_uridb"
 #define TRACK_OPTION "fs_uridb_status"
 
-static struct IPC_SEMAPHORE * 
+static struct IPC_SEMAPHORE *
 createIPC(struct GE_Context * ectx,
 	  struct GC_Configuration * cfg) {
   char * basename;
@@ -60,7 +60,7 @@ createIPC(struct GE_Context * ectx,
   return sem;				
 }
 
-static char * 
+static char *
 getUriDbName(struct GE_Context * ectx,
 	     struct GC_Configuration * cfg) {
   char * nw;
@@ -137,6 +137,24 @@ int URITRACK_trackStatus(struct GE_Context * ectx,
   }
 }
 
+struct CheckPresentClosure {
+  const ECRS_FileInfo * fi;
+  int present;
+};
+
+static int checkPresent(const ECRS_FileInfo * fi,
+			const HashCode512 * key,
+			int isRoot,
+			void * closure) {
+  struct CheckPresentClosure * cpc = closure;
+  if (ECRS_equalsUri(fi->uri,
+		     cpc->fi->uri)) {
+    cpc->present = 1;
+    return SYSERR;
+  }
+  return OK;
+}
+
 /**
  * Makes a URI available for directory building.
  */
@@ -149,17 +167,28 @@ void URITRACK_trackURI(struct GE_Context * ectx,
   char * suri;
   int fh;
   char * fn;
+  struct CheckPresentClosure cpc;
 
   if (NO == URITRACK_trackStatus(ectx, cfg))
     return;
+  cpc.present = 0;
+  cpc.fi = fi;
+  URITRACK_listURIs(ectx,
+		    cfg,
+		    NO,
+		    &checkPresent,
+		    &cpc);
+  if (cpc.present == 1)
+    return;
   size = ECRS_sizeofMetaData(fi->meta,
-			     ECRS_SERIALIZE_FULL);
+			     ECRS_SERIALIZE_FULL | ECRS_SERIALIZE_NO_COMPRESS);
   data = MALLOC(size);
-  GE_ASSERT(ectx, size == ECRS_serializeMetaData(ectx,
-						 fi->meta,
-						 data,
-						 size,
-						 ECRS_SERIALIZE_FULL | ECRS_SERIALIZE_NO_COMPRESS));
+  GE_ASSERT(ectx,
+	    size == ECRS_serializeMetaData(ectx,
+					   fi->meta,
+					   data,
+					   size,
+					   ECRS_SERIALIZE_FULL | ECRS_SERIALIZE_NO_COMPRESS));
   size = htonl(size);
   suri = ECRS_uriToString(fi->uri);
   sem = createIPC(ectx, cfg);

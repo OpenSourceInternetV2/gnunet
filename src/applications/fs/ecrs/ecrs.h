@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2003, 2004 Christian Grothoff (and other contributing authors)
+     (C) 2003, 2004, 2007 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -52,7 +52,7 @@ typedef struct Location {
   FileIdentifier fi;
 
   /**
-   * Public key of the peer sharing the file.
+   * Identity of the peer sharing the file.
    */
   PublicKey peer;
 
@@ -63,38 +63,9 @@ typedef struct Location {
   TIME_T expirationTime;
 
   /**
-   * Transport protocol to use to contact the peer.
-   */
-  unsigned short proto;
-
-  /**
-   * Size of the address.
-   */
-  unsigned short sas;
-
-  /**
-   * MTU of the transport.
-   */
-  unsigned int mtu;
-
-  /**
-   * Address of the peer.
-   */
-  char * address;
-
-  /**
-   * RSA signature of the HELLO information
-   * (as constructed from the rest of the info
-   * in this struct).  This allows anyone to
-   * reconstruct a valid HELLO message from 
-   * the location URI.
-   */
-  Signature helloSignature;
-
-  /**
    * RSA signature over the FileIdentifier,
    * hash of the peer and expiration time.
-   * (everything until proto).  
+   * (everything until proto).
    */
   Signature contentSignature;
 

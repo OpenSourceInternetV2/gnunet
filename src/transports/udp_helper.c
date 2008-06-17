@@ -91,6 +91,12 @@ static int select_message_handler(void * mh_cls,
 	   _("Received malformed message from udp-peer connection. Closing.\n"));
     return SYSERR;
   }
+#if DEBUG_UDP
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_USER | GE_BULK,
+	 "Received %d bytes via UDP\n",
+	 len);
+#endif
   um = (const UDPMessage*) msg;
   mp      = MALLOC(sizeof(P2P_PACKET));
   mp->msg = MALLOC(len - sizeof(UDPMessage));
@@ -133,21 +139,23 @@ static void select_close_handler(void * ch_cls,
 
 /**
  * Establish a connection to a remote node.
- * @param helo the hello-Message for the target node
+ *
+ * @param hello the hello-Message for the target node
  * @param tsessionPtr the session handle that is to be set
  * @return OK on success, SYSERR if the operation failed
  */
-static int udpConnect(const P2P_hello_MESSAGE * helo,
+static int udpConnect(const P2P_hello_MESSAGE * hello,
 		      TSession ** tsessionPtr) {
   TSession * tsession;
 
   tsession = MALLOC(sizeof(TSession));
-  tsession->internal = MALLOC(P2P_hello_MESSAGE_size(helo));
+  tsession->internal = MALLOC(P2P_hello_MESSAGE_size(hello));
   memcpy(tsession->internal,
-	 helo,
-	 P2P_hello_MESSAGE_size(helo));
+	 hello,
+	 P2P_hello_MESSAGE_size(hello));
   tsession->ttype = udpAPI.protocolNumber;
-   (*tsessionPtr) = tsession;
+  tsession->peer = hello->senderIdentity;
+  *tsessionPtr = tsession;
   return OK;
 }
 

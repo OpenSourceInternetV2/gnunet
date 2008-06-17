@@ -67,20 +67,9 @@ void GE_LOG(struct GE_Context * ctx,
   size_t size;
   char * buf;
 
-  if (ctx == NULL) {
+  if (ctx == NULL)
     ctx = defaultContext;
-#ifdef WINDOWS
-    /* Most tools disband the console window early in the initialization
-       process, so we have to create a new one if we're logging to the
-       default context. */
-    if (AllocConsole()) {
-      if (ctx)
-        ctx->handler(ctx->cls, kind, date, _("Error log:"));
-      else
-        fprintf(stderr, "%s\n", _("Error log:"));
-    }
-#endif
-  }
+
   if ( (ctx != NULL)  &&
        (! GE_applies(kind, ctx->mask)) )
     return;
@@ -88,10 +77,13 @@ void GE_LOG(struct GE_Context * ctx,
        ( ((kind & (GE_IMMEDIATE | GE_BULK)) == 0) ||
 	 ((kind & (GE_FATAL | GE_ERROR | GE_WARNING)) == 0) ) )
     return;
+
   va_start(va, message);
   size = VSNPRINTF(NULL, 0, message, va) + 1;
   va_end(va);
   buf = malloc(size);
+  if (buf == NULL)
+    return; /* oops */
   va_start(va, message);
   VSNPRINTF(buf, size, message, va);
   va_end(va);

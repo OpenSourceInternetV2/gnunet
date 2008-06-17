@@ -67,7 +67,7 @@
  * </li><li>
  *
  * The last category identifies a datum on a specific machine.  The
- * format is "gnunet://ecrs/loc/HEX1.HEX2.SIZE.PEER.SIG1.SIG2.PROTO.SAS.MTU.EXPTIME.ADDR".  PEER is
+ * format is "gnunet://ecrs/loc/HEX1.HEX2.SIZE.PEER.SIG1.EXPTIME".  PEER is
  * the BinName of the public key of the peer storing the datum, SIG1 certifies
  * that this peer has this content; SIG2 is a signature for a HELLO
  * about peer, which is encoded in PROTO, SAS, MTU, EXPTIME and ADDR.
@@ -89,7 +89,7 @@
  * Generate a keyword URI.
  * @return NULL on error (i.e. keywordCount == 0)
  */
-static char * 
+static char *
 createKeywordURI(char ** keywords,
 		 unsigned int keywordCount) {
   size_t n;
@@ -113,7 +113,7 @@ createKeywordURI(char ** keywords,
 /**
  * Generate a subspace URI.
  */
-static char * 
+static char *
 createSubspaceURI(const HashCode512 * namespace,
 		  const HashCode512 * identifier) {
   size_t n;
@@ -137,7 +137,7 @@ createSubspaceURI(const HashCode512 * namespace,
 /**
  * Generate a file URI.
  */
-static char * 
+static char *
 createFileURI(const FileIdentifier * fi) {
   char * ret;
   EncName keyhash;
@@ -167,7 +167,7 @@ createFileURI(const FileIdentifier * fi) {
 /**
  * Create a (string) location URI from a Location.
  */
-static char * 
+static char *
 createLocURI(const Location * loc) {
   size_t n;
   char * ret;
@@ -175,26 +175,20 @@ createLocURI(const Location * loc) {
   EncName queryhash;
   char * peerId;
   char * peerSig;
-  char * peerHSig;
-  char * peerAddr;
 
   hash2enc(&loc->fi.chk.key,
            &keyhash);
   hash2enc(&loc->fi.chk.query,
            &queryhash);
-  n = 2148 + ntohs(loc->sas) * 2;
+  n = 2148;
   peerId = bin2enc(&loc->peer,
-		   sizeof(PublicKey));
+		    sizeof(PublicKey));
   peerSig = bin2enc(&loc->contentSignature,
 		    sizeof(Signature));
-  peerHSig = bin2enc(&loc->helloSignature,
-		     sizeof(Signature));
-  peerAddr = bin2enc(loc->address,
-		     loc->sas);
   ret = MALLOC(n);
   SNPRINTF(ret,
 	   n,
-	   "%s%s%s.%s.%llu.%s.%s.%s.%u.%u.%u.%u.%s",
+	   "%s%s%s.%s.%llu.%s.%s.%u",
 	   ECRS_URI_PREFIX,
 	   ECRS_LOCATION_INFIX,
 	   (char*)&keyhash,
@@ -202,16 +196,9 @@ createLocURI(const Location * loc) {
 	   ntohll(loc->fi.file_length),
 	   peerId,
 	   peerSig,
-	   peerHSig,
-	   loc->proto,
-	   loc->sas,
-	   loc->mtu,
-	   loc->expirationTime,
-	   peerAddr);
-  FREE(peerId);
+	   loc->expirationTime);
   FREE(peerSig);
-  FREE(peerHSig);
-  FREE(peerAddr);
+  FREE(peerId);
   return ret;
 }
 
@@ -335,7 +322,8 @@ static int parseSubspaceURI(struct GE_Context * ectx,
     return SYSERR;
   pos += strlen(ECRS_SUBSPACE_INFIX);
   if ( (slen < pos+sizeof(EncName)+1) ||
-       (!(uri[pos+sizeof(EncName)-1] == '/') || (uri[pos+sizeof(EncName)-1] == '\\')) )
+       (! ( (uri[pos+sizeof(EncName)-1] == '/') || 
+	    (uri[pos+sizeof(EncName)-1] == '\\') ) ) )
     return SYSERR;
 
   up = STRDUP(uri);
@@ -346,7 +334,7 @@ static int parseSubspaceURI(struct GE_Context * ectx,
     return SYSERR;
   }
   if ( (slen != pos+2*sizeof(EncName)-1) ||
-       (OK == enc2hash(&up[pos+sizeof(EncName)],
+       (OK != enc2hash(&up[pos+sizeof(EncName)],
 		       identifier)) ) {
     if (up[slen-1] == '\\')
       up[--slen] = '\0';
@@ -410,33 +398,6 @@ static int parseFileURI(struct GE_Context * ectx,
 }
 
 /**
- * (re)construct the HELLO message of the peer offering the data
- *
- * @return HELLO message
- */
-static P2P_hello_MESSAGE *
-getHelloFromLoc(const Location * loc) {
-  P2P_hello_MESSAGE * hello;
-
-  hello = MALLOC(sizeof(P2P_hello_MESSAGE) + loc->sas);
-  hello->header.size = htons(sizeof(P2P_hello_MESSAGE) + loc->sas);
-  hello->header.type = htons(p2p_PROTO_hello);
-  hello->MTU = htonl(loc->mtu);
-  hello->senderAddressSize = htons(loc->sas);
-  hello->protocol = htons(loc->proto);
-  hello->expirationTime = htonl(loc->expirationTime);
-  hello->publicKey = loc->peer;
-  hash(&hello->publicKey,
-       sizeof(PublicKey),
-       &hello->senderIdentity.hashPubKey);
-  hello->signature = loc->helloSignature;
-  memcpy(&hello[1],
-	 loc->address,
-	 loc->sas);
-  return hello;
-}
-
-/**
  * Parses an URI that identifies a location (and file).
  * Also verifies validity of the location URI.
  *
@@ -449,14 +410,12 @@ static int parseLocationURI(struct GE_Context * ectx,
 			    Location * loc) {
   unsigned int pos;
   unsigned int npos;
-  unsigned int proto;
-  unsigned int sas;
   int ret;
   size_t slen;
   char * dup;
   char * addr;
-  P2P_hello_MESSAGE * hello;
- 
+
+
   GE_ASSERT(ectx, uri != NULL);
   addr = NULL;
   slen = strlen(uri);
@@ -483,7 +442,7 @@ static int parseLocationURI(struct GE_Context * ectx,
   while ( (uri[npos] != '\0') &&
 	  (uri[npos] != '.') )
     npos++;
-  if (dup[npos] == '\0') 
+  if (dup[npos] == '\0')
     goto ERR;
   dup[npos++] = '\0';
   if ( (OK != enc2hash(&dup[pos],
@@ -492,12 +451,13 @@ static int parseLocationURI(struct GE_Context * ectx,
 		       &loc->fi.chk.query)) ||
        (1 != SSCANF(&dup[pos+sizeof(EncName)*2],
 		    "%llu",
-		    &loc->fi.file_length)) ) 
+		    &loc->fi.file_length)) )
     goto ERR;
+  loc->fi.file_length = htonll(loc->fi.file_length);
   ret = enc2bin(&dup[npos],
 		&loc->peer,
-		sizeof(PublicKey));
-  if (ret == -1) 
+               sizeof(PublicKey));
+  if (ret == -1)
     goto ERR;
   npos += ret;
   if (dup[npos++] != '.')
@@ -505,76 +465,23 @@ static int parseLocationURI(struct GE_Context * ectx,
   ret = enc2bin(&dup[npos],
 		&loc->contentSignature,
 		sizeof(Signature));
-  if (ret == -1) 
-    goto ERR;
-  npos += ret;
-  if (dup[npos++] != '.')
-    goto ERR;
-  ret = enc2bin(&dup[npos],
-		&loc->helloSignature,
-		sizeof(Signature));
-  if (ret == -1) 
-    goto ERR;
-  npos += ret;
-  if (dup[npos++] != '.')
-    goto ERR;
-  ret = 4;
-  pos = npos;
-  while ( (dup[npos] != '\0') &&
-	  (ret > 0) ) {
-    if (dup[npos] == '.')
-      ret--;    
-    npos++;
-  }
-  if (ret != 0)
-    goto ERR;
-  dup[npos-1] = '\0';
-  if (4 != SSCANF(&dup[pos],
-		  "%u.%u.%u.%u",
-		  &proto,
-		  &sas,
-		  &loc->mtu,
-		  &loc->expirationTime))
-    goto ERR;
-  if ( (proto >= 65536) ||
-       (sas >= 65536) )
-    goto ERR;
-  loc->proto = (unsigned short) proto;
-  loc->sas = (unsigned short) sas;
-  addr = MALLOC(sas);
-  loc->address = addr;
-  ret = enc2bin(&dup[npos],
-		addr,
-		sas);
   if (ret == -1)
     goto ERR;
   npos += ret;
-  if (dup[npos] != '\0')
+  if (dup[npos++] != '.')
     goto ERR;
-  loc->fi.file_length = htonll(loc->fi.file_length);
-  
+  if (1 != SSCANF(&dup[npos],
+		  "%u",
+		  &loc->expirationTime))
+    goto ERR;
   /* Finally: verify sigs! */
   if (OK != verifySig(&loc->fi,
-		      sizeof(FileIdentifier) + 
-		      sizeof(PublicKey) +
+		      sizeof(FileIdentifier) +
+		      sizeof(PeerIdentity) +
 		      sizeof(TIME_T),
 		      &loc->contentSignature,
-		      &loc->peer)) 
+		      &loc->peer))
     goto ERR;
-  hello = getHelloFromLoc(loc);
-  if (hello == NULL) 
-    goto ERR;
-  if (OK != verifySig(&hello->senderIdentity,
-		      P2P_hello_MESSAGE_size(hello) -
-		      sizeof(MESSAGE_HEADER) -
-		      sizeof(Signature) -
-		      sizeof(PublicKey),
-		      &loc->helloSignature,
-		      &hello->publicKey)) { 
-    FREE(hello);
-    goto ERR;
-  }
-  FREE(hello);
   FREE(dup);
   return OK;
  ERR:
@@ -631,15 +538,20 @@ void ECRS_freeUri(struct ECRS_URI * uri) {
   int i;
 
   GE_ASSERT(NULL, uri != NULL);
-  if (uri->type == ksk) {
+  switch(uri->type) {
+  case ksk:
     for (i=0;i<uri->data.ksk.keywordCount;i++)
       FREE(uri->data.ksk.keywords[i]);
     GROW(uri->data.ksk.keywords,
 	 uri->data.ksk.keywordCount,
 	 0);
+    break;
+  case loc:
+    break;
+  default:
+    /* do nothing */
+    break;
   }
-  if (uri->type == loc)
-    FREENONNULL(uri->data.loc.address);
   FREE(uri);
 }
 
@@ -796,6 +708,8 @@ URI * ECRS_dupUri(const URI * uri) {
 	ret->data.ksk.keywords[i]
 	  = STRDUP(uri->data.ksk.keywords[i]);
     }
+    break;
+  case loc:
     break;
   default:
     break;
@@ -987,20 +901,12 @@ int ECRS_equalsUri(const struct ECRS_URI * uri1,
     if (memcmp(&uri1->data.loc,
 	       &uri2->data.loc,
 	       sizeof(FileIdentifier) +
-	       sizeof(PublicKey) + 
+	       sizeof(PublicKey) +
 	       sizeof(TIME_T) +
 	       sizeof(unsigned short) +
 	       sizeof(unsigned short)) != 0)
       return NO;
-    if (memcmp(&uri1->data.loc.helloSignature,
-	       &uri2->data.loc.helloSignature,
-	       sizeof(Signature) * 2) != 0)
-      return NO;
-    if (memcmp(uri1->data.loc.address,
-	       uri2->data.loc.address,
-	       uri1->data.loc.sas) != 0)
-      return NO;
-    return YES;	       
+    return YES;	
   default:
     return NO;
   }
@@ -1018,18 +924,6 @@ int ECRS_getPeerFromUri(const struct ECRS_URI * uri,
        sizeof(PublicKey),
        &peer->hashPubKey);
   return OK;
-}
-
-/**
- * (re)construct the HELLO message of the peer offering the data
- *
- * @return NULL if this is not a location URI
- */
-P2P_hello_MESSAGE *
-ECRS_getHelloFromUri(const struct ECRS_URI * uri) {
-  if (uri->type != loc)
-    return NULL;
-  return getHelloFromLoc(&uri->data.loc);
 }
 
 /**
@@ -1058,7 +952,7 @@ ECRS_getContentUri(const struct ECRS_URI * uri) {
  * @param proto transport protocol to reach the peer
  * @param sas sender address size (for HELLO)
  * @param address sas bytes of address information
- * @param signer function to call for obtaining 
+ * @param signer function to call for obtaining
  *        RSA signatures for "sender".
  * @return the location URI
  */
@@ -1066,15 +960,9 @@ struct ECRS_URI *
 ECRS_uriFromLocation(const struct ECRS_URI * baseUri,
 		     const PublicKey * sender,
 		     TIME_T expirationTime,
-		     unsigned short proto,
-		     unsigned short sas,
-		     unsigned int mtu,
-		     const char * address,
 		     ECRS_SignFunction signer,
 		     void * signer_cls) {
   struct ECRS_URI * uri;
-  P2P_hello_MESSAGE * hello;
-  
 
   if (baseUri->type != chk)
     return NULL;
@@ -1084,35 +972,9 @@ ECRS_uriFromLocation(const struct ECRS_URI * baseUri,
   uri->data.loc.fi = baseUri->data.fi;
   uri->data.loc.peer = *sender;
   uri->data.loc.expirationTime = expirationTime;
-  uri->data.loc.proto = proto;
-  uri->data.loc.sas = sas;
-  uri->data.loc.mtu = mtu;
-  if (sas > 0) {
-    uri->data.loc.address = MALLOC(sas);
-    memcpy(uri->data.loc.address,
-	   address,
-	   sas);
-  } else {
-    uri->data.loc.address = NULL;
-  }
-  hello = ECRS_getHelloFromUri(uri);
-  if (hello == NULL) {
-    GE_BREAK(NULL, 0);
-    FREENONNULL(uri->data.loc.address);
-    FREE(uri);
-    return NULL;
-  }
   signer(signer_cls,
-	 P2P_hello_MESSAGE_size(hello)
-	 - sizeof(Signature)
-	 - sizeof(PublicKey)
-	 - sizeof(MESSAGE_HEADER), 
-	 &hello->senderIdentity,
-	 &uri->data.loc.helloSignature);
-  FREE(hello);
-  signer(signer_cls,
-	 sizeof(FileIdentifier) + 
-	 sizeof(PublicKey) +
+	 sizeof(FileIdentifier) +
+	 sizeof(PeerIdentity) +
 	 sizeof(TIME_T),
 	 &uri->data.loc.fi,
 	 &uri->data.loc.contentSignature);

@@ -60,6 +60,8 @@ typedef struct {
 
   const char * url;
 
+  unsigned long long total;
+
 } BootstrapContext;
 
 #define USE_MULTI YES
@@ -75,9 +77,10 @@ downloadHostlistHelper(void * ptr,
   BootstrapContext * bctx = ctx;
   size_t osize;
   unsigned int total;
-  P2P_hello_MESSAGE * helo;
+  const P2P_hello_MESSAGE * hello;
   unsigned int hs;
 
+  bctx->total += size * nmemb;
   if (size * nmemb == 0)
     return 0; /* ok, no data */
   osize = bctx->bsize;
@@ -88,25 +91,25 @@ downloadHostlistHelper(void * ptr,
   memcpy(&bctx->buf[osize],
 	 ptr,
 	 size * nmemb);
-  while ( (bctx->bsize > sizeof(P2P_hello_MESSAGE)) &&
+  while ( (bctx->bsize >= sizeof(P2P_hello_MESSAGE)) &&
 	  (bctx->termTest(bctx->targ)) ) {
-    helo = (P2P_hello_MESSAGE*) &bctx->buf[0];
-    if (bctx->bsize < P2P_hello_MESSAGE_size(helo))
-      break;
-    if ( (ntohs(helo->header.type) != p2p_PROTO_hello) ||
-	 (P2P_hello_MESSAGE_size(helo) >= MAX_BUFFER_SIZE) ) {
+    hello = (const P2P_hello_MESSAGE*) &bctx->buf[0];
+    hs = ntohs(hello->header.size);
+    if (bctx->bsize < hs)
+      break; /* incomplete */
+    if ( (ntohs(hello->header.type) != p2p_PROTO_hello) ||
+	 (ntohs(hello->header.size) != P2P_hello_MESSAGE_size(hello) ) ||
+	 (P2P_hello_MESSAGE_size(hello) >= MAX_BUFFER_SIZE) ) {
       GE_LOG(ectx,
-	     GE_WARNING | GE_USER | GE_REQUEST,
+	     GE_WARNING | GE_USER | GE_IMMEDIATE,
 	     _("Bootstrap data obtained from `%s' is invalid.\n"),
 	     bctx->url);
       return 0; /* Error: invalid format! */
     }
-    hs = P2P_hello_MESSAGE_size(helo);
-    helo->header.size = htons(hs);
     if (stats != NULL)
       stats->change(stat_hellodownloaded,
 		    1);
-    bctx->callback(helo,
+    bctx->callback(hello,
 		   bctx->arg);
     memmove(&bctx->buf[0],
 	    &bctx->buf[hs],
@@ -203,7 +206,12 @@ static void downloadHostlist(bootstrap_hello_callback callback,
     }
     pos--;
   }
+  GE_LOG(ectx,
+	 GE_INFO | GE_BULK | GE_USER,
+	 _("Bootstrapping using `%s'.\n"),
+	 url);
   bctx.url = url;
+  bctx.total = 0;
   proxy = NULL;
   GC_get_configuration_value_string(coreAPI->cfg,
 				    "GNUNETD",
@@ -289,8 +297,8 @@ static void downloadHostlist(bootstrap_hello_callback callback,
     /* use timeout of 1s in case that SELECT is not interrupted by
        signal (just to increase portability a bit) -- better a 1s
        delay in the reaction than hanging... */
-    tv.tv_sec = 1;
-    tv.tv_usec = 0;
+    tv.tv_sec = 0;
+    tv.tv_usec = 1000;
     SELECT(max + 1,
 	   &rs,
 	   &ws,
@@ -375,6 +383,11 @@ static void downloadHostlist(bootstrap_hello_callback callback,
 	   __LINE__,
 	   curl_multi_strerror(mret));
 #endif
+  GE_LOG(ectx,
+	 GE_INFO | GE_BULK | GE_USER,
+	 _("Downloaded %llu bytes from `%s'.\n"),
+	 bctx.total,
+	 url);
   FREE(url);
   FREE(proxy);
   curl_global_cleanup();
@@ -405,7 +418,7 @@ provide_module_bootstrap(CoreAPIForApplication * capi) {
   stats = coreAPI->requestService("stats");
   if (stats != NULL) {
     stat_hellodownloaded
-      = stats->create(gettext_noop("# hellos downloaded via http"));
+      = stats->create(gettext_noop("# HELLOs downloaded via http"));
   }
   api.bootstrap = &downloadHostlist;
   return &api;

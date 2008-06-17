@@ -27,35 +27,41 @@
 #include "platform.h"
 #include "gnunet_protocols.h"
 #include "gnunet_ecrs_lib.h"
+#include "gnunet_testing_lib.h"
 #include "gnunet_stats_lib.h"
 #include "gnunet_util_crypto.h"
 #include "gnunet_util_config_impl.h"
 #include "gnunet_util_network_client.h"
 #include "gnunet_stats_lib.h"
 
-/**
- * Identity of peer 2 (hardwired).
- */
-static PeerIdentity peer2;
-
 static struct GE_Context * ectx;
 
 static struct GC_Configuration * cfg;
 
-static int waitForConnect(const char * name,
-			  unsigned long long value,
-			  void * cls) {
-  if ( (value > 0) &&
-       (0 == strcmp(_("# of connected peers"),
-		    name)) )
-    return SYSERR;
-  return OK;
-}
-
-
 static int testTerminate(void * unused) {
   return OK;
 }
+
+
+static void uprogress(unsigned long long totalBytes,
+		      unsigned long long completedBytes,
+		      cron_t eta,
+		      void * closure) {
+  fprintf(stderr,
+	  totalBytes == completedBytes ? "\n" : ".");
+}
+
+static void dprogress(unsigned long long totalBytes,
+		      unsigned long long completedBytes,
+		      cron_t eta,
+		      unsigned long long lastBlockOffset,
+		      const char * lastBlock,
+		      unsigned int lastBlockSize,
+		      void * closure) {
+  fprintf(stderr,
+	  totalBytes == completedBytes ? "\n" : ".");
+}
+
 
 static char * makeName(unsigned int i) {
   char * fn;
@@ -97,7 +103,7 @@ static struct ECRS_URI * uploadFile(unsigned int size) {
 			0, /* anon */
 			0, /* prio */
 			get_time() + 10 * cronMINUTES, /* expire */
-			NULL, /* progress */
+			&uprogress, 
 			NULL,
 			&testTerminate,
 			NULL,
@@ -143,9 +149,10 @@ static int searchCB(const ECRS_FileInfo * fi,
   char * tmp;
 
   tmp = ECRS_uriToString(fi->uri);
-  GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
-      "Search found URI `%s'\n",
-      tmp);
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_REQUEST | GE_USER,
+	 "Search found URI `%s'\n",
+	 tmp);
   FREE(tmp);
   GE_ASSERT(ectx, NULL == *my);
   *my = ECRS_dupUri(fi->uri);
@@ -202,7 +209,7 @@ static int downloadFile(unsigned int size,
 			      uri,
 			      tmpName,
 			      0,
-			      NULL,
+			      &dprogress,
 			      NULL,
 			      &testTerminate,
 			      NULL)) {
@@ -259,17 +266,11 @@ static int unindexFile(unsigned int size) {
  * @return 0: ok, -1: error
  */
 int main(int argc, char ** argv) {
-  pid_t daemon1;
-  pid_t daemon2;
+  struct DaemonContext * peers;
   int ret;
-  struct ClientServerConnection * sock;
-  int left;
   struct ECRS_URI * uri;
 
-  enc2hash("BV3AS3KMIIBVIFCGEG907N6NTDTH26B7T6FODUSLSGK"
-	   "5B2Q58IEU1VF5FTR838449CSHVBOAHLDVQAOA33O77F"
-	   "OPDA8F1VIKESLSNBO",
-	   &peer2.hashPubKey);
+  ret = 0;
   cfg = GC_create_C_impl();
   if (-1 == GC_parse_configuration(cfg,
 				   "check.conf")) {
@@ -277,93 +278,48 @@ int main(int argc, char ** argv) {
     return -1;
   }
 #if START_PEERS
-  daemon1  = os_daemon_start(NULL,
-			     cfg,
-			     "peer1.conf",
-			     NO);
-  daemon2 = os_daemon_start(NULL,
-			    cfg,
-			    "peer2.conf",
-			    NO);
+  peers = gnunet_testing_start_daemons("tcp",
+				       "advertising topology fs stats",
+				       "/tmp/gnunet-gap-test",
+				       2087,
+				       10000,
+				       2);
+  if (peers == NULL) {
+    fprintf(stderr,
+	    "Failed to start the gnunetd daemons!\n");
+    GC_free(cfg);
+    return -1;
+  }
 #endif
-  /* in case existing hellos have expired */
-  PTHREAD_SLEEP(30 * cronSECONDS);
-  system("cp peer1/data/hosts/* peer2/data/hosts/");
-  system("cp peer2/data/hosts/* peer1/data/hosts/");
-  ret = 0;
-#if START_PEERS
-  if (daemon1 != -1) {
-    if (os_daemon_stop(NULL, daemon1) != YES)
-      ret = 1;
+  if (OK != gnunet_testing_connect_daemons(2087,
+					   12087)) {
+    gnunet_testing_stop_daemons(peers);
+    fprintf(stderr,
+	    "Failed to connect the peers!\n");
+    GC_free(cfg);
+    return -1;
   }
-  if (daemon2 != -1) {
-    if (os_daemon_stop(NULL, daemon2) != YES)
-      ret = 1;
-  }
-  if (ret != 0)
-    return 1;
-  daemon1  = os_daemon_start(NULL,
-			     cfg,
-			     "peer1.conf",
-			     NO);
-  daemon2 = os_daemon_start(NULL,
-			    cfg,
-			    "peer2.conf",
-			    NO);
-#endif
-  if (OK == connection_wait_for_running(NULL,
-					cfg,
-					30 * cronSECONDS)) {
-    sock = client_connection_create(NULL,
-				    cfg);
-    left = 30; /* how many iterations should we wait? */
-    while (OK == requestStatistics(NULL,
-				   sock,
-				   &waitForConnect,
-				   NULL)) {
-      printf("Waiting for peers to connect (%u iterations left)...\n",
-	     left);
-      sleep(5);
-      left--;
-      if (left == 0) {
-	ret = 1;
-	break;
-      }
-    }
-    connection_destroy(sock);
-  } else {
-    printf("Could not establish connection with peer.\n");
-    ret = 1;
-  }
-
 
   uri = uploadFile(12345);
   CHECK(NULL != uri);
-  CHECK(OK == searchFile(&uri));
   GC_set_configuration_value_string(cfg,
 				    ectx,
 				    "NETWORK",
-				    "HOSTNAME",
+				    "HOST",
 				    "localhost:12087");
+  CHECK(OK == searchFile(&uri));
   CHECK(OK == downloadFile(12345, uri));
   ECRS_freeUri(uri);
   GC_set_configuration_value_string(cfg,
 				    ectx,
 				    "NETWORK",
-				    "HOSTNAME",
+				    "HOST",
 				    "localhost:2087");
   CHECK(OK == unindexFile(12345));
 
  FAILURE:
 #if START_PEERS
-  if (daemon1 != -1) {
-    if (os_daemon_stop(NULL, daemon1) != YES)
-      ret = 1;
-  }
-  if (daemon2 != -1) {
-    if (os_daemon_stop(NULL, daemon2) != YES)
-      ret = 1;
-  }
+  gnunet_testing_stop_daemons(peers);
 #endif
 
   GC_free(cfg);

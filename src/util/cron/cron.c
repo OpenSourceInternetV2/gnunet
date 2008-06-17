@@ -195,7 +195,7 @@ struct CronManager * cron_create(struct GE_Context * ectx) {
   cron->firstUsed_  = -1;
   cron->cron_signal_up = SEMAPHORE_CREATE(0);
   cron->ectx = ectx;
-  cron->cron_shutdown = NO;
+  cron->cron_shutdown = YES;
   cron->sig = NULL;
   return cron;
 }
@@ -555,7 +555,8 @@ static void * cron_main_method(void * ctx) {
     now = get_time();
     next = now + 0xFFFFFFFF;
     MUTEX_LOCK(cron->deltaListLock_);
-    while (cron->firstUsed_ != -1) {
+    while ( (cron->cron_shutdown == NO) &&
+	    (cron->firstUsed_ != -1) ) {
       now = get_time();
       next = cron->deltaList_[cron->firstUsed_].delta;
       if (next <= now) {

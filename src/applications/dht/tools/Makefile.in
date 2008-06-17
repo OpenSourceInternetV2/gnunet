@@ -15,7 +15,7 @@
 @SET_MAKE@
 
 
-SOURCES = $(libgnunetdht_api_la_SOURCES) $(gnunet_dht_query_SOURCES)
+SOURCES = $(libgnunetdht_api_la_SOURCES) $(dhttest_SOURCES) $(dhttest2_SOURCES) $(gnunet_dht_query_SOURCES)
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -39,6 +39,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 host_triplet = @host@
 bin_PROGRAMS = gnunet-dht-query$(EXEEXT)
+check_PROGRAMS = dhttest2$(EXEEXT) dhttest$(EXEEXT)
 subdir = src/applications/dht/tools
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -47,10 +48,10 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/gettext.m4 \
 	$(top_srcdir)/m4/lib-ld.m4 $(top_srcdir)/m4/lib-link.m4 \
 	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libcurl.m4 \
 	$(top_srcdir)/m4/libgcrypt.m4 $(top_srcdir)/m4/libxml2.m4 \
-	$(top_srcdir)/m4/mkdir.m4 $(top_srcdir)/m4/nls.m4 \
-	$(top_srcdir)/m4/pkg.m4 $(top_srcdir)/m4/po.m4 \
-	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/acinclude.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/m4/mkdir.m4 $(top_srcdir)/m4/mkdirp.m4 \
+	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/pkg.m4 \
+	$(top_srcdir)/m4/po.m4 $(top_srcdir)/m4/progtest.m4 \
+	$(top_srcdir)/acinclude.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
@@ -65,6 +66,24 @@ am_libgnunetdht_api_la_OBJECTS = dht_api.lo
 libgnunetdht_api_la_OBJECTS = $(am_libgnunetdht_api_la_OBJECTS)
 binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(bin_PROGRAMS)
+am_dhttest_OBJECTS = dhttest.$(OBJEXT)
+dhttest_OBJECTS = $(am_dhttest_OBJECTS)
+dhttest_DEPENDENCIES =  \
+	$(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+	$(top_builddir)/src/applications/testing/libgnunettesting_api.la \
+	$(top_builddir)/src/applications/dht/tools/libgnunetdht_api.la \
+	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
+	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
+	$(top_builddir)/src/util/libgnunetutil.la
+am_dhttest2_OBJECTS = dhttest2.$(OBJEXT)
+dhttest2_OBJECTS = $(am_dhttest2_OBJECTS)
+dhttest2_DEPENDENCIES =  \
+	$(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+	$(top_builddir)/src/applications/testing/libgnunettesting_api.la \
+	$(top_builddir)/src/applications/dht/tools/libgnunetdht_api.la \
+	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
+	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
+	$(top_builddir)/src/util/libgnunetutil.la
 am_gnunet_dht_query_OBJECTS = dht-query.$(OBJEXT)
 gnunet_dht_query_OBJECTS = $(am_gnunet_dht_query_OBJECTS)
 gnunet_dht_query_DEPENDENCIES = $(top_builddir)/src/applications/dht/tools/libgnunetdht_api.la \
@@ -76,7 +95,8 @@ DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
 @AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/dht-query.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/dht_api.Plo
+@AMDEP_TRUE@	./$(DEPDIR)/dht_api.Plo ./$(DEPDIR)/dhttest.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/dhttest2.Po
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) \
@@ -85,9 +105,10 @@ LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) \
 CCLD = $(CC)
 LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(libgnunetdht_api_la_SOURCES) $(gnunet_dht_query_SOURCES)
-DIST_SOURCES = $(libgnunetdht_api_la_SOURCES) \
-	$(gnunet_dht_query_SOURCES)
+SOURCES = $(libgnunetdht_api_la_SOURCES) $(dhttest_SOURCES) \
+	$(dhttest2_SOURCES) $(gnunet_dht_query_SOURCES)
+DIST_SOURCES = $(libgnunetdht_api_la_SOURCES) $(dhttest_SOURCES) \
+	$(dhttest2_SOURCES) $(gnunet_dht_query_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -134,6 +155,8 @@ GNUNETGTK_LIBS = @GNUNETGTK_LIBS@
 GREP = @GREP@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
+HAVE_ADNS_FALSE = @HAVE_ADNS_FALSE@
+HAVE_ADNS_TRUE = @HAVE_ADNS_TRUE@
 HAVE_DIALOG_FALSE = @HAVE_DIALOG_FALSE@
 HAVE_DIALOG_TRUE = @HAVE_DIALOG_TRUE@
 HAVE_GTK_FALSE = @HAVE_GTK_FALSE@
@@ -172,6 +195,8 @@ LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
+LINUX_FALSE = @LINUX_FALSE@
+LINUX_TRUE = @LINUX_TRUE@
 LN_S = @LN_S@
 LTDLINCL = @LTDLINCL@
 LTLIBICONV = @LTLIBICONV@
@@ -189,6 +214,8 @@ MYSQL_CPPFLAGS = @MYSQL_CPPFLAGS@
 MYSQL_LDFLAGS = @MYSQL_LDFLAGS@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
+OPENBSD_FALSE = @OPENBSD_FALSE@
+OPENBSD_TRUE = @OPENBSD_TRUE@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
 PACKAGE_NAME = @PACKAGE_NAME@
@@ -282,27 +309,31 @@ gnunet_dht_query_LDADD = \
   $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
   $(top_builddir)/src/util/libgnunetutil.la
 
+TESTS = $(check_PROGRAMS)
+dhttest2_SOURCES = \
+  dhttest2.c 
 
-#check_PROGRAMS = \
-#  dhttest2 
+dhttest2_LDADD = \
+  $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+  $(top_builddir)/src/applications/testing/libgnunettesting_api.la \
+  $(top_builddir)/src/applications/dht/tools/libgnunetdht_api.la \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
+  $(top_builddir)/src/util/libgnunetutil.la 
 
-#TESTS = $(check_PROGRAMS)
+dhttest_SOURCES = \
+  dhttest.c 
 
-#dhttest2_SOURCES = \
-#  dhttest2.c 
-#dhttest2_LDADD = \
-#  $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
-#  $(top_builddir)/src/applications/dht/tools/libgnunetdht_api.la \
-#  $(top_builddir)/src/applications/dht/module/libgnunetdht_datastore_memory.la \
-#  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
-#  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
-#  $(top_builddir)/src/util/libgnunetutil.la 
+dhttest_LDADD = \
+  $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+  $(top_builddir)/src/applications/testing/libgnunettesting_api.la \
+  $(top_builddir)/src/applications/dht/tools/libgnunetdht_api.la \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
+  $(top_builddir)/src/util/libgnunetutil.la 
+
 EXTRA_DIST = \
-  check.conf \
-  peer1.conf \
-  peer2.conf \
-  peer1/.hostkey \
-  peer2/.hostkey 
+  check.conf 
 
 all: all-am
 
@@ -394,6 +425,19 @@ clean-binPROGRAMS:
 	  echo " rm -f $$p $$f"; \
 	  rm -f $$p $$f ; \
 	done
+
+clean-checkPROGRAMS:
+	@list='$(check_PROGRAMS)'; for p in $$list; do \
+	  f=`echo $$p|sed 's/$(EXEEXT)$$//'`; \
+	  echo " rm -f $$p $$f"; \
+	  rm -f $$p $$f ; \
+	done
+dhttest$(EXEEXT): $(dhttest_OBJECTS) $(dhttest_DEPENDENCIES) 
+	@rm -f dhttest$(EXEEXT)
+	$(LINK) $(dhttest_LDFLAGS) $(dhttest_OBJECTS) $(dhttest_LDADD) $(LIBS)
+dhttest2$(EXEEXT): $(dhttest2_OBJECTS) $(dhttest2_DEPENDENCIES) 
+	@rm -f dhttest2$(EXEEXT)
+	$(LINK) $(dhttest2_LDFLAGS) $(dhttest2_OBJECTS) $(dhttest2_LDADD) $(LIBS)
 gnunet-dht-query$(EXEEXT): $(gnunet_dht_query_OBJECTS) $(gnunet_dht_query_DEPENDENCIES) 
 	@rm -f gnunet-dht-query$(EXEEXT)
 	$(LINK) $(gnunet_dht_query_LDFLAGS) $(gnunet_dht_query_OBJECTS) $(gnunet_dht_query_LDADD) $(LIBS)
@@ -406,6 +450,8 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dht-query.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dht_api.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dhttest.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dhttest2.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -489,8 +535,80 @@ GTAGS:
 distclean-tags:
 	-rm -f TAGS ID GTAGS GRTAGS GSYMS GPATH tags
 
+check-TESTS: $(TESTS)
+	@failed=0; all=0; xfail=0; xpass=0; skip=0; \
+	srcdir=$(srcdir); export srcdir; \
+	list='$(TESTS)'; \
+	if test -n "$$list"; then \
+	  for tst in $$list; do \
+	    if test -f ./$$tst; then dir=./; \
+	    elif test -f $$tst; then dir=; \
+	    else dir="$(srcdir)/"; fi; \
+	    if $(TESTS_ENVIRONMENT) $${dir}$$tst; then \
+	      all=`expr $$all + 1`; \
+	      case " $(XFAIL_TESTS) " in \
+	      *" $$tst "*) \
+		xpass=`expr $$xpass + 1`; \
+		failed=`expr $$failed + 1`; \
+		echo "XPASS: $$tst"; \
+	      ;; \
+	      *) \
+		echo "PASS: $$tst"; \
+	      ;; \
+	      esac; \
+	    elif test $$? -ne 77; then \
+	      all=`expr $$all + 1`; \
+	      case " $(XFAIL_TESTS) " in \
+	      *" $$tst "*) \
+		xfail=`expr $$xfail + 1`; \
+		echo "XFAIL: $$tst"; \
+	      ;; \
+	      *) \
+		failed=`expr $$failed + 1`; \
+		echo "FAIL: $$tst"; \
+	      ;; \
+	      esac; \
+	    else \
+	      skip=`expr $$skip + 1`; \
+	      echo "SKIP: $$tst"; \
+	    fi; \
+	  done; \
+	  if test "$$failed" -eq 0; then \
+	    if test "$$xfail" -eq 0; then \
+	      banner="All $$all tests passed"; \
+	    else \
+	      banner="All $$all tests behaved as expected ($$xfail expected failures)"; \
+	    fi; \
+	  else \
+	    if test "$$xpass" -eq 0; then \
+	      banner="$$failed of $$all tests failed"; \
+	    else \
+	      banner="$$failed of $$all tests did not behave as expected ($$xpass unexpected passes)"; \
+	    fi; \
+	  fi; \
+	  dashes="$$banner"; \
+	  skipped=""; \
+	  if test "$$skip" -ne 0; then \
+	    skipped="($$skip tests were not run)"; \
+	    test `echo "$$skipped" | wc -c` -le `echo "$$banner" | wc -c` || \
+	      dashes="$$skipped"; \
+	  fi; \
+	  report=""; \
+	  if test "$$failed" -ne 0 && test -n "$(PACKAGE_BUGREPORT)"; then \
+	    report="Please report to $(PACKAGE_BUGREPORT)"; \
+	    test `echo "$$report" | wc -c` -le `echo "$$banner" | wc -c` || \
+	      dashes="$$report"; \
+	  fi; \
+	  dashes=`echo "$$dashes" | sed s/./=/g`; \
+	  echo "$$dashes"; \
+	  echo "$$banner"; \
+	  test -z "$$skipped" || echo "$$skipped"; \
+	  test -z "$$report" || echo "$$report"; \
+	  echo "$$dashes"; \
+	  test "$$failed" -eq 0; \
+	else :; fi
+
 distdir: $(DISTFILES)
-	$(mkdir_p) $(distdir)/peer1 $(distdir)/peer2
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \
@@ -518,6 +636,8 @@ distdir: $(DISTFILES)
 	  fi; \
 	done
 check-am: all-am
+	$(MAKE) $(AM_MAKEFLAGS) $(check_PROGRAMS)
+	$(MAKE) $(AM_MAKEFLAGS) check-TESTS
 check: check-am
 all-am: Makefile $(LTLIBRARIES) $(PROGRAMS)
 install-binPROGRAMS: install-libLTLIBRARIES
@@ -552,8 +672,8 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-binPROGRAMS clean-generic clean-libLTLIBRARIES \
-	clean-libtool mostlyclean-am
+clean-am: clean-binPROGRAMS clean-checkPROGRAMS clean-generic \
+	clean-libLTLIBRARIES clean-libtool mostlyclean-am
 
 distclean: distclean-am
 	-rm -rf ./$(DEPDIR)
@@ -602,18 +722,19 @@ ps-am:
 uninstall-am: uninstall-binPROGRAMS uninstall-info-am \
 	uninstall-libLTLIBRARIES
 
-.PHONY: CTAGS GTAGS all all-am check check-am clean clean-binPROGRAMS \
-	clean-generic clean-libLTLIBRARIES clean-libtool ctags \
-	distclean distclean-compile distclean-generic \
-	distclean-libtool distclean-tags distdir dvi dvi-am html \
-	html-am info info-am install install-am install-binPROGRAMS \
-	install-data install-data-am install-exec install-exec-am \
-	install-info install-info-am install-libLTLIBRARIES \
-	install-man install-strip installcheck installcheck-am \
-	installdirs maintainer-clean maintainer-clean-generic \
-	mostlyclean mostlyclean-compile mostlyclean-generic \
-	mostlyclean-libtool pdf pdf-am ps ps-am tags uninstall \
-	uninstall-am uninstall-binPROGRAMS uninstall-info-am \
+.PHONY: CTAGS GTAGS all all-am check check-TESTS check-am clean \
+	clean-binPROGRAMS clean-checkPROGRAMS clean-generic \
+	clean-libLTLIBRARIES clean-libtool ctags distclean \
+	distclean-compile distclean-generic distclean-libtool \
+	distclean-tags distdir dvi dvi-am html html-am info info-am \
+	install install-am install-binPROGRAMS install-data \
+	install-data-am install-exec install-exec-am install-info \
+	install-info-am install-libLTLIBRARIES install-man \
+	install-strip installcheck installcheck-am installdirs \
+	maintainer-clean maintainer-clean-generic mostlyclean \
+	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
+	pdf pdf-am ps ps-am tags uninstall uninstall-am \
+	uninstall-binPROGRAMS uninstall-info-am \
 	uninstall-libLTLIBRARIES
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.

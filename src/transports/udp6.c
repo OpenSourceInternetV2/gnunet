@@ -29,6 +29,7 @@
 #include "gnunet_transport.h"
 #include "gnunet_stats_service.h"
 #include "platform.h"
+#include "ip.h"
 #include "ip6.h"
 
 #define DEBUG_UDP6 NO
@@ -42,12 +43,12 @@ typedef struct {
   /**
    * claimed IP of the sender, network byte order
    */
-  IP6addr senderIP;
+  IP6addr ip;
 
   /**
    * claimed port of the sender, network byte order
    */
-  unsigned short senderPort;
+  unsigned short port;
 
   /**
    * reserved (set to 0 for signature verification)
@@ -208,32 +209,32 @@ static int isRejected(const void * addr,
  * address). Since the reply will be asynchronous, a method must be
  * called on success.
  *
- * @param helo the hello message to verify
+ * @param hello the hello message to verify
  *        (the signature/crc have been verified before)
  * @return OK on success, SYSERR on failure
  */
-static int verifyHelo(const P2P_hello_MESSAGE * helo) {
+static int verifyHello(const P2P_hello_MESSAGE * hello) {
   Host6Address * haddr;
 
-  haddr = (Host6Address*) &helo[1];
-  if ( (ntohs(helo->senderAddressSize) != sizeof(Host6Address)) ||
-       (ntohs(helo->header.size) != P2P_hello_MESSAGE_size(helo)) ||
-       (ntohs(helo->header.type) != p2p_PROTO_hello) ||
-       (YES == isBlacklisted(&haddr->senderIP,
+  haddr = (Host6Address*) &hello[1];
+  if ( (ntohs(hello->senderAddressSize) != sizeof(Host6Address)) ||
+       (ntohs(hello->header.size) != P2P_hello_MESSAGE_size(hello)) ||
+       (ntohs(hello->header.type) != p2p_PROTO_hello) ||
+       (YES == isBlacklisted(&haddr->ip,
 			     sizeof(IP6addr))) ||
-       (YES != isWhitelisted(&haddr->senderIP,
+       (YES != isWhitelisted(&haddr->ip,
 			     sizeof(IP6addr))) )
     return SYSERR; /* obviously invalid */
   else {
 #if DEBUG_UDP6
     char inet6[INET6_ADDRSTRLEN];
     GE_LOG(ectx, GE_DEBUG | GE_REQUEST | GE_USER,
-	"Verified UDP6 helo from %u.%u.%u.%u:%u.\n",
+	"Verified UDP6 hello from %u.%u.%u.%u:%u.\n",
 	inet_ntop(AF_INET6,
-		  &haddr->senderIP,
+		  &haddr->ip,
 		  inet6,
 		  INET6_ADDRSTRLEN),
-	ntohs(haddr->senderPort));
+	ntohs(haddr->port));
 #endif
     return OK;
   }
@@ -260,14 +261,14 @@ static P2P_hello_MESSAGE * createhello() {
 
   if (SYSERR == getPublicIP6Address(cfg,
 				    ectx,				
-				    &haddr->senderIP)) {
+				    &haddr->ip)) {
     FREE(msg);
     GE_LOG(ectx,
 	   GE_WARNING,
 	   _("UDP6: Could not determine my public IPv6 address.\n"));
     return NULL;
   }
-  haddr->senderPort      = htons(port);
+  haddr->port      = htons(port);
   haddr->reserved        = htons(0);
   msg->senderAddressSize = htons(sizeof(Host6Address));
   msg->protocol          = htons(UDP6_PROTOCOL_NUMBER);
@@ -288,7 +289,7 @@ static int udp6Send(TSession * tsession,
 		    const unsigned int size,
 		    int importance) {
   UDPMessage * mp;
-  P2P_hello_MESSAGE * helo;
+  P2P_hello_MESSAGE * hello;
   Host6Address * haddr;
   struct sockaddr_in6 sin; /* an Internet endpoint address */
   int ok;
@@ -307,11 +308,11 @@ static int udp6Send(TSession * tsession,
     GE_BREAK(ectx, 0);
     return SYSERR;
   }
-  helo = (P2P_hello_MESSAGE*)tsession->internal;
-  if (helo == NULL)
+  hello = (P2P_hello_MESSAGE*)tsession->internal;
+  if (hello == NULL)
     return SYSERR;
 
-  haddr = (Host6Address*) &helo[1];
+  haddr = (Host6Address*) &hello[1];
   ssize = size + sizeof(UDPMessage);
   mp = MALLOC(ssize);
   mp->header.size = htons(ssize);
@@ -323,9 +324,9 @@ static int udp6Send(TSession * tsession,
   ok = SYSERR;
   memset(&sin, 0, sizeof(sin));
   sin.sin6_family = AF_INET6;
-  sin.sin6_port = haddr->senderPort;
+  sin.sin6_port = haddr->port;
   memcpy(&sin.sin6_addr,
-	 &haddr->senderIP.addr,
+	 &haddr->ip.addr,
 	 sizeof(IP6addr));
 #if DEBUG_UDP6
   GE_LOG(ectx,
@@ -366,7 +367,7 @@ static int udp6Send(TSession * tsession,
  *
  * @return OK on success, SYSERR if the operation failed
  */
-static int startTransportServer(void) {
+static int startTransportServer() {
   int sock;
   unsigned short port;
 
@@ -411,7 +412,7 @@ static int startTransportServer(void) {
 /**
  * Reload the configuration. Should never fail.
  */
-static int reloadConfiguration(void) {
+static int reloadConfiguration() {
   char * ch;
 
   MUTEX_LOCK(configLock);
@@ -440,50 +441,27 @@ static int reloadConfiguration(void) {
 }
 
 /**
- * Convert UDP6 address to a string.
+ * Convert UDP6 hello to IPv6 address
  */
-static char * 
-addressToString(const P2P_hello_MESSAGE * hello,
-		int do_resolve) {
-  char * ret;
-  char inet6[INET6_ADDRSTRLEN];
+static int
+helloToAddress(const P2P_hello_MESSAGE * hello,
+	       void ** sa,
+	       unsigned int * sa_len) {
   const Host6Address * haddr = (const Host6Address*) &hello[1];
-  const char * hn = "";
-  struct hostent * ent;
-  size_t n;
-
-#if HAVE_GETHOSTBYADDR
-  if (do_resolve) {
-    ent = gethostbyaddr(haddr,
-			sizeof(IPaddr),
-			AF_INET);
-    if (ent != NULL)
-      hn = ent->h_name;
-  }    
-#endif
-  n = INET6_ADDRSTRLEN + 16 + strlen(hn) + 10;
-  ret = MALLOC(n);
-  if (strlen(hn) > 0) {
-    SNPRINTF(ret,
-	     n,
-	     "%s (%s) UDP6 (%u)",
-	     hn,
-	     inet_ntop(AF_INET6,
-		       haddr,
-		       inet6,
-		       INET6_ADDRSTRLEN),
-	     ntohs(haddr->senderPort));
-  } else {
-    SNPRINTF(ret,
-	     n,
-	     "%s UDP6 (%u)",
-	     inet_ntop(AF_INET6,
-		       haddr,
-		       inet6,
-		       INET6_ADDRSTRLEN),
-	     ntohs(haddr->senderPort));
-  }
-  return ret;
+  struct sockaddr_in6 * serverAddr;
+  
+  *sa_len = sizeof(struct sockaddr_in6);
+  serverAddr = MALLOC(sizeof(struct sockaddr_in6));
+  *sa = serverAddr;
+  memset(serverAddr,
+	 0,
+	 sizeof(struct sockaddr_in6));
+  serverAddr->sin6_family   = AF_INET6;
+  memcpy(&serverAddr->sin6_addr,
+	 haddr,
+	 sizeof(IP6addr));
+  serverAddr->sin6_port = haddr->port;
+  return OK;
 }
 
 /**
@@ -525,7 +503,7 @@ TransportAPI * inittransport_udp6(CoreAPIForTransport * core) {
   udpAPI.protocolNumber       = UDP6_PROTOCOL_NUMBER;
   udpAPI.mtu                  = mtu - sizeof(UDPMessage);
   udpAPI.cost                 = 19950;
-  udpAPI.verifyHelo           = &verifyHelo;
+  udpAPI.verifyHello           = &verifyHello;
   udpAPI.createhello          = &createhello;
   udpAPI.connect              = &udpConnect;
   udpAPI.send                 = &udp6Send;
@@ -533,7 +511,7 @@ TransportAPI * inittransport_udp6(CoreAPIForTransport * core) {
   udpAPI.disconnect           = &udpDisconnect;
   udpAPI.startTransportServer = &startTransportServer;
   udpAPI.stopTransportServer  = &stopTransportServer;
-  udpAPI.addressToString      = &addressToString;
+  udpAPI.helloToAddress       = &helloToAddress;
   udpAPI.testWouldTry         = &testWouldTry;
 
   return &udpAPI;

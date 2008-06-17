@@ -1,6 +1,6 @@
 /*
       This file is part of GNUnet
-      (C) 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
+      (C) 2004, 2005, 2006, 2007 Christian Grothoff (and other contributing authors)
 
       GNUnet is free software; you can redistribute it and/or modify
       it under the terms of the GNU General Public License as published
@@ -53,14 +53,14 @@ extern "C" {
  *        highest bit is current time-unit, bit 1 is 32 time-units ago (set)
  * @return OK on success, SYSERR on error
  */
-int pollSocket(struct ClientServerConnection * sock,
-	       unsigned int timeframe,
-	       unsigned short type,
-	       unsigned short direction,
-	       unsigned int * count,
-	       unsigned int * avg_size,
-	       unsigned int * peers,
-	       unsigned int * time);
+int gnunet_traffic_poll(struct ClientServerConnection * sock,
+			unsigned int timeframe,
+			unsigned short type,
+			unsigned short direction,
+			unsigned int * count,
+			unsigned int * avg_size,
+			unsigned int * peers,
+			unsigned int * time);
 
 #if 0 /* keep Emacsens' auto-indent happy */
 {

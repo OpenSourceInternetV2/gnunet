@@ -263,7 +263,7 @@ static int putUpdate(const HashCode512 * key,
   GE_LOG(coreAPI->ectx,
 	 GE_DEBUG | GE_REQUEST | GE_USER,
 	 "Migration: available %llu (need %u), min priority %u have %u\n",
-	 available, 
+	 available,
 	 ntohl(value->size),
 	 minPriority,
 	 ntohl(value->prio));
@@ -460,7 +460,6 @@ void update_module_datastore(UpdateAPI * uapi) {
   unsigned int lastQuota;
   int * lq;
   State_ServiceAPI * state;
-  int ok = OK;
 
   if (-1 == GC_get_configuration_value_number(uapi->cfg,
 					      "FS",
@@ -470,16 +469,6 @@ void update_module_datastore(UpdateAPI * uapi) {
 					      1024,
 					      &quota))
     return; /* OOPS */
-  sq = uapi->requestService("sqstore");
-  GE_LOG(uapi->ectx,
-	 GE_USER | GE_ADMIN | GE_INFO | GE_IMMEDIATE,
-	 _("Deleting expired content.  This may take a while.\n"));
-  sq->iterateExpirationTime(ANY_BLOCK,
-			    &freeSpaceExpired,
-			    &ok);
-  GE_LOG(uapi->ectx,
-	 GE_USER | GE_ADMIN | GE_INFO | GE_IMMEDIATE,
-	 _("Completed deleting expired content.\n"));
   state = uapi->requestService("state");
   if (state != NULL) {
     lq = NULL;
@@ -492,7 +481,6 @@ void update_module_datastore(UpdateAPI * uapi) {
     uapi->releaseService(state);
     lastQuota = ntohl(*lq);
     FREE(lq);
-    uapi->releaseService(sq);
     if (lastQuota == quota)
       return; /* unchanged */
   } else {
@@ -506,7 +494,8 @@ void update_module_datastore(UpdateAPI * uapi) {
 	       uapi->cfg);
   initFilters(uapi->ectx,
 	      uapi->cfg);
-  sq->get(NULL, 
+  sq = uapi->requestService("sqstore");
+  sq->get(NULL,
 	  ANY_BLOCK,
 	  &filterAddAll,
 	  NULL);

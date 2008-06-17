@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet
-     (C) 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
+     (C) 2004, 2005, 2006, 2007 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -209,6 +209,7 @@ void FS_SEARCH_destroyContext(struct FS_SEARCH_CONTEXT * ctx) {
  */
 SEARCH_HANDLE *
 FS_start_search(SEARCH_CONTEXT * ctx,
+		const PeerIdentity * target,
 		unsigned int type,
 		unsigned int keyCount,
 		const HashCode512 * keys,
@@ -237,6 +238,12 @@ FS_start_search(SEARCH_CONTEXT * ctx,
   req->anonymityLevel = htonl(anonymityLevel);
   req->expiration = htonll(timeout);
   req->type = htonl(type);
+  if (target != NULL)
+    req->target = *target;
+  else
+    memset(&req->target,
+	   0,
+	   sizeof(PeerIdentity));
   memcpy(&req->query[0],
 	 keys,
 	 keyCount * sizeof(HashCode512));
@@ -294,7 +301,7 @@ void FS_stop_search(SEARCH_CONTEXT * ctx,
   handle->req->header.type = htons(CS_PROTO_gap_QUERY_STOP);
   GE_ASSERT(NULL, ctx->sock != NULL);
   if (OK != connection_write(ctx->sock,
-			     &handle->req->header)) { 
+			     &handle->req->header)) {
     GE_LOG(ctx->ectx,
 	   GE_WARNING | GE_REQUEST | GE_DEVELOPER,
 	   "FSLIB: failed to request stop search with gnunetd\n");
@@ -369,8 +376,10 @@ int FS_insert(struct ClientServerConnection * sock,
   FREE(ri);
 
   if (OK != connection_read_result(sock,
-				   &ret))
+				   &ret)) {
+    GE_BREAK(NULL, 0);
     return SYSERR;
+  }
   return ret;
 }
 
@@ -397,12 +406,12 @@ int FS_initIndex(struct ClientServerConnection * sock,
   ri->header.type = htons(CS_PROTO_gap_INIT_INDEX);
   ri->reserved = htonl(0);
   ri->fileId = *fileHc;
-  memcpy(&ri[1], 
-	 fn, 
+  memcpy(&ri[1],
+	 fn,
 	 strlen(fn));
 
 #if DEBUG_FSLIB
-  GE_LOG(ectx, 
+  GE_LOG(ectx,
 	 GE_DEBUG | GE_REQUEST | GE_USER,
 	 "Sending index initialization request to gnunetd\n");
 #endif

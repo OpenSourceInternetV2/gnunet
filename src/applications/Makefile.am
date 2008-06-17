@@ -9,12 +9,14 @@ endif
 
 if !MINGW
 # TESTBED_DIR = testbed
-if !MACOSX
- VPN_DIR = vpn
 endif
+if LINUX
+ VPN_DIR = vpn
 endif
 
 SUBDIRS	= \
+ identity \
+ testing \
  advertising \
  bootstrap_http \
  datastore \
@@ -25,7 +27,6 @@ SUBDIRS	= \
  state \
  stats \
  gap \
- identity \
  pingpong \
  session \
  $(MYSQL_DIR) \

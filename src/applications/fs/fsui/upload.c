@@ -27,9 +27,11 @@
 
 #include "platform.h"
 #include "gnunet_util_error_loggers.h"
+#include "gnunet_util_network_client.h"
 #include "gnunet_ecrs_lib.h"
 #include "gnunet_uritrack_lib.h"
 #include "gnunet_fsui_lib.h"
+#include "gnunet_identity_lib.h"
 #include "fsui.h"
 #include <extractor.h>
 
@@ -44,6 +46,10 @@ static void progressCallback(unsigned long long totalBytes,
 			     void * ptr) {
   FSUI_UploadList * utc = ptr;
   FSUI_Event event;
+  unsigned long long subtotal;
+  FSUI_UploadList * pos;
+  cron_t xeta;
+  cron_t now;
 
   event.type = FSUI_upload_progress;
   event.data.UploadProgress.uc.pos = utc;
@@ -57,6 +63,25 @@ static void progressCallback(unsigned long long totalBytes,
   utc->completed = completedBytes;
   utc->shared->ctx->ecb(utc->shared->ctx->ecbClosure,
 			&event);
+  if (utc->parent != &utc->shared->ctx->activeUploads) {
+    subtotal = 0;
+    pos = utc->parent->child;
+    while (pos != NULL) {
+      subtotal += pos->completed;
+      pos = pos->next;
+    }
+    now = get_time();
+    xeta = now;
+    if (subtotal > 0) {
+      xeta = (cron_t) (utc->parent->start_time +
+		       (((double)(now - utc->parent->start_time)/(double)subtotal))
+		       * (double)utc->parent->total);
+    }
+    progressCallback(utc->parent->total,
+		     subtotal,
+		     xeta,
+		     utc->parent);
+  }
 }
 
 static int testTerminate(void * cls) {
@@ -72,6 +97,7 @@ static int testTerminate(void * cls) {
  */
 static char *
 createDirectoryHelper(struct GE_Context * ectx,
+		      struct GC_Configuration * cfg,
 		      struct FSUI_UploadList * children,
 		      struct ECRS_MetaData * meta,
 		      char ** error) {
@@ -95,10 +121,6 @@ createDirectoryHelper(struct GE_Context * ectx,
     if (pos->uri != NULL)
       count++;
     pos = pos->next;
-  }
-  if (count == 0) {
-    GE_BREAK(ectx, 0);
-    return NULL;
   }
   GROW(fis,
        size,
@@ -132,6 +154,15 @@ createDirectoryHelper(struct GE_Context * ectx,
     GE_memory_free(mem);
     return NULL;
   }
+  pos = children;
+  while (pos != NULL) {
+    if (pos->uri != NULL)
+      URITRACK_addState(ectx,
+			cfg,
+			pos->uri,
+			URITRACK_DIRECTORY_ADDED);
+    pos = pos->next;
+  }
   GE_memory_reset(mem);
   tempName = STRDUP("/tmp/gnunet-upload-dir.XXXXXX");
   handle = mkstemp(tempName);
@@ -152,7 +183,7 @@ createDirectoryHelper(struct GE_Context * ectx,
 		   len)) {
     GE_LOG_STRERROR_FILE(ee,
 			 GE_ERROR | GE_USER | GE_BULK,
-       "write",
+			 "write",
 			 tempName);
     *error = STRDUP(GE_memory_get(mem, 0));
     GE_free_context(ee);
@@ -220,10 +251,12 @@ void * FSUI_uploadThread(void * cls) {
   char * filename;
   char * pfn;
   struct ECRS_URI * uri;
+  struct ECRS_URI * loc;
   size_t tpos;
   char * error;
   struct GE_Memory * mem;
   struct GE_Context * ee;
+
 
   ectx = utc->shared->ctx->ectx;
   GE_ASSERT(ectx, utc->filename != NULL);
@@ -235,9 +268,11 @@ void * FSUI_uploadThread(void * cls) {
   }
   if (utc->state != FSUI_ACTIVE)
     return NULL; /* aborted or suspended */
-  if (utc->child != NULL) {
+  if (YES == disk_directory_test(ectx,
+				 utc->filename)) {
     error = NULL;
     filename = createDirectoryHelper(ectx,
+				     utc->shared->ctx->cfg,
 				     utc->child,
 				     utc->meta,
 				     &error);
@@ -271,7 +306,7 @@ void * FSUI_uploadThread(void * cls) {
   if (ret != OK) {
     if (utc->state == FSUI_ACTIVE) {
       const char *err;
-      
+
       err = GE_memory_get(mem, 0);
       signalError(utc,
 		  err ? err : "");
@@ -323,6 +358,34 @@ void * FSUI_uploadThread(void * cls) {
 		     EXTRACTOR_FILENAME,
 		     pfn);
   FREE(pfn);
+  if ( (utc->shared->anonymityLevel == 0) &&
+       (utc->shared->doIndex == YES) ) {
+    /* generate location URI for non-anonymous download */
+    struct ClientServerConnection  * sock;
+    P2P_hello_MESSAGE * hello;
+
+    sock = client_connection_create(utc->shared->ctx->ectx,
+				    utc->shared->ctx->cfg);
+				
+    if (OK == gnunet_identity_get_self(sock,
+				       &hello)) {
+      loc = ECRS_uriFromLocation(utc->uri,
+				 &hello->publicKey,
+				 ntohl(hello->expirationTime),
+				 (ECRS_SignFunction) &gnunet_identity_sign_function,
+				 sock);
+				
+      FREE(hello);
+    } else {
+      /* may happen if no transports are available... */
+      loc = ECRS_dupUri(utc->uri);
+    }
+    connection_destroy(sock);
+  } else {
+    /* no location URI, use standard URI
+       (copied here to allow free later) */
+    loc = ECRS_dupUri(utc->uri);
+  }
   if (utc->shared->global_keywords != NULL)
     ECRS_addToKeyspace(ectx,
 		       utc->shared->ctx->cfg,
@@ -330,7 +393,7 @@ void * FSUI_uploadThread(void * cls) {
 		       utc->shared->anonymityLevel,
 		       utc->shared->priority,
 		       utc->shared->expiration,
-		       utc->uri,
+		       loc,
 		       utc->meta);	
   if (utc->keywords != NULL)
     ECRS_addToKeyspace(ectx,
@@ -339,7 +402,7 @@ void * FSUI_uploadThread(void * cls) {
 		       utc->shared->anonymityLevel,
 		       utc->shared->priority,
 		       utc->shared->expiration,
-		       utc->uri,
+		       loc,
 		       utc->meta);	
   if (utc->shared->individualKeywords == YES) {
     uri = ECRS_metaDataToUri(utc->meta);
@@ -349,10 +412,12 @@ void * FSUI_uploadThread(void * cls) {
 		       utc->shared->anonymityLevel,
 		       utc->shared->priority,
 		       utc->shared->expiration,
-		       utc->uri,
+		       loc,
 		       utc->meta);	
     ECRS_freeUri(uri);
   }
+  ECRS_freeUri(loc);
+  loc = NULL;
   while (OK == ECRS_delFromMetaData(utc->meta,
 				    EXTRACTOR_SPLIT,
 				    NULL)) ;
@@ -361,6 +426,10 @@ void * FSUI_uploadThread(void * cls) {
   URITRACK_trackURI(ectx,
 		    utc->shared->ctx->cfg,
 		    &fi);
+  URITRACK_addState(ectx,
+		    utc->shared->ctx->cfg,
+		    utc->uri,
+		    utc->shared->doIndex == YES ? URITRACK_INDEXED : URITRACK_INSERTED);
   event.type = FSUI_upload_completed;
   event.data.UploadCompleted.uc.pos = utc;
   event.data.UploadCompleted.uc.cctx = utc->cctx;
@@ -461,6 +530,7 @@ static int addChildUpload(const char * name,
   ECRS_freeMetaData(md);
   if (child == NULL)
     return SYSERR;
+  parent->total += child->total;
   return OK;
 }
 
@@ -475,7 +545,7 @@ addUploads(struct FSUI_UploadShared * shared,
   utc = MALLOC(sizeof(FSUI_UploadList));
   utc->completed = 0;
   utc->total = 0; /* to be set later */
-  utc->start_time = 0;
+  utc->start_time = get_time();
   utc->shared = shared;
   utc->next = NULL;
   utc->child = NULL;

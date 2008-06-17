@@ -45,6 +45,8 @@ static char * filename;
 
 static unsigned int anonymity = 1;
 
+static unsigned int parallelism = 32;
+
 static cron_t start_time;
 
 static struct FSUI_DownloadList * dl;
@@ -76,6 +78,9 @@ static struct CommandLineOption gnunetdownloadOptions[] = {
   { 'o', "output", "FILENAME",
     gettext_noop("write the file to FILENAME"),
     1, &gnunet_getopt_configure_set_string, &filename },
+  { 'p', "parallelism", "DOWNLOADS",
+    gettext_noop("set the maximum number of parallel downloads that are allowed"),
+    1, &gnunet_getopt_configure_set_uint, &parallelism },
   { 'R', "recursive", NULL,
     gettext_noop("download a GNUnet directory recursively"),
     0, &gnunet_getopt_configure_set_one, &do_recursive },
@@ -173,11 +178,11 @@ directoryIterator(const ECRS_FileInfo * fi,
   strcpy(fn, filename);
   strcat(fn, "/");
   strcat(fn, f);
-  if (verbose > 1) 
+  if (verbose > 1)
     printf(_("Starting download `%s'\n"),
 	   f);
   FREE(f);
-  meta = ECRS_createMetaData(); 
+  meta = ECRS_createMetaData();
   FSUI_startDownload(ctx,
 		     anonymity,
 		     do_recursive,
@@ -185,12 +190,12 @@ directoryIterator(const ECRS_FileInfo * fi,
 		     meta,
 		     fn,
 		     NULL,
-		     NULL);  
+		     NULL);
   ECRS_freeMetaData(meta);
   FREE(fn);
   return OK;
 }
-  
+
 
 /**
  * Main function to download files from GNUnet.
@@ -248,7 +253,7 @@ int main(int argc,
       errorCode = -1;
       goto quit;
     }
-  } 
+  }
 
   try_rename = NO;
   if (filename == NULL) {
@@ -283,13 +288,13 @@ int main(int argc,
   ctx = FSUI_start(ectx,
 		   cfg,
 		   "gnunet-download",
-		   32, /* FIXME: support option! */
+		   parallelism == 0 ? 1 : parallelism,
 		   NO,
 		   &progressModel,
 		   NULL);
   start_time = get_time();
   errorCode = 1;
-  if (do_directory) { 
+  if (do_directory) {
     void * data;
     struct stat sbuf;
     int fd;
@@ -307,8 +312,8 @@ int main(int argc,
 	 (-1 == (fd = disk_file_open(ectx,
 				     efn,
 				     O_LARGEFILE | O_RDONLY)) ) ||
-	 (MAP_FAILED == (data = MMAP(NULL, 
-				     sbuf.st_size, 
+	 (MAP_FAILED == (data = MMAP(NULL,
+				     sbuf.st_size,
 				     PROT_READ,
 				     MAP_SHARED,
 				     fd,
@@ -324,7 +329,7 @@ int main(int argc,
       FREE(efn);
       goto quit;
     }
-    meta = ECRS_createMetaData();    
+    meta = ECRS_createMetaData();
     count = ECRS_listDirectory(ectx,
 			       data,
 			       sbuf.st_size,
@@ -343,7 +348,7 @@ int main(int argc,
       else
 	printf(_("Did not find any files in directory `%s'\n"),
 	       argv[i]);
-    }	       
+    }	
   } else {
     meta = ECRS_createMetaData();
     dl = FSUI_startDownload(ctx,

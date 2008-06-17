@@ -50,24 +50,62 @@ struct GE_Context;
 typedef enum {
   GE_NOTHING   = 0x00000000,
   /* type of event */
-  GE_DEBUG     = 0x00000001, /* DEBUG/CRON/EVERYTHING */
-  GE_STATUS    = 0x00000002, /* status message */
-  GE_INFO      = 0x00000004, /* normal program response */
-  GE_WARNING   = 0x00000008,
-  GE_ERROR     = 0x00000010,
-  GE_FATAL     = 0x00000020, /* FATAL/FAILURE/NOTHING */
+  GE_FATAL     = 0x00000001, /* FATAL/FAILURE/NOTHING */
+  GE_ERROR     = 0x00000002,
+  GE_WARNING   = 0x00000004,
+  GE_INFO      = 0x00000008, /* normal program response */
+  GE_STATUS    = 0x00000010, /* status message */
+  GE_DEBUG     = 0x00000020, /* DEBUG/CRON/EVERYTHING */
   GE_EVENTKIND = 0x000000FF, /* bitmask */
 
   /* who should see the message? */
+  /**
+   * These messages are sent to the console / UI.
+   * Note that when running as an administrative
+   * daemon, messages tagged just as GE_USER will
+   * be discarded.
+   */
   GE_USER      = 0x01000000, /* current user, if possible */
+  /**
+   * These messages are sent to the logfile for the
+   * administrator.  Note that normal users may not
+   * always look there.
+   */
   GE_ADMIN     = 0x02000000, /* system administrator */
+  /**
+   * These messages are usually not logged or given
+   * to the user.  They can be obtained when the tool
+   * is run in debug mode.
+   */
   GE_DEVELOPER = 0x04000000, /* GNUnet developers (bug!) */
+  /**
+   * Mask for the type of user that should see the
+   * message.
+   */
   GE_USERKIND  = 0x0F000000, /* bitmask */
 
   /* how event should be routed */
+  /**
+   * The message should only be shown upon specific
+   * request.
+   */
   GE_REQUEST   = 0x20000000, /* display on request only (i.e. low-priority log, user demands verbose events) */
+  /**
+   * This type of message is not urgent and is likely
+   * to occur in bulk.  Suitable for logging to a file
+   * or in a generic, scrolling message window.
+   */
   GE_BULK      = 0x40000000, /* display in bulk output (i.e. log-file, scroll window, console) */
+  /**
+   * This is a message that is urgent and should be
+   * communicated as soon as possible.  Sending an
+   * e-mail alert or opening a pop-up window maybe
+   * appropriate.
+   */
   GE_IMMEDIATE = 0x80000000, /* display immediately (i.e. pop-up, e-mail) */
+  /**
+   * Mask for the routing type.
+   */
   GE_ROUTEKIND = 0xF0000000, /* bitmask */
   GE_ALL       = 0xFFFFFFFF,
   GE_INVALID   = 0x08000000, /* unused bit */
@@ -87,7 +125,7 @@ void GE_CONFIRM(struct GE_Context * ctx);
 void GE_setDefaultContext(struct GE_Context * ctx);
 
 /**
- * User-defined handler for Log events.
+ * User-defined handler for log events.
  */
 typedef void (*GE_LogHandler)(void * ctx,
 			      GE_KIND kind,

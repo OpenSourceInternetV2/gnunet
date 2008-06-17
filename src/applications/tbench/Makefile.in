@@ -48,10 +48,10 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/gettext.m4 \
 	$(top_srcdir)/m4/lib-ld.m4 $(top_srcdir)/m4/lib-link.m4 \
 	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libcurl.m4 \
 	$(top_srcdir)/m4/libgcrypt.m4 $(top_srcdir)/m4/libxml2.m4 \
-	$(top_srcdir)/m4/mkdir.m4 $(top_srcdir)/m4/nls.m4 \
-	$(top_srcdir)/m4/pkg.m4 $(top_srcdir)/m4/po.m4 \
-	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/acinclude.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/m4/mkdir.m4 $(top_srcdir)/m4/mkdirp.m4 \
+	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/pkg.m4 \
+	$(top_srcdir)/m4/po.m4 $(top_srcdir)/m4/progtest.m4 \
+	$(top_srcdir)/acinclude.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
@@ -81,15 +81,17 @@ am_tbenchtest_OBJECTS = tbenchtest.$(OBJEXT)
 tbenchtest_OBJECTS = $(am_tbenchtest_OBJECTS)
 tbenchtest_DEPENDENCIES =  \
 	$(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+	$(top_builddir)/src/applications/testing/libgnunettesting_api.la \
 	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
 	$(top_builddir)/src/util/loggers/libgnunetutil_logging.la \
 	$(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
 	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
 	$(top_builddir)/src/util/libgnunetutil.la
-am_tbenchtest_udp_OBJECTS = tbenchtest_udp.$(OBJEXT)
+am_tbenchtest_udp_OBJECTS = tbenchtest.$(OBJEXT)
 tbenchtest_udp_OBJECTS = $(am_tbenchtest_udp_OBJECTS)
 tbenchtest_udp_DEPENDENCIES =  \
 	$(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+	$(top_builddir)/src/applications/testing/libgnunettesting_api.la \
 	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
 	$(top_builddir)/src/util/loggers/libgnunetutil_logging.la \
 	$(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
@@ -99,8 +101,7 @@ DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
 @AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/gnunet-tbench.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/tbench.Plo ./$(DEPDIR)/tbenchtest.Po \
-@AMDEP_TRUE@	./$(DEPDIR)/tbenchtest_udp.Po
+@AMDEP_TRUE@	./$(DEPDIR)/tbench.Plo ./$(DEPDIR)/tbenchtest.Po
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) \
@@ -161,6 +162,8 @@ GNUNETGTK_LIBS = @GNUNETGTK_LIBS@
 GREP = @GREP@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
+HAVE_ADNS_FALSE = @HAVE_ADNS_FALSE@
+HAVE_ADNS_TRUE = @HAVE_ADNS_TRUE@
 HAVE_DIALOG_FALSE = @HAVE_DIALOG_FALSE@
 HAVE_DIALOG_TRUE = @HAVE_DIALOG_TRUE@
 HAVE_GTK_FALSE = @HAVE_GTK_FALSE@
@@ -199,6 +202,8 @@ LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
+LINUX_FALSE = @LINUX_FALSE@
+LINUX_TRUE = @LINUX_TRUE@
 LN_S = @LN_S@
 LTDLINCL = @LTDLINCL@
 LTLIBICONV = @LTLIBICONV@
@@ -216,6 +221,8 @@ MYSQL_CPPFLAGS = @MYSQL_CPPFLAGS@
 MYSQL_LDFLAGS = @MYSQL_LDFLAGS@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
+OPENBSD_FALSE = @OPENBSD_FALSE@
+OPENBSD_TRUE = @OPENBSD_TRUE@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
 PACKAGE_NAME = @PACKAGE_NAME@
@@ -321,6 +328,7 @@ tbenchtest_SOURCES = \
 
 tbenchtest_LDADD = \
   $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+  $(top_builddir)/src/applications/testing/libgnunettesting_api.la \
   $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
   $(top_builddir)/src/util/loggers/libgnunetutil_logging.la \
   $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
@@ -328,10 +336,11 @@ tbenchtest_LDADD = \
   $(top_builddir)/src/util/libgnunetutil.la 
 
 tbenchtest_udp_SOURCES = \
-  tbenchtest_udp.c 
+  tbenchtest.c 
 
 tbenchtest_udp_LDADD = \
   $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+  $(top_builddir)/src/applications/testing/libgnunettesting_api.la \
   $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
   $(top_builddir)/src/util/loggers/libgnunetutil_logging.la \
   $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
@@ -339,15 +348,7 @@ tbenchtest_udp_LDADD = \
   $(top_builddir)/src/util/libgnunetutil.la 
 
 EXTRA_DIST = \
-  check.conf \
-  peer1.conf \
-  peer2.conf \
-  peer1/.hostkey \
-  peer2/.hostkey \
-  peer1udp.conf \
-  peer2udp.conf \
-  peer1-udp/.hostkey \
-  peer2-udp/.hostkey 
+  check.conf 
 
 all: all-am
 
@@ -465,7 +466,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gnunet-tbench.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tbench.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tbenchtest.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tbenchtest_udp.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -623,7 +623,6 @@ check-TESTS: $(TESTS)
 	else :; fi
 
 distdir: $(DISTFILES)
-	$(mkdir_p) $(distdir)/peer1 $(distdir)/peer1-udp $(distdir)/peer2 $(distdir)/peer2-udp
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \

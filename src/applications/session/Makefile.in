@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-SOURCES = $(libgnunetmodule_session_la_SOURCES) $(sessiontest_SOURCES)
+SOURCES = $(libgnunetmodule_session_la_SOURCES) $(sessiontest_SOURCES) $(sessiontest2_SOURCES) $(sessiontest_http_SOURCES) $(sessiontest_udp_SOURCES)
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -37,7 +37,8 @@ NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
 host_triplet = @host@
-check_PROGRAMS = sessiontest$(EXEEXT)
+check_PROGRAMS = sessiontest$(EXEEXT) sessiontest_udp$(EXEEXT) \
+	sessiontest2$(EXEEXT) $(am__EXEEXT_1)
 subdir = src/applications/session
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -46,10 +47,10 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/gettext.m4 \
 	$(top_srcdir)/m4/lib-ld.m4 $(top_srcdir)/m4/lib-link.m4 \
 	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libcurl.m4 \
 	$(top_srcdir)/m4/libgcrypt.m4 $(top_srcdir)/m4/libxml2.m4 \
-	$(top_srcdir)/m4/mkdir.m4 $(top_srcdir)/m4/nls.m4 \
-	$(top_srcdir)/m4/pkg.m4 $(top_srcdir)/m4/po.m4 \
-	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/acinclude.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/m4/mkdir.m4 $(top_srcdir)/m4/mkdirp.m4 \
+	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/pkg.m4 \
+	$(top_srcdir)/m4/po.m4 $(top_srcdir)/m4/progtest.m4 \
+	$(top_srcdir)/acinclude.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
@@ -64,10 +65,36 @@ libgnunetmodule_session_la_DEPENDENCIES =  \
 am_libgnunetmodule_session_la_OBJECTS = connect.lo
 libgnunetmodule_session_la_OBJECTS =  \
 	$(am_libgnunetmodule_session_la_OBJECTS)
+@HAVE_MHD_TRUE@am__EXEEXT_1 = sessiontest_http$(EXEEXT)
 am_sessiontest_OBJECTS = sessiontest.$(OBJEXT)
 sessiontest_OBJECTS = $(am_sessiontest_OBJECTS)
 sessiontest_DEPENDENCIES =  \
 	$(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+	$(top_builddir)/src/applications/testing/libgnunettesting_api.la \
+	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
+	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
+	$(top_builddir)/src/util/libgnunetutil.la
+am_sessiontest2_OBJECTS = sessiontest2.$(OBJEXT)
+sessiontest2_OBJECTS = $(am_sessiontest2_OBJECTS)
+sessiontest2_DEPENDENCIES =  \
+	$(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+	$(top_builddir)/src/applications/identity/libgnunetidentity_api.la \
+	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
+	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
+	$(top_builddir)/src/util/libgnunetutil.la
+am_sessiontest_http_OBJECTS = sessiontest_http.$(OBJEXT)
+sessiontest_http_OBJECTS = $(am_sessiontest_http_OBJECTS)
+sessiontest_http_DEPENDENCIES =  \
+	$(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+	$(top_builddir)/src/applications/identity/libgnunetidentity_api.la \
+	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
+	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
+	$(top_builddir)/src/util/libgnunetutil.la
+am_sessiontest_udp_OBJECTS = sessiontest.$(OBJEXT)
+sessiontest_udp_OBJECTS = $(am_sessiontest_udp_OBJECTS)
+sessiontest_udp_DEPENDENCIES =  \
+	$(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+	$(top_builddir)/src/applications/testing/libgnunettesting_api.la \
 	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
 	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
 	$(top_builddir)/src/util/libgnunetutil.la
@@ -75,7 +102,9 @@ DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
 @AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/connect.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/sessiontest.Po
+@AMDEP_TRUE@	./$(DEPDIR)/sessiontest.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/sessiontest2.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/sessiontest_http.Po
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) \
@@ -84,9 +113,12 @@ LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) \
 CCLD = $(CC)
 LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(libgnunetmodule_session_la_SOURCES) $(sessiontest_SOURCES)
+SOURCES = $(libgnunetmodule_session_la_SOURCES) $(sessiontest_SOURCES) \
+	$(sessiontest2_SOURCES) $(sessiontest_http_SOURCES) \
+	$(sessiontest_udp_SOURCES)
 DIST_SOURCES = $(libgnunetmodule_session_la_SOURCES) \
-	$(sessiontest_SOURCES)
+	$(sessiontest_SOURCES) $(sessiontest2_SOURCES) \
+	$(sessiontest_http_SOURCES) $(sessiontest_udp_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -133,6 +165,8 @@ GNUNETGTK_LIBS = @GNUNETGTK_LIBS@
 GREP = @GREP@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
+HAVE_ADNS_FALSE = @HAVE_ADNS_FALSE@
+HAVE_ADNS_TRUE = @HAVE_ADNS_TRUE@
 HAVE_DIALOG_FALSE = @HAVE_DIALOG_FALSE@
 HAVE_DIALOG_TRUE = @HAVE_DIALOG_TRUE@
 HAVE_GTK_FALSE = @HAVE_GTK_FALSE@
@@ -171,6 +205,8 @@ LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
+LINUX_FALSE = @LINUX_FALSE@
+LINUX_TRUE = @LINUX_TRUE@
 LN_S = @LN_S@
 LTDLINCL = @LTDLINCL@
 LTLIBICONV = @LTLIBICONV@
@@ -188,6 +224,8 @@ MYSQL_CPPFLAGS = @MYSQL_CPPFLAGS@
 MYSQL_LDFLAGS = @MYSQL_LDFLAGS@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
+OPENBSD_FALSE = @OPENBSD_FALSE@
+OPENBSD_TRUE = @OPENBSD_TRUE@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
 PACKAGE_NAME = @PACKAGE_NAME@
@@ -275,22 +313,54 @@ libgnunetmodule_session_la_LIBADD = \
 libgnunetmodule_session_la_LDFLAGS = \
   -export-dynamic -avoid-version -module
 
+@HAVE_MHD_TRUE@httptest = sessiontest_http
 TESTS = $(check_PROGRAMS)
 sessiontest_SOURCES = \
   sessiontest.c 
 
 sessiontest_LDADD = \
   $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+  $(top_builddir)/src/applications/testing/libgnunettesting_api.la \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
+  $(top_builddir)/src/util/libgnunetutil.la 
+
+sessiontest_udp_SOURCES = \
+  sessiontest.c 
+
+sessiontest_udp_LDADD = \
+  $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+  $(top_builddir)/src/applications/testing/libgnunettesting_api.la \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
+  $(top_builddir)/src/util/libgnunetutil.la 
+
+sessiontest2_SOURCES = \
+  sessiontest2.c 
+
+sessiontest2_LDADD = \
+  $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+  $(top_builddir)/src/applications/identity/libgnunetidentity_api.la \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
+  $(top_builddir)/src/util/libgnunetutil.la 
+
+sessiontest_http_SOURCES = \
+  sessiontest_http.c 
+
+sessiontest_http_LDADD = \
+  $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+  $(top_builddir)/src/applications/identity/libgnunetidentity_api.la \
   $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
   $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
   $(top_builddir)/src/util/libgnunetutil.la 
 
 EXTRA_DIST = \
   check.conf \
-  peer1.conf \
-  peer2.conf \
-  peer1/.hostkey \
-  peer2/.hostkey 
+  tcp-peer.conf \
+  nat-peer.conf \
+  http-peer.conf \
+  nat-http-peer.conf
 
 all: all-am
 
@@ -364,6 +434,15 @@ clean-checkPROGRAMS:
 sessiontest$(EXEEXT): $(sessiontest_OBJECTS) $(sessiontest_DEPENDENCIES) 
 	@rm -f sessiontest$(EXEEXT)
 	$(LINK) $(sessiontest_LDFLAGS) $(sessiontest_OBJECTS) $(sessiontest_LDADD) $(LIBS)
+sessiontest2$(EXEEXT): $(sessiontest2_OBJECTS) $(sessiontest2_DEPENDENCIES) 
+	@rm -f sessiontest2$(EXEEXT)
+	$(LINK) $(sessiontest2_LDFLAGS) $(sessiontest2_OBJECTS) $(sessiontest2_LDADD) $(LIBS)
+sessiontest_http$(EXEEXT): $(sessiontest_http_OBJECTS) $(sessiontest_http_DEPENDENCIES) 
+	@rm -f sessiontest_http$(EXEEXT)
+	$(LINK) $(sessiontest_http_LDFLAGS) $(sessiontest_http_OBJECTS) $(sessiontest_http_LDADD) $(LIBS)
+sessiontest_udp$(EXEEXT): $(sessiontest_udp_OBJECTS) $(sessiontest_udp_DEPENDENCIES) 
+	@rm -f sessiontest_udp$(EXEEXT)
+	$(LINK) $(sessiontest_udp_LDFLAGS) $(sessiontest_udp_OBJECTS) $(sessiontest_udp_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -373,6 +452,8 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/connect.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sessiontest.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sessiontest2.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sessiontest_http.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -530,7 +611,6 @@ check-TESTS: $(TESTS)
 	else :; fi
 
 distdir: $(DISTFILES)
-	$(mkdir_p) $(distdir)/peer1 $(distdir)/peer2
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \

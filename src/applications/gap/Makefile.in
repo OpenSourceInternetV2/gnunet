@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-SOURCES = $(libgnunetmodule_gap_la_SOURCES) $(gaptest_SOURCES)
+SOURCES = $(libgnunetmodule_gap_la_SOURCES) $(gaptest_SOURCES) $(gaptest2_SOURCES) $(gaptest3_SOURCES)
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -37,7 +37,7 @@ NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
 host_triplet = @host@
-check_PROGRAMS = gaptest$(EXEEXT)
+check_PROGRAMS = gaptest$(EXEEXT) gaptest2$(EXEEXT) gaptest3$(EXEEXT)
 subdir = src/applications/gap
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -46,10 +46,10 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/gettext.m4 \
 	$(top_srcdir)/m4/lib-ld.m4 $(top_srcdir)/m4/lib-link.m4 \
 	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libcurl.m4 \
 	$(top_srcdir)/m4/libgcrypt.m4 $(top_srcdir)/m4/libxml2.m4 \
-	$(top_srcdir)/m4/mkdir.m4 $(top_srcdir)/m4/nls.m4 \
-	$(top_srcdir)/m4/pkg.m4 $(top_srcdir)/m4/po.m4 \
-	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/acinclude.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/m4/mkdir.m4 $(top_srcdir)/m4/mkdirp.m4 \
+	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/pkg.m4 \
+	$(top_srcdir)/m4/po.m4 $(top_srcdir)/m4/progtest.m4 \
+	$(top_srcdir)/acinclude.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
@@ -63,7 +63,26 @@ am_libgnunetmodule_gap_la_OBJECTS = gap.lo pid_table.lo
 libgnunetmodule_gap_la_OBJECTS = $(am_libgnunetmodule_gap_la_OBJECTS)
 am_gaptest_OBJECTS = gaptest.$(OBJEXT)
 gaptest_OBJECTS = $(am_gaptest_OBJECTS)
-gaptest_DEPENDENCIES =  \
+gaptest_DEPENDENCIES = $(top_builddir)/src/applications/testing/libgnunettesting_api.la \
+	$(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
+	$(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
+	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
+	$(top_builddir)/src/util/libgnunetutil.la
+am_gaptest2_OBJECTS = gaptest2.$(OBJEXT)
+gaptest2_OBJECTS = $(am_gaptest2_OBJECTS)
+gaptest2_DEPENDENCIES = $(top_builddir)/src/applications/testing/libgnunettesting_api.la \
+	$(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
+	$(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
+	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
+	$(top_builddir)/src/util/libgnunetutil.la
+am_gaptest3_OBJECTS = gaptest3.$(OBJEXT)
+gaptest3_OBJECTS = $(am_gaptest3_OBJECTS)
+gaptest3_DEPENDENCIES = $(top_builddir)/src/applications/identity/libgnunetidentity_api.la \
+	$(top_builddir)/src/applications/testing/libgnunettesting_api.la \
 	$(top_builddir)/src/applications/stats/libgnunetstats_api.la \
 	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
 	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
@@ -74,6 +93,7 @@ DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
 @AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/gap.Plo ./$(DEPDIR)/gaptest.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/gaptest2.Po ./$(DEPDIR)/gaptest3.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/pid_table.Plo
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -83,8 +103,10 @@ LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) \
 CCLD = $(CC)
 LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(libgnunetmodule_gap_la_SOURCES) $(gaptest_SOURCES)
-DIST_SOURCES = $(libgnunetmodule_gap_la_SOURCES) $(gaptest_SOURCES)
+SOURCES = $(libgnunetmodule_gap_la_SOURCES) $(gaptest_SOURCES) \
+	$(gaptest2_SOURCES) $(gaptest3_SOURCES)
+DIST_SOURCES = $(libgnunetmodule_gap_la_SOURCES) $(gaptest_SOURCES) \
+	$(gaptest2_SOURCES) $(gaptest3_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -131,6 +153,8 @@ GNUNETGTK_LIBS = @GNUNETGTK_LIBS@
 GREP = @GREP@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
+HAVE_ADNS_FALSE = @HAVE_ADNS_FALSE@
+HAVE_ADNS_TRUE = @HAVE_ADNS_TRUE@
 HAVE_DIALOG_FALSE = @HAVE_DIALOG_FALSE@
 HAVE_DIALOG_TRUE = @HAVE_DIALOG_TRUE@
 HAVE_GTK_FALSE = @HAVE_GTK_FALSE@
@@ -169,6 +193,8 @@ LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
+LINUX_FALSE = @LINUX_FALSE@
+LINUX_TRUE = @LINUX_TRUE@
 LN_S = @LN_S@
 LTDLINCL = @LTDLINCL@
 LTLIBICONV = @LTLIBICONV@
@@ -186,6 +212,8 @@ MYSQL_CPPFLAGS = @MYSQL_CPPFLAGS@
 MYSQL_LDFLAGS = @MYSQL_LDFLAGS@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
+OPENBSD_FALSE = @OPENBSD_FALSE@
+OPENBSD_TRUE = @OPENBSD_TRUE@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
 PACKAGE_NAME = @PACKAGE_NAME@
@@ -281,6 +309,32 @@ gaptest_SOURCES = \
   gaptest.c 
 
 gaptest_LDADD = \
+  $(top_builddir)/src/applications/testing/libgnunettesting_api.la \
+  $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
+  $(top_builddir)/src/util/libgnunetutil.la 
+
+gaptest2_SOURCES = \
+  gaptest2.c 
+
+gaptest2_LDADD = \
+  $(top_builddir)/src/applications/testing/libgnunettesting_api.la \
+  $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
+  $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la  \
+  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la  \
+  $(top_builddir)/src/util/libgnunetutil.la 
+
+gaptest3_SOURCES = \
+  gaptest3.c 
+
+gaptest3_LDADD = \
+  $(top_builddir)/src/applications/identity/libgnunetidentity_api.la \
+  $(top_builddir)/src/applications/testing/libgnunettesting_api.la \
   $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
   $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  \
@@ -289,10 +343,6 @@ gaptest_LDADD = \
   $(top_builddir)/src/util/libgnunetutil.la 
 
 EXTRA_DIST = \
-  peer1.conf \
-  peer2.conf \
-  peer1/.hostkey \
-  peer2/.hostkey \
   check.conf
 
 all: all-am
@@ -367,6 +417,12 @@ clean-checkPROGRAMS:
 gaptest$(EXEEXT): $(gaptest_OBJECTS) $(gaptest_DEPENDENCIES) 
 	@rm -f gaptest$(EXEEXT)
 	$(LINK) $(gaptest_LDFLAGS) $(gaptest_OBJECTS) $(gaptest_LDADD) $(LIBS)
+gaptest2$(EXEEXT): $(gaptest2_OBJECTS) $(gaptest2_DEPENDENCIES) 
+	@rm -f gaptest2$(EXEEXT)
+	$(LINK) $(gaptest2_LDFLAGS) $(gaptest2_OBJECTS) $(gaptest2_LDADD) $(LIBS)
+gaptest3$(EXEEXT): $(gaptest3_OBJECTS) $(gaptest3_DEPENDENCIES) 
+	@rm -f gaptest3$(EXEEXT)
+	$(LINK) $(gaptest3_LDFLAGS) $(gaptest3_OBJECTS) $(gaptest3_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -376,6 +432,8 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gap.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gaptest.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gaptest2.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gaptest3.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pid_table.Plo@am__quote@
 
 .c.o:
@@ -534,7 +592,6 @@ check-TESTS: $(TESTS)
 	else :; fi
 
 distdir: $(DISTFILES)
-	$(mkdir_p) $(distdir)/peer1 $(distdir)/peer2
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \

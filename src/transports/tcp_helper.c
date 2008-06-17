@@ -75,6 +75,10 @@ typedef struct {
    */
   int in_select;
 
+  void * accept_addr;
+
+  unsigned int addr_len;
+
 } TCPSession;
 
 /* *********** globals ************* */
@@ -120,6 +124,7 @@ static int tcpDisconnect(TSession * tsession) {
   if (tcpsession->in_select == NO) {
     MUTEX_UNLOCK(tcpsession->lock);
     MUTEX_DESTROY(tcpsession->lock);
+    FREENONNULL(tcpsession->accept_addr);
     FREE(tcpsession);
     FREE(tsession);
   } else {
@@ -196,6 +201,11 @@ static int select_message_handler(void * mh_cls,
     }
     tcpSession->expectingWelcome = NO;
     tcpSession->sender = welcome->clientIdentity;
+    tsession->peer = welcome->clientIdentity;
+    if (tcpSession->accept_addr != NULL) 
+      setIPaddressFromPID(&welcome->clientIdentity,
+			  tcpSession->accept_addr,
+			  tcpSession->addr_len);
   } else {
     /* send msg to core! */
     if (len <= sizeof(MESSAGE_HEADER)) {
@@ -256,10 +266,22 @@ static void * select_accept_handler(void * ah_cls,
   tcpSession->lock = MUTEX_CREATE(YES);
   tcpSession->users = 0;
   tcpSession->in_select = YES;
+  
   tsession = MALLOC(sizeof(TSession));
   tsession->ttype = TCP_PROTOCOL_NUMBER;
   tsession->internal = tcpSession;
-
+  tsession->peer = *(coreAPI->myIdentity);
+  if (addr_len > sizeof(IPaddr)) {
+    tcpSession->accept_addr = MALLOC(addr_len);
+    memcpy(tcpSession->accept_addr,
+	   (struct sockaddr_in*) addr,
+	   sizeof(struct sockaddr_in));
+    tcpSession->addr_len = addr_len;
+  } else {
+    GE_BREAK(NULL, 0);
+    tcpSession->addr_len = 0;
+    tcpSession->accept_addr = NULL; 
+  }
   return tsession;
 }					
 
@@ -275,6 +297,7 @@ static void select_close_handler(void * ch_cls,
   if (tcpSession->users == 0) {
     MUTEX_UNLOCK(tcpSession->lock);
     MUTEX_DESTROY(tcpSession->lock);
+    FREENONNULL(tcpSession->accept_addr);
     FREE(tcpSession);
     FREE(tsession);
   } else {
@@ -349,7 +372,7 @@ static int tcpSend(TSession * tsession,
   if ( (OK == ok) &&
        (stats != NULL) )
     stats->change(stat_bytesSent,
-		  size);
+		  size + sizeof(MESSAGE_HEADER));
 
   FREE(mp);
   return ok;
@@ -377,14 +400,14 @@ static int tcpTestWouldTry(TSession * tsession,
     GE_BREAK(ectx, 0);
     return SYSERR;
   }
-  if (selector == NULL) 
+  if (selector == NULL)
     return SYSERR;
   if (size == 0) {
     GE_BREAK(ectx, 0);
     return SYSERR;
   }
-  if (tcpSession->sock == NULL) 
-    return SYSERR; /* other side closed connection */  
+  if (tcpSession->sock == NULL)
+    return SYSERR; /* other side closed connection */
   return select_would_try(selector,
 			  tcpSession->sock,
 			  size,
@@ -400,7 +423,7 @@ static int tcpTestWouldTry(TSession * tsession,
  * @param tsessionPtr the session handle that is set
  * @return OK on success, SYSERR if the operation failed
  */
-static int tcpConnectHelper(const P2P_hello_MESSAGE * helo,
+static int tcpConnectHelper(const P2P_hello_MESSAGE * hello,
 			    struct SocketHandle * s,
 			    unsigned int protocolNumber,
 			    TSession ** tsessionPtr) {
@@ -409,14 +432,17 @@ static int tcpConnectHelper(const P2P_hello_MESSAGE * helo,
   TCPSession * tcpSession;
 
   tcpSession = MALLOC(sizeof(TCPSession));
+  tcpSession->addr_len = 0;
+  tcpSession->accept_addr = NULL;
   tcpSession->sock = s;
   tsession = MALLOC(sizeof(TSession));
   tsession->internal = tcpSession;
   tsession->ttype = protocolNumber;
+  tsession->peer = hello->senderIdentity;
   tcpSession->lock = MUTEX_CREATE(YES);
   tcpSession->users = 1; /* caller */
   tcpSession->in_select = NO;
-  tcpSession->sender = helo->senderIdentity;
+  tcpSession->sender = hello->senderIdentity;
   tcpSession->expectingWelcome = NO;
   MUTEX_LOCK(tcplock);
   if (OK ==
@@ -433,11 +459,11 @@ static int tcpConnectHelper(const P2P_hello_MESSAGE * helo,
     = htons(0);
   welcome.clientIdentity
     = *(coreAPI->myIdentity);
-  if (SYSERR == select_write(selector,
-			     s,			
-			     &welcome.header,
-			     NO,
-			     YES)) {
+  if (OK != select_write(selector,
+			 s,			
+			 &welcome.header,
+			 NO,
+			 YES)) {
 #if DEBUG_TCP
     GE_LOG(ectx,
 	   GE_DEBUG | GE_USER | GE_BULK,

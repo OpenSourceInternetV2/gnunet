@@ -45,12 +45,12 @@ typedef struct {
   /**
    * claimed IP of the sender, network byte order
    */
-  IPaddr senderIP;
+  IPaddr ip;
 
   /**
    * claimed port of the sender, network byte order
    */
-  unsigned short senderPort;
+  unsigned short port;
 
   /**
    * reserved (set to 0 for signature verification)
@@ -205,8 +205,15 @@ static int isRejected(const void * addr,
   if ((YES == isBlacklisted(addr,
 			    addr_len)) ||
       (YES != isWhitelisted(addr,
-			    addr_len)))	
+			    addr_len))) {
+#if DEBUG_UDP
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_USER | GE_BULK,
+	   "Rejecting traffic from %u.%u.%u.%u.\n",
+	   PRIP(ntohl(*(int*)addr)));
+#endif
     return YES;
+  }
   return NO;
 }
 
@@ -220,27 +227,37 @@ static int isRejected(const void * addr,
  *        (the signature/crc have been verified before)
  * @return OK on success, SYSERR on failure
  */
-static int verifyHelo(const P2P_hello_MESSAGE * helo) {
-  HostAddress * haddr;
+static int verifyHello(const P2P_hello_MESSAGE * hello) {
+  const HostAddress * haddr;
 
-  haddr = (HostAddress*) &helo[1];
-  if ( (ntohs(helo->senderAddressSize) != sizeof(HostAddress)) ||
-       (ntohs(helo->header.size) != P2P_hello_MESSAGE_size(helo)) ||
-       (ntohs(helo->header.type) != p2p_PROTO_hello) ||
-       (YES == isBlacklisted(&haddr->senderIP,
-			     sizeof(IPaddr))) ||
-       (YES != isWhitelisted(&haddr->senderIP,
-			     sizeof(IPaddr))) )
-    return SYSERR; /* obviously invalid */
-  else {
-#if DEBUG_UDP
-    GE_LOG(ectx, GE_DEBUG | GE_USER | GE_BULK,
-	"Verified UDP helo from %u.%u.%u.%u:%u.\n",
-	PRIP(ntohl(*(int*)&haddr->senderIP.addr)),
-	ntohs(haddr->senderPort));
-#endif
-    return OK;
+  haddr = (const HostAddress*) &hello[1];
+  if ( (ntohs(hello->senderAddressSize) != sizeof(HostAddress)) ||
+       (ntohs(hello->header.size) != P2P_hello_MESSAGE_size(hello)) ||
+       (ntohs(hello->header.type) != p2p_PROTO_hello) ) {
+    GE_BREAK(NULL, 0);
+    return SYSERR;
   }
+  if ( (YES == isBlacklisted(&haddr->ip,
+			     sizeof(IPaddr))) ||
+       (YES != isWhitelisted(&haddr->ip,
+			     sizeof(IPaddr))) ) {
+#if DEBUG_UDP
+    GE_LOG(ectx,
+	   GE_DEBUG | GE_USER | GE_BULK,
+	   "Rejecting UDP HELLO from %u.%u.%u.%u:%u due to configuration.\n",
+	   PRIP(ntohl(*(int*)&haddr->ip.addr)),
+	   ntohs(haddr->port));
+#endif
+    return SYSERR; /* obviously invalid */
+  }
+#if DEBUG_UDP
+  GE_LOG(ectx,
+	 GE_DEBUG | GE_USER | GE_BULK,
+	 "Verified UDP HELLO from %u.%u.%u.%u:%u.\n",
+	 PRIP(ntohl(*(int*)&haddr->ip.addr)),
+	 ntohs(haddr->port));
+#endif
+  return OK;
 }
 
 /**
@@ -266,23 +283,21 @@ static P2P_hello_MESSAGE * createhello() {
   if (! ( ( (upnp != NULL) &&
 	    (OK == upnp->get_ip(port,
 				"UDP",
-				&haddr->senderIP)) ) ||
+				&haddr->ip)) ) ||
 	  (SYSERR != getPublicIPAddress(cfg,
 					ectx,
-					&haddr->senderIP)) ) ) {
+					&haddr->ip)) ) ) {
     FREE(msg);
     GE_LOG(ectx,
 	   GE_WARNING | GE_ADMIN | GE_USER | GE_BULK,
 	   _("UDP: Could not determine my public IP address.\n"));
-    return NULL;  
+    return NULL;
   }
-#if DEBUG_UDP
   GE_LOG(ectx,
-	 GE_DEBUG | GE_USER | GE_BULK,
+	 GE_INFO | GE_USER | GE_BULK,
 	 "UDP uses IP address %u.%u.%u.%u.\n",
-	 PRIP(ntohl(*(int*)&haddr->senderIP)));
-#endif
-  haddr->senderPort      = htons(port);
+	 PRIP(ntohl(*(int*)&haddr->ip)));
+  haddr->port      = htons(port);
   haddr->reserved        = htons(0);
   msg->senderAddressSize = htons(sizeof(HostAddress));
   msg->protocol          = htons(UDP_PROTOCOL_NUMBER);
@@ -303,7 +318,7 @@ static int udpSend(TSession * tsession,
 		   const unsigned int size,
 		   int important) {
   UDPMessage * mp;
-  P2P_hello_MESSAGE * helo;
+  P2P_hello_MESSAGE * hello;
   HostAddress * haddr;
   struct sockaddr_in sin; /* an Internet endpoint address */
   int ok;
@@ -320,11 +335,11 @@ static int udpSend(TSession * tsession,
     GE_BREAK(ectx, 0);
     return SYSERR;
   }
-  helo = (P2P_hello_MESSAGE*)tsession->internal;
-  if (helo == NULL)
+  hello = (P2P_hello_MESSAGE*)tsession->internal;
+  if (hello == NULL)
     return SYSERR;
 
-  haddr = (HostAddress*) &helo[1];
+  haddr = (HostAddress*) &hello[1];
   ssize = size + sizeof(UDPMessage);
   mp = MALLOC(ssize);
   mp->header.size = htons(ssize);
@@ -336,11 +351,11 @@ static int udpSend(TSession * tsession,
   ok = SYSERR;
   memset(&sin, 0, sizeof(sin));
   sin.sin_family = AF_INET;
-  sin.sin_port = haddr->senderPort;
+  sin.sin_port = haddr->port;
 
   GE_ASSERT(ectx, sizeof(struct in_addr) == sizeof(IPaddr));
   memcpy(&sin.sin_addr,
-	 &haddr->senderIP,
+	 &haddr->ip,
 	 sizeof(IPaddr));
 #if DEBUG_UDP
   GE_LOG(ectx,
@@ -382,7 +397,7 @@ static int udpSend(TSession * tsession,
  *
  * @return OK on success, SYSERR if the operation failed
  */
-static int startTransportServer(void) {
+static int startTransportServer() {
   int sock;
   unsigned short port;
 
@@ -461,43 +476,27 @@ static int reloadConfiguration() {
 }
 
 /**
- * Convert UDP address to a string.
+ * Convert UDP hello to IP address
  */
-static char * 
-addressToString(const P2P_hello_MESSAGE * hello,
-		int do_resolve) {
-  char * ret;
+static int
+helloToAddress(const P2P_hello_MESSAGE * hello,
+	       void ** sa,
+	       unsigned int * sa_len) {
   const HostAddress * haddr = (const HostAddress*) &hello[1];
-  size_t n;
-  const char * hn = "";
-  struct hostent * ent;
-
-#if HAVE_GETHOSTBYADDR
-  if (do_resolve) {
-    ent = gethostbyaddr(haddr,
-			sizeof(IPaddr),
-			AF_INET);
-    if (ent != NULL)
-      hn = ent->h_name;
-  }    
-#endif
-  n = 4*4+6+6 + strlen(hn) + 10;
-  ret = MALLOC(n);
-  if (strlen(hn) > 0) {
-    SNPRINTF(ret,
-	     n,
-	     "%s (%u.%u.%u.%u) UDP (%u)",
-	     hn,
-	     PRIP(ntohl(*(int*)&haddr->senderIP.addr)),
-	     ntohs(haddr->senderPort));
-  } else {
-    SNPRINTF(ret,
-	     n,
-	     "%u.%u.%u.%u UDP (%u)",
-	     PRIP(ntohl(*(int*)&haddr->senderIP.addr)),
-	     ntohs(haddr->senderPort));
-  }
-  return ret;
+  struct sockaddr_in * serverAddr;
+  
+  *sa_len = sizeof(struct sockaddr_in);
+  serverAddr = MALLOC(sizeof(struct sockaddr_in));
+  *sa = serverAddr;
+  memset(serverAddr,
+	 0,
+	 sizeof(struct sockaddr_in));
+  serverAddr->sin_family   = AF_INET;
+  memcpy(&serverAddr->sin_addr,
+	 haddr,
+	 sizeof(IPaddr));
+  serverAddr->sin_port = haddr->port;
+  return OK;
 }
 
 /**
@@ -510,7 +509,8 @@ addressToString(const P2P_hello_MESSAGE * hello,
  * The exported method. Makes the core api available via a global and
  * returns the udp transport API.
  */
-TransportAPI * inittransport_udp(CoreAPIForTransport * core) {
+TransportAPI *
+inittransport_udp(CoreAPIForTransport * core) {
   unsigned long long mtu;
 
   ectx = core->ectx;
@@ -522,7 +522,9 @@ TransportAPI * inittransport_udp(CoreAPIForTransport * core) {
   if (-1 == GC_get_configuration_value_number(cfg,
 					      "UDP",
 					      "MTU",
-					      sizeof(UDPMessage) + P2P_MESSAGE_OVERHEAD + sizeof(MESSAGE_HEADER) + 32,
+					      sizeof(UDPMessage)
+					      + P2P_MESSAGE_OVERHEAD
+					      + sizeof(MESSAGE_HEADER) + 32,
 					      65500,
 					      MESSAGE_SIZE,
 					      &mtu)) {
@@ -539,7 +541,7 @@ TransportAPI * inittransport_udp(CoreAPIForTransport * core) {
 				       "UPNP",
 				       YES) == YES) {
     upnp = coreAPI->requestService("upnp");
-    
+
     if (upnp == NULL)
 			GE_LOG(ectx,
 	   		GE_ERROR | GE_USER | GE_IMMEDIATE,
@@ -560,7 +562,7 @@ TransportAPI * inittransport_udp(CoreAPIForTransport * core) {
   udpAPI.protocolNumber       = UDP_PROTOCOL_NUMBER;
   udpAPI.mtu                  = mtu - sizeof(UDPMessage);
   udpAPI.cost                 = 20000;
-  udpAPI.verifyHelo           = &verifyHelo;
+  udpAPI.verifyHello          = &verifyHello;
   udpAPI.createhello          = &createhello;
   udpAPI.connect              = &udpConnect;
   udpAPI.send                 = &udpSend;
@@ -568,7 +570,7 @@ TransportAPI * inittransport_udp(CoreAPIForTransport * core) {
   udpAPI.disconnect           = &udpDisconnect;
   udpAPI.startTransportServer = &startTransportServer;
   udpAPI.stopTransportServer  = &stopTransportServer;
-  udpAPI.addressToString      = &addressToString;
+  udpAPI.helloToAddress       = &helloToAddress;
   udpAPI.testWouldTry         = &testWouldTry;
 
   return &udpAPI;

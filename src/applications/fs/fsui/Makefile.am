@@ -15,11 +15,13 @@ libgnunetfsui_la_SOURCES = \
   upload.c
 libgnunetfsui_la_LIBADD = \
  -lextractor \
+ $(top_builddir)/src/applications/identity/libgnunetidentity_api.la \
  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
  $(top_builddir)/src/applications/fs/namespace/libgnunetnamespace.la \
  $(top_builddir)/src/applications/fs/uritrack/libgnuneturitrack.la \
  $(top_builddir)/src/util/cron/libgnunetutil_cron.la \
  $(top_builddir)/src/util/loggers/libgnunetutil_logging.la \
+ $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
  $(top_builddir)/src/util/libgnunetutil.la 
 
 EXTRA_DIST = \

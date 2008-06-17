@@ -230,7 +230,7 @@ typedef struct {
    *        (the signature/crc have been verified before)
    * @return OK if the helo is well-formed
    */
-  int (*verifyHelo)(const P2P_hello_MESSAGE * hello);
+  int (*verifyHello)(const P2P_hello_MESSAGE * hello);
 
   /**
    * Create a hello-Message for the current node. The hello is
@@ -253,7 +253,7 @@ typedef struct {
    * @return OK on success, SYSERR if the operation failed
    */
   int (*connect)(const P2P_hello_MESSAGE * hello,
-		 TSession ** tsession);  
+		 TSession ** tsession);
 
   /**
    * Send a message to the specified remote node.
@@ -323,12 +323,12 @@ typedef struct {
   int (*stopTransportServer)(void);
 
   /**
-   * Convert transport address to human readable string.
-   *
-   * @param resolve_ip should we try to resolve the IP?
+   * Convert hello to network address.
+   * @return OK on success, SYSERR on error
    */
-  char * (*addressToString)(const P2P_hello_MESSAGE * hello,
-			    int resolve_ip);
+  int (*helloToAddress)(const P2P_hello_MESSAGE * hello,
+			void ** sa,
+			unsigned int * sa_len);
 
   /**
    * Test if the transport would even try to send
@@ -346,7 +346,7 @@ typedef struct {
   int (*testWouldTry)(TSession * tsession,
 		      unsigned int size,
 		      int important);
-  
+
 } TransportAPI;
 
 /**

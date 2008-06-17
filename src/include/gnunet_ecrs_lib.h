@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet
-     (C) 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
+     (C) 2004, 2005, 2006, 2007 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -27,7 +27,7 @@
 #ifndef GNUNET_ECRS_LIB_H
 #define GNUNET_ECRS_LIB_H
 
-#include "gnunet_util.h"
+#include "gnunet_util_core.h"
 #include "gnunet_core.h"
 #include <extractor.h>
 
@@ -269,13 +269,13 @@ char * ECRS_uriToString(const struct ECRS_URI * uri);
  * Convert a NULL-terminated array of keywords
  * to an ECRS URI.
  */
-struct ECRS_URI * 
+struct ECRS_URI *
 ECRS_keywordsToUri(const char * keyword[]);
 
 /**
  * Convert a UTF-8 String to a URI.
  */
-struct ECRS_URI * 
+struct ECRS_URI *
 ECRS_stringToUri(struct GE_Context * ectx,
 		 const char * uri);
 
@@ -307,14 +307,6 @@ int ECRS_getPeerFromUri(const struct ECRS_URI * uri,
 			PeerIdentity * peer);
 
 /**
- * (re)construct the HELLO message of the peer offerin the data
- *
- * @return NULL if this is not a location URI
- */
-P2P_hello_MESSAGE *
-ECRS_getHelloFromUri(const struct ECRS_URI * uri);
-
-/**
  * Obtain the URI of the content itself.
  *
  * @return NULL if argument is not a location URI
@@ -337,21 +329,14 @@ typedef int (*ECRS_SignFunction)(void * cls,
  * @param baseURI content offered by the sender
  * @param sender identity of the peer with the content
  * @param expirationTime how long will the content be offered?
- * @param proto transport protocol to reach the peer
- * @param sas sender address size (for HELLO)
- * @param address sas bytes of address information
- * @param signer function to call for obtaining 
+ * @param signer function to call for obtaining
  *        RSA signatures for "sender".
  * @return the location URI
  */
 struct ECRS_URI *
 ECRS_uriFromLocation(const struct ECRS_URI * baseUri,
-		     const PublicKey * sender,
+		     const PublicKey * peer,
 		     TIME_T expirationTime,
-		     unsigned short proto,
-		     unsigned short sas,
-		     unsigned int mtu,
-		     const char * address,
 		     ECRS_SignFunction signer,
 		     void * signer_cls);
 
@@ -366,7 +351,7 @@ struct ECRS_URI * ECRS_dupUri(const struct ECRS_URI * uri);
  * adding the current date (YYYY-MM-DD) after each
  * keyword.
  */
-struct ECRS_URI * 
+struct ECRS_URI *
 ECRS_dateExpandKeywordUri(const struct ECRS_URI * uri);
 
 /**
@@ -468,7 +453,8 @@ int ECRS_isLocationUri(const struct ECRS_URI * uri);
  * in the meta-data and construct one large keyword URI
  * that lists all keywords that can be found in the meta-data).
  */
-struct ECRS_URI * ECRS_metaDataToUri(const struct ECRS_MetaData * md);
+struct ECRS_URI *
+ECRS_metaDataToUri(const struct ECRS_MetaData * md);
 
 
 typedef struct {
@@ -789,6 +775,38 @@ int ECRS_downloadFile(struct GE_Context * ectx,
 		      void * dpcbClosure,
 		      ECRS_TestTerminate tt,
 		      void * ttClosure); /* download.c */
+
+/**
+ * Download parts of a file.  Note that this will store
+ * the blocks at the respective offset in the given file.
+ * Also, the download is still using the blocking of the
+ * underlying ECRS encoding.  As a result, the download
+ * may *write* outside of the given boundaries (if offset
+ * and length do not match the 32k ECRS block boundaries).
+ * <p>
+ *
+ * This function should be used to focus a download towards a
+ * particular portion of the file (optimization), not to strictly
+ * limit the download to exactly those bytes.
+ *
+ * @param uri the URI of the file (determines what to download)
+ * @param filename where to store the file
+ * @param no_temporaries set to YES to disallow generation of temporary files
+ * @param start starting offset
+ * @param length length of the download (starting at offset)
+ */
+int ECRS_downloadPartialFile(struct GE_Context * ectx,
+			     struct GC_Configuration * cfg,
+			     const struct ECRS_URI * uri,
+			     const char * filename,
+			     unsigned long long offset,
+			     unsigned long long length,
+			     unsigned int anonymityLevel,
+			     int no_temporaries,
+			     ECRS_DownloadProgressCallback dpcb,
+			     void * dpcbClosure,
+			     ECRS_TestTerminate tt,
+			     void * ttClosure); /* download.c */
 
 /**
  * Iterate over all entries in a directory.  Note that directories

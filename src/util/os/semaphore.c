@@ -171,7 +171,7 @@ IPC_SEMAPHORE_CREATE(struct GE_Context * ectx,
   while ( (ret->internal == (void *) SEM_FAILED)
 	  && (errno == ENAMETOOLONG) ) {
     char * halfBasename;
-    
+
     if (strlen(noslashBasename) < 4)
       break; /* definitely OS error... */
     /* FIXME: this might cause unintended mapping to same names */
@@ -382,7 +382,7 @@ again:
   FLOCK(fd, LOCK_UN);
   ret->fd = fd;
   ret->initialValue = initialValue;
-  return rret;
+  return ret;
 #else
  #ifndef _MSC_VER
    #warning Port IPC.

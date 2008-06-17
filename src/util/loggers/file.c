@@ -80,6 +80,12 @@ typedef struct FileContext {
   int yday;
 
   /**
+   * Is this the first time we log anything for this
+   * process?  Used with log rotation to delete old logs.
+   */
+  int first_start;
+
+  /**
    * When did we start the current logfile?
    */
   TIME_T logstart;
@@ -185,6 +191,10 @@ getLogFileName(struct GE_Context * fctx,
 			  datefmt,
 			  &lcltime));
   FREE(datefmt);
+
+  /* Remove special chars */
+  disk_filename_canonicalize(date);
+  
   size = strlen(name) + 82;
   ret = MALLOC(size);
   SNPRINTF(ret,
@@ -209,8 +219,10 @@ filelogger(void * cls,
   if (fctx->logrotate) {
     name = getLogFileName(fctx->ectx,
 			  fctx->basename);
-    if (0 != strcmp(name,
-		    fctx->filename)) {
+    if ( (fctx->first_start == YES) ||
+	 (0 != strcmp(name,
+		      fctx->filename)) ) {
+      fctx->first_start = NO;
       fclose(fctx->handle);
       fctx->handle = FOPEN(name, "a+");
       FREE(fctx->filename);
@@ -228,11 +240,21 @@ filelogger(void * cls,
       FREE(name);
     }
   }
+
+#ifdef WINDOWS
+    /* Most tools disband the console window early in the initialization
+       process, so we have to create a new one if we're logging to the console. */
+    if ((fctx->handle == stderr || fctx->handle == stdout)) {
+      AllocConsole();
+      SetConsoleTitle(_("GNUnet error log"));
+    }
+#endif  
+  
   if (fctx->logdate) {
     ret = fprintf(fctx->handle,
-		  "%s: %s %s",
-		  GE_kindToString(kind & GE_EVENTKIND),
+		  "%s %s: %s",
 		  date,
+		  GE_kindToString(kind & GE_EVENTKIND),
 		  msg);
   } else {
     ret = fprintf(fctx->handle,
@@ -302,6 +324,7 @@ GE_create_context_logfile(struct GE_Context * ectx,
     return NULL; /* ERROR! */
   }
   fctx = MALLOC(sizeof(FileContext));
+  fctx->first_start = YES;
   fctx->ectx = ectx;
   fctx->logdate = logDate;
   fctx->logrotate = logrotate;
@@ -336,6 +359,7 @@ GE_create_context_stderr(int logDate,
   fctx->filename = NULL;
   fctx->basename = NULL;
   fctx->logstart = 0;
+  fctx->first_start = NO;
   fctx->lock = MUTEX_CREATE(YES);
   return GE_create_context_callback(mask,
 				    &filelogger,
@@ -359,6 +383,7 @@ GE_create_context_stdout(int logDate,
   fctx->ectx = NULL;
   fctx->logdate = logDate;
   fctx->logrotate = 0;
+  fctx->first_start = NO;
   fctx->handle = stdout;
   fctx->filename = NULL;
   fctx->basename = NULL;

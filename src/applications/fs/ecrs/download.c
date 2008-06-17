@@ -27,6 +27,7 @@
 #include "gnunet_protocols.h"
 #include "gnunet_ecrs_lib.h"
 #include "gnunet_fs_lib.h"
+#include "gnunet_identity_lib.h"
 #include "ecrs_core.h"
 #include "ecrs.h"
 #include "tree.h"
@@ -134,12 +135,14 @@ static void freeIOC(IOContext * this,
  * Initialize an IOContext.
  *
  * @param this the context to initialize
+ * @param no_temporaries disallow creation of temp files
  * @param filesize the size of the file
  * @param filename the name of the level-0 file
  * @return OK on success, SYSERR on failure
  */
 static int createIOContext(struct GE_Context * ectx,
 			   IOContext * this,
+			   int no_temporaries,
 			   unsigned long long filesize,
 			   const char * filename) {
   int i;
@@ -168,22 +171,25 @@ static int createIOContext(struct GE_Context * ectx,
     this->handles[i] = -1;
 
   for (i=0;i<=this->treedepth;i++) {
-    fn = MALLOC(strlen(filename) + 3);
-    strcpy(fn, filename);
-    if (i > 0) {
-      strcat(fn, ".A");
-      fn[strlen(fn)-1] += i;
-    }
-    this->handles[i] = disk_file_open(ectx,
-				      fn,
-				      O_CREAT|O_RDWR,
-				      S_IRUSR|S_IWUSR );
-    if (this->handles[i] < 0) {
-      freeIOC(this, YES);
+    if ( (i == 0) ||
+	 (no_temporaries != YES) ) {
+      fn = MALLOC(strlen(filename) + 3);
+      strcpy(fn, filename);
+      if (i > 0) {
+	strcat(fn, ".A");
+	fn[strlen(fn)-1] += i;
+      }
+      this->handles[i] = disk_file_open(ectx,
+					fn,
+					O_CREAT|O_RDWR,
+					S_IRUSR|S_IWUSR );
+      if (this->handles[i] < 0) {
+	freeIOC(this, YES);
+	FREE(fn);
+	return SYSERR;
+      }
       FREE(fn);
-      return SYSERR;
     }
-    FREE(fn);
   }
   return OK;
 }
@@ -206,6 +212,10 @@ int readFromIOC(IOContext * this,
   int ret;
 
   MUTEX_LOCK(this->lock);
+  if (this->handles[level] == -1) {
+    MUTEX_UNLOCK(this->lock);
+    return SYSERR;
+  }
   lseek(this->handles[level],
 	pos,
 	SEEK_SET);
@@ -243,6 +253,11 @@ int writeToIOC(IOContext * this,
   int ret;
 
   MUTEX_LOCK(this->lock);
+  if ( (this->handles[level] == -1) &&
+       (level > 0) ) {
+    MUTEX_UNLOCK(this->lock);
+    return len; /* lie -- no temps allowed... */
+  }
   lseek(this->handles[level],
 	pos,
 	SEEK_SET);
@@ -375,6 +390,8 @@ typedef struct RequestManager {
 
   struct GC_Configuration * cfg;
 
+  PeerIdentity target;
+
   /**
    * Number of pending requests (highest used index)
    */
@@ -411,12 +428,18 @@ typedef struct RequestManager {
    * to abort the RM as soon as possible.
    */
   int abortFlag;
-  
+
   /**
    * Is the request manager being destroyed?
    * (if so, accessing the request list is illegal!)
    */
   int shutdown;
+
+  /**
+   * Do we have a specific peer from which we download
+   * from?
+   */
+  int have_target;
 
 } RequestManager;
 
@@ -427,8 +450,9 @@ typedef struct RequestManager {
  *
  * @return NULL on error
  */
-static RequestManager * createRequestManager(struct GE_Context * ectx,
-					     struct GC_Configuration * cfg) {
+static RequestManager *
+createRequestManager(struct GE_Context * ectx,
+		     struct GC_Configuration * cfg) {
   RequestManager * rm;
 
   rm = MALLOC(sizeof(RequestManager));
@@ -460,6 +484,8 @@ static RequestManager * createRequestManager(struct GE_Context * ectx,
     = 0;
   rm->requestList
     = NULL;
+  rm->have_target
+    = NO;
   GROW(rm->requestList,
        rm->requestListSize,
        256);
@@ -581,7 +607,7 @@ static void addRequest(RequestManager * rm,
     = 0;
   entry->searchHandle
     = NULL;
-  MUTEX_LOCK(rm->lock);  
+  MUTEX_LOCK(rm->lock);
   if (rm->shutdown == NO) {
     GE_ASSERT(rm->ectx,
 	      rm->requestListSize > 0);
@@ -641,6 +667,8 @@ static void delRequest(RequestManager * rm,
 typedef struct CommonCtx {
   unsigned long long total;
   unsigned long long completed;
+  unsigned long long offset;
+  unsigned long long length;
   cron_t startTime;
   cron_t TTL_DECREMENT;
   RequestManager * rm;
@@ -720,10 +748,10 @@ static void updateProgress(const NodeClosure * node,
     if (node->ctx->completed > 0) {
       eta = (cron_t) (node->ctx->startTime +
 		      (((double)(eta - node->ctx->startTime)/(double)node->ctx->completed))
-		      * (double)node->ctx->total);
+		      * (double)node->ctx->length);
     }
     if (node->ctx->dpcb != NULL) {
-      node->ctx->dpcb(node->ctx->total,
+      node->ctx->dpcb(node->ctx->length,
 		      node->ctx->completed,
 		      eta,
 		      node->offset,
@@ -810,6 +838,11 @@ static void iblock_download_children(NodeClosure * node,
  * block is present and it is an iblock, downloading the children is
  * triggered.
  *
+ * Also checks if the block is within the range of blocks
+ * that we are supposed to download.  If not, the method
+ * returns as if the block is present but does NOT signal
+ * progress.
+ *
  * @param node that is checked for presence
  * @return YES if present, NO if not.
  */
@@ -821,6 +854,15 @@ static int checkPresent(NodeClosure * node) {
   HashCode512 hc;
 
   size = getNodeSize(node);
+
+  /* first check if node is within range.
+     For now, keeping it simple, we only do
+     this for level-0 nodes */
+  if ( (node->level == 0) &&
+       ( (node->offset + size < node->ctx->offset) ||
+	 (node->offset > node->ctx->offset + node->ctx->length) ) )
+    return YES;
+
   data = MALLOC(size);
   res = readFromIOC(node->ctx->ioc,
 		    node->level,
@@ -833,7 +875,7 @@ static int checkPresent(NodeClosure * node) {
 	 &hc);
     if (equalsHashCode512(&hc,
 			  &node->chk.key)) {
-      updateProgress(node, 
+      updateProgress(node,
 		     data,
 		     size);
       if (node->level > 0)
@@ -940,7 +982,7 @@ static int decryptContent(const char * data,
 
 /**
  * We received a CHK reply for a block. Decrypt.  Note
- * that the caller (fslib) has already aquired the 
+ * that the caller (fslib) has already aquired the
  * RM lock (we sometimes aquire it again in callees,
  * mostly because our callees could be also be theoretically
  * called from elsewhere).
@@ -1028,9 +1070,9 @@ static int nodeReceive(const HashCode512 * query,
 
   for (i=0;i<10;i++) {
     if ( (node->ctx->completed * 10000L >
-	  node->ctx->total * (10000L - (1024 >> i)) ) &&
+	  node->ctx->length * (10000L - (1024 >> i)) ) &&
 	 ( (node->ctx->completed-size) * 10000L <=
-	   node->ctx->total * (10000L - (1024 >> i)) ) ) {
+	   node->ctx->length * (10000L - (1024 >> i)) ) ) {
       /* end-game boundary crossed, slaughter TTLs */
       requestManagerEndgame(node->ctx->rm);
     }
@@ -1150,6 +1192,7 @@ static void issueRequest(RequestManager * rm,
 		   entry->searchHandle);
   entry->searchHandle
     = FS_start_search(rm->sctx,
+		      rm->have_target == NO ? NULL : &rm->target,
 		      D_BLOCK,
 		      1,
 		      &entry->node->chk.query,
@@ -1280,6 +1323,52 @@ int ECRS_downloadFile(struct GE_Context * ectx,
 		      void * dpcbClosure,
 		      ECRS_TestTerminate tt,
 		      void * ttClosure) {
+  return ECRS_downloadPartialFile(ectx,
+				  cfg,
+				  uri,
+				  filename,
+				  0,
+				  ECRS_fileSize(uri),
+				  anonymityLevel,
+				  NO,
+				  dpcb,
+				  dpcbClosure,
+				  tt,
+				  ttClosure);
+}
+
+
+/**
+ * Download parts of a file.  Note that this will store
+ * the blocks at the respective offset in the given file.
+ * Also, the download is still using the blocking of the
+ * underlying ECRS encoding.  As a result, the download
+ * may *write* outside of the given boundaries (if offset
+ * and length do not match the 32k ECRS block boundaries).
+ * <p>
+ *
+ * This function should be used to focus a download towards a
+ * particular portion of the file (optimization), not to strictly
+ * limit the download to exactly those bytes.
+ *
+ * @param uri the URI of the file (determines what to download)
+ * @param filename where to store the file
+ * @param no_temporaries set to YES to disallow generation of temporary files
+ * @param start starting offset
+ * @param length length of the download (starting at offset)
+ */
+int ECRS_downloadPartialFile(struct GE_Context * ectx,
+			     struct GC_Configuration * cfg,
+			     const struct ECRS_URI * uri,
+			     const char * filename,
+			     unsigned long long offset,
+			     unsigned long long length,
+			     unsigned int anonymityLevel,
+			     int no_temporaries,
+			     ECRS_DownloadProgressCallback dpcb,
+			     void * dpcbClosure,
+			     ECRS_TestTerminate tt,
+			     void * ttClosure) {
   IOContext ioc;
   RequestManager * rm;
   int ret;
@@ -1352,7 +1441,9 @@ int ECRS_downloadFile(struct GE_Context * ectx,
     return OK;
   }
   fid = uri->data.fi;
-  if (! ECRS_isFileUri(uri)) {
+
+  if ( (! ECRS_isFileUri(uri)) &&
+       (! ECRS_isLocationUri(uri))) {
     GE_BREAK(ectx, 0);
     FREE(realFN);
     return SYSERR;
@@ -1360,6 +1451,7 @@ int ECRS_downloadFile(struct GE_Context * ectx,
 
   if (OK != createIOContext(ectx,
 			    &ioc,
+			    no_temporaries,
 			    ntohll(fid.file_length),
 			    realFN)) {
 #if DEBUG_DOWNLOAD
@@ -1379,8 +1471,17 @@ int ECRS_downloadFile(struct GE_Context * ectx,
     FREE(realFN);
     return SYSERR;
   }
+  if (ECRS_isLocationUri(uri)) {
+    hash(&uri->data.loc.peer,
+	 sizeof(PublicKey),
+	 &rm->target.hashPubKey);
+    rm->have_target = YES;
+  }
+
   ctx.startTime = get_time();
   ctx.anonymityLevel = anonymityLevel;
+  ctx.offset = offset;
+  ctx.length = length;
   ctx.TTL_DECREMENT = 5 * cronSECONDS; /* HACK! */
   ctx.rm = rm;
   ctx.ioc = &ioc;
@@ -1408,7 +1509,9 @@ int ECRS_downloadFile(struct GE_Context * ectx,
   }
 
   if ( (rm->requestListIndex == 0) &&
-       (ctx.completed == ctx.total) &&
+       ( (ctx.completed == ctx.total) ||
+	 ( (ctx.total != ctx.length) &&
+	   (ctx.completed >= ctx.length) ) ) &&
        (rm->abortFlag == NO) ) {
     ret = OK;
   } else {

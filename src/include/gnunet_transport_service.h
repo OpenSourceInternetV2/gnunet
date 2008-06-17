@@ -152,12 +152,13 @@ typedef struct {
   int (*verifyhello)(const P2P_hello_MESSAGE * hello);
 
   /**
-   * Convert hello to string.
+   * Get the network address from a HELLO.
    *
-   * @param resolve_ip should we try to resovle the IP?
+   * @return OK on success, SYSERR on error 
    */
-  char * (*helloToString)(const P2P_hello_MESSAGE * hello,
-			  int resolve_ip);
+  int (*helloToAddress)(const P2P_hello_MESSAGE * hello,
+			void ** sa,
+			unsigned int * sa_len);
 
   /**
    * Get the MTU for a given transport type.
@@ -184,7 +185,7 @@ typedef struct {
    * @return the number of bytes written to buff, -1 on error
    */
   int (*getAdvertisedhellos)(unsigned int maxLen,
-			    char * buff);
+			     char * buff);
 
   /**
    * Test if the transport would even try to send
@@ -202,7 +203,7 @@ typedef struct {
   int (*testWouldTry)(TSession * tsession,
 		      unsigned int size,
 		      int important);
-  
+
 
 } Transport_ServiceAPI;
 

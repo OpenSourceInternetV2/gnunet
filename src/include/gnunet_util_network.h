@@ -426,20 +426,21 @@ int socket_test_valid(struct SocketHandle * s);
  *        queueing messages (in bytes)
  * @return NULL on error
  */
-struct SelectHandle * select_create(const char * desc,
-				    int is_udp,
-				    struct GE_Context * ectx,
-				    struct LoadMonitor * mon,
-				    int sock,
-				    unsigned int max_addr_len,
-				    cron_t timeout,
-				    SelectMessageHandler mh,
-				    void * mh_cls,
-				    SelectAcceptHandler ah,
-				    void * ah_cls,
-				    SelectCloseHandler ch,
-				    void * ch_cls,
-				    unsigned int memory_quota);
+struct SelectHandle *
+select_create(const char * desc,
+	      int is_udp,
+	      struct GE_Context * ectx,
+	      struct LoadMonitor * mon,
+	      int sock,
+	      unsigned int max_addr_len,
+	      cron_t timeout,
+	      SelectMessageHandler mh,
+	      void * mh_cls,
+	      SelectAcceptHandler ah,
+	      void * ah_cls,
+	      SelectCloseHandler ch,
+	      void * ch_cls,
+	      unsigned int memory_quota);
 
 /**
  * Terminate the select thread, close the socket and
@@ -500,13 +501,25 @@ int select_disconnect(struct SelectHandle * sh,
 
 
 /**
+ * Get an IP address as a string (works for both IPv4 and IPv6).  Note
+ * that the resolution happens asynchronously and that the first call
+ * may not immediately result in the FQN (but instead in a
+ * human-readable IP address).
+ *
+ * @param sa should be of type "struct sockaddr*"
+ */ 
+char * network_get_ip_as_string(const void * sa,
+				unsigned int salen,
+				int do_resolve);
+
+/**
  * Get the IP address for the local machine.
  * @return NULL on error, IP as string otherwise
  */
 char * network_get_local_ip(struct GC_Configuration * cfg,
 			    struct GE_Context * ectx,
 			    IPaddr * addr);
- 
+
 
 
 #if 0 /* keep Emacsens' auto-indent happy */

@@ -55,20 +55,18 @@
  */
 static cron_t startTime;
 
-/**
- * How many values do we keep statistics for?
- */
-static unsigned int statCounters = 0;
+struct StatEntry {
+  unsigned long long value;
+  char * description;
+  unsigned int descStrLen;
+};
+
+static struct StatEntry * entries;
 
 /**
- * What are these values (value)
+ * Size of the entries array
  */
-static unsigned long long * values = NULL;
-
-/**
- * A description for each of the values
- */
-static char ** descriptions = NULL;
+static unsigned int statCounters;
 
 /**
  * lock for the stat module
@@ -91,19 +89,16 @@ static int statHandle(const char * name) {
   GE_ASSERT(NULL, name != NULL);
   MUTEX_LOCK(statLock);
   for (i=0;i<statCounters;i++)
-    if (0 == strcmp(descriptions[i], name)) {
+    if (0 == strcmp(entries[i].description, name)) {
       MUTEX_UNLOCK(statLock);
       return i;
     }
-
-  GROW(values,
+  GROW(entries,
        statCounters,
        statCounters+1);
-  statCounters--;
-  GROW(descriptions,
-       statCounters,
-       statCounters+1);
-  descriptions[statCounters-1] = STRDUP(name);
+  entries[statCounters-1].description = STRDUP(name);
+  entries[statCounters-1].descStrLen = strlen(name);
+  entries[statCounters-1].value = 0;
   MUTEX_UNLOCK(statLock);
   return statCounters-1;
 }
@@ -124,7 +119,7 @@ static void statSet(const int handle,
     MUTEX_UNLOCK(statLock);
     return;
   }
-  values[handle] = value;
+  entries[handle].value = value;
   MUTEX_UNLOCK(statLock);
 }
 
@@ -137,7 +132,7 @@ static unsigned long long statGet(const int handle) {
     MUTEX_UNLOCK(statLock);
     return -1;
   }
-  ret = values[handle];
+  ret = entries[handle].value;
   MUTEX_UNLOCK(statLock);
   return ret;
 }
@@ -158,7 +153,7 @@ static void statChange(const int handle,
     MUTEX_UNLOCK(statLock);
     return;
   }
-  values[handle] += delta;
+  entries[handle].value += delta;
   MUTEX_UNLOCK(statLock);
 }
 
@@ -171,10 +166,8 @@ void release_module_stats() {
 
   MUTEX_DESTROY(statLock);
   for (i=0;i<statCounters;i++)
-    FREE(descriptions[i]);
-  FREENONNULL(descriptions);
-  descriptions = NULL;
-  GROW(values,
+    FREE(entries[i].description);
+  GROW(entries,
        statCounters,
        0);
 }
@@ -232,21 +225,35 @@ static void initializeStats() {
 }
 
 static void immediateUpdates() {
+  int load;
+
 #if HAVE_SQSTATS
   update_sqstore_stats();
 #endif
+  load = os_cpu_get_load(coreAPI->ectx,
+			 coreAPI->cfg);
+  if (load == -1)
+    load = 0;
   statSet(stat_handle_cpu_load,
-	  os_cpu_get_load(coreAPI->ectx,
-			  coreAPI->cfg));
+	  load);
+  load = os_disk_get_load(coreAPI->ectx,
+			  coreAPI->cfg);
+  if (load == -1)
+    load = 0;
   statSet(stat_handle_io_load,
-	  os_disk_get_load(coreAPI->ectx,
-			   coreAPI->cfg));
+	  load);
+  load = os_network_monitor_get_load(coreAPI->load_monitor,
+				     Upload);
+  if (load == -1)
+    load = 0;
   statSet(stat_handle_network_load_up,
-	  os_network_monitor_get_load(coreAPI->load_monitor,
-				      Upload));
+	  load);
+  load = os_network_monitor_get_load(coreAPI->load_monitor,
+				     Download);
+  if (load == -1)
+    load = 0;
   statSet(stat_handle_network_load_down,
-	  os_network_monitor_get_load(coreAPI->load_monitor,
-				      Download));
+	  load);
   statSet(stat_connected,
 	  coreAPI->forAllConnectedNodes(NULL, NULL));
 }
@@ -267,7 +274,7 @@ static int sendStatistics(struct ClientHandle * sock,
   int mpos; /* postion in the message */
 
   immediateUpdates();
-  statMsg = (CS_stats_reply_MESSAGE*)MALLOC(MAX_BUFFER_SIZE);
+  statMsg = MALLOC(MAX_BUFFER_SIZE);
   statMsg->header.type
     = htons(CS_PROTO_stats_STATISTICS);
   statMsg->totalCounters
@@ -285,21 +292,22 @@ static int sendStatistics(struct ClientHandle * sock,
     mpos = 0;
     while ( (pos < statCounters) &&
 	    (mpos + sizeof(unsigned long long)
-	     + strlen(descriptions[pos]) + 1
+	     + entries[pos].descStrLen + 1
 	     < MAX_BUFFER_SIZE - sizeof(CS_stats_reply_MESSAGE)) ) {
       mpos += sizeof(unsigned long long); /* value */
-      mpos += strlen(descriptions[pos])+1;
+      mpos += entries[pos].descStrLen + 1;
       pos++;
     }
     end = pos;
     /* second pass: copy values and messages to message */
     for (pos=start;pos<end;pos++)
-      ((CS_stats_reply_MESSAGE_GENERIC*)statMsg)->values[pos-start] = htonll(values[pos]);
+      ((CS_stats_reply_MESSAGE_GENERIC*)statMsg)->values[pos-start] = htonll(entries[pos].value);
     mpos = sizeof(unsigned long long) * (end - start);
     for (pos=start;pos<end;pos++) {
-      strcpy(&((char*)(((CS_stats_reply_MESSAGE_GENERIC*)statMsg))->values)[mpos],
-	     descriptions[pos]);
-      mpos += strlen(descriptions[pos])+1;
+      memcpy(&((char*)(((CS_stats_reply_MESSAGE_GENERIC*)statMsg))->values)[mpos],
+	     entries[pos].description,
+	     entries[pos].descStrLen+1);
+      mpos += entries[pos].descStrLen+1;
     }
     statMsg->statCounters = htonl(end - start);
     GE_ASSERT(NULL, mpos + sizeof(CS_stats_reply_MESSAGE) < MAX_BUFFER_SIZE);
@@ -406,6 +414,7 @@ int initialize_module_stats(CoreAPIForApplication * capi) {
 #if HAVE_SQSTATS
   init_sqstore_stats();
 #endif
+  immediateUpdates();
   return OK;
 }
 

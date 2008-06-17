@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-SOURCES = $(libgnunetmodule_rpc_la_SOURCES) $(libgnunetmodule_rpc_util_la_SOURCES) $(parameterstest_SOURCES)
+SOURCES = $(libgnunetmodule_rpc_la_SOURCES) $(libgnunetrpc_util_la_SOURCES) $(parameterstest_SOURCES)
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -46,10 +46,10 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/gettext.m4 \
 	$(top_srcdir)/m4/lib-ld.m4 $(top_srcdir)/m4/lib-link.m4 \
 	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libcurl.m4 \
 	$(top_srcdir)/m4/libgcrypt.m4 $(top_srcdir)/m4/libxml2.m4 \
-	$(top_srcdir)/m4/mkdir.m4 $(top_srcdir)/m4/nls.m4 \
-	$(top_srcdir)/m4/pkg.m4 $(top_srcdir)/m4/po.m4 \
-	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/acinclude.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/m4/mkdir.m4 $(top_srcdir)/m4/mkdirp.m4 \
+	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/pkg.m4 \
+	$(top_srcdir)/m4/po.m4 $(top_srcdir)/m4/progtest.m4 \
+	$(top_srcdir)/acinclude.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
@@ -63,14 +63,13 @@ libgnunetmodule_rpc_la_DEPENDENCIES =  \
 	$(top_builddir)/src/util/libgnunetutil.la \
 	$(top_builddir)/src/util/cron/libgnunetutil_cron.la \
 	$(top_builddir)/src/util/containers/libgnunetutil_containers.la \
-	$(top_builddir)/src/applications/rpc/libgnunetmodule_rpc_util.la
+	$(top_builddir)/src/applications/rpc/libgnunetrpc_util.la
 am_libgnunetmodule_rpc_la_OBJECTS = rpc.lo
 libgnunetmodule_rpc_la_OBJECTS = $(am_libgnunetmodule_rpc_la_OBJECTS)
-libgnunetmodule_rpc_util_la_DEPENDENCIES = $(top_builddir)/src/util/containers/libgnunetutil_containers.la \
+libgnunetrpc_util_la_DEPENDENCIES = $(top_builddir)/src/util/containers/libgnunetutil_containers.la \
 	$(top_builddir)/src/util/libgnunetutil.la
-am_libgnunetmodule_rpc_util_la_OBJECTS = parameters.lo
-libgnunetmodule_rpc_util_la_OBJECTS =  \
-	$(am_libgnunetmodule_rpc_util_la_OBJECTS)
+am_libgnunetrpc_util_la_OBJECTS = parameters.lo
+libgnunetrpc_util_la_OBJECTS = $(am_libgnunetrpc_util_la_OBJECTS)
 am_parameterstest_OBJECTS = parameterstest.$(OBJEXT)
 parameterstest_OBJECTS = $(am_parameterstest_OBJECTS)
 parameterstest_DEPENDENCIES = $(top_builddir)/src/util/containers/libgnunetutil_containers.la \
@@ -89,11 +88,9 @@ CCLD = $(CC)
 LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
 SOURCES = $(libgnunetmodule_rpc_la_SOURCES) \
-	$(libgnunetmodule_rpc_util_la_SOURCES) \
-	$(parameterstest_SOURCES)
+	$(libgnunetrpc_util_la_SOURCES) $(parameterstest_SOURCES)
 DIST_SOURCES = $(libgnunetmodule_rpc_la_SOURCES) \
-	$(libgnunetmodule_rpc_util_la_SOURCES) \
-	$(parameterstest_SOURCES)
+	$(libgnunetrpc_util_la_SOURCES) $(parameterstest_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -140,6 +137,8 @@ GNUNETGTK_LIBS = @GNUNETGTK_LIBS@
 GREP = @GREP@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@
+HAVE_ADNS_FALSE = @HAVE_ADNS_FALSE@
+HAVE_ADNS_TRUE = @HAVE_ADNS_TRUE@
 HAVE_DIALOG_FALSE = @HAVE_DIALOG_FALSE@
 HAVE_DIALOG_TRUE = @HAVE_DIALOG_TRUE@
 HAVE_GTK_FALSE = @HAVE_GTK_FALSE@
@@ -178,6 +177,8 @@ LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
+LINUX_FALSE = @LINUX_FALSE@
+LINUX_TRUE = @LINUX_TRUE@
 LN_S = @LN_S@
 LTDLINCL = @LTDLINCL@
 LTLIBICONV = @LTLIBICONV@
@@ -195,6 +196,8 @@ MYSQL_CPPFLAGS = @MYSQL_CPPFLAGS@
 MYSQL_LDFLAGS = @MYSQL_LDFLAGS@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
+OPENBSD_FALSE = @OPENBSD_FALSE@
+OPENBSD_TRUE = @OPENBSD_TRUE@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
 PACKAGE_NAME = @PACKAGE_NAME@
@@ -270,7 +273,7 @@ target_alias = @target_alias@
 INCLUDES = -I$(top_srcdir)/src/include
 plugindir = $(libdir)/GNUnet
 lib_LTLIBRARIES = \
-  libgnunetmodule_rpc_util.la 
+  libgnunetrpc_util.la 
 
 plugin_LTLIBRARIES = \
   libgnunetmodule_rpc.la
@@ -282,15 +285,15 @@ libgnunetmodule_rpc_la_LIBADD = \
   $(top_builddir)/src/util/libgnunetutil.la \
   $(top_builddir)/src/util/cron/libgnunetutil_cron.la \
   $(top_builddir)/src/util/containers/libgnunetutil_containers.la \
-  $(top_builddir)/src/applications/rpc/libgnunetmodule_rpc_util.la
+  $(top_builddir)/src/applications/rpc/libgnunetrpc_util.la
 
 libgnunetmodule_rpc_la_LDFLAGS = \
   -export-dynamic -avoid-version -module
 
-libgnunetmodule_rpc_util_la_SOURCES = \
+libgnunetrpc_util_la_SOURCES = \
   parameters.c 
 
-libgnunetmodule_rpc_util_la_LIBADD = \
+libgnunetrpc_util_la_LIBADD = \
   $(top_builddir)/src/util/containers/libgnunetutil_containers.la \
   $(top_builddir)/src/util/libgnunetutil.la 
 
@@ -391,8 +394,8 @@ clean-pluginLTLIBRARIES:
 	done
 libgnunetmodule_rpc.la: $(libgnunetmodule_rpc_la_OBJECTS) $(libgnunetmodule_rpc_la_DEPENDENCIES) 
 	$(LINK) -rpath $(plugindir) $(libgnunetmodule_rpc_la_LDFLAGS) $(libgnunetmodule_rpc_la_OBJECTS) $(libgnunetmodule_rpc_la_LIBADD) $(LIBS)
-libgnunetmodule_rpc_util.la: $(libgnunetmodule_rpc_util_la_OBJECTS) $(libgnunetmodule_rpc_util_la_DEPENDENCIES) 
-	$(LINK) -rpath $(libdir) $(libgnunetmodule_rpc_util_la_LDFLAGS) $(libgnunetmodule_rpc_util_la_OBJECTS) $(libgnunetmodule_rpc_util_la_LIBADD) $(LIBS)
+libgnunetrpc_util.la: $(libgnunetrpc_util_la_OBJECTS) $(libgnunetrpc_util_la_DEPENDENCIES) 
+	$(LINK) -rpath $(libdir) $(libgnunetrpc_util_la_LDFLAGS) $(libgnunetrpc_util_la_OBJECTS) $(libgnunetrpc_util_la_LIBADD) $(LIBS)
 
 clean-checkPROGRAMS:
 	@list='$(check_PROGRAMS)'; for p in $$list; do \
