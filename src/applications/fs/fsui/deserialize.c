@@ -337,7 +337,7 @@ checkMagic (int fd)
       GNUNET_GE_BREAK (NULL, 0);
       return GNUNET_SYSERR;
     }
-  if (0 != memcmp (magic, "FSUI01\n\0", 8))
+  if (0 != memcmp (magic, "FSUI02\n\0", 8))
     {
       GNUNET_GE_BREAK (NULL, 0);
       return GNUNET_SYSERR;
@@ -362,12 +362,13 @@ readCollection (int fd, struct GNUNET_FSUI_Context *ctx)
       GNUNET_GE_BREAK (NULL, 0);
       return GNUNET_SYSERR;
     }
+  ctx->collectionDataSize = big;
   ctx->collectionData = GNUNET_malloc (big);
-  if (big - sizeof (unsigned int) !=
-      READ (fd, &ctx->collectionData[1], big - sizeof (unsigned int)))
+  if (big != READ (fd, ctx->collectionData, big))
     {
       GNUNET_free (ctx->collectionData);
       ctx->collectionData = NULL;
+      ctx->collectionDataSize = 0;
       GNUNET_GE_BREAK (NULL, 0);
       return GNUNET_SYSERR;
     }
@@ -393,8 +394,6 @@ readSearches (int fd, struct GNUNET_FSUI_Context *ctx)
       list = GNUNET_malloc (sizeof (GNUNET_FSUI_SearchList));
       memset (list, 0, sizeof (GNUNET_FSUI_SearchList));
       if ((GNUNET_OK != read_int (fd, (int *) &list->state)) ||
-          (GNUNET_OK != read_int (fd, (int *) &list->maxResults)) ||
-          (GNUNET_OK != read_long (fd, (long long *) &list->timeout)) ||
           (GNUNET_OK != read_long (fd, (long long *) &list->start_time)) ||
           (GNUNET_OK != read_long (fd, (long long *) &stime)) ||
           (GNUNET_OK != read_int (fd, (int *) &list->anonymityLevel)) ||
@@ -688,6 +687,7 @@ readUploads (int fd, struct GNUNET_FSUI_Context *ctx)
       READLONG (sshared.expiration);
       if ((big & 2) == 2)
         READSTRING (sshared.extractor_config, 1024 * 1024);
+      READSTRING (sshared.top_filename, 1024 * 1024);
       if ((big & 4) == 4)
         {
           sshared.global_keywords = read_uri (ctx->ectx, fd);
@@ -717,6 +717,7 @@ readUploads (int fd, struct GNUNET_FSUI_Context *ctx)
 #endif
           break;
         }
+
     }
   return GNUNET_SYSERR;
 }

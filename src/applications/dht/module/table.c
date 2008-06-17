@@ -272,13 +272,16 @@ findBucketFor (const GNUNET_PeerIdentity * peer)
   unsigned int index;
   int i;
 
+  if (0 == memcmp (peer, coreAPI->myIdentity, sizeof (GNUNET_PeerIdentity)))
+    return NULL;                /* myself! */
   index = get_bit_distance (&peer->hashPubKey,
                             &coreAPI->myIdentity->hashPubKey);
   i = bucketCount - 1;
   while ((buckets[i].bstart >= index) && (i > 0))
     i--;
-  if ((buckets[i].bstart < index) && (buckets[i].bend >= index))
+  if ((buckets[i].bstart <= index) && (buckets[i].bend >= index))
     return &buckets[i];
+  GNUNET_GE_BREAK (NULL, 0);
   return NULL;
 }
 
@@ -727,6 +730,26 @@ handleAskHello (const GNUNET_PeerIdentity * sender,
   return GNUNET_OK;
 }
 
+static void
+peer_disconnect_handler (const GNUNET_PeerIdentity * peer, void *unused)
+{
+  PeerBucket *bucket;
+  PeerInfo *info;
+
+  GNUNET_mutex_lock (lock);
+  bucket = findBucketFor (peer);
+  if (bucket != NULL)
+    {
+      info = findPeerEntryInBucket (bucket, peer);
+      if (info != NULL)
+        {
+          info->lastActivity = 0;
+          checkExpiration (bucket);
+        }
+    }
+  GNUNET_mutex_unlock (lock);
+}
+
 /**
  * Initialize table DHT component.
  *
@@ -769,6 +792,7 @@ GNUNET_DHT_table_init (GNUNET_CoreAPIForPlugins * capi)
   GNUNET_GE_ASSERT (coreAPI->ectx, pingpong != NULL);
   capi->registerHandler (GNUNET_P2P_PROTO_DHT_DISCOVERY, &handleDiscovery);
   capi->registerHandler (GNUNET_P2P_PROTO_DHT_ASK_HELLO, &handleAskHello);
+  capi->register_notify_peer_disconnect (&peer_disconnect_handler, NULL);
   GNUNET_cron_add_job (coreAPI->cron,
                        &maintain_dht_job,
                        MAINTAIN_FREQUENCY, MAINTAIN_FREQUENCY, NULL);
@@ -786,6 +810,7 @@ GNUNET_DHT_table_done ()
   unsigned int i;
   unsigned int j;
 
+  coreAPI->unregister_notify_peer_disconnect (&peer_disconnect_handler, NULL);
   coreAPI->unregisterHandler (GNUNET_P2P_PROTO_DHT_DISCOVERY,
                               &handleDiscovery);
   coreAPI->unregisterHandler (GNUNET_P2P_PROTO_DHT_ASK_HELLO,

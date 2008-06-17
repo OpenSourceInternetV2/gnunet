@@ -550,6 +550,8 @@ GNUNET_disk_directory_scan (struct GNUNET_GE_Context *ectx,
       GNUNET_GE_LOG_STRERROR_FILE (ectx,
                                    GNUNET_GE_WARNING | GNUNET_GE_USER |
                                    GNUNET_GE_BULK, "opendir", dirName);
+      if (dinfo != NULL)
+        closedir (dinfo);
       return GNUNET_SYSERR;
     }
   while ((finfo = readdir (dinfo)) != NULL)
@@ -607,7 +609,7 @@ GNUNET_disk_directory_remove (struct GNUNET_GE_Context *ectx,
 {
   struct stat istat;
 
-  if (0 != STAT (fileName, &istat))
+  if (0 != LSTAT (fileName, &istat))
     return GNUNET_NO;           /* file may not exist... */
   if (UNLINK (fileName) == 0)
     return GNUNET_OK;

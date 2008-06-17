@@ -86,7 +86,6 @@ eventCallback (void *cls, const GNUNET_FSUI_Event * event)
     case GNUNET_FSUI_unindex_error:
     case GNUNET_FSUI_upload_error:
     case GNUNET_FSUI_download_error:
-    case GNUNET_FSUI_search_error:
       fprintf (stderr, "Received ERROR: %d\n", event->type);
       GNUNET_GE_BREAK (ectx, 0);
       break;
@@ -106,7 +105,6 @@ eventCallback (void *cls, const GNUNET_FSUI_Event * event)
     case GNUNET_FSUI_search_started:
     case GNUNET_FSUI_search_aborted:
     case GNUNET_FSUI_search_stopped:
-    case GNUNET_FSUI_search_completed:
     case GNUNET_FSUI_unindex_started:
     case GNUNET_FSUI_unindex_stopped:
       break;
@@ -163,17 +161,16 @@ main (int argc, char *argv[])
   GNUNET_snprintf (keyword, 40, "%s %s %s", keywords[0], _("AND"),
                    keywords[1]);
   uri = GNUNET_ECRS_keyword_string_to_uri (ectx, keyword);
-  search =
-    GNUNET_FSUI_search_start (ctx, 0, 100, 240 * GNUNET_CRON_SECONDS, uri);
+  search = GNUNET_FSUI_search_start (ctx, 0, uri);
   CHECK (search != NULL);
   prog = 0;
   suspendRestart = 10;
-  while (prog < 1000)
+  while (prog < 100)
     {
       prog++;
       GNUNET_thread_sleep (50 * GNUNET_CRON_MILLISECONDS);
       if ((suspendRestart > 0)
-          && (GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK, 100) == 0))
+          && (GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK, 10) == 0))
         {
 #if 1
 #if DEBUG_VERBOSE

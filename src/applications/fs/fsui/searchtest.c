@@ -28,6 +28,8 @@
 #include "gnunet_util.h"
 #include "gnunet_fsui_lib.h"
 
+#define CHECK_VERBOSE GNUNET_NO
+
 #define CHECK(a) if (!(a)) { ok = GNUNET_NO; GNUNET_GE_BREAK(NULL, 0); goto FAILURE; }
 
 static char *
@@ -69,23 +71,34 @@ eventCallback (void *cls, const GNUNET_FSUI_Event * event)
     case GNUNET_FSUI_search_suspended:
       search = NULL;
       break;
+    case GNUNET_FSUI_search_paused:
+    case GNUNET_FSUI_search_restarted:
+      break;
     case GNUNET_FSUI_download_resumed:
     case GNUNET_FSUI_upload_resumed:
     case GNUNET_FSUI_unindex_resumed:
       GNUNET_mutex_unlock (lock);
       return &unused;
     case GNUNET_FSUI_search_result:
+#if CHECK_VERBOSE
       printf ("Received search result\n");
+#endif
       uri = GNUNET_ECRS_uri_duplicate (event->data.SearchResult.fi.uri);
       break;
     case GNUNET_FSUI_upload_completed:
+#if CHECK_VERBOSE
       printf ("Upload complete.\n");
+#endif
       break;
     case GNUNET_FSUI_download_completed:
+#if CHECK_VERBOSE
       printf ("Download complete.\n");
+#endif
       break;
     case GNUNET_FSUI_unindex_completed:
+#if CHECK_VERBOSE
       printf ("Unindex complete.\n");
+#endif
       break;
     case GNUNET_FSUI_upload_error:
       printf ("Upload error.\n");
@@ -138,6 +151,7 @@ main (int argc, char *argv[])
       return -1;
     }
 #if START_DAEMON
+  GNUNET_disk_directory_remove (NULL, "/tmp/gnunet-check-fsui/");
   daemon = GNUNET_daemon_start (NULL, cfg, "peer.conf", GNUNET_NO);
   GNUNET_GE_ASSERT (NULL, daemon > 0);
   CHECK (GNUNET_OK ==
@@ -154,16 +168,23 @@ main (int argc, char *argv[])
   GNUNET_snprintf (keyword, 40, "%s %s %s", keywords[0], _("AND"),
                    keywords[1]);
   luri = GNUNET_ECRS_keyword_string_to_uri (NULL, keyword);
-  search =
-    GNUNET_FSUI_search_start (ctx, 0, 100, 240 * GNUNET_CRON_SECONDS, luri);
-  GNUNET_ECRS_uri_destroy (luri);
   uri = NULL;
+  search = GNUNET_FSUI_search_start (ctx, 0, luri);
+  GNUNET_ECRS_uri_destroy (luri);
   CHECK (NULL != search);
   GNUNET_FSUI_stop (ctx);
   /* resume search! */
   ctx = GNUNET_FSUI_start (NULL,
                            cfg, "fsuisearchtest", 32, GNUNET_YES,
                            &eventCallback, NULL);
+  GNUNET_FSUI_search_pause (ctx, search);
+  GNUNET_FSUI_stop (ctx);
+  /* resume search! */
+  ctx = GNUNET_FSUI_start (NULL,
+                           cfg, "fsuisearchtest", 32, GNUNET_YES,
+                           &eventCallback, NULL);
+  GNUNET_FSUI_search_restart (ctx, search);
+
   fn = makeName (42);
   GNUNET_disk_file_write (NULL,
                           fn, "foo bar test!", strlen ("foo bar test!"),
@@ -194,18 +215,19 @@ main (int argc, char *argv[])
                    "Upload failed to complete -- last event: %u\n",
                    lastEvent);
         }
-      CHECK (prog <
-             10000) GNUNET_thread_sleep (50 * GNUNET_CRON_MILLISECONDS);
+      CHECK (prog < 10000);
+      GNUNET_thread_sleep (50 * GNUNET_CRON_MILLISECONDS);
       if (GNUNET_shutdown_test () == GNUNET_YES)
         break;
     }
   GNUNET_FSUI_upload_stop (ctx, upload);
-
-  while (uri == NULL)
+  GNUNET_FSUI_search_pause (ctx, search);
+  GNUNET_FSUI_search_restart (ctx, search);
+  while ((uri == NULL) && (GNUNET_shutdown_test () != GNUNET_YES))
     {
       prog++;
-      CHECK (prog <
-             10000) GNUNET_thread_sleep (50 * GNUNET_CRON_MILLISECONDS);
+      CHECK (prog < 10000);
+      GNUNET_thread_sleep (50 * GNUNET_CRON_MILLISECONDS);
     }
   GNUNET_FSUI_search_abort (ctx, search);
   GNUNET_FSUI_search_stop (ctx, search);

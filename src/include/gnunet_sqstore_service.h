@@ -72,13 +72,22 @@ typedef struct
    * in the datastore.
    *
    * @param key maybe NULL (to match all entries)
+   * @param vhash hash of the value, maybe NULL (to
+   *        match all values that have the right key).
+   *        Note that for DBlocks there is no difference
+   *        betwen key and vhash, but for other blocks
+   *        there may be!
    * @param type entries of which type are relevant?
    *     Use 0 for any type.
-   * @param iter maybe NULL (to just count)
-   * @return the number of results, GNUNET_SYSERR if the
-   *   iter is non-NULL and aborted the iteration
+   * @param iter maybe NULL (to just count); iter
+   *     should return GNUNET_SYSERR to abort the
+   *     iteration, GNUNET_NO to delete the entry and
+   *     continue and GNUNET_OK to continue iterating
+   * @return the number of results processed,
+   *         GNUNET_SYSERR on error
    */
   int (*get) (const GNUNET_HashCode * key,
+              const GNUNET_HashCode * vhash,
               unsigned int type, GNUNET_DatastoreValueIterator iter,
               void *closure);
 
@@ -126,8 +135,7 @@ typedef struct
    * @param type entries of which type should be considered?
    *        Use 0 for any type.
    * @param iter never NULL
-   * @return the number of results, GNUNET_SYSERR if the
-   *   iter is non-NULL and aborted the iteration
+   * @return the number of results, GNUNET_SYSERR on error
    */
   int (*iterateNonAnonymous) (unsigned int type,
                               GNUNET_DatastoreValueIterator iter,
@@ -140,8 +148,7 @@ typedef struct
    * @param type entries of which type should be considered?
    *        Use 0 for any type.
    * @param iter never NULL
-   * @return the number of results, GNUNET_SYSERR if the
-   *   iter is non-NULL and aborted the iteration
+   * @return the number of results, GNUNET_SYSERR on error
    */
   int (*iterateExpirationTime) (unsigned int type,
                                 GNUNET_DatastoreValueIterator iter,
@@ -153,8 +160,7 @@ typedef struct
    * order.
    *
    * @param iter never NULL
-   * @return the number of results, GNUNET_SYSERR if the
-   *   iter is non-NULL and aborted the iteration
+   * @return the number of results, GNUNET_SYSERR on error
    */
   int (*iterateMigrationOrder) (GNUNET_DatastoreValueIterator iter,
                                 void *closure);
@@ -166,8 +172,7 @@ typedef struct
    * is on doing it fast).
    *
    * @param iter never NULL
-   * @return the number of results, GNUNET_SYSERR if the
-   *   iter is non-NULL and aborted the iteration
+   * @return the number of results, GNUNET_SYSERR on error
    */
   int (*iterateAllNow) (GNUNET_DatastoreValueIterator iter, void *closure);
 

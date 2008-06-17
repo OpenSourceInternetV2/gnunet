@@ -1,3 +1,80 @@
+Sun Mar  2 15:33:41 MST 2008
+	Added option to allow user to disable IPv6 support.
+
+Sat Mar  1 21:14:02 MST 2008
+	Fixed some dstore performance issues.
+	Made transports alternate between trying IPv4 and IPv6
+	if both are available (since one of them maybe
+	misconfigured).
+
+Mon Feb 25 23:25:48 MST 2008
+	Cleanup of the DNS code: removed GNUNET_IPvXAddress
+	and GNUNET_PRIP; centralized all DNS lookup code in 
+	util/network/dns.c; improved IPv6 support for 
+        network-client code.
+
+Mon Feb 25 00:01:27 MST 2008
+	Added asynchronous search and download methods for 
+	ECRS library.  FSUI now can do with only one thread
+	per search or download (until now, we had two 
+	threads per search / download).
+
+Tue Feb 19 20:35:28 MST 2008
+	Updated database schemata to support O(1) operations
+	even if there are N files under the same keywords.
+	This breaks database backwards compatibility (and
+	no migration code is provided).
+
+Mon Feb 18 19:47:37 MST 2008
+	Added new options -u and -s to gnunet-insert.
+
+Sat Feb 16 21:37:33 MST 2008
+	Implemented gnunet-auto-share for automatic
+	sharing of directories.
+
+Thu Feb 14 01:02:32 MST 2008
+	Made HTTP transport work over IPv6 as well.
+
+Wed Feb 13 22:59:07 MST 2008
+	Modified mySQL and SQLite datastores to return diverse
+	result sets during (partial) hash-based get iterations
+	(should result in more diverse keyword result sets).
+
+Tue Feb 12 23:54:34 MST 2008
+	First shot at integrated hostlist HTTP server based
+	on libmicrohttpd.
+
+Sat Feb  9 22:06:23 MST 2008
+	Minor changes to the ECRS/FSUI APIs for searches
+	(no more timeouts and/or max-results).  Clients who
+	need these features could easily implement them 
+	directly (and they are not really useful to begin
+	with).  
+	Also, the IPv4 and IPv6 protocols are being integrated
+	so that we only listen to one port (running both IPv4
+	and IPv6 over the same port).  This break transport
+	compatibility, but given that we're breaking protocol
+	compatibility for file-sharing already, this may 
+	actually be a bit of a good thing (since it will now
+	be possible to tell if peers running the new GAP code
+	are connected to other peers running the new GAP code).
+	
+Sun Feb  3 13:17:09 MST 2008
+	Dramatic changes to the GAP implementation (breaking
+	protocol compatibility).  Essentially, we can save
+	a few bytes in each reply.  More importantly, the new
+	code allows the searching client to specify a set of
+	replies that are not desired (hopefully helping to
+	dramatically increase the diversity of search replies
+	obtained over time).  Note that the actual encoding
+	and databases are not affected (just P2P protocol).
+	The update is not complete yet, but should compile.
+
+Tue Jan  8 20:07:20 MST 2008
+	Added option for testing ("make check") to use weak(er)
+	PRNG for key generation (thanks to Werner Koch for 
+	pointing out how to do it).
+
 Thu Dec 22 20:10:37 MST 2007
 	Releasing GNUnet 0.7.3.
 

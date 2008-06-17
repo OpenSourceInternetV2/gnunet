@@ -89,8 +89,8 @@ GNUNET_FSUI_unindexThread (void *cls)
                                      GNUNET_GE_FATAL | GNUNET_GE_BULK |
                                      GNUNET_GE_IMMEDIATE, mem);
   ret =
-    GNUNET_ECRS_file_uninde (ee, utc->ctx->cfg, utc->filename,
-                             &progressCallback, utc, &tt, utc);
+    GNUNET_ECRS_file_unindex (ee, utc->ctx->cfg, utc->filename,
+                              &progressCallback, utc, &tt, utc);
   if (ret == GNUNET_OK)
     {
       utc->state = GNUNET_FSUI_COMPLETED;

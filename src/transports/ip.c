@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2004, 2005, 2006, 2007 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2004, 2005, 2006, 2007, 2008 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -32,6 +32,15 @@
 #include "platform.h"
 #include "gnunet_util.h"
 #include "ip.h"
+#if HAVE_IFADDRS_H
+#if HAVE_NET_IF_H
+#include <net/if.h>
+#endif
+#include <ifaddrs.h>
+#endif
+
+/* maximum length of hostname */
+#define MAX_HOSTNAME 1024
 
 /**
  * Get the IP address for the local machine.
@@ -40,9 +49,9 @@
 int
 GNUNET_IP_get_public_ipv4_address (struct GNUNET_GC_Configuration *cfg,
                                    struct GNUNET_GE_Context *ectx,
-                                   GNUNET_IPv4Address * address)
+                                   struct in_addr *address)
 {
-  static GNUNET_IPv4Address myAddress;
+  static struct in_addr myAddress;
   static GNUNET_CronTime last;
   static GNUNET_CronTime lastError;
   GNUNET_CronTime now;
@@ -57,7 +66,7 @@ GNUNET_IP_get_public_ipv4_address (struct GNUNET_GC_Configuration *cfg,
       if (ips == NULL)
         {
           GNUNET_GE_LOG (ectx,
-                         GNUNET_GE_WARNING | GNUNET_GE_USER | GNUNET_GE_BULK,
+                         GNUNET_GE_INFO | GNUNET_GE_USER | GNUNET_GE_BULK,
                          _("Failed to obtain my (external) %s address!\n"),
                          "IP");
           lastError = now;
@@ -66,7 +75,7 @@ GNUNET_IP_get_public_ipv4_address (struct GNUNET_GC_Configuration *cfg,
       GNUNET_free (ips);
       last = now;
     }
-  memcpy (address, &myAddress, sizeof (GNUNET_IPv4Address));
+  memcpy (address, &myAddress, sizeof (struct in_addr));
   return GNUNET_OK;
 }
 
@@ -196,6 +205,172 @@ GNUNET_IP_set_address_for_peer_identity (const GNUNET_PeerIdentity * peer,
 
 }
 
+
+/**
+ * Obtain the identity information for the current node
+ * (connection information), conInfo.
+ * @return GNUNET_SYSERR on failure, GNUNET_OK on success
+ */
+static int
+getAddress6FromHostname (struct GNUNET_GE_Context *ectx,
+                         struct in6_addr *identity)
+{
+  char hostname[MAX_HOSTNAME];
+  struct sockaddr_in6 addr;
+  struct sockaddr *sa;
+  socklen_t salen;
+
+  if (0 != gethostname (hostname, MAX_HOSTNAME))
+    {
+      GNUNET_GE_LOG_STRERROR (ectx,
+                              GNUNET_GE_ERROR | GNUNET_GE_ADMIN |
+                              GNUNET_GE_USER | GNUNET_GE_BULK, "gethostname");
+      return GNUNET_SYSERR;
+    }
+  /* GNUNET_GE_LOG(ectx, GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+     " looking up $HOSTNAME (%s) to obtain local IP\n",
+     hostname); */
+  salen = sizeof (struct sockaddr_in);
+  sa = (struct sockaddr *) &addr;
+  if (GNUNET_OK !=
+      GNUNET_get_ip_from_hostname (ectx, hostname, AF_INET6, &sa, &salen))
+    return GNUNET_SYSERR;
+  *identity = addr.sin6_addr;
+  return GNUNET_OK;
+}
+
+#if HAVE_GETIFADDRS && HAVE_FREEIFADDRS
+static int
+getAddress6FromGetIfAddrs (struct GNUNET_GC_Configuration *cfg,
+                           struct GNUNET_GE_Context *ectx,
+                           struct in6_addr *identity)
+{
+  char *interfaces;
+  struct ifaddrs *ifa_first;
+
+  if (-1 == GNUNET_GC_get_configuration_value_string (cfg,
+                                                      "NETWORK",
+                                                      "INTERFACE",
+                                                      GNUNET_DEFAULT_INTERFACE,
+                                                      &interfaces))
+    {
+      GNUNET_GE_LOG (ectx,
+                     GNUNET_GE_ERROR | GNUNET_GE_BULK | GNUNET_GE_USER,
+                     _
+                     ("No interface specified in section `%s' under `%s'!\n"),
+                     "NETWORK", "INTERFACE");
+      return GNUNET_SYSERR;     /* that won't work! */
+    }
+
+  if (getifaddrs (&ifa_first) == 0)
+    {
+      struct ifaddrs *ifa_ptr;
+
+      ifa_ptr = ifa_first;
+      for (ifa_ptr = ifa_first; ifa_ptr != NULL; ifa_ptr = ifa_ptr->ifa_next)
+        {
+          if (ifa_ptr->ifa_name != NULL &&
+              ifa_ptr->ifa_addr != NULL && (ifa_ptr->ifa_flags & IFF_UP) != 0)
+            {
+              if (strcmp (interfaces, (char *) ifa_ptr->ifa_name) != 0)
+                continue;
+              if (ifa_ptr->ifa_addr->sa_family != AF_INET6)
+                continue;
+              memcpy (identity,
+                      &((struct sockaddr_in6 *) ifa_ptr->ifa_addr)->sin6_addr,
+                      sizeof (struct in6_addr));
+              freeifaddrs (ifa_first);
+              GNUNET_free (interfaces);
+              return GNUNET_OK;
+            }
+        }
+      freeifaddrs (ifa_first);
+    }
+  GNUNET_GE_LOG (ectx,
+                 GNUNET_GE_WARNING | GNUNET_GE_USER | GNUNET_GE_BULK,
+                 _("Could not obtain IP for interface `%s' using `%s'.\n"),
+                 interfaces, "getifaddrs");
+  GNUNET_free (interfaces);
+  return GNUNET_SYSERR;
+}
+#endif
+
+/**
+ * Get the IP address for the local machine.
+ * @return GNUNET_SYSERR on error, GNUNET_OK on success
+ */
+static int
+getAddress6 (struct GNUNET_GC_Configuration *cfg,
+             struct GNUNET_GE_Context *ectx, struct in6_addr *address)
+{
+  char *ipString;
+  int retval;
+  socklen_t sa_len;
+  struct sockaddr *sa;
+  struct sockaddr_in6 sa6;
+
+  retval = GNUNET_SYSERR;
+  if (GNUNET_GC_have_configuration_value (cfg, "NETWORK", "IP6"))
+    {
+      ipString = NULL;
+      GNUNET_GC_get_configuration_value_string (cfg,
+                                                "NETWORK", "IP6", "",
+                                                &ipString);
+      sa_len = sizeof (struct sockaddr_in6);
+      sa = (struct sockaddr *) &sa6;
+      if ((strlen (ipString) > 0) &&
+          (GNUNET_OK ==
+           GNUNET_get_ip_from_hostname (ectx,
+                                        ipString, AF_INET6, &sa, &sa_len)))
+        {
+          *address = sa6.sin6_addr;
+          retval = GNUNET_OK;
+        }
+      GNUNET_free (ipString);
+    }
+#if HAVE_GETIFADDRS && HAVE_FREEIFADDRS
+  if (retval == GNUNET_SYSERR)
+    if (GNUNET_OK == getAddress6FromGetIfAddrs (cfg, ectx, address))
+      retval = GNUNET_OK;
+#endif
+  if (retval == GNUNET_SYSERR)
+    retval = getAddress6FromHostname (ectx, address);
+  return retval;
+}
+
+/**
+ * Get the IPv6 address for the local machine.
+ * @return GNUNET_SYSERR on error, GNUNET_OK on success
+ */
+int
+GNUNET_IP_get_public_ipv6_address (struct GNUNET_GC_Configuration *cfg,
+                                   struct GNUNET_GE_Context *ectx,
+                                   struct in6_addr *address)
+{
+  static struct in6_addr myAddress;
+  static GNUNET_CronTime last;
+  static GNUNET_CronTime lastError;
+  GNUNET_CronTime now;
+
+  now = GNUNET_get_time ();
+  if (last + GNUNET_CRON_MINUTES < now)
+    {
+      if (lastError + 30 * GNUNET_CRON_SECONDS > now)
+        return GNUNET_SYSERR;
+      if (GNUNET_SYSERR == getAddress6 (cfg, ectx, &myAddress))
+        {
+          lastError = now;
+          GNUNET_GE_LOG (ectx,
+                         GNUNET_GE_INFO | GNUNET_GE_USER | GNUNET_GE_BULK,
+                         _("Failed to obtain my (external) %s address!\n"),
+                         "IPv6");
+          return GNUNET_SYSERR;
+        }
+      last = now;
+    }
+  memcpy (address, &myAddress, sizeof (struct in6_addr));
+  return GNUNET_OK;
+}
 
 
 void __attribute__ ((constructor)) GNUNET_IP_ltdl_init ()

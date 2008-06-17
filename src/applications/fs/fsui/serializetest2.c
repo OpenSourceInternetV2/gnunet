@@ -233,12 +233,6 @@ eventCallback (void *cls, const GNUNET_FSUI_Event * event)
                event->type, event->data.DownloadError.message);
       GNUNET_GE_BREAK (ectx, 0);
       break;
-    case GNUNET_FSUI_search_error:
-      fprintf (stderr,
-               "Received ERROR: %d %s\n",
-               event->type, event->data.SearchError.message);
-      GNUNET_GE_BREAK (ectx, 0);
-      break;
     case GNUNET_FSUI_download_aborted:
 #if DEBUG_VERBOSE
       printf ("Received download aborted event.\n");
@@ -391,8 +385,7 @@ main (int argc, char *argv[])
   GNUNET_snprintf (keyword, 40, "%s %s %s", keywords[0], _("AND"),
                    keywords[1]);
   uri = GNUNET_ECRS_keyword_string_to_uri (ectx, keyword);
-  search =
-    GNUNET_FSUI_search_start (ctx, 0, 100, 240 * GNUNET_CRON_SECONDS, uri);
+  search = GNUNET_FSUI_search_start (ctx, 0, uri);
   CHECK (search != NULL);
   download = GNUNET_FSUI_download_start (ctx,
                                          0,

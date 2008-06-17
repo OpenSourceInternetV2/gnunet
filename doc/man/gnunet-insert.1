@@ -3,7 +3,7 @@
 gnunet\-insert \- a command line interface for inserting new content into GNUnet
 .SH SYNOPSIS
 .B gnunet\-insert
-[\fIOPTIONS\fR] FILENAME*
+[\fIOPTIONS\fR] FILENAME
 .SH DESCRIPTION
 .PP
 In order to share files with other GNUnet users, the files must first
@@ -33,9 +33,8 @@ files listed in the directory.  Directories can contain pointers to
 other directories.
 .PP
 With gnunet\-insert, it is easy to create new directories
-simultaneously when adding the files.  Simply add the option \-R to
-recursively insert an entire directory and create the corresponding
-directory structure in GNUnet.
+simultaneously when adding the files.  Simply pass the name of
+a directory instead of a file.
 .PP
 Since keywords can be spammed (any user can add any content under any
 keyword), GNUnet supports namespaces.  A namespace is a subset of the
@@ -219,6 +218,12 @@ For the top\-level directory or file, create an SBlock that places the
 file into the namespace specified by the pseudonym NAME.
 
 .TP
+\fB\-s\fR, \fB\-\-simulate-only\fR
+When this option is used, gnunet\-insert will not actually publish
+the file but just simulate what would be done.  This can be used to
+compute the GNUnet URI for a file without actually sharing it.
+
+.TP
 \fB\-S\fR, \fB\-\-sporadic\fR
 This option specifies that the file will be updated sporadically but
 not periodically.  It is only valid in conjunction with the \-P
@@ -249,6 +254,22 @@ SBlocks. The option works best when used together with \-e. Default
 time is the current time.
 
 .TP
+\fB\-u \fIURI\fR, \fB\-\-uri=\fIURI\fR
+This option can be used to specify the URI of a file instead of
+a filename (this is the only case where the otherwise mandatory
+filename argument must be omitted).  Instead of publishing a file
+or directory and using the corresponding URI, gnunet\-insert will
+use this URI and perform the selected namespace or keyword 
+operations.  This can be used to add additional keywords to a
+file that has already been shared or to add files to a namespace
+for which the URI is known but the content is not locally available.
+
+.TP
+\fB\-U \fIID\fR, \fB\-\-update=\fIID\fR
+When updating an entry in the namespace, this option can be used
+to specify the ID of the previous entry.
+
+.TP
 \fB\-v\fR, \fB\-\-version\fR
 Print the version number.
 
@@ -266,19 +287,19 @@ download the file from GNUnet.
 
 Index a file COPYING:
 
-# gnunet\-insert COPYING
+ # gnunet\-insert COPYING
 
 Insert a file COPYING:
 
-# gnunet\-insert \-n COPYING
+ # gnunet\-insert \-n COPYING
 
 Index a file COPYING with the keywords \fBgpl\fR and \fBtest\fR:
 
-# gnunet\-insert \-k gpl \-k test COPYING
+ # gnunet\-insert \-k gpl \-k test COPYING
 
 Index a file COPYING with description "GNU License", mime-type "text/plain" and keywords \fBgpl\fR and \fBtest\fR:
 
-# gnunet\-insert \-m "description:GNU License" \-k gpl \-k test -m "mimetype:text/plain" COPYING
+ # gnunet\-insert \-m "description:GNU License" \-k gpl \-k test -m "mimetype:text/plain" COPYING
 
 \fBUsing directories\fR
 
@@ -287,31 +308,31 @@ a directory containing the two files.  Make the directory itself
 available under keyword \fBgnu\fR and disable keyword extraction using
 libextractor:
 
-# mkdir gnu
-# mv COPYING AUTHORS gnu/
-# gnunet\-insert \-K test \-k gnu \-D gnu/
+ # mkdir gnu
+ # mv COPYING AUTHORS gnu/
+ # gnunet\-insert \-K test \-k gnu \-D gnu/
 
 Neatly publish an image gallery in \fBkittendir/\fR and its subdirs
 with keyword \fBkittens\fR for the directory but no keywords for the
-individual files or subdirs (\-Rn).  Force description for all files:
+individual files or subdirs (\-n).  Force description for all files:
 
-# gnunet\-insert \-Rn \-m "description:Kitten collection" \-k kittens kittendir/
+ # gnunet\-insert \-n \-m "description:Kitten collection" \-k kittens kittendir/
 
 \fBSecure publishing with namespaces\fR
 
 Insert file COPYING with pseudonym RIAA (\-P) and with identifier \fBgpl\fR (\-t) and no updates:
 
-# gnunet\-insert \-P RIAA \-t gpl COPYING
+ # gnunet\-insert \-P RIAA \-t gpl COPYING
 
-Recursively (\-R) index /home/ogg and build a matching directory
+Recursively index /home/ogg and build a matching directory
 structure.  Insert the top\-level directory into the namespace under
 the pseudonym RIAA (\-P) under identifier MUSIC (\-t) and promise to
 provide an update with identifier VIDEOS (\-N) at an arbitrary point
 in the future (\-S is implied by lack of \-i and presence of \-N):
 
-# gnunet\-insert \-R \-P RIAA \-t MUSIC \-N VIDEOS /home/ogg
+ # gnunet\-insert \-P RIAA \-t MUSIC \-N VIDEOS /home/ogg
 
-Recursively (\-R) insert (\-n) /var/lib/mysql and build a matching
+Recursively insert (\-n) /var/lib/mysql and build a matching
 directory structure, but disable the use of libextractor to extract
 keywords (\-n).  Print the file identifiers (\-V) that can be used to
 retrieve the files.  This will store a copy of the MySQL database in
@@ -319,16 +340,16 @@ GNUnet but without adding any keywords to search for it.  Thus only
 people that have been told the secret file identifiers printed with
 the \-V option can retrieve the (secret?) files:
 
-# gnunet\-insert \-RnV /var/lib/mysql
+ # gnunet\-insert \-nV /var/lib/mysql
 
 Create a periodical SBlock with a sporadic update interval and announce
 that the next update will be called 'next':
 
-# gnunet\-insert \-P MPAA \-N next \-S noise.mp3
+ # gnunet\-insert \-P MPAA \-N next \-S noise.mp3
 
 Update the periodical SBlock using settings from a previous time:
 
-# gnunet\-insert \-P MPAA \-t next -N nextnext noise_updated.mp3
+ # gnunet\-insert \-P MPAA \-t next -N nextnext noise_updated.mp3
 
 
 .SH FILES
@@ -338,4 +359,4 @@ GNUnet configuration file
 .SH "REPORTING BUGS"
 Report bugs by using mantis <https://gnunet.org/mantis/> or by sending electronic mail to <gnunet\-developers@gnu.org>
 .SH "SEE ALSO"
-\fBgnunet\-gtk\fP(1), \fBgnunet\-pseudonym\fP(1), \fBgnunet\-search\fP(1), \fBgnunet\-download\fP(1), \fBgnunet.conf\fP(5), \fBgnunetd\fP(1), \fBextract\fP(1)
+\fBgnunet\-auto\-share\fP(1), \fBgnunet\-gtk\fP(1), \fBgnunet\-pseudonym\fP(1), \fBgnunet\-search\fP(1), \fBgnunet\-download\fP(1), \fBgnunet.conf\fP(5), \fBgnunetd\fP(1), \fBextract\fP(1)

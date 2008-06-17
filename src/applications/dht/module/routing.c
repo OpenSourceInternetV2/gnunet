@@ -247,7 +247,7 @@ get_forward_count (unsigned int hop_count, double target_replication)
  * Given a result, lookup in the routing table
  * where to send it next.
  */
-static void
+static int
 routeResult (const GNUNET_HashCode * key,
              unsigned int type,
              unsigned int size, const char *data, void *cls)
@@ -387,6 +387,7 @@ routeResult (const GNUNET_HashCode * key,
 #endif
   if (cls == NULL)
     GNUNET_free (result);
+  return GNUNET_OK;
 }
 
 /**
@@ -629,10 +630,6 @@ handlePut (const GNUNET_PeerIdentity * sender,
           store = 1;
           continue;
         }
-      else
-        {
-          j++;
-        }
       if (1 == GNUNET_hash_xorcmp (&next[j].hashPubKey,
                                    &coreAPI->myIdentity->hashPubKey,
                                    &put->key))
@@ -645,6 +642,7 @@ handlePut (const GNUNET_PeerIdentity * sender,
                      "Forwarding DHT PUT request to peer `%s'.\n", &enc);
 #endif
       coreAPI->unicast (&next[j], &aput->header, DHT_PRIORITY, DHT_DELAY);
+      j++;
     }
   GNUNET_free (aput);
   if (store != 0)
@@ -886,7 +884,7 @@ GNUNET_DHT_init_routing (GNUNET_CoreAPIForPlugins * capi)
   coreAPI->registerHandler (GNUNET_P2P_PROTO_DHT_PUT, &handlePut);
   coreAPI->registerHandler (GNUNET_P2P_PROTO_DHT_RESULT, &handleResult);
   coreAPI->
-    connection_register_send_callback (sizeof (DHT_MESSAGE),
+    connection_register_send_callback (sizeof (DHT_MESSAGE), 0,
                                        &extra_get_callback);
   return GNUNET_OK;
 }

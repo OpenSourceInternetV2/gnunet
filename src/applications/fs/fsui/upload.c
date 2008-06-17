@@ -299,6 +299,7 @@ GNUNET_FSUI_uploadThread (void *cls)
   struct GNUNET_ECRS_URI *uri;
   struct GNUNET_ECRS_URI *loc;
   size_t tpos;
+  size_t tend;
   char *error;
   struct GNUNET_GE_Memory *mem;
   struct GNUNET_GE_Context *ee;
@@ -347,7 +348,8 @@ GNUNET_FSUI_uploadThread (void *cls)
                              utc->shared->doIndex ==
                              GNUNET_YES ? (utc->child ==
                                            NULL ? GNUNET_YES : GNUNET_NO) :
-                             GNUNET_NO, utc->shared->anonymityLevel,
+                             utc->shared->doIndex,
+                             utc->shared->anonymityLevel,
                              utc->shared->priority, utc->shared->expiration,
                              &progressCallback, utc, &testTerminate, utc,
                              &utc->uri);
@@ -382,102 +384,133 @@ GNUNET_FSUI_uploadThread (void *cls)
       return NULL;
     }
   utc->state = GNUNET_FSUI_COMPLETED;
-  if (utc->child == NULL)
-    GNUNET_ECRS_meta_data_extract_from_file (utc->shared->ctx->ectx,
-                                             utc->meta, utc->filename,
-                                             utc->shared->extractors);
-  while (GNUNET_OK ==
-         GNUNET_ECRS_meta_data_delete (utc->meta, EXTRACTOR_FILENAME, NULL));
-  /* only publish the last part of the path
-     -- we do not want to publish $HOME or similar
-     trivially deanonymizing information */
-  tpos = strlen (utc->filename) - 1;
-  if ((utc->filename[tpos] == DIR_SEPARATOR) && (tpos > 0))
-    tpos--;
-  while ((tpos > 0) && (utc->filename[tpos] != DIR_SEPARATOR))
-    tpos--;
-  pfn = GNUNET_malloc (strlen (&utc->filename[tpos + 1]) + 2);
-  strcpy (pfn, &utc->filename[tpos + 1]);
-  if ((utc->child != NULL) &&
-      ((strlen (pfn) == 0) || (pfn[strlen (pfn) - 1] != DIR_SEPARATOR)))
-    strcat (pfn, DIR_SEPARATOR_STR);
-  GNUNET_ECRS_meta_data_insert (utc->meta, EXTRACTOR_FILENAME, pfn);
-  GNUNET_free (pfn);
-  if ((utc->shared->anonymityLevel == 0)
-      && (utc->shared->doIndex == GNUNET_YES))
+  if (utc->shared->doIndex != GNUNET_SYSERR)
     {
-      /* generate location URI for non-anonymous download */
-      struct GNUNET_ClientServerConnection *sock;
-      GNUNET_MessageHello *hello;
-
-      sock = GNUNET_client_connection_create (utc->shared->ctx->ectx,
-                                              utc->shared->ctx->cfg);
-
-      if (GNUNET_OK == GNUNET_IDENTITY_get_self (sock, &hello))
+      if (utc->child == NULL)
+        GNUNET_ECRS_meta_data_extract_from_file (utc->shared->ctx->ectx,
+                                                 utc->meta, utc->filename,
+                                                 utc->shared->extractors);
+      while (GNUNET_OK ==
+             GNUNET_ECRS_meta_data_delete (utc->meta, EXTRACTOR_FILENAME,
+                                           NULL));
+      /* only publish the last part of the path
+         -- we do not want to publish $HOME or similar
+         trivially deanonymizing information */
+      tpos = strlen (utc->filename) - 1;
+      if ((utc->filename[tpos] == DIR_SEPARATOR) && (tpos > 0))
+        tpos--;
+      while ((tpos > 0) && (utc->filename[tpos] != DIR_SEPARATOR))
+        tpos--;
+      pfn = GNUNET_malloc (strlen (&utc->filename[tpos + 1]) + 2);
+      strcpy (pfn, &utc->filename[tpos + 1]);
+      if ((utc->child != NULL) &&
+          ((strlen (pfn) == 0) || (pfn[strlen (pfn) - 1] != DIR_SEPARATOR)))
+        strcat (pfn, DIR_SEPARATOR_STR);
+      GNUNET_ECRS_meta_data_insert (utc->meta, EXTRACTOR_FILENAME, pfn);
+      GNUNET_free (pfn);
+      if (0 != strcmp (utc->shared->top_filename, utc->filename))
         {
-          loc = GNUNET_ECRS_location_to_uri (utc->uri,
-                                             &hello->publicKey,
-                                             ntohl (hello->expirationTime),
-                                             (GNUNET_ECRS_SignFunction) &
-                                             GNUNET_IDENTITY_sign_function,
-                                             sock);
+          /* this is NOT the top-level upload, so we
+             should add the directory name of our
+             parent to the meta data */
+          tend = tpos;          /* index of '/' */
+          if ((utc->filename[tpos] == DIR_SEPARATOR) && (tpos > 0))
+            tpos--;
+          while ((tpos > 0) && (utc->filename[tpos] != DIR_SEPARATOR))
+            tpos--;
+          if (tpos + 1 < tend)
+            {
+              pfn = GNUNET_malloc (tend - tpos + 1);
+              pfn[tend - tpos] = '\0';
+              memcpy (pfn, &utc->filename[tpos + 1], tend - tpos);
+              GNUNET_ECRS_meta_data_insert (utc->meta, EXTRACTOR_RELATION,
+                                            pfn);
+              GNUNET_free (pfn);
+            }
+        }
+      if ((utc->shared->anonymityLevel == 0)
+          && (utc->shared->doIndex == GNUNET_YES))
+        {
+          /* generate location URI for non-anonymous download */
+          struct GNUNET_ClientServerConnection *sock;
+          GNUNET_MessageHello *hello;
 
-          GNUNET_free (hello);
+          sock = GNUNET_client_connection_create (utc->shared->ctx->ectx,
+                                                  utc->shared->ctx->cfg);
+
+          if (GNUNET_OK == GNUNET_IDENTITY_get_self (sock, &hello))
+            {
+              loc = GNUNET_ECRS_location_to_uri (utc->uri,
+                                                 &hello->publicKey,
+                                                 ntohl (hello->
+                                                        expirationTime),
+                                                 (GNUNET_ECRS_SignFunction) &
+                                                 GNUNET_IDENTITY_sign_function,
+                                                 sock);
+
+              GNUNET_free (hello);
+            }
+          else
+            {
+              /* may happen if no transports are available... */
+              loc = GNUNET_ECRS_uri_duplicate (utc->uri);
+            }
+          GNUNET_client_connection_destroy (sock);
         }
       else
         {
-          /* may happen if no transports are available... */
+          /* no location URI, use standard URI
+             (copied here to allow free later) */
           loc = GNUNET_ECRS_uri_duplicate (utc->uri);
         }
-      GNUNET_client_connection_destroy (sock);
+      while (GNUNET_OK ==
+             GNUNET_ECRS_meta_data_delete (utc->meta, EXTRACTOR_SPLIT, NULL));
+      while (GNUNET_OK ==
+             GNUNET_ECRS_meta_data_delete (utc->meta, EXTRACTOR_LOWERCASE,
+                                           NULL));
+      if (utc->shared->global_keywords != NULL)
+        GNUNET_ECRS_publish_under_keyword (ectx,
+                                           utc->shared->ctx->cfg,
+                                           utc->shared->global_keywords,
+                                           utc->shared->anonymityLevel,
+                                           utc->shared->priority,
+                                           utc->shared->expiration, loc,
+                                           utc->meta);
+      if (utc->keywords != NULL)
+        GNUNET_ECRS_publish_under_keyword (ectx,
+                                           utc->shared->ctx->cfg,
+                                           utc->keywords,
+                                           utc->shared->anonymityLevel,
+                                           utc->shared->priority,
+                                           utc->shared->expiration, loc,
+                                           utc->meta);
+      if (utc->shared->individualKeywords == GNUNET_YES)
+        {
+          uri = GNUNET_ECRS_meta_data_to_uri (utc->meta);
+          GNUNET_ECRS_publish_under_keyword (ectx,
+                                             utc->shared->ctx->cfg,
+                                             uri,
+                                             utc->shared->anonymityLevel,
+                                             utc->shared->priority,
+                                             utc->shared->expiration, loc,
+                                             utc->meta);
+          GNUNET_ECRS_uri_destroy (uri);
+        }
+      GNUNET_ECRS_uri_destroy (loc);
+      loc = NULL;
+      fi.meta = utc->meta;
+      fi.uri = utc->uri;
+      if (utc->shared->doIndex != GNUNET_SYSERR)
+        {
+          GNUNET_URITRACK_track (ectx, utc->shared->ctx->cfg, &fi);
+          GNUNET_URITRACK_add_state (ectx,
+                                     utc->shared->ctx->cfg,
+                                     utc->uri,
+                                     utc->shared->doIndex ==
+                                     GNUNET_YES ? GNUNET_URITRACK_INDEXED :
+                                     GNUNET_URITRACK_INSERTED);
+        }
     }
-  else
-    {
-      /* no location URI, use standard URI
-         (copied here to allow free later) */
-      loc = GNUNET_ECRS_uri_duplicate (utc->uri);
-    }
-  if (utc->shared->global_keywords != NULL)
-    GNUNET_ECRS_publish_under_keyword (ectx,
-                                       utc->shared->ctx->cfg,
-                                       utc->shared->global_keywords,
-                                       utc->shared->anonymityLevel,
-                                       utc->shared->priority,
-                                       utc->shared->expiration, loc,
-                                       utc->meta);
-  if (utc->keywords != NULL)
-    GNUNET_ECRS_publish_under_keyword (ectx,
-                                       utc->shared->ctx->cfg,
-                                       utc->keywords,
-                                       utc->shared->anonymityLevel,
-                                       utc->shared->priority,
-                                       utc->shared->expiration, loc,
-                                       utc->meta);
-  if (utc->shared->individualKeywords == GNUNET_YES)
-    {
-      uri = GNUNET_ECRS_meta_data_to_uri (utc->meta);
-      GNUNET_ECRS_publish_under_keyword (ectx,
-                                         utc->shared->ctx->cfg,
-                                         uri,
-                                         utc->shared->anonymityLevel,
-                                         utc->shared->priority,
-                                         utc->shared->expiration, loc,
-                                         utc->meta);
-      GNUNET_ECRS_uri_destroy (uri);
-    }
-  GNUNET_ECRS_uri_destroy (loc);
-  loc = NULL;
-  while (GNUNET_OK ==
-         GNUNET_ECRS_meta_data_delete (utc->meta, EXTRACTOR_SPLIT, NULL));
-  fi.meta = utc->meta;
-  fi.uri = utc->uri;
-  GNUNET_URITRACK_track (ectx, utc->shared->ctx->cfg, &fi);
-  GNUNET_URITRACK_add_state (ectx,
-                             utc->shared->ctx->cfg,
-                             utc->uri,
-                             utc->shared->doIndex ==
-                             GNUNET_YES ? GNUNET_URITRACK_INDEXED :
-                             GNUNET_URITRACK_INSERTED);
   event.type = GNUNET_FSUI_upload_completed;
   event.data.UploadCompleted.uc.pos = utc;
   event.data.UploadCompleted.uc.cctx = utc->cctx;
@@ -581,7 +614,8 @@ addChildUpload (const char *name, const char *dirName, void *data)
 
   filename = GNUNET_malloc (strlen (dirName) + strlen (name) + 2);
   strcpy (filename, dirName);
-  strcat (filename, DIR_SEPARATOR_STR);
+  if (dirName[strlen (dirName) - 1] != DIR_SEPARATOR)
+    strcat (filename, DIR_SEPARATOR_STR);
   strcat (filename, name);
   md = GNUNET_ECRS_meta_data_create ();
   child = addUploads (parent->shared, filename, NULL, md, parent);
@@ -623,7 +657,10 @@ addUploads (struct GNUNET_FSUI_UploadShared *shared,
           GNUNET_free (utc);
           return NULL;
         }
-      utc->meta = GNUNET_ECRS_meta_data_duplicate (md);
+      utc->meta =
+        (md ==
+         NULL) ? GNUNET_ECRS_meta_data_create () :
+        GNUNET_ECRS_meta_data_duplicate (md);
     }
   else
     {
@@ -682,6 +719,7 @@ freeShared (struct GNUNET_FSUI_UploadShared *shared)
     GNUNET_ECRS_uri_destroy (shared->global_keywords);
   EXTRACTOR_removeAll (shared->extractors);
   GNUNET_free_non_null (shared->extractor_config);
+  GNUNET_free (shared->top_filename);
   GNUNET_free (shared);
 }
 
@@ -746,7 +784,7 @@ GNUNET_FSUI_upload_start (struct GNUNET_FSUI_Context *ctx,
   shared->anonymityLevel = anonymityLevel;
   shared->priority = priority;
   shared->individualKeywords = individualKeywords;
-  shared->handle = NULL;
+  shared->top_filename = GNUNET_strdup (filename);
   ul = addUploads (shared, filename, keyUri, md, &ctx->activeUploads);
   if (ul == NULL)
     {

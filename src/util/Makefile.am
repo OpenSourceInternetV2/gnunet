@@ -41,6 +41,12 @@ if XFREEBSD
  DLFLAG=
 endif
 
+if OPENBSD
+ DLFLAG=
+endif
+
+
+
 if CYGWIN
  CYGSUBDIRS = win
  CYGLIBADD = $(top_builddir)/src/util/win/libwin.la 
@@ -71,5 +77,5 @@ EXTRA_DIST = \
 
 libgnunetutil_la_LDFLAGS = \
  -export-dynamic $(LIBLTDL) $(LIBGCRYPT_LIBS) $(SOLFLAGS) $(WINFLAGS) $(LIBS) -lgmp $(DLFLAG) \
- -version-info 2:0:0
+ -version-info 3:0:0
 

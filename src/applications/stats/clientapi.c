@@ -164,9 +164,8 @@ GNUNET_STATS_cs_message_type_to_string (unsigned short type)
     case GNUNET_CS_PROTO_GAP_QUERY_START:
       name = "CS_PROTO_gap_QUERY_START";
       break;
-    case GNUNET_CS_PROTO_GAP_QUERY_STOP:
-      /* case GNUNET_CS_PROTO_GAP_RESULT : */
-      name = "CS_PROTO_gap_QUERY_STOP or CS_PROTO_gap_RESULT";
+    case GNUNET_CS_PROTO_GAP_RESULT:
+      name = "CS_PROTO_gap_RESULT";
       break;
     case GNUNET_CS_PROTO_GAP_INSERT:
       name = "CS_PROTO_gap_INSERT";
@@ -182,9 +181,6 @@ GNUNET_STATS_cs_message_type_to_string (unsigned short type)
       break;
     case GNUNET_CS_PROTO_GAP_TESTINDEX:
       name = "CS_PROTO_gap_TESTINDEX";
-      break;
-    case GNUNET_CS_PROTO_GAP_GET_AVG_PRIORITY:
-      name = "CS_PROTO_gap_GET_AVG_PRIORITY";
       break;
     case GNUNET_CS_PROTO_GAP_INIT_INDEX:
       name = "CS_PROTO_gap_INIT_INDEX";
@@ -251,9 +247,6 @@ GNUNET_STATS_cs_message_type_to_string (unsigned short type)
     case GNUNET_CS_PROTO_VPN_REPLY:
       name = "GNUNET_CS_PROTO_VPN_REPLY";
       break;
-    case GNUNET_CS_PROTO_VPN_DEBUGOFF:
-      name = "GNUNET_CS_PROTO_VPN_DEBUGOFF";
-      break;
     case GNUNET_CS_PROTO_VPN_TUNNELS:
       name = "GNUNET_CS_PROTO_VPN_TUNNELS";
       break;
@@ -265,9 +258,6 @@ GNUNET_STATS_cs_message_type_to_string (unsigned short type)
       break;
     case GNUNET_CS_PROTO_VPN_RESET:
       name = "GNUNET_CS_PROTO_VPN_RESET";
-      break;
-    case GNUNET_CS_PROTO_VPN_REALISE:
-      name = "GNUNET_CS_PROTO_VPN_REALISE";
       break;
     case GNUNET_CS_PROTO_VPN_ADD:
       name = "GNUNET_CS_PROTO_VPN_ADD";

@@ -21,8 +21,8 @@
 #
 #
 AC_PREREQ(2.61)
-AC_INIT([GNUnet], [0.7.3],[bug-gnunet@gnu.org])
-AM_INIT_AUTOMAKE([GNUnet], [0.7.3])
+AC_INIT([GNUnet], [0.8.0pre0],[bug-gnunet@gnu.org])
+AM_INIT_AUTOMAKE([GNUnet], [0.8.0pre0])
 AC_CONFIG_HEADERS([config.h])
 
 AH_TOP([#define _GNU_SOURCE  1])
@@ -463,6 +463,32 @@ AC_ARG_WITH(dialog,
       AC_CHECK_LIB([dialog], [dlg_menu],
           dialog=1))])
 
+AC_ARG_WITH(cdialog,
+   [  --with-cdialog=PFX    Base of cdialog installation],
+   [AC_MSG_RESULT([$with_cdialog])
+    case $with_cdialog in
+      no)
+        ;;
+      yes)
+        AC_CHECK_HEADERS(cdialog/dialog.h,
+          AC_CHECK_LIB([cdialog], [dlg_menu],
+            dialog=1))
+        ;;
+      *)
+        LDFLAGS="-L$with_cdialog/lib $LDFLAGS"
+        CPPFLAGS="-I$with_cdialog/include $CPPFLAGS"
+        AC_CHECK_HEADERS(cdialog/dialog.h,
+          AC_CHECK_LIB([cdialog], [dlg_menu],
+            EXT_LIB_PATH="-L$with_cdialog/lib $EXT_LIB_PATH"
+              dialog=1))
+        ;;
+    esac
+   ],
+   [AC_MSG_RESULT([--with-cdialog not specified])
+    AC_CHECK_HEADERS(cdialog/dialog.h,
+      AC_CHECK_LIB([cdialog], [dlg_menu],
+          dialog=1))])
+
 AM_CONDITIONAL(HAVE_DIALOG, test x$dialog = x1)
 AC_DEFINE_UNQUOTED([HAVE_DIALOG], $dialog, [We have dialog])
 # restore LIBS
@@ -607,23 +633,29 @@ AC_ARG_WITH(microhttpd,
         ;;
       yes)
         AC_CHECK_HEADERS(microhttpd.h,
-          AC_CHECK_LIB([microhttpd], [MHD_start_daemon],
-            lmhd=1))
+	  AC_CHECK_DECL(MHD_OPTION_PER_IP_CONNECTION_LIMIT,
+            AC_CHECK_LIB([microhttpd], [MHD_start_daemon],
+              lmhd=1),
+	    [],[#include <microhttpd.h>]))
         ;;
       *)
         LDFLAGS="-L$with_microhttpd/lib $LDFLAGS"
         CPPFLAGS="-I$with_microhttpd/include $CPPFLAGS"
         AC_CHECK_HEADERS(microhttpd.h,
-          AC_CHECK_LIB([microhttpd], [MHD_start_daemon],
-            EXT_LIB_PATH="-L$with_microhttpd/lib $EXT_LIB_PATH"
-              lmhd=1))
+	  AC_CHECK_DECL(MHD_OPTION_PER_IP_CONNECTION_LIMIT,
+            AC_CHECK_LIB([microhttpd], [MHD_start_daemon],
+              EXT_LIB_PATH="-L$with_microhttpd/lib $EXT_LIB_PATH"
+              lmhd=1),
+	    [],[#include <microhttpd.h>]))
         ;;
     esac
    ],
    [AC_MSG_RESULT([--with-microhttpd not specified])
     AC_CHECK_HEADERS(microhttpd.h,
-      AC_CHECK_LIB([microhttpd], [MHD_start_daemon],
-          lmhd=1))])
+      AC_CHECK_DECL(MHD_OPTION_PER_IP_CONNECTION_LIMIT,
+        AC_CHECK_LIB([microhttpd], [MHD_start_daemon],
+          lmhd=1),
+	[],[#include <microhttpd.h>]))])
 AM_CONDITIONAL(HAVE_MHD, test x$lmhd = x1)
 AC_DEFINE_UNQUOTED([HAVE_MHD], $lmhd, [We have libmicrohttpd])
 # restore LIBS
@@ -762,7 +794,7 @@ AC_FUNC_VPRINTF
 AC_HEADER_SYS_WAIT
 AC_TYPE_OFF_T
 AC_TYPE_UID_T
-AC_CHECK_FUNCS([floor gethostname memmove rmdir strncasecmp strrchr strtol atoll dup2 fdatasync ftruncate gethostbyname gettimeofday memset mkdir mkfifo select socket strcasecmp strchr strdup strerror strstr clock_gettime getrusage rand uname setlocale getcwd mktime gmtime_r gmtime strlcpy strlcat ftruncate stat64 sbrk mmap mremap setrlimit gethostbyaddr initgroups getifaddrs freeifaddrs getnameinfo inet_ntoa localtime_r nl_langinfo putenv realpath strndup])
+AC_CHECK_FUNCS([floor gethostname memmove rmdir strncasecmp strrchr strtol atoll dup2 fdatasync ftruncate gethostbyname gettimeofday memset mkdir mkfifo select socket strcasecmp strchr strdup strerror strstr clock_gettime getrusage rand uname setlocale getcwd mktime gmtime_r gmtime strlcpy strlcat ftruncate stat64 sbrk mmap mremap setrlimit gethostbyaddr initgroups getifaddrs freeifaddrs getnameinfo getaddrinfo inet_ntoa localtime_r nl_langinfo putenv realpath strndup])
 
 # restore LIBS
 LIBS=$SAVE_LIBS
@@ -851,6 +883,7 @@ src/include/Makefile
 src/applications/Makefile
 src/applications/advertising/Makefile
 src/applications/bootstrap_http/Makefile
+src/applications/chat/Makefile
 src/applications/datastore/Makefile
 src/applications/dht/Makefile
 src/applications/dht/tools/Makefile
@@ -863,12 +896,12 @@ src/applications/fs/collection/Makefile
 src/applications/fs/ecrs/Makefile
 src/applications/fs/fsui/Makefile
 src/applications/fs/lib/Makefile
-src/applications/fs/module/Makefile
+src/applications/fs/gap/Makefile
 src/applications/fs/namespace/Makefile
 src/applications/fs/uritrack/Makefile
 src/applications/fs/tools/Makefile
-src/applications/gap/Makefile
 src/applications/getoption/Makefile
+src/applications/hostlist/Makefile
 src/applications/identity/Makefile
 src/applications/kvstore_sqlite/Makefile
 src/applications/pingpong/Makefile

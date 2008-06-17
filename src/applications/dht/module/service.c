@@ -48,7 +48,7 @@ struct GNUNET_DHT_GetHandle
   /**
    * Function to call for each result.
    */
-  GNUNET_DataProcessor callback;
+  GNUNET_ResultProcessor callback;
 
   /**
    * Extra argument to callback.
@@ -61,21 +61,6 @@ struct GNUNET_DHT_GetHandle
   unsigned int type;
 
 };
-
-static void
-client_result_converter (const GNUNET_HashCode * key,
-                         unsigned int type,
-                         unsigned int size, const char *data, void *cls)
-{
-  struct GNUNET_DHT_GetHandle *get = cls;
-  GNUNET_DataContainer *dc;
-
-  dc = GNUNET_malloc (sizeof (GNUNET_DataContainer) + size);
-  dc->size = ntohl (sizeof (GNUNET_DataContainer) + size);
-  memcpy (&dc[1], data, size);
-  get->callback (key, dc, get->cls);
-  GNUNET_free (dc);
-}
 
 /**
  * Perform an asynchronous GET operation on the DHT identified by
@@ -96,7 +81,7 @@ client_result_converter (const GNUNET_HashCode * key,
 static struct GNUNET_DHT_GetHandle *
 dht_get_async_start (unsigned int type,
                      const GNUNET_HashCode * key,
-                     GNUNET_DataProcessor callback, void *cls)
+                     GNUNET_ResultProcessor callback, void *cls)
 {
   struct GNUNET_DHT_GetHandle *ret;
 
@@ -105,8 +90,7 @@ dht_get_async_start (unsigned int type,
   ret->callback = callback;
   ret->cls = cls;
   ret->type = type;
-  if (GNUNET_OK !=
-      GNUNET_DHT_get_start (key, type, &client_result_converter, ret))
+  if (GNUNET_OK != GNUNET_DHT_get_start (key, type, callback, cls))
     {
       GNUNET_free (ret);
       return NULL;
@@ -120,8 +104,8 @@ dht_get_async_start (unsigned int type,
 static int
 dht_get_async_stop (struct GNUNET_DHT_GetHandle *record)
 {
-  GNUNET_DHT_get_stop (&record->key, record->type, &client_result_converter,
-                       record);
+  GNUNET_DHT_get_stop (&record->key, record->type, record->callback,
+                       record->cls);
   GNUNET_free (record);
   return GNUNET_OK;
 }

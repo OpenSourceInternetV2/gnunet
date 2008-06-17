@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005, 2006, 2008 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -29,7 +29,6 @@
 #include "gnunet_util.h"
 #include "gnunet_util_cron.h"
 #include "gnunet_ecrs_lib.h"
-#include "gnunet_blockstore.h"
 
 /**
  * Track record for a given result.
@@ -62,11 +61,6 @@ typedef struct GNUNET_FSUI_SearchList
 {
 
   /**
-   * Desired timeout (relative) for this search
-   */
-  GNUNET_CronTime timeout;
-
-  /**
    * start time of the search
    */
   GNUNET_CronTime start_time;
@@ -84,7 +78,7 @@ typedef struct GNUNET_FSUI_SearchList
   /**
    * Handle to the thread which performs the search.
    */
-  struct GNUNET_ThreadHandle *handle;
+  struct GNUNET_ECRS_SearchContext *handle;
 
   /**
    * Which URI are we searching?
@@ -109,11 +103,6 @@ typedef struct GNUNET_FSUI_SearchList
    * Desired anonymity level for this search
    */
   unsigned int anonymityLevel;
-
-  /**
-   * Maximum number of results requested.
-   */
-  unsigned int maxResults;
 
   /**
    * Of how many individual queries does the
@@ -204,9 +193,9 @@ typedef struct GNUNET_FSUI_DownloadList
   void *cctx;
 
   /**
-   * Currently assigned thread (if any).
+   * Currently assigned ECRS context (if any).
    */
-  struct GNUNET_ThreadHandle *handle;
+  struct GNUNET_ECRS_DownloadContext *handle;
 
   /**
    * FIs of completed sub-downloads.
@@ -317,6 +306,8 @@ typedef struct GNUNET_FSUI_UploadShared
 
   char *extractor_config;
 
+  char *top_filename;
+
   int doIndex;
 
   unsigned int anonymityLevel;
@@ -418,7 +409,9 @@ typedef struct GNUNET_FSUI_Context
   /**
    * Collection related data.
    */
-  GNUNET_DataContainer *collectionData;
+  char *collectionData;
+
+  unsigned int collectionDataSize;
 
   /**
    * List of active searches.
@@ -463,9 +456,12 @@ typedef struct GNUNET_FSUI_Context
  */
 int GNUNET_FSUI_updateDownloadThread (GNUNET_FSUI_DownloadList * list);
 
-void *GNUNET_FSUI_uploadThread (void *dl);
+int
+GNUNET_FSUI_search_progress_callback (const GNUNET_ECRS_FileInfo * fi,
+                                      const GNUNET_HashCode * key, int isRoot,
+                                      void *cls);
 
-void *GNUNET_FSUI_searchThread (void *pos);
+void *GNUNET_FSUI_uploadThread (void *dl);
 
 void *GNUNET_FSUI_unindexThread (void *cls);
 

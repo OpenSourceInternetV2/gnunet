@@ -73,6 +73,7 @@ main (int argc, const char **argv)
       UNLINK (c2);
       GNUNET_free (c2);
     }
+
   return ret;
 }
 

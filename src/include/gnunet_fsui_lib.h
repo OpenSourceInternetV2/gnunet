@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet
-     (C) 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
+     (C) 2004, 2005, 2006, 2008 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -129,11 +129,11 @@ enum GNUNET_FSUI_EventType
   GNUNET_FSUI_search_started,
   GNUNET_FSUI_search_stopped,
   GNUNET_FSUI_search_result,
-  GNUNET_FSUI_search_completed,
   GNUNET_FSUI_search_aborted,
-  GNUNET_FSUI_search_error,
   GNUNET_FSUI_search_suspended,
   GNUNET_FSUI_search_resumed,
+  GNUNET_FSUI_search_paused,
+  GNUNET_FSUI_search_restarted,
   GNUNET_FSUI_download_started,
   GNUNET_FSUI_download_stopped,
   GNUNET_FSUI_download_progress,
@@ -171,6 +171,10 @@ enum GNUNET_FSUI_EventType
  *
  * ACTIVE means that there is currently a thread running
  * the download (and that thread is allowed to continue).<br>
+ *
+ * PAUSED means that the user asked to pause the activity
+ * (and that it is to be resumed once the user explicitly
+ * asks for it to be resumed).
  *
  * COMPLETED means that the download is finished (but the
  * thread has not been joined yet).  The download thread
@@ -210,13 +214,14 @@ typedef enum
 {
   GNUNET_FSUI_PENDING = 0,
   GNUNET_FSUI_ACTIVE = 1,
-  GNUNET_FSUI_COMPLETED = 2,
-  GNUNET_FSUI_COMPLETED_JOINED = 3,
-  GNUNET_FSUI_ABORTED = 4,
-  GNUNET_FSUI_ABORTED_JOINED = 5,
-  GNUNET_FSUI_ERROR = 6,
-  GNUNET_FSUI_ERROR_JOINED = 7,
-  GNUNET_FSUI_SUSPENDING = 8,
+  GNUNET_FSUI_PAUSED = 2,
+  GNUNET_FSUI_COMPLETED = 3,
+  GNUNET_FSUI_COMPLETED_JOINED = 4,
+  GNUNET_FSUI_ABORTED = 5,
+  GNUNET_FSUI_ABORTED_JOINED = 6,
+  GNUNET_FSUI_ERROR = 7,
+  GNUNET_FSUI_ERROR_JOINED = 8,
+  GNUNET_FSUI_SUSPENDING = 9,
 } GNUNET_FSUI_State;
 
 /**
@@ -325,29 +330,12 @@ typedef struct
 
     } SearchResult;
 
-
-    struct
-    {
-
-      GNUNET_FSUI_SearchContext sc;
-
-    } SearchCompleted;
-
     struct
     {
 
       GNUNET_FSUI_SearchContext sc;
 
     } SearchAborted;
-
-    struct
-    {
-
-      GNUNET_FSUI_SearchContext sc;
-
-      const char *message;
-
-    } SearchError;
 
     struct
     {
@@ -390,6 +378,20 @@ typedef struct
       GNUNET_FSUI_SearchContext sc;
 
     } SearchStopped;
+
+    struct
+    {
+
+      GNUNET_FSUI_SearchContext sc;
+
+    } SearchPaused;
+
+    struct
+    {
+
+      GNUNET_FSUI_SearchContext sc;
+
+    } SearchRestarted;
 
 
 
@@ -856,13 +858,12 @@ struct GNUNET_FSUI_Context *GNUNET_FSUI_start (struct GNUNET_GE_Context *ectx, s
  */
 void GNUNET_FSUI_stop (struct GNUNET_FSUI_Context *ctx);        /* fsui.c */
 
-
 /**
  * Start a search.
  *
  * @return NULL on error
  */
-struct GNUNET_FSUI_SearchList *GNUNET_FSUI_search_start (struct GNUNET_FSUI_Context *ctx, unsigned int anonymityLevel, unsigned int maxResults, GNUNET_CronTime timeout, const struct GNUNET_ECRS_URI *uri);    /* search.c */
+struct GNUNET_FSUI_SearchList *GNUNET_FSUI_search_start (struct GNUNET_FSUI_Context *ctx, unsigned int anonymityLevel, const struct GNUNET_ECRS_URI *uri);      /* search.c */
 
 /**
  * Abort a search.
@@ -870,6 +871,20 @@ struct GNUNET_FSUI_SearchList *GNUNET_FSUI_search_start (struct GNUNET_FSUI_Cont
  * @return GNUNET_SYSERR if such a search is not known
  */
 int GNUNET_FSUI_search_abort (struct GNUNET_FSUI_Context *ctx, struct GNUNET_FSUI_SearchList *sl);      /* search.c */
+
+/**
+ * Pause a search.
+ *
+ * @return GNUNET_SYSERR if such a search is not known
+ */
+int GNUNET_FSUI_search_pause (struct GNUNET_FSUI_Context *ctx, struct GNUNET_FSUI_SearchList *sl);      /* search.c */
+
+/**
+ * Restart a paused search.
+ *
+ * @return GNUNET_SYSERR if such a search is not known
+ */
+int GNUNET_FSUI_search_restart (struct GNUNET_FSUI_Context *ctx, struct GNUNET_FSUI_SearchList *sl);    /* search.c */
 
 /**
  * Stop a search.
@@ -920,7 +935,7 @@ typedef int (*GNUNET_FSUI_DirectoryScanCallback) (void *data,
  * @param ctx
  * @param filename name of file or directory to upload (directory
  *        implies use of recursion)
- * @param doIndex use indexing, not insertion
+ * @param doIndex GNUNET_YES: use indexing; GNUNET_NO: use insertion; GNUNET_SYSERR: "simulate"
  * @param doExtract use libextractor
  * @param individualKeywords add KBlocks for non-top-level files
  * @param topLevelMetaData metadata for top-level file or directory

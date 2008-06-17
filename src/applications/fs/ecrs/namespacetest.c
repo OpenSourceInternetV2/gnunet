@@ -55,6 +55,14 @@ spcb (const GNUNET_ECRS_FileInfo * fi,
 }
 
 static int
+tt (void *unused)
+{
+  if (match == 1)
+    return GNUNET_SYSERR;
+  return GNUNET_OK;
+}
+
+static int
 testNamespace ()
 {
   GNUNET_HashCode root;
@@ -98,9 +106,7 @@ testNamespace ()
   fprintf (stderr, "Starting namespace search...\n");
   CHECK (GNUNET_OK == GNUNET_ECRS_search (NULL,
                                           cfg,
-                                          advURI,
-                                          1, 60 * GNUNET_CRON_SECONDS, &spcb,
-                                          uri, NULL, NULL));
+                                          advURI, 1, &spcb, uri, &tt, NULL));
   fprintf (stderr, "Completed namespace search...\n");
   CHECK (GNUNET_OK == GNUNET_ECRS_namespace_delete (NULL, cfg, CHECKNAME));
   CHECK (GNUNET_SYSERR ==
@@ -118,6 +124,7 @@ main (int argc, char *argv[])
   pid_t daemon;
   int failureCount = 0;
 
+  GNUNET_disable_entropy_gathering ();
   cfg = GNUNET_GC_create ();
   if (-1 == GNUNET_GC_parse_configuration (cfg, "check.conf"))
     {

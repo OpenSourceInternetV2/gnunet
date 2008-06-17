@@ -155,8 +155,9 @@ unsigned int GNUNET_CORE_connection_compute_index_of_peer (const
  *   that buffer (must be a positive number).
  * @return GNUNET_OK if the handler was registered, GNUNET_SYSERR on error
  */
-int GNUNET_CORE_connection_register_send_callback (const unsigned int
+int GNUNET_CORE_connection_register_send_callback (unsigned int
                                                    minimumPadding,
+                                                   unsigned int prio,
                                                    GNUNET_BufferFillCallback
                                                    callback);
 
@@ -164,7 +165,7 @@ int GNUNET_CORE_connection_register_send_callback (const unsigned int
  * Unregister a handler that was registered with GNUNET_CORE_connection_register_send_callback.
  * @return GNUNET_OK if the handler was removed, GNUNET_SYSERR on error
  */
-int GNUNET_CORE_connection_unregister_send_callback (const unsigned int
+int GNUNET_CORE_connection_unregister_send_callback (unsigned int
                                                      minimumPadding,
                                                      GNUNET_BufferFillCallback
                                                      callback);
@@ -344,6 +345,41 @@ int
  */
 int GNUNET_CORE_connection_assert_tsession_unused (GNUNET_TSession *
                                                    tsession);
+
+/**
+ * Call the given function whenever we get
+ * disconnected from a particular peer.
+ *
+ * @return GNUNET_OK
+ */
+int
+  GNUNET_CORE_connection_register_notify_peer_disconnect
+  (GNUNET_NodeIteratorCallback callback, void *cls);
+
+/**
+ * Stop calling the given function whenever we get
+ * disconnected from a particular peer.
+ *
+ * @return GNUNET_OK on success, GNUNET_SYSERR
+ *         if this callback is not registered
+ */
+int
+  GNUNET_CORE_connection_unregister_notify_peer_disconnect
+  (GNUNET_NodeIteratorCallback callback, void *cls);
+
+
+/**
+ * Try to reserve downstream bandwidth for a particular peer.
+ *
+ * @param peer with whom should bandwidth be reserved?
+ * @param amount how many bytes should we expect to receive?
+ *        (negative amounts can be used to undo a (recent)
+ *        reservation request
+ * @return amount that could actually be reserved
+ */
+int GNUNET_CORE_connection_reserve_downstream_bandwidth (const
+                                                         GNUNET_PeerIdentity *
+                                                         peer, int amount);
 
 #endif
 /* end of connection.h */

@@ -530,8 +530,6 @@ GNUNET_CORE_init (struct GNUNET_GE_Context *ectx,
   applicationCore.cron = cron;
   applicationCore.version = 0;
   applicationCore.myIdentity = NULL;    /* for now */
-  applicationCore.loadApplicationModule = &loadApplicationModule;       /* core.c */
-  applicationCore.unloadApplicationModule = &unloadApplicationModule;   /* core.c */
   applicationCore.request_service = &GNUNET_CORE_request_service;       /* core.c */
   applicationCore.release_service = &GNUNET_CORE_release_service;       /* core.c */
 
@@ -541,6 +539,10 @@ GNUNET_CORE_init (struct GNUNET_GE_Context *ectx,
   applicationCore.forAllConnectedNodes = &GNUNET_CORE_connection_iterate_peers; /* connection.c */
   applicationCore.connection_register_send_callback = &GNUNET_CORE_connection_register_send_callback;   /* connection.c */
   applicationCore.connection_unregister_send_callback = &GNUNET_CORE_connection_unregister_send_callback;       /* connection.c */
+  applicationCore.reserve_downstream_bandwidth = &GNUNET_CORE_connection_reserve_downstream_bandwidth;  /* connection.c */
+  applicationCore.register_notify_peer_disconnect = &GNUNET_CORE_connection_register_notify_peer_disconnect;    /* connection .c */
+  applicationCore.unregister_notify_peer_disconnect = &GNUNET_CORE_connection_unregister_notify_peer_disconnect;        /* connection .c */
+
 
   applicationCore.connection_register_send_notification_callback =
     &GNUNET_CORE_connection_register_send_notification_callback;

@@ -370,11 +370,12 @@ GNUNET_ECRS_namespace_test_exists (struct GNUNET_GE_Context *ectx,
 /**
  * Add an entry into a namespace.
  *
- * @param uri what is the URI under which the entry
- *        should be published (must be a namespace URI)
- * @param dstU to which URI should the namespace entry refer?
+ * @param name in which namespace to publish, use just the
+ *        nickname of the namespace
+ * @param dst to which URI should the namespace entry refer?
  * @param md what meta-data should be associated with the
  *        entry?
+ * @return URI on success, NULL on error
  */
 struct GNUNET_ECRS_URI *
 GNUNET_ECRS_namespace_add_content (struct GNUNET_GE_Context *ectx,
@@ -463,6 +464,7 @@ GNUNET_ECRS_namespace_add_content (struct GNUNET_GE_Context *ectx,
           GNUNET_GE_BREAK (ectx, 0);
           GNUNET_free (dstURI);
           GNUNET_RSA_free_key (hk);
+          GNUNET_free (value);
           return NULL;
         }
       size = sizeof (SBlock) + mdsize + strlen (dstURI) + 1;

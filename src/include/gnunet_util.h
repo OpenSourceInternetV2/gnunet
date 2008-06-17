@@ -70,6 +70,9 @@ extern "C"
 #endif
 #endif
 
+#define GNUNET_MIN(x,y) ((x) < (y) ? (x) : (y))
+#define GNUNET_MAX(x,y) ((x) > (y) ? (x) : (y))
+
 /**
  * Just the version number of GNUnet-util implementation.
  * Encoded as
@@ -82,7 +85,7 @@ extern "C"
  * especially the least significant bits may change
  * frequently, even between different SVN versions.
  */
-#define GNUNET_UTIL_VERSION 0x00070300
+#define GNUNET_UTIL_VERSION 0x00080000
 
 #if 0                           /* keep Emacsens' auto-indent happy */
 {

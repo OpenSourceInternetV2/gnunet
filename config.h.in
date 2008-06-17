@@ -55,6 +55,9 @@
 /* Define to 1 if you have the `bcopy' function. */
 #undef HAVE_BCOPY
 
+/* Define to 1 if you have the <cdialog/dialog.h> header file. */
+#undef HAVE_CDIALOG_DIALOG_H
+
 /* Define to 1 if your system has a working `chown' function. */
 #undef HAVE_CHOWN
 
@@ -137,6 +140,9 @@
 
 /* Define to 1 if you have the `ftruncate' function. */
 #undef HAVE_FTRUNCATE
+
+/* Define to 1 if you have the `getaddrinfo' function. */
+#undef HAVE_GETADDRINFO
 
 /* Define to 1 if you have the `getcwd' function. */
 #undef HAVE_GETCWD

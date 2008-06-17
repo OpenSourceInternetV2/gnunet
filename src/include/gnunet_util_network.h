@@ -124,7 +124,7 @@ typedef struct
 {
 
   /**
-   * The CS header (values: sizeof(CS_returnvalue_MESSAGE) + error-size, GNUNET_CS_PROTO_RETURN_VALUE)
+   * The CS header (values: sizeof(GNUNET_MessageReturnValue) + error-size, GNUNET_CS_PROTO_RETURN_VALUE)
    */
   GNUNET_MessageHeader header;
 
@@ -142,7 +142,7 @@ typedef struct
 {
 
   /**
-   * The CS header (values: sizeof(CS_returnvalue_MESSAGE) + error-size, GNUNET_CS_PROTO_RETURN_VALUE)
+   * The CS header.
    */
   GNUNET_MessageHeader header;
 
@@ -153,33 +153,10 @@ typedef struct
 
 } GNUNET_MessageReturnErrorMessage;
 
-
-/**
- * @brief an IPv4 address
- */
-typedef struct
-{
-  /**
-   * struct in_addr
-   */
-  unsigned int addr;
-} GNUNET_IPv4Address;
-
 /**
  * @brief IPV4 network in CIDR notation.
  */
 struct GNUNET_IPv4NetworkSet;
-
-/**
- * @brief an IPV6 address.
- */
-typedef struct
-{
-  /**
-   * struct in6_addr addr;
-   */
-  unsigned int addr[4];
-} GNUNET_IPv6Address;
 
 /**
  * @brief IPV6 network in CIDR notation.
@@ -263,7 +240,7 @@ unsigned long long GNUNET_htonll (unsigned long long n);
  * in dotted-decimal (/255.255.0.0).
  * <p>
  * @param routeList a string specifying the forbidden networks
- * @return the converted list, NULL if the synatx is flawed
+ * @return the converted list, NULL if the syntax is flawed
  */
 struct GNUNET_IPv4NetworkSet *GNUNET_parse_ipv4_network_specification (struct
                                                                        GNUNET_GE_Context
@@ -281,7 +258,7 @@ struct GNUNET_IPv4NetworkSet *GNUNET_parse_ipv4_network_specification (struct
  * in dotted-decimal (/255.255.0.0).
  * <p>
  * @param routeList a string specifying the forbidden networks
- * @return the converted list, NULL if the synatx is flawed
+ * @return the converted list, NULL if the syntax is flawed
  */
 struct GNUNET_IPv6NetworkSet *GNUNET_parse_ipv6_network_specification (struct
                                                                        GNUNET_GE_Context
@@ -291,6 +268,14 @@ struct GNUNET_IPv6NetworkSet *GNUNET_parse_ipv6_network_specification (struct
                                                                        *routeList);
 
 /**
+ * Actual definitions will be in system header files.
+ */
+struct sockaddr;
+struct in_addr;
+struct in6_addr;
+
+
+/**
  * Check if the given IP address is in the list of
  * IP addresses.
  * @param list a list of networks
@@ -298,7 +283,7 @@ struct GNUNET_IPv6NetworkSet *GNUNET_parse_ipv6_network_specification (struct
  * @return GNUNET_NO if the IP is not in the list, GNUNET_YES if it it is
  */
 int GNUNET_check_ipv4_listed (const struct GNUNET_IPv4NetworkSet *list,
-                              GNUNET_IPv4Address ip);
+                              const struct in_addr *ip);
 
 /**
  * Check if the given IP address is in the list of
@@ -308,20 +293,8 @@ int GNUNET_check_ipv4_listed (const struct GNUNET_IPv4NetworkSet *list,
  * @return GNUNET_NO if the IP is not in the list, GNUNET_YES if it it is
  */
 int GNUNET_check_ipv6_listed (const struct GNUNET_IPv6NetworkSet *list,
-                              GNUNET_IPv6Address ip);
+                              const struct in6_addr *ip);
 
-#define GNUNET_PRIP(ip) (unsigned int)(((unsigned int)(ip))>>24), \
-                 (unsigned int)((((unsigned)(ip)))>>16 & 255), \
-                 (unsigned int)((((unsigned int)(ip)))>>8 & 255), \
-                 (unsigned int)((((unsigned int)(ip))) & 255)
-
-/**
- * Get the IP address of the given host.
- *
- * @return GNUNET_OK on success, GNUNET_SYSERR on error
- */
-int GNUNET_get_host_by_name (struct GNUNET_GE_Context *ectx,
-                             const char *hostname, GNUNET_IPv4Address * ip);
 
 /* ********************* low-level socket operations **************** */
 
@@ -427,7 +400,11 @@ int GNUNET_socket_test_valid (struct GNUNET_SocketHandle *s);
  * @param max_addr_len maximum expected length of addresses for
  *        connections accepted on the given socket
  * @param timeout after how long should inactive connections be
- *        closed?  Use 0 for no timeout
+ *        closed?  Use 0 for no timeout.  The specified timeout
+ *        will be the default for all new connections;
+ *        after (!) returning (!) from the accept handler,
+ *        clients can change the timeout of an individual
+ *        socket using GNUNET_select_change_timeout.
  * @param mon maybe NULL
  * @param memory_quota amount of memory available for
  *        queueing messages (in bytes)
@@ -521,6 +498,27 @@ int GNUNET_select_update_closure (struct GNUNET_SelectHandle *sh,
 int GNUNET_select_disconnect (struct GNUNET_SelectHandle *sh,
                               struct GNUNET_SocketHandle *sock);
 
+/**
+ * Convert a string to an IP address. May block!
+ *
+ * @param hostname the hostname to resolve
+ * @param domain AF_INET or AF_INET6; use AF_UNSPEC for "any"
+ * @param *sa should be of type "struct sockaddr*" and
+ *        will be set to the IP address on success;
+ *        if *sa is NULL, sufficient space will be
+ *        allocated.
+ * @param socklen will be set to the length of *sa.
+ *        If *sa is not NULL, socklen will be checked
+ *        to see if sufficient space is provided and
+ *        updated to the amount of space actually
+ *        required/used.
+ * @return GNUNET_OK on success, GNUNET_SYSERR on error
+ */
+int
+GNUNET_get_ip_from_hostname (struct GNUNET_GE_Context *ectx,
+                             const char *hostname,
+                             int domain,
+                             struct sockaddr **sa, unsigned int *socklen);
 
 /**
  * Get an IP address as a string (works for both IPv4 and IPv6).  Note
@@ -539,7 +537,7 @@ char *GNUNET_get_ip_as_string (const void *sa,
  */
 char *GNUNET_get_local_ip (struct GNUNET_GC_Configuration *cfg,
                            struct GNUNET_GE_Context *ectx,
-                           GNUNET_IPv4Address * addr);
+                           struct in_addr *addr);
 
 
 /**

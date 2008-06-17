@@ -536,7 +536,7 @@ rereadConfiguration (void *ctx,
           return GNUNET_SYSERR;
         }
     }
-  if (fn != NULL)
+  if ((fn != NULL) && (size > 0))
     {
       data = GNUNET_malloc (size);
       if (size != GNUNET_disk_file_read (ectx, fn, size, data))
@@ -549,10 +549,12 @@ rereadConfiguration (void *ctx,
           return GNUNET_SYSERR;
         }
       GNUNET_free (fn);
+      fn = NULL;
       pos = 0;
       while ((pos < size) && isspace (data[pos]))
         pos++;
-      while (pos <= size - sizeof (GNUNET_EncName))
+      while ((size >= sizeof (GNUNET_EncName)) &&
+             (pos <= size - sizeof (GNUNET_EncName)))
         {
           memcpy (&enc, &data[pos], sizeof (GNUNET_EncName));
           if (!isspace (enc.encoding[sizeof (GNUNET_EncName) - 1]))
@@ -562,6 +564,9 @@ rereadConfiguration (void *ctx,
                              GNUNET_GE_USER,
                              _
                              ("Syntax error in topology specification, skipping bytes.\n"));
+              pos++;
+              while ((pos < size) && (!isspace (data[pos])))
+                pos++;
               continue;
             }
           enc.encoding[sizeof (GNUNET_EncName) - 1] = '\0';
@@ -601,6 +606,7 @@ rereadConfiguration (void *ctx,
         }
       GNUNET_free (data);
     }
+  GNUNET_free_non_null (fn);
   return 0;
 }
 

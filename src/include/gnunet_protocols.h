@@ -66,22 +66,12 @@ extern "C"
 /**
  * protocol number of TCP.
  */
-#define GNUNET_TRANSPORT_PROTOCOL_NUMBER_TCP 2
+#define GNUNET_TRANSPORT_PROTOCOL_NUMBER_TCP 6
 
 /**
  * protocol number of UDP.
  */
-#define GNUNET_TRANSPORT_PROTOCOL_NUMBER_UDP 3
-
-/**
- * Protocol number for TCP on IPv6 (TCP+6)
- */
-#define GNUNET_TRANSPORT_PROTOCOL_NUMBER_TCP6 4
-
-/**
- * Protocol number for UDP on IPv6 (UDP+6)
- */
-#define GNUNET_TRANSPORT_PROTOCOL_NUMBER_UDP6 5
+#define GNUNET_TRANSPORT_PROTOCOL_NUMBER_UDP 7
 
 /**
  * protocol number for HTTP (80 is too big, so 8 will have to do)
@@ -135,11 +125,6 @@ extern "C"
 #define GNUNET_CS_PROTO_GAP_QUERY_START 8
 
 /**
- * client to gnunetd: stop query
- */
-#define GNUNET_CS_PROTO_GAP_QUERY_STOP 9
-
-/**
  * gnunetd to client: here is your answer
  */
 #define GNUNET_CS_PROTO_GAP_RESULT 9
@@ -170,15 +155,9 @@ extern "C"
 #define GNUNET_CS_PROTO_GAP_TESTINDEX 14
 
 /**
- * Client to gnunetd: what is the average priority of entries in the
- * routing table?
- */
-#define GNUNET_CS_PROTO_GAP_GET_AVG_PRIORITY 15
-
-/**
  * client to gnunetd: initialize to index file
  */
-#define GNUNET_CS_PROTO_GAP_INIT_INDEX 16
+#define GNUNET_CS_PROTO_GAP_INIT_INDEX 15
 
 
 /* *********** messages for identity module ************* */
@@ -280,7 +259,8 @@ extern "C"
 
 /* ********** CS CHAT application messages ********** */
 
-#define GNUNET_CS_PROTO_CHAT_MSG 44
+#define GNUNET_CS_PROTO_CHAT_JOIN_MSG 44
+#define GNUNET_CS_PROTO_CHAT_MSG 45
 
 
 /* ********** CS DHT application messages ********** */
@@ -314,17 +294,14 @@ extern "C"
  * instead of the VPN_REPLY so the UI knows it has
  * seen all the output.
  */
-#define GNUNET_CS_PROTO_VPN_MSG 92
-#define GNUNET_CS_PROTO_VPN_REPLY 93
-#define GNUNET_CS_PROTO_VPN_DEBUGOFF 94
-#define GNUNET_CS_PROTO_VPN_DEBUGON 95
-#define GNUNET_CS_PROTO_VPN_TUNNELS 96
-#define GNUNET_CS_PROTO_VPN_ROUTES 97
-#define GNUNET_CS_PROTO_VPN_REALISED 98
-#define GNUNET_CS_PROTO_VPN_RESET 99
-#define GNUNET_CS_PROTO_VPN_REALISE 100
-#define GNUNET_CS_PROTO_VPN_ADD 101
-#define GNUNET_CS_PROTO_VPN_TRUST 102
+#define GNUNET_CS_PROTO_VPN_MSG 64
+#define GNUNET_CS_PROTO_VPN_REPLY 65
+#define GNUNET_CS_PROTO_VPN_TUNNELS 66
+#define GNUNET_CS_PROTO_VPN_ROUTES 67
+#define GNUNET_CS_PROTO_VPN_REALISED 68
+#define GNUNET_CS_PROTO_VPN_RESET 69
+#define GNUNET_CS_PROTO_VPN_ADD 70
+#define GNUNET_CS_PROTO_VPN_TRUST 71
 
 
 #define GNUNET_CS_PROTO_MAX_USED 80
@@ -375,12 +352,12 @@ extern "C"
 /**
  * Query for content.
  */
-#define GNUNET_P2P_PROTO_GAP_QUERY 16
+#define GNUNET_P2P_PROTO_GAP_QUERY 8
 
 /**
  * receive content
  */
-#define GNUNET_P2P_PROTO_GAP_RESULT 17
+#define GNUNET_P2P_PROTO_GAP_RESULT 9
 
 /************** p2p DHT application messages ************/
 
@@ -479,10 +456,19 @@ extern "C"
  */
 #define GNUNET_ECRS_BLOCKTYPE_RESERVED 0xFFFFFFFE
 
-/**
- * Type of OLD OnDemand encoded blocks.
- */
-#define GNUNET_ECRS_BLOCKTYPE_ONDEMAND_OLD 0xFFFFFFFF
+
+/* ************* priorities for poll-content ************ */
+
+/* note that the absolute values do not matter;
+   highest priority first is the rule!
+   The naming-prefix used is after the name of
+   the module using the respective constant.  */
+
+#define GNUNET_FS_GAP_QUERY_POLL_PRIORITY 100
+
+#define GNUNET_DHT_QUERY_POLL_PRIORITY 2
+
+#define GNUNET_FS_GAP_CONTENT_MIGRATION_PRIORITY 1
 
 
 

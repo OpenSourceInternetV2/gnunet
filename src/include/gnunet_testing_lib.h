@@ -1,6 +1,6 @@
 /*
       This file is part of GNUnet
-      (C) 2007 Christian Grothoff (and other contributing authors)
+      (C) 2008 Christian Grothoff (and other contributing authors)
 
       GNUnet is free software; you can redistribute it and/or modify
       it under the terms of the GNU General Public License as published
@@ -125,7 +125,6 @@ struct GNUNET_TESTING_DaemonContext *GNUNET_TESTING_start_daemons (const char
  * @return GNUNET_OK on success, GNUNET_SYSERR on error
  */
 int GNUNET_TESTING_stop_daemons (struct GNUNET_TESTING_DaemonContext *peers);
-
 
 #if 0                           /* keep Emacsens' auto-indent happy */
 {

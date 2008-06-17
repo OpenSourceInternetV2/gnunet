@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2007 Christian Grothoff (and other contributing authors)
+     (C) 2008 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -283,6 +283,8 @@ GNUNET_TESTING_connect_daemons (unsigned short port1, unsigned short port2)
                                                                  senderIdentity))
                 {
                   ret = GNUNET_OK;
+                  GNUNET_free_non_null (h1);
+                  GNUNET_free_non_null (h2);
                   break;
                 }
               if (GNUNET_YES == GNUNET_IDENTITY_request_connect (sock2,
@@ -290,6 +292,8 @@ GNUNET_TESTING_connect_daemons (unsigned short port1, unsigned short port2)
                                                                  senderIdentity))
                 {
                   ret = GNUNET_OK;
+                  GNUNET_free_non_null (h1);
+                  GNUNET_free_non_null (h2);
                   break;
                 }
               GNUNET_thread_sleep (100 * GNUNET_CRON_MILLISECONDS);
@@ -411,7 +415,6 @@ GNUNET_TESTING_stop_daemons (struct GNUNET_TESTING_DaemonContext *peers)
     }
   return ret;
 }
-
 
 
 

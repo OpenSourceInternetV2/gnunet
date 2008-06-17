@@ -174,13 +174,14 @@ static void
 writeCollection (int fd, struct GNUNET_FSUI_Context *ctx)
 {
   if ((ctx->collectionData == NULL) ||
-      (ctx->collectionData->size > 16 * 1024 * 1024))
+      (ctx->collectionDataSize > 16 * 1024 * 1024))
     {
       WRITEINT (fd, 0);
       return;
     }
   /* serialize collection data */
-  WRITE (fd, ctx->collectionData, ntohl (ctx->collectionData->size));
+  WRITEINT (fd, ctx->collectionDataSize);
+  WRITE (fd, ctx->collectionData, ctx->collectionDataSize);
 }
 
 static void
@@ -204,8 +205,6 @@ writeSearches (int fd, struct GNUNET_FSUI_Context *ctx)
                         GNUNET_ECRS_uri_test_sks (spos->uri));
       WRITEINT (fd, 1);
       WRITEINT (fd, spos->state);
-      WRITEINT (fd, spos->maxResults);
-      WRITELONG (fd, spos->timeout);
       WRITELONG (fd, spos->start_time);
       WRITELONG (fd, GNUNET_get_time ());
       WRITEINT (fd, spos->anonymityLevel);
@@ -317,6 +316,7 @@ writeUploads (int fd, struct GNUNET_FSUI_Context *ctx,
       WRITELONG (fd, shared->expiration);
       if (shared->extractor_config != NULL)
         WRITESTRING (fd, shared->extractor_config);
+      WRITESTRING (fd, shared->top_filename);
       if (shared->global_keywords != NULL)
         writeURI (fd, shared->global_keywords);
       writeUploadList (fd, ctx, upos, GNUNET_YES);
@@ -336,7 +336,7 @@ GNUNET_FSUI_serialize (struct GNUNET_FSUI_Context *ctx)
                               S_IRUSR | S_IWUSR);
   if (fd == -1)
     return;
-  WRITE (fd, "FSUI01\n\0", 8);  /* magic */
+  WRITE (fd, "FSUI02\n\0", 8);  /* magic */
   writeCollection (fd, ctx);
   writeSearches (fd, ctx);
   writeDownloadList (ctx->ectx, fd, ctx, ctx->activeDownloads.child);

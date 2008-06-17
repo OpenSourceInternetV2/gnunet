@@ -6,25 +6,25 @@ if HAVE_SQLITE
  SQLITE_DIR = sqstore_sqlite kvstore_sqlite dstore_sqlite
 endif
 
-if !MINGW
-# TESTBED_DIR = testbed
-endif
 if LINUX
  VPN_DIR = vpn
 endif
 
+if HAVE_MHD
+ HOSTLIST_DIR = hostlist
+endif
+
 SUBDIRS	= \
  identity \
- testing \
  bootstrap_http \
  datastore \
- rpc \
  fragmentation \
  getoption \
- fs \
+ $(HOSTLIST_DIR) \
  state \
  stats \
  pingpong \
+ rpc \
  session \
  $(MYSQL_DIR) \
  $(SQLITE_DIR) \
@@ -34,9 +34,9 @@ SUBDIRS	= \
  traffic \
  transport \
  advertising \
- gap \
  dht \
  tracekit \
- $(VPN_DIR)
-# $(TESTBED_DIR) 
-# chat
+ $(VPN_DIR) \
+ fs \
+ testing \
+ chat

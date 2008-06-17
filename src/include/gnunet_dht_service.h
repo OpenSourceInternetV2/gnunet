@@ -1,6 +1,6 @@
 /*
       This file is part of GNUnet
-      (C) 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
+      (C) 2004, 2005, 2006, 2008 Christian Grothoff (and other contributing authors)
 
       GNUnet is free software; you can redistribute it and/or modify
       it under the terms of the GNU General Public License as published
@@ -32,7 +32,7 @@
 #define GNUNET_DHT_SERVICE_H
 
 #include "gnunet_core.h"
-#include "gnunet_blockstore.h"
+#include "gnunet_dstore_service.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -51,21 +51,17 @@ typedef struct
 {
 
   /**
-   * Perform an asynchronous GET operation on the DHT identified by
-   * 'table' using 'key' as the key.  The peer does not have to be part
-   * of the table (if so, we will attempt to locate a peer that is!)
+   * Perform an asynchronous GET operation on the DHT identified.
    *
-   * @param table table to use for the lookup
+   * @param type expected type of the response object
    * @param key the key to look up
-   * @param timeout how long to wait until this operation should
-   *        automatically time-out
    * @param callback function to call on each result
    * @param closure extra argument to callback
    * @return handle to stop the async get
    */
   struct GNUNET_DHT_GetHandle *(*get_start) (unsigned int type,
                                              const GNUNET_HashCode * key,
-                                             GNUNET_DataProcessor callback,
+                                             GNUNET_ResultProcessor callback,
                                              void *cls);
 
   /**

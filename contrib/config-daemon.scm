@@ -185,7 +185,8 @@ If you want to setup an alternate hostlist server, you must run a permanent node
 If you do not specify a HOSTLISTURL, you must copy valid hostkeys to data/hosts manually.")
   '()
   #t
-  "http://gnunet.org/hostlist.php http://gnunet.mine.nu:8081/hostlist http://de.gnunet.org/cgi-bin/hostlist.cgi"
+;;  "http://gnunet.org/hostlist.php http://gnunet.mine.nu:8081/hostlist http://de.gnunet.org/cgi-bin/hostlist.cgi"
+  "http://vserver1236.vserver-on.de/hostlist-074"
   '()
   'always) )
 
@@ -347,13 +348,13 @@ If you do not specify a HOSTLISTURL, you must copy valid hostkeys to data/hosts 
   "TRANSPORTS"
   (_ "Which transport mechanisms should GNUnet use?")
   (_ 
-"Use space-separated list of the modules, e.g.  \"udp smtp tcp\".  The available transports are udp, tcp, http, smtp, tcp6, udp6 and nat.
+"Use space-separated list of the modules, e.g.  \"udp smtp tcp\".  The available transports are udp, tcp, http, smtp and nat.
 		
-Loading the 'nat' and 'tcp' modules is required for peers behind NAT boxes that cannot directly be reached from the outside.  Peers that are NOT behind a NAT box and that want to *allow* peers that ARE behind a NAT box to connect must ALSO load the 'nat' module.  Note that the actual transfer will always be via tcp initiated by the peer behind the NAT box.  The nat transport requires the use of tcp, http, smtp and/or tcp6 in addition to nat itself.")
+Loading the 'nat' and 'tcp' modules is required for peers behind NAT boxes that cannot directly be reached from the outside.  Peers that are NOT behind a NAT box and that want to *allow* peers that ARE behind a NAT box to connect must ALSO load the 'nat' module.  Note that the actual transfer will always be via tcp initiated by the peer behind the NAT box.  The nat transport requires the use of tcp, http and/or smtp in addition to nat itself.")
   '()
   #t
   "udp tcp http nat"
-  (list "MC" "udp" "udp6" "tcp" "tcp6" "nat" "http" "smtp")
+  (list "MC" "udp" "tcp" "nat" "http" "smtp")
   'always) )
  
 
@@ -375,6 +376,8 @@ traffic: keeps track of how many messages were recently received and transmitted
 
 fs: needed for anonymous file sharing. You should always load this module.
 
+hostlist: integrated hostlist HTTP server.  Useful if you want to offer a hostlist and running Apache would be overkill.
+
 chat: broadcast chat (demo-application, ALPHA quality).	Required for gnunet-chat.  Note that the current implementation of chat is not considered to be secure.
 
 tbench: benchmark transport performance.  Required for gnunet-tbench.  Note that tbench allows other users to abuse your resources.
@@ -383,7 +386,7 @@ tracekit: topology visualization toolkit.  Required for gnunet-tracekit. Note th
   '()
   #t
   "advertising getoption fs stats traffic"
-  (list "MC" "advertising" "getoption" "fs" "stats" "traffic" "dht" "tracekit" "tbench" "vpn" "chat")
+  (list "MC" "advertising" "getoption" "fs" "hostlist" "stats" "traffic" "dht" "tracekit" "tbench" "vpn" "chat")
   'always) )
  
 
@@ -399,6 +402,19 @@ tracekit: topology visualization toolkit.  Required for gnunet-tracekit. Note th
  #f
  #f
  'rare) )
+
+
+(define (gnunetd-disable-ipv6 builder)
+ (builder
+ "GNUNETD"
+ "DISABLE-IPV6"
+ (_ "YES disables IPv6 support, NO enables IPv6 support")
+ (_ "This option maybe useful on peers where the kernel does not support IPv6.  You might also want to set this option if you do not have an IPv6 network connection.")
+ '()
+ #t
+ #t
+ #t
+ 'advanced) )
 
 
 (define (gnunetd-private-network builder)
@@ -461,17 +477,41 @@ tracekit: topology visualization toolkit.  Required for gnunet-tracekit. Note th
  (cons 1 65535)
  'advanced) )
 
+(define (hostlist-port builder)
+ (builder
+ "HOSTLIST"
+ "PORT"
+ (_ "Port for the integrated hostlist HTTP server")
+ (nohelp)
+ '()
+ #t
+ 8080
+ (cons 1 65535)
+ 'hostlist-loaded) )
+
 (define (network-trusted builder)
  (builder
  "NETWORK"
  "TRUSTED"
- (_ "IPs allowed to use gnunetd server")
+ (_ "IPv4 networks allowed to use gnunetd server")
  (_ "This option specifies which hosts are trusted enough to connect as clients (to the TCP port).  This is useful if you run gnunetd on one host of your network and want to allow all other hosts to use this node as their server.  By default, this is set to 'loopback only'.  The format is IP/NETMASK where the IP is specified in dotted-decimal and the netmask either in CIDR notation (/16) or in dotted decimal (255.255.0.0). Several entries must be separated by a semicolon, spaces are not allowed.")
  '()
  #t
  "127.0.0.0/8;"
  '()
  'advanced) )
+
+(define (network-trusted6 builder)
+ (builder
+ "NETWORK"
+ "TRUSTED6"
+ (_ "IPv6 networks allowed to use gnunetd server")
+ (_ "This option specifies which hosts are trusted enough to connect as clients (to the TCP port).  This is useful if you run gnunetd on one host of your network and want to allow all other hosts to use this node as their server.  By default, this is set to 'loopback only'.  The format is IP/NETMASK where the IP is specified in dotted-decimal and the netmask either in CIDR notation (/16) or in dotted decimal (255.255.0.0). Several entries must be separated by a semicolon, spaces are not allowed.")
+ '()
+ #t
+ "::1;"
+ '()
+ 'ipv6) )
 
 
 (define (limit-allow builder)
@@ -539,6 +579,7 @@ tracekit: topology visualization toolkit.  Required for gnunet-tracekit. Note th
   (_ "Settings that change the behavior of GNUnet in general")
   (list 
     (network-port builder) 
+    (hostlist-port builder)
     (network-trusted builder) 
     (general-hostlisturl builder)
     (general-hosts builder)
@@ -547,6 +588,7 @@ tracekit: topology visualization toolkit.  Required for gnunet-tracekit. Note th
     (fs-path builder) 
     (index-path builder) 
     (daemon-fdlimit builder) 
+    (gnunetd-disable-ipv6 builder) 
     (general-username builder) 
     (general-groupname builder) 
     (general-pidfile builder) 
@@ -581,7 +623,7 @@ tracekit: topology visualization toolkit.  Required for gnunet-tracekit. Note th
   "PATHS"
   ""
   (_ "Fundamentals")
-  (_ "")
+  ""
   (list 
     (paths-home builder) 
     (general-applications builder) 
@@ -753,6 +795,19 @@ Note that if you change the quota, you need to run gnunet-update afterwards.")
   'always))
 
 
+(define (fs-migration-buffer builder)
+ (builder
+  "FS"
+  "MIGRATIONBUFFERSIZE"
+  (_ "Number of entries in the migration buffer")
+  (_ "Each entry uses about 32k of memory.  More entries can reduce disk IO and CPU usage at the expense of having gnunetd use more memory. Very large values may again increase CPU usage.  A value of 0 will prevent your peer from sending unsolicited responses.")
+  '()
+  #t
+  64
+  (cons 0 1048576)
+  'always))
+
+
 (define (fs-gap-tablesize builder)
  (builder
   "GAP"
@@ -884,7 +939,7 @@ The size of the DSTORE QUOTA is specified in MB.")
  (builder
  "TCP"
  "BLACKLIST"
- (_ "Which IPs are not allowed to connect?")
+ (_ "Which IP(v4)s are not allowed to connect?")
  (nohelp)
  '()
  #t
@@ -896,13 +951,38 @@ The size of the DSTORE QUOTA is specified in MB.")
  (builder
  "TCP"
  "WHITELIST"
- (_ "Which IPs are allowed to connect? Leave empty to use the IP of your primary network interface.")
+ (_ "Which IP(v4)s are allowed to connect? Leave empty to use the IP of your primary network interface.")
  (nohelp)
  '()
  #t
  ""
  '()
  'advanced))
+
+(define (tcp6-blacklist builder)
+ (builder
+ "TCP"
+ "BLACKLISTV6"
+ (_ "Which IPv6s are not allowed to connect?")
+ (nohelp)
+ '()
+ #t
+ ""
+ '()
+ 'ipv6))
+
+(define (tcp6-whitelist builder)
+ (builder
+ "TCP"
+ "WHITELISTV6"
+ (_ "Which IPv6s are allowed to connect? Leave empty to allow any IP to connect.")
+ (nohelp)
+ '()
+ #t
+ ""
+ '()
+ 'ipv6))
+
 
 (define (tcp builder)
  (builder
@@ -1132,6 +1212,30 @@ The size of the DSTORE QUOTA is specified in MB.")
  '()
  'advanced))
 
+(define (udp6-blacklist builder)
+ (builder
+ "UDP"
+ "BLACKLISTV6"
+ (_ "Which IPv6s are not allowed to connect?")
+ (nohelp)
+ '()
+ #t
+ ""
+ '()
+ 'ipv6))
+
+(define (udp6-whitelist builder)
+ (builder
+ "UDP6"
+ "WHITELISTV6"
+ (_ "Which IPv6s are allowed to connect? Leave empty to allow any IP to connect.")
+ (nohelp)
+ '()
+ #t
+ ""
+ '()
+ 'ipv6))
+
 (define (udp builder)
  (builder
  "UDP"
@@ -1144,130 +1248,14 @@ The size of the DSTORE QUOTA is specified in MB.")
    (udp-mtu builder)
    (udp-blacklist builder)
    (udp-whitelist builder)
- )
- #t
- #f
- #f
- 'udp-loaded) )
-
-
-(define (tcp6-port builder)
- (builder
- "TCP6"
- "PORT"
- (_ "Which port should be used by the TCP IPv6 transport?")
- (nohelp)
- '()
- #t
- 2088
- (cons 0 65535)
- 'advanced))
-
-(define (tcp6-blacklist builder)
- (builder
- "TCP6"
- "BLACKLIST"
- (_ "Which IPs are not allowed to connect?")
- (nohelp)
- '()
- #t
- ""
- '()
- 'advanced))
-
-(define (tcp6-whitelist builder)
- (builder
- "TCP6"
- "WHITELIST"
- (_ "Which IPs are allowed to connect? Leave empty to allow any IP to connect.")
- (nohelp)
- '()
- #t
- ""
- '()
- 'advanced))
-
-(define (tcp6 builder)
- (builder
- "TCP6"
- ""
- (_ "TCP6 transport")
- (nohelp)
- (list 
-   (tcp6-port builder)
-   (tcp6-blacklist builder)
-   (tcp6-whitelist builder)
- )
- #t
- #f
- #f
- 'tcp6-loaded) )
-
-
-(define (udp6-port builder)
- (builder
- "UDP6"
- "PORT"
- (_ "Which port should be used by the UDP IPv6 transport?")
- (nohelp)
- '()
- #t
- 2088
- (cons 0 65535)
- 'advanced))
-
-(define (udp6-mtu builder)
- (builder
- "UDP6"
- "MTU"
- (_ "What is the maximum transfer unit for UDP 6?")
- (nohelp)
- '()
- #t
- 1452
- (cons 1200 65500)
- 'rare))
-
-(define (udp6-blacklist builder)
- (builder
- "UDP6"
- "BLACKLIST"
- (_ "Which IPs are not allowed to connect?")
- (nohelp)
- '()
- #t
- ""
- '()
- 'advanced))
-
-(define (udp6-whitelist builder)
- (builder
- "UDP6"
- "WHITELIST"
- (_ "Which IPs are allowed to connect? Leave empty to allow any IP to connect.")
- (nohelp)
- '()
- #t
- ""
- '()
- 'advanced))
-
-(define (udp6 builder)
- (builder
- "UDP6"
- ""
- (_ "UDP6 transport")
- (nohelp)
- (list 
-   (udp6-port builder)
-   (udp6-mtu builder)
    (udp6-blacklist builder)
    (udp6-whitelist builder)
  )
  #t
  #f
  #f
- 'udp6-loaded) )
+ 'udp-loaded) )
+
 
 
 (define (network-interface builder)
@@ -1304,7 +1292,7 @@ The size of the DSTORE QUOTA is specified in MB.")
  #t
  ""
  '()
- 'ip6-loaded) )
+ 'ipv6) )
 
 (define (transports builder)
  (builder
@@ -1317,9 +1305,7 @@ The size of the DSTORE QUOTA is specified in MB.")
     (network-interface builder)
     (network-ip builder)
     (tcp builder)
-    (tcp6 builder)
     (udp builder)
-    (udp6 builder)
     (http builder)
     (smtp builder)
   )
@@ -1516,6 +1502,7 @@ NO only works on platforms where GNUnet can monitor the amount of traffic that t
      (rare (get-option ctx "Meta" "RARE"))
      (nobasiclimit (not (get-option ctx "LOAD" "BASICLIMITING")))
      (experimental (get-option ctx "Meta" "EXPERIMENTAL"))
+     (ipv6 (not (get-option ctx "GNUNETD" "DISABLE-IPV6")))
      (f2fr (not (get-option ctx "F2F" "RESTRICT") ) )
      (f2f (or (get-option ctx "F2F" "FRIENDS-ONLY")
               (not (eq? (get-option ctx "F2F" "MINIMUM") 0) ) ) )
@@ -1524,11 +1511,10 @@ NO only works on platforms where GNUnet can monitor the amount of traffic that t
      (http-port-nz (eq? (get-option ctx "HTTP" "PORT") 0) )
      (mysql (string= (get-option ctx "MODULES" "sqstore") "sqstore_mysql") )
      (fs-loaded (list? (member "fs" (string-split (get-option ctx "GNUNETD" "APPLICATIONS") #\  ) ) ) )
+     (hostlist-loaded (list? (member "hostlist" (string-split (get-option ctx "GNUNETD" "APPLICATIONS") #\  ) ) ) )
      (nat-loaded (list? (member "nat" (string-split (get-option ctx "GNUNETD" "TRANSPORTS") #\  ) ) ) )
      (tcp-loaded (list? (member "tcp" (string-split (get-option ctx "GNUNETD" "TRANSPORTS") #\  ) ) ) )
      (udp-loaded (list? (member "udp" (string-split (get-option ctx "GNUNETD" "TRANSPORTS") #\  ) ) ) )
-     (tcp6-loaded (list? (member "tcp6" (string-split (get-option ctx "GNUNETD" "TRANSPORTS") #\  ) ) ) )
-     (udp6-loaded (list? (member "udp6" (string-split (get-option ctx "GNUNETD" "TRANSPORTS") #\  ) ) ) )
      (http-loaded (list? (member "http" (string-split (get-option ctx "GNUNETD" "TRANSPORTS") #\  ) ) ) )
      (smtp-loaded (list? (member "smtp" (string-split (get-option ctx "GNUNETD" "TRANSPORTS") #\  ) ) ) )
    )
@@ -1541,18 +1527,17 @@ NO only works on platforms where GNUnet can monitor the amount of traffic that t
             ((eq? i 'rare)         (change-visible ctx a b (and advanced rare)))
             ((eq? i 'experimental) (change-visible ctx a b (and advanced experimental)))
             ((eq? i 'f2f)          (change-visible ctx a b f2f))
+            ((eq? i 'ipv6)         (change-visible ctx a b ipv6))
             ((eq? i 'f2fr)         (change-visible ctx a b f2fr))
             ((eq? i 'mysql)        (change-visible ctx a b mysql))
             ((eq? i 'fs-loaded)    (change-visible ctx a b fs-loaded))
+            ((eq? i 'hostlist-loaded)    (change-visible ctx a b hostlist-loaded))
             ((eq? i 'nat-unlimited)(change-visible ctx a b nat-unlimited))
             ((eq? i 'tcp-port-nz)  (change-visible ctx a b tcp-port-nz))
             ((eq? i 'udp-port-nz)  (change-visible ctx a b udp-port-nz))
             ((eq? i 'nat-loaded)   (change-visible ctx a b nat-loaded))
             ((eq? i 'udp-loaded)   (change-visible ctx a b udp-loaded))
             ((eq? i 'tcp-loaded)   (change-visible ctx a b tcp-loaded))
-            ((eq? i 'udp6-loaded)  (change-visible ctx a b udp6-loaded))
-            ((eq? i 'tcp6-loaded)  (change-visible ctx a b tcp6-loaded))
-            ((eq? i 'ip6-loaded)   (change-visible ctx a b (or (tcp6-loaded udp6-loaded))))
             ((eq? i 'http-loaded)  (change-visible ctx a b http-loaded))
             ((eq? i 'smtp-loaded)  (change-visible ctx a b smtp-loaded))
             ((eq? i 'nobasiclimit) (change-visible ctx a b nobasiclimit))

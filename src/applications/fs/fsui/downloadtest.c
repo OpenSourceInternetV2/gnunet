@@ -81,39 +81,26 @@ eventCallback (void *cls, const GNUNET_FSUI_Event * event)
 #endif
       download = event->data.DownloadResumed.dc.pos;
       break;
-    case GNUNET_FSUI_search_completed:
-#if DEBUG_VERBOSE
-      printf ("Search completed\n");
-#endif
-      if (download == NULL)
-        {
-          fprintf (stderr,
-                   "ERROR: Search completed but download not started!\n");
-        }
-      break;
     case GNUNET_FSUI_search_result:
-#if DEBUG_VERBOSE
-      printf ("Received search result\n");
-#endif
       if (download == NULL)
         {
           char *u;
 
+          u = GNUNET_ECRS_uri_to_string (event->data.SearchResult.fi.uri);
           if (!GNUNET_ECRS_uri_test_equal
               (upURI, event->data.SearchResult.fi.uri))
             {
 #if DEBUG_VERBOSE
-              printf
-                ("Received search result for different file (download not started).\n");
+              printf ("Received result for different file: %s.\n", u);
 #endif
+              GNUNET_free (u);
               return NULL;      /* ignore */
             }
-          fn = makeName (43);
-          u = GNUNET_ECRS_uri_to_string (event->data.SearchResult.fi.uri);
 #if DEBUG_VERBOSE
-          printf ("Download started: %s.\n", u);
+          printf ("Received search result; download started: %s.\n", u);
 #endif
           GNUNET_free (u);
+          fn = makeName (43);
           download = GNUNET_FSUI_download_start (ctx,
                                                  0,
                                                  GNUNET_NO,
@@ -131,7 +118,7 @@ eventCallback (void *cls, const GNUNET_FSUI_Event * event)
         }
       break;
     case GNUNET_FSUI_upload_progress:
-#if DEBUG_VERBOSE
+#if DEBUG_VERBOSE > 1
       printf ("Upload is progressing (%llu/%llu)...\n",
               event->data.UploadProgress.completed,
               event->data.UploadProgress.total);
@@ -152,14 +139,14 @@ eventCallback (void *cls, const GNUNET_FSUI_Event * event)
       search = NULL;
       break;
     case GNUNET_FSUI_download_progress:
-#if DEBUG_VERBOSE
+#if DEBUG_VERBOSE > 1
       printf ("Download is progressing (%llu/%llu)...\n",
               event->data.DownloadProgress.completed,
               event->data.DownloadProgress.total);
 #endif
       break;
     case GNUNET_FSUI_unindex_progress:
-#if DEBUG_VERBOSE
+#if DEBUG_VERBOSE > 1
       printf ("Unindex is progressing (%llu/%llu)...\n",
               event->data.UnindexProgress.completed,
               event->data.UnindexProgress.total);
@@ -173,7 +160,6 @@ eventCallback (void *cls, const GNUNET_FSUI_Event * event)
     case GNUNET_FSUI_unindex_error:
     case GNUNET_FSUI_upload_error:
     case GNUNET_FSUI_download_error:
-    case GNUNET_FSUI_search_error:
       fprintf (stderr, "Received ERROR: %d\n", event->type);
       GNUNET_GE_BREAK (ectx, 0);
       break;
@@ -244,6 +230,7 @@ main (int argc, char *argv[])
       return -1;
     }
 #if START_DAEMON
+  GNUNET_disk_directory_remove (NULL, "/tmp/gnunet-fsui-test/content/");
   daemon = GNUNET_daemon_start (NULL, cfg, "peer.conf", GNUNET_NO);
   GNUNET_GE_ASSERT (NULL, daemon > 0);
   CHECK (GNUNET_OK ==
@@ -290,14 +277,13 @@ main (int argc, char *argv[])
                    keywords[1]);
   uri = GNUNET_ECRS_keyword_string_to_uri (ectx, keyword);
   waitForEvent = GNUNET_FSUI_download_completed;
-  search =
-    GNUNET_FSUI_search_start (ctx, 0, 10000, 240 * GNUNET_CRON_SECONDS, uri);
+  search = GNUNET_FSUI_search_start (ctx, 0, uri);
   CHECK (search != NULL);
   prog = 0;
   while (search != NULL)
     {
       prog++;
-      CHECK (prog < 10000);
+      CHECK (prog < 1000);
       GNUNET_thread_sleep (50 * GNUNET_CRON_MILLISECONDS);
       if ((suspendRestart > 0)
           && (GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK, 4) == 0))
@@ -347,6 +333,8 @@ FAILURE:
         GNUNET_FSUI_unindex_stop (ctx, unindex);
       if (download != NULL)
         GNUNET_FSUI_download_stop (ctx, download);
+      if (search != NULL)
+        GNUNET_FSUI_search_stop (ctx, search);
       GNUNET_FSUI_stop (ctx);
     }
   if (fn != NULL)

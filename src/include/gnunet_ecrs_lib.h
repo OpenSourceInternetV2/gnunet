@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet
-     (C) 2004, 2005, 2006, 2007 Christian Grothoff (and other contributing authors)
+     (C) 2004, 2005, 2006, 2007, 2008 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -55,7 +55,7 @@ extern "C"
  * 5.0.x: with location URIs
  * 6.x.x: who knows? :-)
  */
-#define GNUNET_ECRS_VERSION "5.0.1"
+#define GNUNET_ECRS_VERSION "5.1.0"
 
 #define GNUNET_DIRECTORY_MIME  "application/gnunet-directory"
 #define GNUNET_DIRECTORY_MAGIC "\211GND\r\n\032\n"
@@ -166,7 +166,7 @@ char *GNUNET_ECRS_meta_data_get_by_type (const struct GNUNET_ECRS_MetaData
 
 /**
  * Get the first matching MD entry of the given types.
- * @param ... -1-terminated list of types
+ * @paarm ... -1-terminated list of types
  * @return NULL if we do not have any such entry,
  *  otherwise client is responsible for freeing the value!
  */
@@ -520,8 +520,8 @@ typedef void (*GNUNET_ECRS_UploadProgressCallback)
 /**
  * Should the operation be aborted?  Callback used by many functions
  * below to check if the user has aborted the operation early.  Can
- * also be used for time-outs.  Note that sending a signal (SIGALRM,
- * SIGINT) might be required in addition to TestTerminate to achieve
+ * also be used for time-outs.  Note that sending a signal (SIGALRM)
+ * might be required in addition to TestTerminate to achieve
  * an 'instant' time-out in case that the function is currently
  * sleeping or performing some other blocking operation (which would
  * be aborted by any signal, after which the functions will call
@@ -538,7 +538,8 @@ typedef int (*GNUNET_ECRS_TestTerminate) (void *closure);
  * @param priority what is the priority for OUR node to
  *   keep this file available?  Use 0 for maximum anonymity and
  *   minimum reliability...
- * @param doIndex GNUNET_YES for index, GNUNET_NO for insertion
+ * @param doIndex GNUNET_YES for index, GNUNET_NO for insertion,
+ *                GNUNET_SYSERR for simulation
  * @param uri set to the URI of the uploaded file
  * @return GNUNET_SYSERR if the upload failed (i.e. not enough space
  *  or gnunetd not running)
@@ -586,7 +587,7 @@ int GNUNET_ECRS_get_indexed_files (struct GNUNET_GE_Context *ectx,
  *
  * @return GNUNET_SYSERR if the unindexing failed (i.e. not indexed)
  */
-int GNUNET_ECRS_file_uninde (struct GNUNET_GE_Context *ectx, struct GNUNET_GC_Configuration *cfg, const char *filename, GNUNET_ECRS_UploadProgressCallback upcb, void *upcbClosure, GNUNET_ECRS_TestTerminate tt, void *ttClosure);     /* unindex.c */
+int GNUNET_ECRS_file_unindex (struct GNUNET_GE_Context *ectx, struct GNUNET_GC_Configuration *cfg, const char *filename, GNUNET_ECRS_UploadProgressCallback upcb, void *upcbClosure, GNUNET_ECRS_TestTerminate tt, void *ttClosure);    /* unindex.c */
 
 
 /**
@@ -688,21 +689,42 @@ typedef int (*GNUNET_ECRS_SearchResultProcessor)
   (const GNUNET_ECRS_FileInfo * fi,
    const GNUNET_HashCode * key, int isRoot, void *closure);
 
+struct GNUNET_ECRS_SearchContext;
+
 /**
- * Search for content.
+ * Start search for content (asynchronous version).
  *
- * @param timeout how long to wait (relative)
  * @param uri specifies the search parameters
  * @param uri set to the URI of the uploaded file
  */
-int GNUNET_ECRS_search (struct GNUNET_GE_Context *ectx, struct GNUNET_GC_Configuration *cfg, const struct GNUNET_ECRS_URI *uri, unsigned int anonymityLevel, GNUNET_CronTime timeout, GNUNET_ECRS_SearchResultProcessor spcb, void *spcbClosure, GNUNET_ECRS_TestTerminate tt, void *ttClosure);        /* search.c */
+struct GNUNET_ECRS_SearchContext *GNUNET_ECRS_search_start (struct GNUNET_GE_Context *ectx, struct GNUNET_GC_Configuration *cfg, const struct GNUNET_ECRS_URI *uri, unsigned int anonymityLevel, GNUNET_ECRS_SearchResultProcessor spcb, void *spcbClosure);    /* search.c */
+
+/**
+ * Stop search for content.
+ *
+ * @param uri specifies the search parameters
+ * @param uri set to the URI of the uploaded file
+ */
+void GNUNET_ECRS_search_stop (struct GNUNET_ECRS_SearchContext *sctx);
+
+/**
+ * Search for content (synchronous version).
+ *
+ * @param uri specifies the search parameters
+ * @param uri set to the URI of the uploaded file
+ */
+int GNUNET_ECRS_search (struct GNUNET_GE_Context *ectx, struct GNUNET_GC_Configuration *cfg, const struct GNUNET_ECRS_URI *uri, unsigned int anonymityLevel, GNUNET_ECRS_SearchResultProcessor spcb, void *spcbClosure, GNUNET_ECRS_TestTerminate tt, void *ttClosure); /* search.c */
 
 /**
  * Notification of ECRS to a client about the progress of an insertion
  * operation.
  *
  * @param totalBytes number of bytes that will need to be downloaded,
- *        excluding inner blocks
+ *        excluding inner blocks; the value given here will
+ *        be one larger than the requested download size to signal
+ *        an error.  In that case, all other values will be 0,
+ *        except form "lastBlock" which will point to an error
+ *        message describing the problem.
  * @param completedBytes number of bytes that have been obtained
  * @param eta absolute estimated time for the completion of the operation
  * @param lastBlockOffset offset of the last block that was downloaded,
@@ -718,8 +740,48 @@ typedef void (*GNUNET_ECRS_DownloadProgressCallback)
    unsigned long long lastBlockOffset,
    const char *lastBlock, unsigned int lastBlockSize, void *closure);
 
+struct GNUNET_ECRS_DownloadContext;
+
 /**
- * GNUNET_ND_DOWNLOAD a file.
+ * Download parts of a file ASYNCHRONOUSLY.  Note that this will store
+ * the blocks at the respective offset in the given file.  Also, the
+ * download is still using the blocking of the underlying ECRS
+ * encoding.  As a result, the download may *write* outside of the
+ * given boundaries (if offset and length do not match the 32k ECRS
+ * block boundaries).  <p>
+ *
+ * This function should be used to focus a download towards a
+ * particular portion of the file (optimization), not to strictly
+ * limit the download to exactly those bytes.
+ *
+ * @param uri the URI of the file (determines what to download)
+ * @param filename where to store the file
+ * @param no_temporaries set to GNUNET_YES to disallow generation of temporary files
+ * @param start starting offset
+ * @param length length of the download (starting at offset)
+ */
+struct GNUNET_ECRS_DownloadContext
+  *GNUNET_ECRS_file_download_partial_start (struct GNUNET_GE_Context *ectx,
+                                            struct GNUNET_GC_Configuration
+                                            *cfg,
+                                            const struct GNUNET_ECRS_URI *uri,
+                                            const char *filename,
+                                            unsigned long long offset,
+                                            unsigned long long length,
+                                            unsigned int anonymityLevel,
+                                            int no_temporaries,
+                                            GNUNET_ECRS_DownloadProgressCallback
+                                            dpcb, void *dpcbClosure);
+
+/**
+ * Stop a download (aborts if download is incomplete).
+ */
+int
+GNUNET_ECRS_file_download_partial_stop (struct GNUNET_ECRS_DownloadContext
+                                        *rm);
+
+/**
+ * DOWNLOAD a file.
  *
  * @param uri the URI of the file (determines what to download)
  * @param filename where to store the file
@@ -727,7 +789,7 @@ typedef void (*GNUNET_ECRS_DownloadProgressCallback)
 int GNUNET_ECRS_file_download (struct GNUNET_GE_Context *ectx, struct GNUNET_GC_Configuration *cfg, const struct GNUNET_ECRS_URI *uri, const char *filename, unsigned int anonymityLevel, GNUNET_ECRS_DownloadProgressCallback dpcb, void *dpcbClosure, GNUNET_ECRS_TestTerminate tt, void *ttClosure); /* download.c */
 
 /**
- * GNUNET_ND_DOWNLOAD parts of a file.  Note that this will store
+ * DOWNLOAD parts of a file.  Note that this will store
  * the blocks at the respective offset in the given file.
  * Also, the download is still using the blocking of the
  * underlying ECRS encoding.  As a result, the download

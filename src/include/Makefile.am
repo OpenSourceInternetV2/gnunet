@@ -13,8 +13,8 @@ EXTRA_DIST = \
 gnunetincludedir = $(includedir)/GNUnet
 
 gnunetinclude_HEADERS = \
-  gnunet_blockstore.h \
   gnunet_bootstrap_service.h \
+  gnunet_chat_lib.h \
   gnunet_collection_lib.h \
   gnunet_core.h \
   gnunet_datastore_service.h \
@@ -26,7 +26,6 @@ gnunetinclude_HEADERS = \
   gnunet_fragmentation_service.h \
   gnunet_fs_lib.h \
   gnunet_fsui_lib.h \
-  gnunet_gap_service.h \
   gnunet_getoption_lib.h \
   gnunet_identity_lib.h \
   gnunet_identity_service.h \
@@ -34,6 +33,7 @@ gnunetinclude_HEADERS = \
   gnunet_namespace_lib.h \
   gnunet_pingpong_service.h \
   gnunet_protocols.h \
+  gnunet_remote_lib.h \
   gnunet_rpc_lib.h \
   gnunet_rpc_service.h \
   gnunet_session_service.h \
