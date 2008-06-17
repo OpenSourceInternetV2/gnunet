@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -28,7 +28,7 @@
 #include "gnunet_util.h"
 #include "platform.h"
 
-#define STATS_VERSION "2.0.1"
+#define STATS_VERSION "2.0.2"
 
 static int printProtocols;
 
@@ -193,7 +193,7 @@ static int requestAndPrintStatistics(FILE * stream,
   if (SYSERR == writeToSocket(sock,
 			      &csHdr)) {
     fprintf(stream,
-	    "Error sending request for statistics to gnunetd.\n");
+	    _("Error sending request for statistics to gnunetd.\n"));
     return SYSERR;
   }
   statMsg 
@@ -207,32 +207,26 @@ static int requestAndPrintStatistics(FILE * stream,
     if (SYSERR == readFromSocket(sock,
 				 (CS_HEADER**)&statMsg)) {
       fprintf(stream,
-	      "Error receiving reply for statistics from gnunetd.\n");
+	      _("Error receiving reply for statistics from gnunetd.\n"));
       FREE(statMsg);
       return SYSERR;    
     }
     if (ntohs(statMsg->header.size) < sizeof(STATS_CS_MESSAGE)) {
-      LOG(LOG_WARNING,
-	  " received malformed stats message (%d < %d)\n",
-	  ntohs(statMsg->header.size), 
-	  sizeof(STATS_CS_MESSAGE) );
+      BREAK();
       break;
     }
     mpos = sizeof(unsigned long long) * ntohl(statMsg->statCounters);
     if (count == 0) {
       fprintf(stream,
 	      "%-60s: %16u\n",
-	      "Uptime (seconds)",
+	      _("Uptime (seconds)"),
 	      (unsigned int) 
 	      ((cronTime(NULL) - ntohll(statMsg->startTime))/cronSECONDS));
     }
     for (i=0;i<ntohl(statMsg->statCounters);i++) {
       if (mpos+strlen(&((char*)(((STATS_CS_MESSAGE_GENERIC*)statMsg)->values))[mpos])+1 > 
 	  ntohs(statMsg->header.size) - sizeof(STATS_CS_MESSAGE)) {
-	LOG(LOG_WARNING,
-	    " received malformed stats message (%d > %d)\n",
-	    mpos+strlen(&((char*)(((STATS_CS_MESSAGE_GENERIC*)statMsg)->values))[mpos])+1,
-	    ntohs(statMsg->header.size) - sizeof(STATS_CS_MESSAGE));
+	BREAK();
 	break; /* out of bounds! */      
       }
       fprintf(stream,
@@ -265,7 +259,8 @@ static int requestAndPrintProtocols(FILE * stream,
     = htons(sizeof(STATS_CS_GET_MESSAGE_SUPPORTED));
 
 
-  fprintf(stream, "Supported Peer to Peer messages:\n");
+  fprintf(stream, 
+	  _("Supported Peer to Peer messages:\n"));
   csStatMsg.header.tcpType
     = htons(STATS_CS_PROTO_GET_P2P_MESSAGE_SUPPORTED);
   for (i = 0; i < 500; ++ i)
@@ -274,12 +269,12 @@ static int requestAndPrintProtocols(FILE * stream,
 
     if (SYSERR == writeToSocket(sock, &csStatMsg.header)) {
       fprintf(stream,
-	      "Error sending request for p2p protocol status to gnunetd.\n");
+	      _("Error sending request for p2p protocol status to gnunetd.\n"));
       return SYSERR;
     }
     if (SYSERR == readTCPResult(sock, &supported)) {
       fprintf(stream,
-	      "Error reading p2p protocol status to gnunetd.\n");
+	      _("Error reading p2p protocol status from gnunetd.\n"));
       return SYSERR;
     }
 
@@ -293,7 +288,8 @@ static int requestAndPrintProtocols(FILE * stream,
       fprintf(stream, "\n");
     }
   }
-  fprintf(stream, "Supported Client Server messages:\n");
+  fprintf(stream, 
+	  _("Supported client-server messages:\n"));
   csStatMsg.header.tcpType
     = htons(STATS_CS_PROTO_GET_CS_MESSAGE_SUPPORTED);
   for (i = 0; i < 500; ++ i)
@@ -302,12 +298,12 @@ static int requestAndPrintProtocols(FILE * stream,
 
     if (SYSERR == writeToSocket(sock, &csStatMsg.header)) {
       fprintf(stream,
-	      "Error sending request for client-server protocol status to gnunetd.\n");
+	      _("Error sending request for client-server protocol status to gnunetd.\n"));
       return SYSERR;
     }
     if (SYSERR == readTCPResult(sock, &supported)) {
       fprintf(stream,
-	      "Error reading client-server protocol status to gnunetd.\n");
+	      _("Error reading client-server protocol status from gnunetd.\n"));
       return SYSERR;
     }
 
@@ -335,12 +331,12 @@ static void printhelp() {
     HELP_HELP,
     HELP_LOGLEVEL,
     { 'p', "protocols", NULL,
-      "prints supported protocol messages" },
+      gettext_noop("prints supported protocol messages") },
     HELP_VERSION,
     HELP_END,
   };
   formatHelp("gnunet-stats [OPTIONS]",
-	     "Print statistics about GNUnet operations.",
+	     _("Print statistics about GNUnet operations."),
 	     help);
 }
 
@@ -385,9 +381,7 @@ static int parseOptions(int argc,
       break;
     default: 
       LOG(LOG_FAILURE,
-	  "Unknown option %c. Aborting.\n"\
-	  "Use --help to get a list of options.\n",
-	  c);
+	  _("Use --help to get a list of options.\n"));
       return -1;
     } /* end of parsing commandline */
   } /* while (1) */

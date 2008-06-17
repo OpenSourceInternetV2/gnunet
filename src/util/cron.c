@@ -266,6 +266,7 @@ void suspendCron() {
   Semaphore * blockSignal;
 
   GNUNET_ASSERT(cron_shutdown == NO);
+  GNUNET_ASSERT(NO == PTHREAD_SELF_TEST(&cron_handle));
   MUTEX_LOCK(&inBlockLock_);
   inBlock++;
   if (inBlock == 1) {
@@ -278,7 +279,13 @@ void suspendCron() {
     SEMAPHORE_FREE(blockSignal);
   }
   MUTEX_UNLOCK(&inBlockLock_);
+}
 
+int isCronRunning() {
+  if (NO == cron_shutdown)
+    return YES;
+  else
+    return NO;
 }
 
 /**
@@ -287,6 +294,16 @@ void suspendCron() {
 void resumeCron() {
   GNUNET_ASSERT(cron_shutdown == NO);
   SEMAPHORE_UP(cron_signal_up);
+}
+
+void suspendIfNotCron() {
+  if (NO == PTHREAD_SELF_TEST(&cron_handle))
+    suspendCron();
+}
+
+void resumeIfNotCron() {
+  if (NO == PTHREAD_SELF_TEST(&cron_handle))
+    resumeCron();
 }
 
 static void abortSleep() {
@@ -341,6 +358,10 @@ void advanceCronJob(CronJob method,
     if ( (method != runningJob_) ||
          (data != runningData_) ||
 	 (deltaRepeat != runningRepeat_) ) { 
+      BREAK();
+      LOG(LOG_WARNING,
+	  _("'%s' called with cron job not in queue, adding.  This may not be what you want.\n"),
+	  __FUNCTION__);
       addCronJob(method,
       		 0,
 		 deltaRepeat,
@@ -485,7 +506,7 @@ void printCronTab() {
   while (jobId != -1) {
     tab = &deltaList_[jobId];
     LOG(LOG_CRON, 
-	"%3u: delta %8lld CU --- method %8x --- repeat %8u CU\n",
+	"%3u: delta %8lld CU --- method %p --- repeat %8u CU\n",
 	jobId, 
 	tab->delta - now,
 	(int)tab->method, 

@@ -79,20 +79,6 @@ static void adjust(char * buf,
 }
 
 /**
- * Initialize Random number generator.
- */
-void initRAND() {
-  gcry_control(GCRYCTL_DISABLE_SECMEM, 0);
-  if (! gcry_check_version(GCRYPT_VERSION))
-    errexit(_("libgcrypt has not the expected version (version %s is required).\n"),
-	    GCRYPT_VERSION);
-  srand((unsigned int)time(NULL));
-#ifdef gcry_fast_random_poll
-  gcry_fast_random_poll ();
-#endif
-}
-
-/**
  * This HostKey implementation uses RSA.
  */
 Hostkey makeHostkey() {

@@ -124,12 +124,12 @@ int initUtil(int argc,
   textdomain (PACKAGE);
 
   gnunet_util_initIO();
-  initRAND();
-  initStatistics();
-  initXmalloc();
 #if ! USE_OPENSSL
   initLockingGcrypt();
 #endif
+  initRAND();
+  initStatistics();
+  initXmalloc();
 #ifdef MINGW
   InitWinEnv();
 #endif

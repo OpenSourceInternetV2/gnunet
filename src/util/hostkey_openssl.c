@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -39,13 +39,6 @@
 
 #define HOSTKEY_LEN 2048
 #define EXTRA_CHECKS YES
-
-/**
- * Initialize Random number generator.
- */
-void initRAND() {
-  srand((unsigned int)time(NULL));
-}
 
 /**
  * This HostKey implementation uses RSA.
@@ -114,7 +107,7 @@ void getPublicKey(Hostkey hostkey,
 /**
  * Internal: publicKey => RSA-Key
  */
-static Hostkey public2Hostkey(PublicKey * publicKey) {
+static Hostkey public2Hostkey(const PublicKey * publicKey) {
   Hostkey ret;
   RSA * result;
   int sizen;
@@ -486,14 +479,17 @@ int verifySig(const void * block,
        (block == NULL))
     return SYSERR; /* hey, no data !? */
   rs = RSA_size(HOSTKEY(hostkey));
-  GNUNET_ASSERT(rs == RSA_ENC_LEN);
+  if (rs != RSA_ENC_LEN) {
+    BREAK();
+    return SYSERR;
+  }
   hash(block, 
        len, 
        &hc);
   if (1 != RSA_verify(NID_ripemd160,
 		      (unsigned char*)&hc,
 		      sizeof(HashCode160),
-		      &sig->sig[0],
+		      (unsigned char*) &sig->sig[0], /* cast because OpenSSL may not declare const */
 		      sizeof(Signature),
 		      HOSTKEY(hostkey))) {
     LOG(LOG_INFO,

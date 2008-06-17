@@ -64,14 +64,14 @@ typedef struct {
  * a failure of the command 'cmd' with the message given
  * by strerror(errno).
  */
-#define DIE_TDB(cmd, dbh) do { errexit(_("'%s' failed on file '%s' at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, dbh->filename, tdb_errorstr(dbh->dbf)); } while(0);
+#define DIE_TDB(cmd, dbh) do { errexit(_("'%s' failed on file '%s' at %s:%d with error: %s\n"), cmd,  dbh->filename, __FILE__, __LINE__,tdb_errorstr(dbh->dbf)); } while(0);
 
 /**
  * Log an error message at log-level 'level' that indicates
  * a failure of the command 'cmd' on file 'filename'
  * with the message given by strerror(errno).
  */
-#define LOG_TDB(level, cmd, dbh) do { LOG(level, _("'%s' failed on file '%s' at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, dbh->filename, tdb_errorstr(dbh->dbf)); } while(0);
+#define LOG_TDB(level, cmd, dbh) do { LOG(level, _("'%s' failed on file '%s' at %s:%d with error: %s\n"), cmd,  dbh->filename, __FILE__, __LINE__, tdb_errorstr(dbh->dbf)); } while(0);
 
 
 /**

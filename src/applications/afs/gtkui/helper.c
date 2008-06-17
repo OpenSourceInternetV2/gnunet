@@ -592,7 +592,8 @@ static int launchWithExec() {
     char * path;
     char * cp;
 
-    cp = getConfigurationString("MAIN", "ARGV[0]");
+    cp = getConfigurationString("MAIN", 
+				"ARGV[0]");
     if (cp != NULL) {
       int i = strlen(cp);
       while ( (i >= 0) && 
@@ -608,14 +609,19 @@ static int launchWithExec() {
       path = NULL;
       args[0] = "gnunetd";
     }    
-    args[1] = "-c";
-    args[2] = getConfigurationString("FILES",
-				     "gnunet.conf");
+    cp = getConfigurationString("GNUNET-GTK",
+				"GNUNETD-CONFIG");
+    if (cp != NULL) {
+      args[1] = "-c";
+      args[2] = cp;
+    } else {
+      args[1] = NULL;
+    }
     args[3] = NULL;
     errno = 0;
     nice(10); /* return value is not well-defined */
     if (errno != 0) 
-      LOG_STRERROR(LOG_FAILURE, "nice");    
+      LOG_STRERROR(LOG_WARNING, "nice");    
     if (path != NULL)
       execv(path,
 	    args);
@@ -623,14 +629,14 @@ static int launchWithExec() {
       execvp("gnunetd",
 	     args);
     LOG_STRERROR(LOG_FAILURE, "exec");
-    if (path != NULL)
-      LOG(LOG_FAILURE,
-	  _("Attempted path to '%s' was '%s'.\n"),
-	  "gnunetd",
-	  path);
+    LOG(LOG_FAILURE,
+	_("Attempted path to '%s' was '%s'.\n"),
+	"gnunetd",
+	(path == NULL) ? "gnunetd" : path);
     FREENONNULL(path); /* yeah, right, like we're likely to get
 			  here... */
-    exit(-1);
+    FREENONNULL(args[1]);
+    _exit(-1);
   } else {
     pid_t ret;
     int status;
@@ -1000,6 +1006,10 @@ gboolean popupCallback(GtkWidget *widget,
                        GtkWidget *menu )
 {
    GdkEventButton *bevent = (GdkEventButton *)event;
+
+#if HELPER_DEBUG 
+   fprintf(stderr, "popupc\n");
+#endif
 
    /* Only take button presses */
    if (event->type != GDK_BUTTON_PRESS)

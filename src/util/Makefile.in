@@ -160,8 +160,8 @@ AM_CPPFLAGS = \
 # FIXME: ELIBDIR somehow no longer works...
 lib_LTLIBRARIES = libgnunetutil.la
 
-@USE_OPENSSL_TRUE@cryptofiles = hostkey_openssl.c symcipher_openssl.c
-@USE_OPENSSL_FALSE@cryptofiles = hostkey_gcrypt.c symcipher_gcrypt.c locking_gcrypt.c locking_gcrypt.h
+@USE_OPENSSL_TRUE@cryptofiles = hostkey_openssl.c symcipher_openssl.c random_openssl.c
+@USE_OPENSSL_FALSE@cryptofiles = hostkey_gcrypt.c symcipher_gcrypt.c locking_gcrypt.c locking_gcrypt.h random_gcrypt.c
 @USE_OPENSSL_TRUE@CRYPTLIB = -lcrypto
 @USE_OPENSSL_FALSE@CRYPTLIB = -lgcrypt
 
@@ -175,7 +175,9 @@ EXTRA_DIST = generate \
   symcipher_gcrypt.c \
   symcipher_openssl.c \
   locking_gcrypt.c \
-  locking_gcrypt.h 
+  locking_gcrypt.h \
+  random_gcrypt.c \
+  random_openssl.c
 
 
 libgnunetutil_la_LDFLAGS = -export-dynamic $(LIBLTDL) $(CRYPTLIB) $(SOLFLAGS) $(WINFLAGS) $(LIBS) -lgmp
@@ -397,9 +399,9 @@ LTLIBRARIES = $(lib_LTLIBRARIES)
 @CYGWIN_TRUE@@MINGW_FALSE@libgnunetutil_la_DEPENDENCIES = \
 @CYGWIN_TRUE@@MINGW_FALSE@	$(top_builddir)/src/util/win/libwin.la
 @USE_OPENSSL_TRUE@am__objects_1 = hostkey_openssl.lo \
-@USE_OPENSSL_TRUE@	symcipher_openssl.lo
+@USE_OPENSSL_TRUE@	symcipher_openssl.lo random_openssl.lo
 @USE_OPENSSL_FALSE@am__objects_1 = hostkey_gcrypt.lo symcipher_gcrypt.lo \
-@USE_OPENSSL_FALSE@	locking_gcrypt.lo
+@USE_OPENSSL_FALSE@	locking_gcrypt.lo random_gcrypt.lo
 am_libgnunetutil_la_OBJECTS = bloomfilter.lo checksum.lo \
 	configuration.lo cron.lo dso.lo getopt.lo \
 	generate_gnunetd_conf.lo generate_gnunet_conf.lo hashing.lo \
@@ -512,7 +514,10 @@ am__depfiles_maybe = depfiles
 @AMDEP_TRUE@	./$(DEPDIR)/kblockkey_test.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/locking_gcrypt.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/logging.Plo ./$(DEPDIR)/port.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/printhelp.Plo ./$(DEPDIR)/semaphore.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/printhelp.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/random_gcrypt.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/random_openssl.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/semaphore.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/semaphoretest.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/shutdown.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/shutdowntest.Po ./$(DEPDIR)/state.Plo \
@@ -694,6 +699,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/logging.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/port.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/printhelp.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/random_gcrypt.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/random_openssl.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/semaphore.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/semaphoretest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/shutdown.Plo@am__quote@

@@ -82,14 +82,14 @@ extern FILE *logfile;
  * a failure of the command 'cmd' with the message given
  * by strerror(errno).
  */
-#define DIE_BDB(cmd, dbh, err) do { errexit(_("'%s' failed on file '%s' at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, dbh->filename, db_strerror(err)); } while(0);
+#define DIE_BDB(cmd, dbh, err) do { errexit(_("'%s' failed on file '%s' at %s:%d with error: %s\n"), cmd, dbh->filename, __FILE__, __LINE__,  db_strerror(err)); } while(0);
 
 /**
  * Log an error message at log-level 'level' that indicates
  * a failure of the command 'cmd' on file 'filename'
  * with the message given by strerror(errno).
  */
-#define LOG_BDB(level, cmd, dbh, err) do { LOG(level, _("'%s' failed on file '%s' at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, dbh->filename, db_strerror(err)); } while(0);
+#define LOG_BDB(level, cmd, dbh, err) do { LOG(level, _("'%s' failed on file '%s' at %s:%d with error: %s\n"), cmd, dbh->filename, __FILE__, __LINE__,db_strerror(err)); } while(0);
 
 
 /**

@@ -31,10 +31,10 @@ AM_CPPFLAGS = \
 lib_LTLIBRARIES = libgnunetutil.la
 
 if USE_OPENSSL
- cryptofiles = hostkey_openssl.c symcipher_openssl.c
+ cryptofiles = hostkey_openssl.c symcipher_openssl.c random_openssl.c
  CRYPTLIB = -lcrypto
 else
- cryptofiles = hostkey_gcrypt.c symcipher_gcrypt.c locking_gcrypt.c locking_gcrypt.h
+ cryptofiles = hostkey_gcrypt.c symcipher_gcrypt.c locking_gcrypt.c locking_gcrypt.h random_gcrypt.c
  CRYPTLIB = -lgcrypt
 endif
 
@@ -48,7 +48,9 @@ EXTRA_DIST = generate \
   symcipher_gcrypt.c \
   symcipher_openssl.c \
   locking_gcrypt.c \
-  locking_gcrypt.h 
+  locking_gcrypt.h \
+  random_gcrypt.c \
+  random_openssl.c
 
 libgnunetutil_la_LDFLAGS = -export-dynamic $(LIBLTDL) $(CRYPTLIB) $(SOLFLAGS) $(WINFLAGS) $(LIBS) -lgmp
 

@@ -1,3 +1,9 @@
+gnunet (0.6.4-3) unstable; urgency=low
+
+  * Fix gnunet-check segfault using CVS (Closes: #271560)
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Wed, 15 Sep 2004 23:10:45 +0200
+
 gnunet (0.6.4-2) unstable; urgency=low
 
   * Bumb revision number so ftp-master will accept it. 

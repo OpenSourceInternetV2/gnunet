@@ -73,7 +73,7 @@ static int getLoglevel(char * log) {
   char * caplog;
 
   if (log == NULL)
-    errexit("LOGLEVEL specified is NULL, that's not ok.\n");
+    errexit(_("LOGLEVEL not specified, that is not ok.\n"));
   caplog = strdup(log);
   for (i=strlen(caplog)-1;i>=0;i--)
     caplog[i] = toupper(caplog[i]);    
@@ -83,7 +83,7 @@ static int getLoglevel(char * log) {
     i++;
   free(caplog);
   if (loglevels[i] == NULL)
-    errexit("invalid loglevel specified: %s\n",
+    errexit(_("Invalid LOGLEVEL '%s' specified.\n"),
 	    log);
   return i;
 }
@@ -179,7 +179,7 @@ static void printTime() {
     tmptr = localtime(&timetmp);
     strftime(timebuf, 
 	     64, 
-	     "%b %e %H:%M:%S ", 
+	     "%b %d %H:%M:%S ", 
 	     tmptr);
     fputs(timebuf, 
 	  logfile);
@@ -314,8 +314,7 @@ int SNPRINTF(char * buf,
 		  format,
 		  args);
   va_end(args);
-  if (ret > size)
-    errexit("SNPRINTF out of bounds!\n");
+  GNUNET_ASSERT(ret <= size);
   return ret;
 }
 

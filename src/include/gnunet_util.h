@@ -567,7 +567,7 @@ int crc32N(const void * buf, int len);
  * @param i the upper limit (exclusive) for the random number
  * @return a random value in the interval [0,i[. 
  */
-int randomi(int i);
+unsigned int randomi(unsigned int i);
 
 /**
  * Random on unsigned 64-bit values.  We break them down into signed
@@ -810,6 +810,23 @@ void suspendCron();
  * Resume running cron-jobs.
  */
 void resumeCron();
+
+/**
+ * Is the cron-thread currently running?
+ */
+int isCronRunning();
+
+/**
+ * Like suspendCron, but does nothing if called from
+ * within a cron-job.
+ */
+void suspendIfNotCron();
+
+/**
+ * Like resumeCron, but does nothing if called from
+ * within a cron-job.
+ */
+void resumeIfNotCron();
 
 /**
  * Get the current time (works just as "time", just
@@ -1589,6 +1606,23 @@ typedef struct {
   void * internal;
 } PTHREAD_T;
 
+/**
+ * Returns YES if pt is the handle for THIS thread.
+ */
+int PTHREAD_SELF_TEST(PTHREAD_T * pt);
+
+/**
+ * Create a thread. Use this method instead of pthread_create since
+ * BSD may only give a 1k stack otherwise.
+ *
+ * @param handle handle to the pthread (for detaching, join)
+ * @param main the main method of the thread
+ * @param arg the argument to main
+ * @param stackSize the size of the stack of the thread in bytes. 
+ *        Note that if the stack overflows, some OSes (seen under BSD) 
+ *        will just segfault and gdb will give a messed-up stacktrace.
+ * @return see pthread_create 
+ */
 int PTHREAD_CREATE(PTHREAD_T * handle,
 		   PThreadMain main,
 		   void * arg,

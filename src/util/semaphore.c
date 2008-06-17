@@ -323,6 +323,21 @@ int semaphore_down_nonblocking_(Semaphore * s,
 }
 
 /**
+ * Returns YES if pt is the handle for THIS thread.
+ */
+int PTHREAD_SELF_TEST(PTHREAD_T * pt) {
+  pthread_t * handle;
+
+  handle = pt->internal;
+  if (handle == NULL)
+    return NO;
+  if (*handle == pthread_self())
+    return YES;
+  else
+    return NO;
+}
+
+/**
  * Create a thread. Use this method instead of pthread_create since
  * BSD may only give a 1k stack otherwise.
  *

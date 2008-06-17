@@ -25,10 +25,13 @@
  */
 
 #include "platform.h"
+#include <conio.h>
 
 #define WINTOOL_VERSION "0.1.0"
 
-static int bPrintAdapters, bInstall, bUninstall;
+static int bPrintAdapters, bInstall, bUninstall, bConn;
+static char chunk1[] = {0x62, 0x13, 0x06, 0x00};
+static char chunk2[] = {0xFE, 0xFF, 0xFF, 0x00};
 
 /**
  * Prints the usage information for this command if the user errs.
@@ -42,6 +45,7 @@ static void printhelp() {
     { 'n', "netadapters", NULL, "list all network adapters" },
     { 'i', "install", NULL, "install GNUnet as Windows service" },    
     { 'u', "uninstall", NULL, "uninstall GNUnet service" },    
+    { 'C', "increase-connections", NULL, "increase the maximum number of TCP/IP connections"},
     HELP_VERSION,
     HELP_END,
   };
@@ -195,6 +199,122 @@ void Uninstall()
 }
 
 /**
+ * Increase the maximum number of connections.
+ * This is especially important under Windows XP Service Pack 2
+ **/
+void IncreaseConnections()
+{
+  HKEY hKey;
+  FILE *pFile;
+  char szCache[_MAX_PATH + 1], szDriver[_MAX_PATH + 1];
+  unsigned long lMem;
+  char *pMem;
+  
+  puts("Warning: This modifies your operating system. Use it at your own risk.\nContinue?[Y/n]");
+  switch(_getch())
+  {
+    case 'Y':
+    case 'y':
+    case 13:
+    case 10:
+    case 32:
+      break;
+    default:
+      return;
+  }
+  puts("Y\n");
+  
+  /* Step 1: Registry setting,
+     see http://support.microsoft.com/default.aspx?scid=kb;EN-US;314053 */
+  printf("Writing to registry... ");
+  if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Services\\"
+                                       "Tcpip\\Parameters\\Winsock", 0, 
+                   KEY_WRITE, &hKey) != ERROR_SUCCESS)
+  {
+    DWORD dwErr = GetLastError();
+    SetErrnoFromWinError(dwErr);
+    printf("failed.\n Error: %s (%i)\n", STRERROR(errno), dwErr);
+  }
+  else
+  {
+    DWORD dwCon = 0xfffffe;
+    if (RegSetValueEx(hKey, "TcpNumConnections", 0, REG_DWORD, 
+                      (const BYTE *) &dwCon, sizeof(dwCon)) != ERROR_SUCCESS)
+    {
+      DWORD dwErr = GetLastError();
+      SetErrnoFromWinError(dwErr);
+      printf("failed.\n Error: %s (%i)\n", STRERROR(errno), dwErr);
+    }
+    else
+      printf("OK.\n");
+    RegCloseKey(hKey);
+  }
+  
+  /* Step 2: Patch tcpip.sys */
+  printf("Patching tcpip.sys... ");
+  snprintf(szCache, _MAX_PATH, "%s\\SYSTEM32\\DLLCACHE\\tcpip.sys", getenv("windir"));
+  snprintf(szDriver, _MAX_PATH, "%s\\SYSTEM32\\DRIVERS\\tcpip.sys", getenv("windir"));
+  pFile = fopen(szCache, "r+b");
+  if (!pFile)
+  {
+    printf("failed.\n Cannot open %s\n", szCache);
+    return;
+  }
+  
+  if (fseek(pFile, 0, SEEK_END))
+  {
+    printf("failed.\n Cannot seek.\n");
+    return;
+  }
+  
+  lMem = ftell(pFile);
+  pMem = malloc(lMem);
+  if (! pMem)
+  {
+    printf("failed.\n Not enough memory.\n");
+    fclose(pFile);
+    return;
+  }
+  
+  fseek(pFile, 0, SEEK_SET);
+  fread(pMem, 1, lMem, pFile);
+
+  switch(crc32N(pMem, lMem))
+  {
+    case 2151852539:
+      memcpy(pMem + 0x130, chunk1, 4);
+      memcpy(pMem + 0x4F322, chunk2, 4);
+      break;   
+    case 2437296753:
+      printf("already patched.\n");
+      free(pMem);
+      fclose(pFile);
+      return;
+    default:
+      printf("failed.\n Unknown DLL version.");
+      free(pMem);
+      fclose(pFile);
+      return;
+  }
+  
+  fseek(pFile, 0, SEEK_SET);
+  fwrite(pMem, 1, lMem, pFile);
+  fclose(pFile);
+
+  pFile = fopen(szDriver, "wb");
+  if (!pFile)
+    printf("failed.\n Cannot open %s\n", szCache);
+  else
+  {
+    fwrite(pMem, 1, lMem, pFile);
+    fclose(pFile);
+  }
+
+  free(pMem);
+  printf("OK.\n");
+}
+
+/**
  * Parse the options.
  *
  * @param argc the number of options
@@ -211,13 +331,14 @@ static int parseOptions(int argc, char ** argv) {
       { "netadapters",          0, 0, 'n' }, 
       { "install",              0, 0, 'i' }, 
       { "uninstall",            0, 0, 'u' }, 
+      { "increase-connections", 0, 0, 'C' },
       LONG_DEFAULT_OPTIONS,
       { 0,0,0,0 }
     };    
     option_index = 0;
     c = GNgetopt_long(argc,
 		      argv, 
-		      "vhdc:L:H:niu", 
+		      "vhdc:L:H:niuC", 
 		      long_options, 
 		      &option_index);    
     if (c == -1) 
@@ -243,6 +364,9 @@ static int parseOptions(int argc, char ** argv) {
         break;
       case 'u':
         bUninstall = YES;
+        break;
+      case 'C':
+        bConn = YES;
         break;
       default: 
         LOG(LOG_FAILURE,
@@ -273,7 +397,7 @@ int main(int argc, char ** argv) {
   int res;
 
   res = OK;
-  bPrintAdapters = bInstall = bUninstall = NO;
+  bPrintAdapters = bInstall = bUninstall = bConn = NO;
 
   if (SYSERR == initUtil(argc, argv, &parseOptions))
     return 0;
@@ -284,6 +408,8 @@ int main(int argc, char ** argv) {
     Uninstall();
   else if (bInstall)
     Install();
+  if (bConn)
+    IncreaseConnections();
 
   doneUtil();
 
