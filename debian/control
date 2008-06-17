@@ -8,7 +8,7 @@ Standards-Version: 3.6.1.0
 
 Package: gnunet
 Architecture: any
-Depends: libgcrypt11, libgpg-error0, libgmp3, libdb4.3 | libtdb | libgdbm, debconf (>= 1.2.0)
+Depends: libltdl3, libgcrypt11, libgpg-error0, libgmp3, libdb4.3, libtdb1, libgdbm3, debconf (>= 1.2.0)
 Recommends: libextractor0 (>= 0.2.3)
 Description: Secure, trust-based peer-to-peer framework
  GNUnet is a peer-to-peer framework which focuses on providing security.

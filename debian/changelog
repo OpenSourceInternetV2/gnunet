@@ -1,3 +1,10 @@
+gnunet (0.6.5-3) unstable; urgency=low
+
+  * debian/control: Fixed dependencies. (Closes: #291776, #291857). 
+  * Fixed a typo in previous changelog (Closes: #289496).
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Mon, 24 Jan 2005 00:41:29 +0100
+
 gnunet (0.6.5-2) unstable; urgency=low
 
   * Applied Martin Quinson l10n patch wich switch to gettext-based debconf and
