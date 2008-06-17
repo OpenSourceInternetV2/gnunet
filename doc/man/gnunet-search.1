@@ -1,4 +1,4 @@
-.TH GNUNET-SEARCH "1" "20 Mar 2004" "GNUnet"
+.TH GNUNET-SEARCH "1" "22 Aug 2004" "GNUnet"
 .SH NAME
 gnunet-search \- a command line interface to search for content on GNUnet 
 .SH SYNOPSIS
@@ -6,94 +6,64 @@ gnunet-search \- a command line interface to search for content on GNUnet
 [\fIOPTIONS\fR] KEYWORD [AND KEYWORD]*
 .SH DESCRIPTION
 .PP
-Search for content on GNUnet. The keywords are case-sensitive.
+Search for content on GNUnet. The keywords are case-sensitive.  gnunet\-search can be used both for a search in the global namespace as well as for searching a private subspace.  
 .TP
 \fB\-a \fILEVEL\fR, \fB\-\-anonymity=LEVEL\fR
-set additional receiver anonymity enforcing. If unset, 
-value specified in config file is used. Default is 0.
-.TP
-\fB\-h\fR, \fB\-\-help\fR
-print help page
+set additional receiver anonymity enforcing. If unset, value specified in config file is used. Default is 0.
 .TP
 \fB\-c \fIFILENAME\fR, \fB\-\-config=FILENAME\fR
 use config file (defaults: ~/.gnunet/gnunet.conf)
 .TP
-\fB\-v\fR, \fB\-\-version\fR
-print the version number
+\fB\-h\fR, \fB\-\-help\fR
+print help page
 .TP
-\fB\-t\fR \fITIMEOUT\fR
-wait TIMEOUT seconds before aborting the search.
+\fB\-L \fILOGLEVEL\fR, \fB\-\-loglevel=LOGLEVEL\fR
+change the loglevel. Possible values for LOGLEVEL are NOTHING, FATAL, ERROR, FAILURE, WARNING, MESSAGE, INFO, DEBUG, CRON and EVERYTHING.
 .TP
 \fB\-m\fR \fIMAXRESULTS\fR
 exit after finding MAXRESULTS results.
 .TP
 \fB\-n\fR \fINAMESPACE\fR
-Searches the given NAMESPACE.  The keyword argument specified is used as the identifier in the namespace.
+Searches the given NAMESPACE.  The NAMESPACE can either be specified using the unique ENC identifier or using a nickname from the output of gnunet\-pseudonym.  The keyword argument specified is used as the identifier in the namespace.  Only one keyword may be specified together with the \-n option.
 .TP
 \fB\-o PREFIX, \fB\-\-output=PREFIX\fR
-This option only works together with -s (at the moment).
-Writes encountered (unencrypted) SBlocks to files with name
-PREFIX.XXX, where XXX is a number. This may be useful e.g.
-if you forgot to save the SBlock when inserting a periodical.
+Writes the encountered (unencrypted) RBlocks or SBlocks to files with name PREFIX.XXX, where XXX is a number. This is useful to keep search results around.
 .TP
-\fB\-L \fILOGLEVEL\fR, \fB\-\-loglevel=LOGLEVEL\fR
-change the loglevel. Possible values for LOGLEVEL are NOTHING, FATAL, ERROR, FAILURE, WARNING, MESSAGE, INFO, DEBUG, CRON and EVERYTHING.
+\fB\-t\fR \fITIMEOUT\fR
+wait TIMEOUT seconds before aborting the search.
+.TP
+\fB\-u\fR, \fB\-\-uri\fR
+run gnunet\-search with an URI instead of a keyword.  The URI can have the format for a namespace search or for a keyword search.  For a namespace search, the format is gnunet://afs/NAMESPACE/IDENTIFIER.  For a keyword search use gnunet://afs/KEYWORD[+KEYWORD]*.
+.TP
+\fB\-v\fR, \fB\-\-version\fR
+print the version number
 .SH NOTES
 The -t option specifies that the query should timeout after approximately TIMEOUT seconds. A value of zero is interpreted as never. The default value can be changed via the SEARCHTIMEOUT variable in the GNUnet configuration file. If multiple words are passed as keywords that are not separated by an AND, gnunet-search will concatenate them to one bigger keyword. Thus
 
-# gnunet-search Das Kapital
+# gnunet\-search Das Kapital
 
 and
 
-# gnunet-search "Das Kapital"
+# gnunet\-search "Das Kapital"
 
-are identical. You can use AND to separate keywords. In that case, gnunet-search will only display results that match all the keywords. gnunet-search can not do multiple independent queries ("OR"), you must use multiple processes for that. Mind that each GNUnet-server (gnunetd) has a build-in limit on the number of clients (like gnunet-search or gnunet-download) that can connect simultaniously (you can change it in src/include/config.h).
+are identical. You can use AND to separate keywords. In that case, gnunet-search will only display results that match all the keywords. gnunet-search cannot do multiple independent queries ("OR"), you must use multiple processes for that. Mind that each GNUnet-server (gnunetd) has a build-in limit on the number of clients (like gnunet-search or gnunet-download) that can connect simultaniously (you can change it in src/include/config.h).
 
 Search results are printed by gnunet-search like this:
 
-gnunet-download -o "COPYING" gnunet://afs/77DBE6F971D66F641B2262DDCE78CA8FB6815E60.E34BFD7843D4C8469EFC3DAD260F1F71783E2A87.466DC92.17992
-=> The GNU Public License <= (mimetype: unknown)
+gnunet-download -o "COPYING" gnunet://afs/N8RCF3TETLRU9CV1PAS7M2H9QDB36AE3.K9JO8IP7KTNFO23S3VB4TFUKLD7SO5AS.0466DC92.17992
+=> The GNU Public License <= (mimetype: text/plain)
 
-The first value line is the command to run to download the file. The suggested filename in the example is COPYING. The GNUnet URI consists of the key and query hash of the file, the CRC32 (GNUnet style) and finally the size of the file. The second line contains the description of the file, here "The GNU Public License" and the mime-type (see the options for gnunet-insert on how to change these).
+The first line contains the command to run to download the file. The suggested filename in the example is COPYING. The GNUnet URI consists of the key and query hash of the file, the CRC32 (GNUnet style) and finally the size of the file. The second line contains the description of the file, here "The GNU Public License" and the mime\-type (see the options for gnunet-insert on how to change these).
 
 .SH SETTING ANONYMITY LEVEL
 
-The \fB-a\fR option can be used to specify additional anonymity
-constraints. If set to 0, GNUnet will try to download the
-file as fast as possible without any additional
-slowdown by the anonymity code. Note that you
-will still have a fair degree of anonymity depending
-on the current network load and the power of the
-adversary. The download is still unlikely to be
-terribly fast since the sender may have requested
-sender-anonymity and since in addition to that,
-GNUnet will still do the anonymous routing.
+The \fB-a\fR option can be used to specify additional anonymity constraints. If set to 0, GNUnet will try to download the file as fast as possible without any additional slowdown by the anonymity code. Note that you will still have a fair degree of anonymity depending on the current network load and the power of the adversary. The download is still unlikely to be terribly fast since the sender may have requested sender\-anonymity and since in addition to that, GNUnet will still do the anonymous routing.
 
-This option can be used to limit requests further
-than that. In particular, you can require GNUnet to
-receive certain amounts of traffic from other peers
-before sending your queries. This way, you can gain
-very high levels of anonymity - at the expense of
-much more traffic and much higher latency. So set
-it only if you really believe you need it. 
+This option can be used to limit requests further than that. In particular, you can require GNUnet to receive certain amounts of traffic from other peers before sending your queries. This way, you can gain very high levels of anonymity \- at the expense of much more traffic and much higher latency. So set it only if you really believe you need it. 
 
-The definition of ANONYMITY-RECEIVE is the following:
-  If the value v is < 1000, it means that if GNUnet
-  routes n bytes of messages from foreign peers, it
-  may originate n/v bytes of queries in the same time-period.
-  The time-period is twice the average delay that GNUnet
-  deferrs forwarded queries.
+The definition of ANONYMITY-RECEIVE is the following: If the value v is < 1000, it means that if GNUnet routes n bytes of messages from foreign peers, it may originate n/v bytes of queries in the same time-period. The time\-period is twice the average delay that GNUnet deferrs forwarded queries. If the value v is >= 1000, it means that if GNUnet routes n bytes of QUERIES from at least (v % 1000) peers, it may originate n/v/1000 bytes of queries in the same time-period.
 
-  If the value v is >= 1000, it means that if GNUnet
-  routes n bytes of QUERIES from at least (v % 1000)
-  peers, it may originate n/v/1000 bytes of queries
-  in the same time-period.
-
-The default is 0 and this should be fine for most
-users. Also notice that if you choose values above
-1000, you may end up having no throughput at all,
-especially if many of your fellow GNUnet-peers do
-the same.
+The default is 0 and this should be fine for most users. Also notice that if you choose values above 1000, you may end up having no throughput at all, especially if many of your fellow GNUnet\-peers do the same.
 
 .SH FILES
 .TP
@@ -102,4 +72,4 @@ GNUnet configuration file; specifies the default value for the timeout
 .SH "REPORTING BUGS"
 Report bugs by using mantis <http://www.ovmj.org/~mantis/> or by sending electronic mail to <gnunet-developers@gnu.org>
 .SH "SEE ALSO"
-\fBgnunet\-gtk\fP(1), \fBgnunet\-insert\fP(1), \fBgnunet\-download\fP(1), \fBgnunet.conf\fP(5), \fBgnunetd\fP(1)
+\fBgnunet\-gtk\fP(1), \fBgnunet\-insert\fP(1), \fBgnunet\-download\fP(1), \fBgnunet\-pseudonym\fP(1), \fBgnunet.conf\fP(5), \fBgnunetd\fP(1)

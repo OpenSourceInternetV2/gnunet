@@ -22,7 +22,7 @@
  * @file applications/chat/gnunet-chat.c 
  * @brief Chat command line tool
  * @author Christian Grothoff
- **/
+ */
 
 #include "chat.h"
 #include "platform.h"
@@ -36,7 +36,7 @@ static Semaphore * doneSem;
  * @param argc the number of options
  * @param argv the option list (including keywords)
  * @return OK on error, SYSERR if we should exit 
- **/
+ */
 static int parseOptions(int argc,
 			char ** argv) {
   int option_index;
@@ -89,7 +89,7 @@ static int parseOptions(int argc,
     }
     default: 
       LOG(LOG_FAILURE,
-	  "FAILURE: Unknown option %c. Aborting.\n"\
+	  " Unknown option %c. Aborting.\n"\
 	  "Use --help to get a list of options.\n",
 	  c);
       return -1;
@@ -135,7 +135,7 @@ static void * receiveThread(GNUNET_TCP_SOCKET * sock) {
  * @param argc number of arguments from the command line
  * @param argv command line arguments
  * @return return value from gnunetsearch: 0: ok, -1: error
- **/   
+ */   
 int main(int argc, char ** argv) {
   GNUNET_TCP_SOCKET * sock;
   PTHREAD_T messageReceiveThread;
@@ -147,7 +147,7 @@ int main(int argc, char ** argv) {
     return 0; /* parse error, --help, etc. */ 
   sock = getClientSocket();
   if (sock == NULL)
-    errexit("FATAL: Could not connect to gnunetd.\n");
+    errexit(" Could not connect to gnunetd.\n");
 
   nick = getConfigurationString("GNUNET-CHAT", "NICK");
   if (nick == NULL) 
@@ -176,7 +176,7 @@ int main(int argc, char ** argv) {
   /* send first "Hi!" message to gnunetd to indicate "join" */
   if (SYSERR == writeToSocket(sock,
 			      &msg.header))
-    errexit("FATAL: Could not send join message to gnunetd\n");
+    errexit(" Could not send join message to gnunetd\n");
 
   /* read messages from command line and send */
   while (1) {
@@ -185,7 +185,7 @@ int main(int argc, char ** argv) {
       break;
     if (SYSERR == writeToSocket(sock,
 				&msg.header))
-      errexit("FATAL: Could not send message to gnunetd\n");
+      errexit(" Could not send message to gnunetd\n");
   }
   closeSocketTemporarily(sock);
   SEMAPHORE_DOWN(doneSem);

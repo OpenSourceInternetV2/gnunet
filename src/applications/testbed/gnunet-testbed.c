@@ -32,7 +32,7 @@
  * - general problem: the way we use tcpio means that any rouge
  *   testbed-gnunetd can stall gnunet-testbed indefinitely!
  * - security: limit "exec" to certain processes
- **/
+ */
 
 #include "gnunet_util.h"
 #include "platform.h"
@@ -78,7 +78,7 @@ static char * testbedArg0;
  * @param argc the number of options
  * @param argv the option list (including keywords)
  * @return OK on error, SYSERR if we should exit 
- **/
+ */
 static int helperParseOptions(int argc, char *argv[]) {
   int c, option_index;
   
@@ -122,7 +122,7 @@ static int helperParseOptions(int argc, char *argv[]) {
     }      
     default: 
       LOG(LOG_FAILURE,
-	  "FAILURE: Unknown option %c. Aborting.\n"		\
+	  " Unknown option %c. Aborting.\n"		\
 	  "Use --help to get a list of options.\n",
 		c);
       return -1;
@@ -157,7 +157,7 @@ static int helper_main(int argc,
   
   if (argc == 0) {
     fprintf(stderr,
-	    "ERROR: must have at least one argument!\n");
+	    " must have at least one argument!\n");
     return -1;
   }  
   sock = SOCKET(PF_INET, 
@@ -165,7 +165,7 @@ static int helper_main(int argc,
 		6); /* 6: TCP */
   if (sock == -1) {
     LOG(LOG_FAILURE,
-	"FAILURE: Cannot create socket (%s).\n",
+	" Cannot create socket (%s).\n",
 	STRERROR(errno));
     return SYSERR;
   }
@@ -181,7 +181,7 @@ static int helper_main(int argc,
   if ( (res < 0) && 
        (errno != EINPROGRESS) ) {
     LOG(LOG_INFO,
-	"INFO: tcpio: Cannot connect to LOOPBACK:%d (%s)\n",
+	" tcpio: Cannot connect to LOOPBACK:%d (%s)\n",
 	PORT,
 	STRERROR(errno));
     CLOSE(sock);
@@ -282,19 +282,19 @@ static void bash_main() {
   doneUtil(); 
   execvp(SHELL, argv);       
   fprintf(stderr,
-	  "FATAL: could not execute %s: %s\n",
+	  " could not execute %s: %s\n",
 	  SHELL,
 	  STRERROR(errno));
 }
 
 /**
  * Configuration...
- **/
+ */
 static CIDRNetwork * trustedNetworks_ = NULL;
 
 /**
  * Is this IP labeled as trusted for CS connections?
- **/
+ */
 static int isWhitelisted(IPaddr ip) {   
   return checkIPListed(trustedNetworks_,
 		       ip);
@@ -369,14 +369,14 @@ static int server_main(pid_t bash_pid) {
   if (0 != sigaction(SIGCHLD,
 		     &newAct,
 		     &oldAct)) 
-    errexit("FATAL: could not install SIGCHLD handler: %s\n",
+    errexit(" could not install SIGCHLD handler: %s\n",
 	    strerror(errno));
   sigemptyset(&set);
   sigaddset(&set, SIGCHLD);
   if (0 != sigprocmask(SIG_UNBLOCK,
 		       &set,
 		       &oset))
-    errexit("FATAL: could not activate SIGCHLD handler: %s\n",
+    errexit(" could not activate SIGCHLD handler: %s\n",
 	    strerror(errno));
 
   LISTEN(ssock, 5);
@@ -416,14 +416,14 @@ static int server_main(pid_t bash_pid) {
     }
     /* access control! */
     if (sizeof(struct in_addr) != sizeof(IPaddr))
-      errexit("FATAL: assertion failed at %s:%d\n",
+      errexit(" assertion failed at %s:%d\n",
 	      __FILE__, __LINE__);
     memcpy(&ipaddr,
 	   &clientAddr.sin_addr,
 	   sizeof(struct in_addr));   
     if (NO == isWhitelisted(ipaddr)) {
       LOG(LOG_WARNING,
-	  "WARNING: Rejected unauthorized connection from %d.%d.%d.%d.\n",
+	  " Rejected unauthorized connection from %d.%d.%d.%d.\n",
 	  PRIP(ntohl(*(int*)&clientAddr.sin_addr)));
       CLOSE(sock);
       continue;
@@ -436,7 +436,7 @@ static int server_main(pid_t bash_pid) {
     buf = NULL;
     if (SOCKET_BEGIN_COMMAND != readSocket(&buf, &len)) {
       fprintf(stderr,
-	      "FATAL: protocol violation on socket. "	\
+	      " protocol violation on socket. "	\
 	      "Expected command.\n");
       return -1;
     }
@@ -475,7 +475,7 @@ static int server_main(pid_t bash_pid) {
       /* should never happen unless the user
 	 plays by hand with the aliases... */
       i = -1;
-      PRINTF("ERROR: command %s not found!\n",
+      PRINTF(" command %s not found!\n",
 	     command);
       socketSend(sizeof(unsigned int), 
 		 SOCKET_RETVAL, 
@@ -495,7 +495,7 @@ static int server_main(pid_t bash_pid) {
 		     &oldAct,
 		     &newAct)) 
     LOG(LOG_WARNING,
-	"WARNING: could not restore SIGCHLD handler: %s\n",
+	" could not restore SIGCHLD handler: %s\n",
 	strerror(errno));
   return status;
 }
@@ -511,7 +511,7 @@ static int server_main(pid_t bash_pid) {
  * @param argc the number of options
  * @param argv the option list (including keywords)
  * @return OK on error, SYSERR if we should exit 
- **/
+ */
 static int parseOptions(int argc, char *argv[]) {
   int c, option_index;
   
@@ -554,7 +554,7 @@ static int parseOptions(int argc, char *argv[]) {
     }      
     default: 
       LOG(LOG_FAILURE,
-	  "FAILURE: Unknown option %c. Aborting.\n"		\
+	  " Unknown option %c. Aborting.\n"		\
 	  "Use --help to get a list of options.\n",
 		c);
       return -1;
@@ -577,7 +577,7 @@ static int parseOptions(int argc, char *argv[]) {
  * @param argc number of arguments from the command line
  * @param argv command line arguments
  * @return 0 on success, -1 on error
- **/   
+ */   
 int main(int argc, char *argv[]) {
 #ifndef MINGW /* FIXME MINGW */
   pid_t pid;
@@ -616,7 +616,7 @@ int main(int argc, char *argv[]) {
   
   pid = fork();
   if (pid < 0)
-    errexit("FATAL: fork failed: %s\n", STRERROR(errno));
+    errexit(" fork failed: %s\n", STRERROR(errno));
   if (pid == 0) {
     FREE(trustedNetworks_);
     bash_main();

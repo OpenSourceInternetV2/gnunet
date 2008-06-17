@@ -20,27 +20,29 @@
  * @file printhelp.c
  * @brief Common option processing methods for GNUnet clients.
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_util.h"
 #include "platform.h"
 
 #define BORDER 29
 
-void formatHelp(char * general,
-		char * description,
-		Help * opt) {
+
+void formatHelp(const char * general,
+		const char * description,
+		const Help * opt) {
   int slen;
   int i;
   int j;
   int ml;
   int p;
   char * scp;
+  const char * trans;
 	   
-  printf("Usage: %s\n%s\n\n",
-	 general,
-	 description);
-  printf("Arguments to long options are mandatory for short options too.\n");
+  printf(_("Usage: %s\n%s\n\n"),
+	 gettext(general),
+	 gettext(description));
+  printf(_("Arguments mandatory for long options are also mandatory for short options.\n"));
   slen = 0;
   i = 0;
   while (opt[i].description != NULL) {
@@ -65,39 +67,46 @@ void formatHelp(char * general,
       printf("%*s", BORDER-slen, "");
       slen = BORDER;
     }
-    ml = strlen(opt[i].description);
+    trans = gettext(opt[i].description);
+    ml = strlen(trans);
     p = 0;
   OUTER:
     while (ml - p > 78 - slen) {
       for (j=p+78-slen;j>p;j--) {
-	if (isspace(opt[i].description[j])) {
-	  scp = STRNDUP(&opt[i].description[p],
-			j-p);
+	if (isspace(trans[j])) {
+	  scp = malloc(j-p+1);
+	  memcpy(scp,
+		 &trans[p],
+		 j-p);
+	  scp[j-p] = '\0';
 	  printf("%s\n%*s",
 		 scp,
 		 BORDER+2,
 		 "");
-	  FREE(scp);
+	  free(scp);
 	  p = j+1;
 	  slen = BORDER+2;
 	  goto OUTER;
 	}
       }
       /* could not find space to break line */
-      scp = STRNDUP(&opt[i].description[p],
-		    78 - slen);
+      scp = malloc(78 - slen + 1);
+      memcpy(scp,
+	     &trans[p],
+	     78 - slen);
+      scp[78 - slen] = '\0';
       printf("%s\n%*s",
 	     scp,
 	     BORDER+2,
 	     "");	
-      FREE(scp);
+      free(scp);
       slen = BORDER+2;
       p = p + 78 - slen;
     }
     /* print rest */
     if (p < ml)
       printf("%s\n",
-	     &opt[i].description[p]);
+	     &trans[p]);
     i++;
   }
 }
@@ -108,18 +117,23 @@ void formatHelp(char * general,
  * This does not include --help or --version.
  * @return YES if the option was a default option
  *  that was successfully processed
- **/
+ */
 int parseDefaultOptions(char c,
 			char * optarg) {
   switch(c) {
-  case 'H':
-    FREENONNULL(setConfigurationString("NETWORK",
-				       "HOST",
-				       optarg));
-    break;
   case 'c': 
     FREENONNULL(setConfigurationString("FILES",
 				       "gnunet.conf",
+				       optarg));
+    break;
+  case 'd':
+    FREENONNULL(setConfigurationString("GNUNETD",
+				       "LOGFILE",
+				       NULL));
+    break;
+  case 'H':
+    FREENONNULL(setConfigurationString("NETWORK",
+				       "HOST",
 				       optarg));
     break;
   case 'L':
@@ -127,11 +141,6 @@ int parseDefaultOptions(char c,
 					 "LOGLEVEL",
 					 optarg));
       break;
-  case 'd':
-    FREENONNULL(setConfigurationString("GNUNETD",
-				       "LOGFILE",
-				       NULL));
-    break;
   default:
     return NO;
   }

@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -22,7 +22,7 @@
  * @file applications/afs/module/low_directory.c
  * @brief Block database (directory based implementation). 
  * @author Christian Grothoff
- **/
+ */
 
 #include "low_backend.h"
 #include "platform.h"
@@ -40,18 +40,20 @@ typedef struct {
 /**
  * Initialize the Directory module, expand filename
  * @param dir the directory where content is configured to be stored (e.g. ~/.gnunet/data/content).
- **/
-static char * getDirectory(char * dir) {
+ */
+static char * getDirectory(const char * dir) {
   char * result;
   char * tmp;
+  size_t n;
 
 #if DIRECTORY_DEBUG
   LOG(LOG_INFO, 
-      "Database (Directory): %s\n", 
+      "Database '%s' (Directory)\n", 
       dir);
 #endif
-  tmp = MALLOC(strlen(dir) + strlen(DIR_EXT) + 5);
-  sprintf(tmp, "%s%s/", dir, DIR_EXT);
+  n = strlen(dir) + strlen(DIR_EXT) + 5;
+  tmp = MALLOC(n);
+  SNPRINTF(tmp, n, "%s%s/", dir, DIR_EXT);
   result = expandFileName(tmp);
   FREE(tmp);
   return result;
@@ -60,7 +62,7 @@ static char * getDirectory(char * dir) {
 #define HEX "0123456789ABCDEF"
 
 typedef int (*ForAllSubdirCallback)(void * handle,
-				    char * subdir,
+				    const char * subdir,
 				    void * closure);
 
 static int forAllSubdirs(void * handle,
@@ -89,21 +91,20 @@ static int forAllSubdirs(void * handle,
 }
 
 static int mkdirpWrap(void * handle,
-		      char * dir,
+		      const char * dir,
 		      void * unused) {
   mkdirp(dir);
   return 0;
 }
 
-void * lowInitContentDatabase(char * dir) {
+void * lowInitContentDatabase(const char * dir) {
   DirHandle * dbh;
 
   dbh = MALLOC(sizeof(DirHandle));
   dbh->dir = getDirectory(dir);  
   MUTEX_CREATE_RECURSIVE(&dbh->lock);
   if (dbh->dir == NULL) 
-    errexit("FATAL: could not open directory %s!\n",
-	    (char*) dir);
+    DIE_FILE_STRERROR("getDirectory", dir);
   mkdirp(dbh->dir);
   forAllSubdirs(dbh, &mkdirpWrap, NULL);
   dbh->count = lowForEachEntryInDatabase(dbh, 
@@ -116,7 +117,7 @@ void * lowInitContentDatabase(char * dir) {
  * Clean shutdown of the storage module (not used at the moment)
  *
  * @param handle the directory
- **/
+ */
 void lowDoneContentDatabase(void * handle) {
   DirHandle * dbh = handle;
   MUTEX_DESTROY(&dbh->lock);
@@ -128,7 +129,7 @@ typedef struct {
   char vals[sizeof(HexName)+1];
 } DHexName;
 
-static void hash2dhex(HashCode160 * hc,
+static void hash2dhex(const HashCode160 * hc,
 		      DHexName * dhex) {
   hash2hex(hc,
 	   (HexName*)&dhex->vals[1]);
@@ -157,15 +158,12 @@ static void dhex2hash(DHexName * dhex,
  * Remove the Content database.
  *
  * @param handle the directory
- **/
+ */
 void lowDeleteContentDatabase(void * handle) {
   DirHandle * dbh = handle;
 
   if (OK != rm_minus_rf(dbh->dir))
-    LOG(LOG_ERROR,
-	"ERROR: low_directory could not remove %s: %s\n",
-	dbh->dir,
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_ERROR, "rm_minus_rf", dbh->dir);
   MUTEX_DESTROY(&dbh->lock);
   FREE(dbh->dir);
   FREE(dbh);
@@ -192,19 +190,16 @@ static int forEachEntryInSubdir(void * handle,
 	 &dir[strlen(dir)-2],
 	 2);
   STAT(dir, &istat);
-  if (!S_ISDIR(istat.st_mode)) {
+  if (!S_ISDIR(istat.st_mode)) {   
     LOG(LOG_ERROR,
-	"ERROR: content database directory %s is not a directory.\n",
+	_("Content database location '%s' is not a directory.\n"),
 	dir);
     return -1;
   }
   errno = 0;
   dinfo = OPENDIR(dir);
-  if ((errno == EACCES) || (dinfo == NULL)) {
-    LOG(LOG_ERROR,
-	"ERROR: access to %s was denied (%s)\n",
-	dir, 
-	STRERROR(errno));
+  if ((errno == EACCES) || (dinfo == NULL)) {    
+    LOG_FILE_STRERROR(LOG_ERROR, "opendir", dir);
     return -1;
   }
   count = 0;
@@ -233,7 +228,7 @@ static int forEachEntryInSubdir(void * handle,
  * @param callback the function to call on each file
  * @param data extra argument to callback
  * @return the number of items stored in the content database
- **/
+ */
 int lowForEachEntryInDatabase(void * handle,
 			      LowEntryCallback callback,
 			      void * data) {
@@ -256,7 +251,7 @@ int lowForEachEntryInDatabase(void * handle,
  *
  * @param handle the directory
  * @return the number of entries, -1 on failure
- **/ 
+ */ 
 int lowCountContentEntries(void * handle) {
   DirHandle * dbh = handle;
   return dbh->count;
@@ -270,9 +265,9 @@ int lowCountContentEntries(void * handle) {
  * @param result the buffer to write the result to 
  *        (*result should be NULL, sufficient space is allocated)
  * @return the number of bytes read on success, -1 on failure
- **/ 
+ */ 
 int lowReadContent(void * handle,
-		   HashCode160 * name,
+		   const HashCode160 * name,
 	           void ** result) {
   /* open file, must exist, open read only */
   DirHandle * dbh = handle;
@@ -319,11 +314,11 @@ int lowReadContent(void * handle,
  * @param len the size of the block
  * @param block the data to store
  * @return SYSERR on error, OK if ok.
- **/
+ */
 int lowWriteContent(void * handle,
-		    HashCode160 * name, 
+		    const HashCode160 * name, 
 		    int len,
-		    void * block) {
+		    const void * block) {
   DirHandle * dbh = handle;
   DHexName fn;
   char * fil;
@@ -338,8 +333,7 @@ int lowWriteContent(void * handle,
   unl = UNLINK(fil);
   fd = OPEN(fil, O_RDWR|O_CREAT, S_IRUSR|S_IWUSR);
   if (fd == -1) {
-    LOG(LOG_WARNING,
-	"WARNING: Failed to open file %s\n", fil);
+    LOG_FILE_STRERROR(LOG_WARNING, "open", fil);
     FREE(fil);
     MUTEX_UNLOCK(&dbh->lock);
     return SYSERR; /* failed! */
@@ -360,9 +354,9 @@ int lowWriteContent(void * handle,
  * @param name the hashcode representing the name of the file 
  *        (without directory)
  * @return OK on success, SYSERR on error
- **/
+ */
 int lowUnlinkFromDB(void * handle,
-		    HashCode160 * name) {
+		    const HashCode160 * name) {
   DirHandle * dbh = handle;
   DHexName fn;
   char * fil;
@@ -380,9 +374,7 @@ int lowUnlinkFromDB(void * handle,
     FREE(fil);
     return OK; 
   } else {
-    LOG(LOG_WARNING,
-	"WARNING: unlink failed: %s\n",
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_WARNING, "unlink", fil);
     MUTEX_UNLOCK(&dbh->lock);
     FREE(fil);
     return SYSERR;
@@ -394,7 +386,7 @@ int lowUnlinkFromDB(void * handle,
  *
  * @param handle the directory
  * @return the number of kb that the DB is assumed to use at the moment.
- **/
+ */
 int lowEstimateSize(LowDBHandle handle) {
   return lowCountContentEntries(handle) * 5; /* 100 MB use 450 MB in GDBM according to EH */
 }

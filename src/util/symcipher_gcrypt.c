@@ -30,16 +30,32 @@
  * strictly speaking).  But libgcrypt does sometimes require locking in
  * unexpected places, so the safe solution is to always lock even if it
  * is not required.  The performance impact is minimal anyway. 
- **/
+ */
 
 #include "gnunet_util.h"
 #include "platform.h"
 #include "locking_gcrypt.h"
 #include <gcrypt.h>
 
+
+/**
+ * Log an error message at log-level 'level' that indicates
+ * a failure of the command 'cmd' with the message given
+ * by gcry_strerror(rc).
+ */
+#define LOG_GCRY(level, cmd, rc) do { LOG(level, _("'%s' failed at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, gcry_strerror(rc)); } while(0);
+
+/**
+ * Die with an error message that indicates
+ * a failure of the command 'cmd' with the message given
+ * by gcry_strerror(rc).
+ */
+#define DIE_GCRY(cmd, rc) do { errexit(_("'%s' failed at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, gcry_strerror(rc)); } while(0);
+
+
 /**
  * Create a new SessionKey (for Blowfish)
- **/
+ */
 void makeSessionkey(SESSIONKEY * key) {
   int i;
   for (i=0;i<SESSIONKEY_LEN;i++)
@@ -56,11 +72,11 @@ void makeSessionkey(SESSIONKEY * key) {
  *        for streams.
  * @param result the output parameter in which to store the encrypted result
  * @returns the size of the encrypted block, -1 for errors
- **/
-int encryptBlock(void * block, 
+ */
+int encryptBlock(const void * block, 
 		 unsigned short len,
-		 SESSIONKEY * sessionkey,
-		 unsigned char * iv,
+		 const SESSIONKEY * sessionkey,
+		 const unsigned char * iv,
 		 void * result) {
   gcry_cipher_hd_t handle;
   int rc;
@@ -71,10 +87,7 @@ int encryptBlock(void * block,
 			GCRY_CIPHER_MODE_CFB,
 			0);
   if (rc) {
-    LOG(LOG_FAILURE,
-	"FAILURE: %s:%d:%s: gcry_cipher_open failed (%s)!\n",
-        __FILE__, __LINE__, __FUNCTION__,
-	gcry_strerror(rc));
+    LOG_GCRY(LOG_FAILURE, "gcry_cipher_open", rc);
     unlockGcrypt();
     return -1;
   }
@@ -83,10 +96,7 @@ int encryptBlock(void * block,
 			  sizeof(SESSIONKEY));
 
   if (rc && ((char)rc != GPG_ERR_WEAK_KEY)) {    
-    LOG(LOG_FAILURE,
-	"FAILURE: %s:%d:%s: gcry_cipher_setkey failed (%s)!\n",
-        __FILE__, __LINE__, __FUNCTION__,
-	gcry_strerror(rc));
+    LOG_GCRY(LOG_FAILURE, "gcry_cipher_setkey", rc);
     gcry_cipher_close(handle);
     unlockGcrypt();
     return -1;
@@ -96,10 +106,7 @@ int encryptBlock(void * block,
 			  sizeof(SESSIONKEY)/2);
 
   if (rc && ((char)rc != GPG_ERR_WEAK_KEY)) {    
-    LOG(LOG_FAILURE,
-	"FAILURE: %s:%d:%s: gcry_cipher_setiv failed! (%s)\n",
-        __FILE__, __LINE__, __FUNCTION__,
-	gcry_strerror(rc));
+    LOG_GCRY(LOG_FAILURE, "gcry_cipher_setiv", rc);
     gcry_cipher_close(handle);
     unlockGcrypt();
     return -1;
@@ -111,10 +118,7 @@ int encryptBlock(void * block,
 			   block,
 			   len);
   if (rc) {
-    LOG(LOG_FAILURE,
-	"FAILURE: %s:%d:%s: gcry_cipher_encrypt failed! (%s)\n",
-        __FILE__, __LINE__, __FUNCTION__,
-	gcry_strerror(rc));
+    LOG_GCRY(LOG_FAILURE, "gcry_cipher_encrypt", rc);
     gcry_cipher_close(handle);
     unlockGcrypt();
     return -1;
@@ -133,11 +137,11 @@ int encryptBlock(void * block,
  *        for streams.
  * @param result address to store the result at
  * @return -1 on failure, size of decrypted block on success
- **/
-int decryptBlock(SESSIONKEY * sessionkey, 
-		 void * block,
+ */
+int decryptBlock(const SESSIONKEY * sessionkey, 
+		 const void * block,
 		 unsigned short size,
-		 unsigned char * iv,
+		 const unsigned char * iv,
 		 void * result) {
   gcry_cipher_hd_t handle;
   int rc;
@@ -148,10 +152,7 @@ int decryptBlock(SESSIONKEY * sessionkey,
 			GCRY_CIPHER_MODE_CFB,
 			0);  
   if (rc) {
-    LOG(LOG_FAILURE,
-	"FAILURE: symcipher_gcrypt.c:decryptBlock: gcry_cipher_open failed (%s)!\n",
-        __FILE__, __LINE__, __FUNCTION__,
-	gcry_strerror(rc));
+    LOG_GCRY(LOG_FAILURE, "gcry_cipher_open", rc);
     unlockGcrypt();
     return -1;
   }
@@ -160,10 +161,7 @@ int decryptBlock(SESSIONKEY * sessionkey,
 			 sizeof(SESSIONKEY));
 
   if (rc && ((char)rc != GPG_ERR_WEAK_KEY)) {    
-    LOG(LOG_FAILURE,
-	"FAILURE: symcipher.c:decryptBlock: gcry_cipher_setkey failed (%s)!\n",
-        __FILE__, __LINE__, __FUNCTION__,
-	gcry_strerror(rc));
+    LOG_GCRY(LOG_FAILURE, "gcry_cipher_setkey", rc);
     gcry_cipher_close(handle);
     unlockGcrypt();
     return -1;
@@ -173,10 +171,7 @@ int decryptBlock(SESSIONKEY * sessionkey,
 			 sizeof(SESSIONKEY)/2);
 
   if (rc && ((char)rc != GPG_ERR_WEAK_KEY)) {    
-    LOG(LOG_FAILURE,
-	"FAILURE: %s:%d:%s: gcry_cipher_setiv failed! (%s)\n",
-        __FILE__, __LINE__, __FUNCTION__,
-	gcry_strerror(rc));
+    LOG_GCRY(LOG_FAILURE, "gcry_cipher_setiv", rc);
     gcry_cipher_close(handle);
     unlockGcrypt();
     return -1;
@@ -188,10 +183,7 @@ int decryptBlock(SESSIONKEY * sessionkey,
 			   block,
 			   size);
   if (rc) {
-    LOG(LOG_FAILURE,
-	"FAILURE: %s:%d:%s: gcry_cipher_encrypt failed! (%s)\n",
-        __FILE__, __LINE__, __FUNCTION__,
-	gcry_strerror(rc));
+    LOG_GCRY(LOG_FAILURE, "gcry_cipher_decrypt", rc);
     gcry_cipher_close(handle);
     unlockGcrypt();
     return -1;

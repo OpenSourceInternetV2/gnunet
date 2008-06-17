@@ -172,7 +172,7 @@ static const char *csMessageName( unsigned short type ) {
  * @param stream where to print the statistics
  * @param sock the socket to use 
  * @return OK on success, SYSERR on error
- **/
+ */
 int requestAndPrintStatistics(GNUNET_TCP_SOCKET * sock) {
   STATS_CS_MESSAGE * statMsg;
   CS_HEADER csHdr;
@@ -200,7 +200,7 @@ int requestAndPrintStatistics(GNUNET_TCP_SOCKET * sock) {
     }
     if (ntohs(statMsg->header.size) < sizeof(STATS_CS_MESSAGE)) {
       LOG(LOG_WARNING,
-	  "WARNING: received malformed stats message (%d < %d)\n",
+	  " received malformed stats message (%d < %d)\n",
 	  ntohs(statMsg->header.size), 
 	  sizeof(STATS_CS_MESSAGE) );
       break;
@@ -217,7 +217,7 @@ int requestAndPrintStatistics(GNUNET_TCP_SOCKET * sock) {
       if (mpos+strlen(&((char*)(((STATS_CS_MESSAGE_GENERIC*)statMsg)->values))[mpos])+1 > 
 	  ntohs(statMsg->header.size) - sizeof(STATS_CS_MESSAGE)) {
 	LOG(LOG_WARNING,
-	    "WARNING: received malformed stats message (%d > %d)\n",
+	    " received malformed stats message (%d > %d)\n",
 	    mpos+strlen(&((char*)(((STATS_CS_MESSAGE_GENERIC*)statMsg)->values))[mpos])+1,
 	    ntohs(statMsg->header.size)-sizeof(STATS_CS_MESSAGE));
 	break; /* out of bounds! */      
@@ -238,7 +238,7 @@ int requestAndPrintStatistics(GNUNET_TCP_SOCKET * sock) {
  * @param stream where to print the statistics
  * @param sock the socket to use 
  * @return OK on success, SYSERR on error
- **/
+ */
 int requestAndPrintStatistic(GNUNET_TCP_SOCKET * sock,
 			     char * name) {
   STATS_CS_MESSAGE * statMsg;
@@ -268,7 +268,7 @@ int requestAndPrintStatistic(GNUNET_TCP_SOCKET * sock,
     if (ntohs(statMsg->header.size) < sizeof(STATS_CS_MESSAGE)) {
       PRINTF("Error receiving reply for statistics from peer.\n");
       LOG(LOG_WARNING,
-	  "WARNING: received malformed stats message (%d < %d)\n",
+	  " received malformed stats message (%d < %d)\n",
 	  ntohs(statMsg->header.size), 
 	  sizeof(STATS_CS_MESSAGE) );
       break;
@@ -286,7 +286,7 @@ int requestAndPrintStatistic(GNUNET_TCP_SOCKET * sock,
       if (mpos+strlen(&((char*)(((STATS_CS_MESSAGE_GENERIC*)statMsg)->values))[mpos])+1 > 
 	  ntohs(statMsg->header.size) - sizeof(STATS_CS_MESSAGE)) {
 	LOG(LOG_WARNING,
-	    "WARNING: received malformed stats message (%d > %d)\n",
+	    " received malformed stats message (%d > %d)\n",
 	    mpos+strlen(&((char*)(((STATS_CS_MESSAGE_GENERIC*)statMsg)->values))[mpos])+1,
 	    ntohs(statMsg->header.size)-sizeof(STATS_CS_MESSAGE));
 	break; /* out of bounds! */      
@@ -309,7 +309,7 @@ int requestAndPrintStatistic(GNUNET_TCP_SOCKET * sock,
  * @param stream where to print the statistics
  * @param sock the socket to use 
  * @return OK on success, SYSERR on error
- **/
+ */
 int requestAndPrintProtocols(GNUNET_TCP_SOCKET * sock) {
   STATS_CS_GET_MESSAGE_SUPPORTED csStatMsg;
   int i = 0;

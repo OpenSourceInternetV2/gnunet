@@ -25,7 +25,7 @@
  * @author Larry Waldo
  * @author Tzvetan Horozov
  * @author Nils Durner
- **/
+ */
 
 #include "gnunet_util.h"
 
@@ -43,12 +43,12 @@
 /**
  * This flag is set if gnunetd is not (to be) detached from the
  * console.
- **/
+ */
 int debug_flag = NO;
 
 /**
  * This flag is set if gnunetd was started as windows service
- **/
+ */
 int win_service = NO;
 
 void gnunet_main();
@@ -56,14 +56,14 @@ void gnunet_main();
 #ifdef MINGW
 /**
  * Windows service information
- **/
+ */
 SERVICE_STATUS theServiceStatus;
 SERVICE_STATUS_HANDLE hService;
 
 /**
  * This function is called from the Windows Service Control Manager
  * when a service has to shutdown
- **/
+ */
 void WINAPI ServiceCtrlHandler(DWORD dwOpcode) {
   if (dwOpcode == SERVICE_CONTROL_STOP)
     win_shutdown_gnunetd(SERVICE_CONTROL_STOP);
@@ -71,7 +71,7 @@ void WINAPI ServiceCtrlHandler(DWORD dwOpcode) {
 
 /**
  * Main method of the windows service
- **/
+ */
 void WINAPI ServiceMain(DWORD argc, LPSTR *argv) {
   memset(&theServiceStatus, sizeof(theServiceStatus), 0);
   theServiceStatus.dwServiceType = SERVICE_WIN32;
@@ -101,46 +101,40 @@ void WINAPI ServiceMain(DWORD argc, LPSTR *argv) {
  * <li>shutdown all services (in roughly inverse order)
  * <li>exit
  * </ol>
- **/
+ */
 void gnunet_main() {
   int filedes[2]; /* pipe between client and parent */
   int * sbit;
   int version;
   int firstStart;
 
-
-  /* check version;  possibly not the best place here
-     since gnunet-check is AFS specific (at least at
-     the moment).  */
+  /* version management for GNUnet core */
   sbit = NULL;
-  if (sizeof(int) == stateReadContent("VERSION",
+  if (sizeof(int) == stateReadContent("GNUNET-VERSION",
 				      (void**)&sbit)) {
-    version = ntohl(*sbit);
+    version = *sbit;
     FREE(sbit);
-    /* basic idea: whenever we make an incompatible change, bump the version
-       requirement here and add the necessary update code to gnunet-check... */
-    if (version < 0x0620) {
-      fprintf(stderr,
-	      "Old version %x detected.  Please run gnunet-check -u first!\n",
-	      version);
-      errexit("Old version %x detected.  Please run gnunet-check -u first!\n",
-	      version);
-    }
+    if (ntohl(version) != 0x0630)
+      errexit(_("You need to first run '%s'!\n"),
+	      "gnunet-update");
     firstStart = NO;
   } else {
-    FREENONNULL(sbit);
-    version = htonl(0x0620); /* first start */
-    stateWriteContent("VERSION",
+    FREENONNULL(sbit);  
+    /* first start (or garbled version number), just write version tag */
+    version = htonl(0x0630);  
+    stateWriteContent("GNUNET-VERSION",
 		      sizeof(int),
-		      &version);  
+		      &version);
     firstStart = YES;
-  }  
+  }
+
+
   
   /* init 2: become deamon, initialize core subsystems */
   if (NO == debug_flag) 
     detachFromTerminal(filedes);  
   LOG(LOG_MESSAGE,
-      "MESSAGE: gnunetd starting\n");
+      "gnunetd starting\n");
   initHandler(); 
   initTCPServer();
   initPolicy(); 
@@ -175,11 +169,13 @@ void gnunet_main() {
      sleep */
   initSignalHandlers();
   LOG(LOG_MESSAGE,
-      "gnunetd up and running\n");
+      _("'%s' startup complete.\n"),
+      "gnunetd");
 
   waitForSignalHandler();
   LOG(LOG_MESSAGE,
-      "gnunetd shutting down\n");
+      _("'%s' is shutting down.\n"),
+      "gnunetd");
 
   /* init 5: shutdown in inverse order */   
   stopCron();
@@ -205,7 +201,7 @@ void gnunet_main() {
 /**
  * Initialize util (parse command line, options) and
  * call the main routine.
- **/
+ */
 int main(int argc, char * argv[]) {
   checkCompiler();
   umask(0);

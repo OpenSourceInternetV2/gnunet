@@ -8,7 +8,7 @@
  * @file conf/menu.c
  * @author Roman Zippel
  * @author Nils Durner
- **/
+ */
 
 #include <stdlib.h>
 #include <string.h>

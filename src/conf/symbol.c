@@ -8,11 +8,12 @@
  * @file conf/symbol.c
  * @author Roman Zippel
  * @author Nils Durner
- **/
+ */
 
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
+#include "gnunet_util.h"
 
 #define LKC_DIRECT_LINK
 #include "lkc.h"
@@ -645,6 +646,7 @@ struct symbol *sym_lookup(const char *name, const char *sect, int isconst)
 	} else {
 		new_name = NULL;
 		hash = 256;
+		new_sect = NULL;
 	}
 
 	symbol = malloc(sizeof(*symbol));

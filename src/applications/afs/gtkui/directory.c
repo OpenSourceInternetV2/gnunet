@@ -22,7 +22,7 @@
  * @brief Directory dialog for the AFS interface
  * @author Christian Grothoff
  * @author Igor Wronsky
- **/
+ */
 #include "gnunet_afs_esed2.h"
 #include "helper.h"
 #include "insertprogress.h"
@@ -32,7 +32,7 @@
 
 /**
  * @brief state of the create Directory window
- **/
+ */
 typedef struct {
   char * fileName;
   GtkWidget * editAttributesWindow;
@@ -54,29 +54,29 @@ typedef struct {
  *
  * @param dummy not used
  * @param ewm the state of the edit window
- **/
+ */
 static void startAssemble(GtkWidget * dummy, 
 			  AssembleWindowModel * ewm) {
   int i;
   RootNode * coll;
   GNUnetDirectory * dir;
-  char * name;
+  const char * name;
   InsertModel * ilm;
   char * fileName;
-  gchar * txt;
+  const gchar * txt;
   PTHREAD_T insertThread;
   
   if (ewm->selectedCount == 0) {
-    guiMessage("WARNING: cowardly refusing to build empty directory.\n");
+    guiMessage(_("Cowardly refusing to build empty directory.\n"));
     LOG(LOG_WARNING,
-	"WARNING: cowardly refusing to build empty directory.\n");
+	_("Cowardly refusing to build empty directory.\n"));
     return;
   }
   ilm = MALLOC(sizeof(InsertModel));
 
   name = gtk_entry_get_text(GTK_ENTRY(ewm->descriptionLine));
   if (name == NULL)
-    name = "no description specified";
+    name = "No description specified.";
 
   coll = MALLOC(ewm->selectedCount * sizeof(RootNode));
   for (i=0;i<ewm->selectedCount;i++)
@@ -103,7 +103,7 @@ static void startAssemble(GtkWidget * dummy,
   
   if (SYSERR == writeGNUnetDirectory(dir, fileName)) {
     LOG(LOG_WARNING,
-	"WARNING: could not write directory to temporary file.\n");
+	_("Could not write directory to temporary file.\n"));
     FREE(fileName);
     FREE(dir);
     FREE(ilm);
@@ -125,24 +125,24 @@ static void startAssemble(GtkWidget * dummy,
   if (ilm->num_keywords > 0) {
     ilm->keywords = (char**) MALLOC(ilm->num_keywords * sizeof(char*));
     for(i=0;i<ilm->num_keywords;i++) {     
+      gchar * tmp;
       gtk_clist_get_text(GTK_CLIST(ewm->keywordList),
 			 i,
 			 0,
-			 &txt);
-      ilm->keywords[i] = STRDUP(txt);
+			 &tmp);
+      ilm->keywords[i] = STRDUP(tmp);
     } 
   } else
     ilm->keywords = NULL;
  
-  strcpy(ilm->opDescription, "processed");
+  strcpy(ilm->opDescription, _("processed"));
   createInsertProgressBar(ilm);
   /* start the insert thread */
   if (0 != PTHREAD_CREATE(&insertThread,
 			  (PThreadMain) insertFileGtkThread,
 			  ilm,
 			  16 * 1024))
-    errexit("FATAL: could not create insert thread (%s)!\n",
-	    STRERROR(errno));
+    DIE_STRERROR("pthread_create");
   PTHREAD_DETACH(&insertThread);
 
   /* destroy the "assemble directory" window */
@@ -152,7 +152,7 @@ static void startAssemble(GtkWidget * dummy,
 /**
  * Exit the application (called when the main window
  * is closed or the user selects File-Quit).
- **/
+ */
 static void destroyAssembleWindow(GtkWidget * widget,
 				  AssembleWindowModel * ewm) {
   int i;
@@ -176,20 +176,21 @@ static void destroyAssembleWindow(GtkWidget * widget,
  *
  * @param w not used
  * @param ewm the state of the edit window
- **/
+ */
 static void button_add_clicked(GtkWidget * w, 
 			       AssembleWindowModel * ewm) {
+  const gchar * keyConst;
   gchar * key;
   gchar * newKeyword;
   int i;
 
-  key = gtk_entry_get_text(GTK_ENTRY(ewm->keywordLine));
-  if (key == NULL) {
+  keyConst = gtk_entry_get_text(GTK_ENTRY(ewm->keywordLine));
+  if (keyConst == NULL) {
     /* message to enter a string? */
     return;
   }    
 
-  newKeyword = STRDUP(key);
+  newKeyword = STRDUP(keyConst);
   key = newKeyword;
 
   /* remove trailing & heading spaces */
@@ -219,7 +220,7 @@ static void button_add_clicked(GtkWidget * w,
  *
  * @param w not used
  * @param ewm state of the edit window
- **/
+ */
 static void button_del_clicked(GtkWidget * w, 
 			       AssembleWindowModel * ewm) {
   GList * tmp;
@@ -239,7 +240,7 @@ static void button_del_clicked(GtkWidget * w,
  *
  * @param w not used
  * @param ewm the state of the edit window
- **/
+ */
 static void button_select_clicked(GtkWidget * w, 
 				  AssembleWindowModel * ewm) {
   gchar * key[1];
@@ -290,7 +291,7 @@ static void button_select_clicked(GtkWidget * w,
  *
  * @param w not used
  * @param ewm the state of the edit window
- **/
+ */
 static void button_deselect_clicked(GtkWidget * w, 
 				    AssembleWindowModel * ewm) {
   gchar * key[1];
@@ -360,7 +361,7 @@ static void appendToCList(RootNode * root,
  *
  * @param unused GTK handle that is not used
  * @param context selector for a subset of the known RootNodes
- **/
+ */
 void openAssembleDirectoryDialog(GtkWidget * unused,
 				 unsigned int context) {
   AssembleWindowModel * ewm;
@@ -375,9 +376,9 @@ void openAssembleDirectoryDialog(GtkWidget * unused,
   GtkWidget * button_ok;
   GtkWidget * button_cancel;
   GtkWidget * keyword_line;
-  gchar * titles[1] = { "Keyword(s) used" };
-  gchar * titlesAvailable[1] = { "Files available" };
-  gchar * titlesSelected[1] = { "Files selected"};
+  gchar * titles[1] = { gettext_noop("Keyword(s) used") };
+  gchar * titlesAvailable[1] = { gettext_noop("Files available") };
+  gchar * titlesSelected[1] = { gettext_noop("Files selected") };
   gchar * directoryMimetype[1] = { GNUNET_DIRECTORY_MIME };
 
   ewm = MALLOC(sizeof(AssembleWindowModel));
@@ -388,7 +389,7 @@ void openAssembleDirectoryDialog(GtkWidget * unused,
 		       620,
 		       480);
   gtk_window_set_title(GTK_WINDOW(window), 
-		       "Assemble directory");
+		       _("Assemble directory"));
 
   /* add container for window elements */
   vbox = gtk_vbox_new(FALSE, 0);
@@ -419,7 +420,7 @@ void openAssembleDirectoryDialog(GtkWidget * unused,
 		     TRUE,
 		     0);
   gtk_widget_show(hbox);
-  label = gtk_label_new("Published directory name:");
+  label = gtk_label_new(_("Published directory name:"));
   gtk_box_pack_start(GTK_BOX(hbox),
 		     label, 
 		     FALSE, 
@@ -444,7 +445,7 @@ void openAssembleDirectoryDialog(GtkWidget * unused,
 		     TRUE,
 		     0);
   gtk_widget_show(hbox);
-  label = gtk_label_new("Description:");
+  label = gtk_label_new(_("Description:"));
   gtk_box_pack_start(GTK_BOX(hbox),
 		     label, 
 		     FALSE, 
@@ -458,7 +459,7 @@ void openAssembleDirectoryDialog(GtkWidget * unused,
 		     TRUE,
 		     0);
   gtk_entry_set_text(GTK_ENTRY(ewm->descriptionLine), 
-		     "A GNUnet directory");
+		     _("A GNUnet directory"));
   gtk_widget_show(ewm->descriptionLine);
   
   separator = gtk_hseparator_new();
@@ -512,8 +513,8 @@ void openAssembleDirectoryDialog(GtkWidget * unused,
 		     TRUE,
 		     0);
   gtk_widget_show(hbox);
-  button_add = gtk_button_new_with_label("Add keyword");
-  button_delete = gtk_button_new_with_label("Delete keyword");
+  button_add = gtk_button_new_with_label(_("Add keyword"));
+  button_delete = gtk_button_new_with_label(_("Delete keyword"));
   gtk_box_pack_start(GTK_BOX(hbox), 
 		     button_add, 
 		     TRUE, 
@@ -645,8 +646,8 @@ void openAssembleDirectoryDialog(GtkWidget * unused,
 		     TRUE, 
 		     0);
   gtk_widget_show(hbox);
-  button_ok = gtk_button_new_with_label("Ok");
-  button_cancel = gtk_button_new_with_label("Cancel");
+  button_ok = gtk_button_new_with_label(_("Ok"));
+  button_cancel = gtk_button_new_with_label(_("Cancel"));
   gtk_box_pack_start(GTK_BOX(hbox),
 		     button_ok,
 		     TRUE,
@@ -674,17 +675,17 @@ void openAssembleDirectoryDialog(GtkWidget * unused,
 
 /**
  * Callback for displaying user-selected directory
- **/ 
+ */ 
 static gint importDirectoryCallback(GtkWidget * okButton,
 				    GtkWidget * window) 
 {
-  gchar * filename;
+  const gchar * filename;
 
   filename 
     = gtk_file_selection_get_filename(GTK_FILE_SELECTION(window));
   if ( (filename == NULL) ||
        (0 == assertIsFile(filename)) ) {
-    guiMessage("Please select a file!\n");
+    guiMessage(_("Please select a file!\n"));
     gtk_widget_destroy(window);
     return FALSE;
   }
@@ -699,15 +700,16 @@ static gint importDirectoryCallback(GtkWidget * okButton,
 
 /**
  * Asks user to select a .gnd directory (from disk) to be displayed
- **/
+ */
 void importDirectory(void) 
 {
   GtkWidget * window;
   char pattern[16];
   
-  window = gtk_file_selection_new("Choose directory to be imported");
+  window = gtk_file_selection_new(_("Choose directory to be imported"));
 
-  sprintf(pattern, "*%s", GNUNET_DIRECTORY_EXT);
+  SNPRINTF(pattern, 16,
+	   "*%s", GNUNET_DIRECTORY_EXT);
   gtk_file_selection_complete(GTK_FILE_SELECTION(window),
   			      pattern);
   

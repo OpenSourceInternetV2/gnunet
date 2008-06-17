@@ -21,13 +21,13 @@
  * @file util/dso.c
  * @brief Methods to access dynamic shared objects (DSOs).
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_util.h"
 #include "platform.h"
 
-static char * buildLibName(char * prefix,
-			   char * dso) {
+static char * buildLibName(const char * prefix,
+			   const char * dso) {
   char * libname;
 
   libname = MALLOC(strlen(dso) +
@@ -38,16 +38,14 @@ static char * buildLibName(char * prefix,
   return libname;
 }
 
-void * loadDynamicLibrary(char * libprefix,
-			  char * dsoname) {
+void * loadDynamicLibrary(const char * libprefix,
+			  const char * dsoname) {
   void * libhandle;
   char * libname;
   static int once = 0;
 
   if (0 != lt_dlinit()) 
-    errexit("Could not initialize ltdl (%s)\n",
-	    lt_dlerror());  
-
+    DIE_STRERROR("lt_dlinit");
   /* add default search paths */
   if (once == 0) {
     char * env;
@@ -87,8 +85,10 @@ void * loadDynamicLibrary(char * libprefix,
   libhandle = lt_dlopenext(libname); 
   if (libhandle == NULL) {
     LOG(LOG_ERROR,
-	"ERROR: Could not open library %s (%s)!\n",
+	_("'%s' failed for library '%s' at %s:%d with error: %s\n"),
+	"lt_dlopenext",
 	libname,
+	__FILE__, __LINE__,
 	lt_dlerror());
   }
   FREE(libname);
@@ -98,14 +98,12 @@ void * loadDynamicLibrary(char * libprefix,
 void unloadDynamicLibrary(void * libhandle) {  
   lt_dlclose(libhandle);
   if (0 != lt_dlexit())
-    LOG(LOG_WARNING,
-	"WARNING: lt_dlexit failed (%s)\n",
-	lt_dlerror());
+    LOG_STRERROR(LOG_WARNING, "lt_dlexit");
 }
 
 void * bindDynamicMethod(void * libhandle,
-			 char * methodprefix,
-			 char * dsoname) {
+			 const char * methodprefix,
+			 const char * dsoname) {
   char * initName;
   void * mptr;
 
@@ -125,8 +123,10 @@ void * bindDynamicMethod(void * libhandle,
     mptr = lt_dlsym(libhandle, initName);
     if (mptr == NULL)
       LOG(LOG_ERROR,
-	  "ERROR: Could not resolve method %s (%s)!\n",
+	  _("'%s' failed to resolve method '%s' at %s:%d with error: %s\n"),
+	  "lt_dlsym",
 	  initName,
+	  __FILE__, __LINE__,
 	  lt_dlerror());
   }
   FREE(initName);

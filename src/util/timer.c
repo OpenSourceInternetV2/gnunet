@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2003 Christian Grothoff (and other contributing authors)
+     (C) 2003, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -46,7 +46,7 @@
  *
  * Consequently, whenever handling times in GNUnet,
  * watch out for the types and units involved.
- **/ 
+ */ 
 
 #include "gnunet_util.h"
 #include "platform.h"
@@ -61,13 +61,13 @@
    For releases, this value should always be 1 */
 #define SPEED_UP 1
 
-/** number of cron units (ms) in a second **/
+/** number of cron units (ms) in a second */
 #define CRON_UNIT_TO_SECONDS (1000 / SPEED_UP)
 
-/** number of ns [usec] in a cron-unit (1000000) **/
+/** number of ns [usec] in a cron-unit (1000000) */
 #define NANOSEC_TO_CRON_UNIT (1000 * 1000 * SPEED_UP)
 
-/** number of us [usec] in a cron-unit (1000) **/
+/** number of us [usec] in a cron-unit (1000) */
 #define MICROSEC_TO_CRON_UNIT (1000 * SPEED_UP)
 
 
@@ -91,9 +91,7 @@ int gnunet_util_sleep(cron_t delay) {
     if (errno == EINTR) {
       return 1;
     } else {
-      LOG(LOG_WARNING,
-	  "WARNING: error executing nanosleep: %s\n",
-	  STRERROR(errno));
+      LOG_STRERROR(LOG_WARNING, "nanosleep");
       return -1;
     }
   } else
@@ -115,12 +113,10 @@ int gnunet_util_sleep(cron_t delay) {
     * MICROSEC_TO_CRON_UNIT;
   ret = SELECT(0, NULL, NULL, NULL, &timeout);
   if (ret == -1) {
-    if (errno == EINTR)
+    if (errno == EINTR) {
       return 1;
-    else {
-      LOG(LOG_WARNING,
-	  "WARNING: error executing nanosleep: %s\n",
-	  STRERROR(errno));
+    } else {
+      LOG_STRERROR(LOG_WARNING, "select");
       return -1;
     }      
   }
@@ -134,7 +130,7 @@ int gnunet_util_sleep(cron_t delay) {
  *
  * @param setme will set the current time if non-null
  * @return the current time 
- **/
+ */
 cron_t cronTime(cron_t * setme) {
   cron_t res;
   struct timeval tv;
@@ -156,7 +152,7 @@ cron_t cronTime(cron_t * setme) {
 
 /**
  * TIME prototype. "man time".
- **/
+ */
 TIME_T TIME(TIME_T * t) {
   TIME_T now;
 
@@ -166,12 +162,11 @@ TIME_T TIME(TIME_T * t) {
   return now;
 }
 
-
 /**
  * "man ctime".  Automagically expands the 32-bit
  * GNUnet time value to a 64-bit value of the current
  * epoc if needed.
- **/
+ */
 char * GN_CTIME(const TIME_T * t) {
   TIME_T now;
   time_t tnow;

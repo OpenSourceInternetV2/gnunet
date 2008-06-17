@@ -62,7 +62,7 @@
  * @file applications/afs/module/manager.h
  * @author Christian Grothoff
  * @author Igor Wronsky
- **/
+ */
 
 #ifndef AFS_MANAGER_H
 #define AFS_MANAGER_H
@@ -74,14 +74,14 @@
 /**
  * API for the "high-level" database libraries.
  * Equivalent to what is specified in high_backend.h.
- **/
+ */
 typedef struct {
 
   /** 
    * Open the high-level database.
    *
    * @return the database handle
-   **/
+   */
   HighDBHandle (*initContentDatabase)(unsigned int i,
 				      unsigned int n);
   
@@ -89,7 +89,7 @@ typedef struct {
    * Close the lowlevel database
    * 
    * @param handle the database handle
-  **/
+  */
   void (*doneContentDatabase)(HighDBHandle handle);
   
   /**
@@ -99,7 +99,7 @@ typedef struct {
    * @param callback the callback method
    * @param data second argument to all callback calls
    * @return the number of items stored in the content database
-   **/
+   */
   int (*forEachEntryInDatabase)(HighDBHandle handle,
 				EntryCallback callback,
 				void * data);
@@ -107,12 +107,12 @@ typedef struct {
   /**
    * Get the number of entries in the database.
    * @return SYSERR on error, otherwise the number of entries
-   **/
+   */
   int (*countContentEntries)(HighDBHandle handle);
 
   /**
    * Get the lowest priority of content in the DB.
-   **/
+   */
   unsigned int (*getMinimumPriority)(HighDBHandle handle);
   
   /**
@@ -128,9 +128,9 @@ typedef struct {
    *         if the content is on-demand encoded, *result==NULL on return)
    * @param prio the amount to change priority of the entry if its found
    * @return the number of bytes read on success, -1 on failure
-   **/
+   */
   int (*readContent)(HighDBHandle handle,
-		     HashCode160 * query,
+		     const HashCode160 * query,
 		     ContentIndex * ce,
 		     void ** result,
 		     int prio);
@@ -144,11 +144,11 @@ typedef struct {
    * @param len the size of the block
    * @param block the data to store
    * @return SYSERR on error, OK if ok.
-   **/
+   */
   int (*writeContent)(HighDBHandle handle,
-		      ContentIndex * ce,
+		      const ContentIndex * ce,
 		      int len,
-		      void * block);
+		      const void * block);
   
   /**
    * Free space in the database by removing an entry.
@@ -156,9 +156,9 @@ typedef struct {
    * @param handle the handle to the database
    * @param fn the key of the entry to remove
    * @return SYSERR on error, OK if ok.
-   **/
+   */
   int (*unlinkFromDB)(HighDBHandle handle,
-		      HashCode160 * name);
+		      const HashCode160 * name);
   
   /** 
    * Return a random key from the database.
@@ -166,7 +166,7 @@ typedef struct {
    * @param handle the handle to the database
    * @param ce output information about the key 
    * @return SYSERR on error, OK if ok.
-   **/
+   */
   int (*getRandomContent)(HighDBHandle handle,
 			  ContentIndex * ce);
   
@@ -175,7 +175,7 @@ typedef struct {
    *
    * @param handle the handle to the database
    * @param count the number of 1kb blocks to free
-   **/
+   */
   int (*deleteContent)(HighDBHandle handle,	
 		       int count,
 		       EntryCallback callback,
@@ -187,7 +187,7 @@ typedef struct {
    *
    * @param handle the handle to the database
    * @param quota the number of kb available for the DB
-   **/ 
+   */ 
   int (*estimateAvailableBlocks)(HighDBHandle handle,
 				 int quota); 
 
@@ -196,12 +196,12 @@ typedef struct {
    * calls "doneContentDatabase".
    *
    * @param handle the handle to the database
-   **/
+   */
   void (*deleteDatabase)(HighDBHandle handle);
   
   /** 
    * Handle of the database as returned by initContentDatabase()
-   **/
+   */
   HighDBHandle * dbHandles;
 
   /**
@@ -211,17 +211,17 @@ typedef struct {
    *   stuff in the code occasionally when arithmetic with signeds 
    *   is done... :( ( For example, check out what is 
    *   ((int)(-3))/((unsigned int)4). :( -Igor ) ]
-   **/
+   */
   unsigned int buckets;
   
   /**
    * The actual "lowlevel" database library used
-   **/
+   */
   void * dynamicLibrary;
  
   /**
    * cache estimated available blocks for each bucket
-   **/
+   */
   int * dbAvailableBlocks;
  
   
@@ -229,19 +229,19 @@ typedef struct {
 
 /**
  * Initialize the manager module.
- **/
+ */
 void initManager();
 
 /**
  * Shutdown the manager module.
- **/
+ */
 void doneManager();
 
 /**
  * Load the high-level database as specified by
  * the given dtype.
- **/
-DatabaseAPI * initializeDatabaseAPI(char * dtype);
+ */
+DatabaseAPI * initializeDatabaseAPI(const char * dtype);
 
 
 /**
@@ -258,11 +258,11 @@ DatabaseAPI * initializeDatabaseAPI(char * dtype);
  *        from local client.
  * @param duplicate output param, will be YES if content was already there
  * @return OK if the block was stored, SYSERR if not
- **/
+ */
 int insertContent(ContentIndex * ce,
 		  int len,
-		  void * data,
-		  HostIdentity * sender,
+		  const void * data,
+		  const HostIdentity * sender,
 		  int * duplicate);
 
 /**
@@ -280,8 +280,8 @@ int insertContent(ContentIndex * ce,
  * @param prio the amount to modify the priority of the entry
  * @param isLocal is the request a local request? (YES/NO)
  * @return the length of the resulting content, SYSERR on error
- **/
-int retrieveContent(HashCode160 * query,
+ */
+int retrieveContent(const HashCode160 * query,
 		    ContentIndex * ce,
 		    void ** result,
 		    unsigned int prio,
@@ -300,13 +300,13 @@ int retrieveContent(HashCode160 * query,
  * 
  * @param query the query that corresponds to the block to remove
  * @param bucket where to delete, <0 == autocompute
- **/
-int removeContent(HashCode160 * query,
+ */
+int removeContent(const HashCode160 * query,
                   int bucket);
 
 /**
  * Get some random contet.
- **/
+ */
 int retrieveRandomContent(ContentIndex * ce);
 
 /**
@@ -319,7 +319,7 @@ int retrieveRandomContent(ContentIndex * ce);
  * resized. Note that the iterator is quite costly,
  * but we can assume that the user is not going to
  * change the configuration all the time :-).
- **/
+ */
 int databaseIterator(void * state,
 		     HashCode160 * hc,
 		     ContentIndex * ce,
@@ -329,20 +329,20 @@ int databaseIterator(void * state,
 
 /**
  * Create the state required for a database iterator.
- **/
+ */
 void * makeDatabaseIteratorState();
 
 /**
  * Compute the database bucket id (for gnunet-check) 
- **/
-unsigned int computeBucket(HashCode160 * query,
+ */
+unsigned int computeBucket(const HashCode160 * query,
                            unsigned int maxBuckets);
 
 /**
  * Use this, if initManager() has been executed and 
  * the global dbAPI has the correct bucket count
- ***/
-unsigned int computeBucketGlobal(HashCode160 * query);
+ **/
+unsigned int computeBucketGlobal(const HashCode160 * query);
 
 
 #endif

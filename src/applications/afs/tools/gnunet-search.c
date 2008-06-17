@@ -22,15 +22,7 @@
  * @file applications/afs/tools/gnunet-search.c 
  * @brief Main function to search for files on GNUnet.
  * @author Christian Grothoff
- *
- * Todo: namespace search should be more like the normal
- * search (add cron for repeated queries, allow multiple results).
- * But this requires some changes in esed2-lib first!
- *
- * OTOH, it would also probably be good if we had a convenience
- * method for printing RBlocks in esed2-lib like what we have
- * for SBlocks.
- **/
+ */
 
 #include "gnunet_afs_esed2.h"
 #include "platform.h"
@@ -42,8 +34,8 @@ typedef struct {
 
 /**
  * Handle the search result.
- **/
-static void handleNormalResult(RootNode * rootNode,
+ */
+static void handleNormalResult(const RootNode * rootNode,
 			       SearchClosure * sc) {
   char * fstring;
   char * fname;
@@ -54,12 +46,15 @@ static void handleNormalResult(RootNode * rootNode,
   				  "OUTPUT_PREFIX");
   if (prefix != NULL) {
     char * outfile;
+    size_t n;
 
-    outfile = MALLOC(strlen(prefix)+16);
-    sprintf(outfile, 
-	    "%s.%03d", 
-	    prefix, 
-	    sc->resultCount++);
+    n = strlen(prefix)+16;
+    outfile = MALLOC(n);
+    SNPRINTF(outfile, 
+	     n,
+	     "%s.%03d", 
+	     prefix, 
+	     sc->resultCount++);
     writeFile(outfile,
     	      rootNode,
 	      sizeof(RootNode),
@@ -68,27 +63,55 @@ static void handleNormalResult(RootNode * rootNode,
     FREE(prefix);
   }
 
-  sc->max--;  
-  fstring = fileIdentifierToString(&rootNode->header.fileIdentifier);
- 
-  rootNode->header.description[MAX_DESC_LEN-1] = 0;
-  rootNode->header.filename[MAX_FILENAME_LEN-1] = 0;
-  rootNode->header.mimetype[MAX_MIMETYPE_LEN-1] = 0;
-  
-  if (0 == strcmp(rootNode->header.mimetype,
-		  GNUNET_DIRECTORY_MIME)) {
-    fname = expandDirectoryName(rootNode->header.filename);
-  } else 
-    fname = STRDUP(rootNode->header.filename);
-  
-  printf("gnunet-download -o \"%s\" %s\n",
-	 fname,
-	 fstring); 
-  printf("=> %s <= (mimetype: %s)\n",
-	 rootNode->header.description,
-	 rootNode->header.mimetype);
-  FREE(fstring);
-  FREE(fname);
+  switch (ntohs(rootNode->header.major_formatVersion)) {
+  case ROOT_MAJOR_VERSION:
+    sc->max--;  
+    fstring = createFileURI(&rootNode->header.fileIdentifier);
+    if (0 == strcmp(rootNode->header.mimetype,
+		    GNUNET_DIRECTORY_MIME)) {
+      char * tmp;
+      tmp = STRNDUP(rootNode->header.filename, MAX_FILENAME_LEN);
+      fname = expandDirectoryName(tmp);
+      FREE(tmp);
+    } else 
+      fname = STRNDUP(rootNode->header.filename, MAX_FILENAME_LEN);
+    
+    printf(_("%s '%s' (description: '%.*s', mimetype: '%.*s')\n"),
+	   (0 == strcmp(rootNode->header.mimetype,
+			GNUNET_DIRECTORY_MIME)) ? _("Directory") : _("File"),
+	   fname,
+	   MAX_DESC_LEN,
+	   rootNode->header.description,
+	   MAX_MIMETYPE_LEN,
+	   rootNode->header.mimetype);
+    printf("\tgnunet-download -o \"%s\" %s\n",
+	   fname,
+	   fstring); 
+    FREE(fstring);
+    FREE(fname);
+    break;
+  case SBLOCK_MAJOR_VERSION:
+    if (OK == verifySBlock((const SBlock*) rootNode)) {
+      printSBlock(stdout,
+		  (const SBlock*) rootNode);
+    }
+    break;
+  case NBLOCK_MAJOR_VERSION:
+    if (OK == verifyNBlock((const NBlock*)rootNode)) {
+      addNamespace((const NBlock*) rootNode);
+      printNBlock(stdout,
+		  (const NBlock*) rootNode);
+    } else
+      LOG(LOG_WARNING,
+	  _("Received invalid NBlock.\n"));
+    break;
+  default:
+    LOG(LOG_WARNING,
+	_("Received reply of unknown type %d.\n"),
+	ntohs(rootNode->header.major_formatVersion));
+    break;
+  }
+
   if (0 == sc->max)
     run_shutdown(0);
 }
@@ -113,7 +136,7 @@ static void handleNamespaceResult(SBlock * sb,
     if (equalsHashCode160(&curK,
         &sqc->results[i])) {
       LOG(LOG_DEBUG, 
-	  "DEBUG: SBlock already seen\n");
+	  "SBlock already seen\n");
       return; /* displayed already */
     }
   GROW(sqc->results,
@@ -122,20 +145,43 @@ static void handleNamespaceResult(SBlock * sb,
   memcpy(&sqc->results[sqc->resultCount-1],
          &curK,
          sizeof(HashCode160));
-  printSBlock(stdout,
-	      sb);
-  sqc->max--;  
+
+  switch (ntohs(sb->major_formatVersion)) {
+  case ROOT_MAJOR_VERSION:
+    LOG(LOG_WARNING,
+	_("Received RBlock in namespace search.\n"));
+    break;
+  case SBLOCK_MAJOR_VERSION:
+    printSBlock(stdout,
+		sb);
+    sqc->max--;  
+    break;
+  case NBLOCK_MAJOR_VERSION:
+    addNamespace((const NBlock*) sb);
+    printNBlock(stdout,
+		(const NBlock*) sb);
+    sqc->max--;
+    break;
+  default:
+    LOG(LOG_WARNING,
+	_("Received reply of unknown type %d.\n"),
+	ntohs(sb->major_formatVersion));
+    break;
+  }  
   /* write sblock to file */
   prefix = getConfigurationString("GNUNET-SEARCH",
   				  "OUTPUT_PREFIX");
   if (prefix != NULL) {
     char * outfile;
+    size_t n;
 
-    outfile = MALLOC(strlen(prefix)+16);
-    sprintf(outfile, 
-	    "%s.%03d", 
-	    prefix, 
-	    sqc->resultCount-1);
+    n = strlen(prefix)+16;
+    outfile = MALLOC(n);
+    SNPRINTF(outfile, 
+	     n,
+	     "%s.%03d", 
+	     prefix, 
+	     sqc->resultCount-1);
     writeFile(outfile,
     	      sb,
 	      sizeof(SBlock),
@@ -144,34 +190,36 @@ static void handleNamespaceResult(SBlock * sb,
     FREE(prefix);
   }
   if (0 == sqc->max)
-    run_shutdown(0);
+     run_shutdown(0);
 }
 
 /**
  * Prints the usage information for this command if the user errs.
  * Aborts the program.
- **/
+ */
 static void printhelp() {
   static Help help[] = {
     { 'a', "anonymity", "LEVEL",
-      "set the desired LEVEL of receiver-anonymity" },
+      gettext_noop("set the desired LEVEL of receiver-anonymity") },
     HELP_CONFIG,
     HELP_HELP,
     HELP_HOSTNAME,
     HELP_LOGLEVEL,
     { 'm', "max", "LIMIT",
-      "exit after receiving LIMIT results" },
+      gettext_noop("exit after receiving LIMIT results") },
     { 'n', "namespace", "HEX",
-      "only search the namespace identified by HEX" },
+      gettext_noop("only search the namespace identified by HEX") },
     { 'o', "output", "PREFIX",
-      "write encountered (decrypted) search results to the file PREFIX" },
+      gettext_noop("write encountered (decrypted) search results to the file PREFIX") },
     { 't', "timeout", "TIMEOUT",
-      "wait TIMEOUT seconds for search results before aborting" },
+      gettext_noop("wait TIMEOUT seconds for search results before aborting") },
+    { 'u', "uri", NULL,
+      gettext_noop("take a GNUnet URI as an argument (instead of keyword)") },
     HELP_VERSION,
     HELP_END,
   };
   formatHelp("gnunet-search [OPTIONS] KEYWORD [AND KEYWORD]",
-	     "Search GNUnet for files.",
+	     _("Search GNUnet for files."),
 	     help);
 }
 
@@ -180,7 +228,7 @@ static void printhelp() {
  * @param argc the number of options
  * @param argv the option list (including keywords)
  * @return SYSERR if we should exit, OK otherwise
- **/
+ */
 static int parseOptions(int argc,
 			char ** argv) {
   int c;  
@@ -189,16 +237,17 @@ static int parseOptions(int argc,
     int option_index = 0;
     static struct GNoption long_options[] = {
       LONG_DEFAULT_OPTIONS,
-      { "output",    1, 0, 'o' },
       { "anonymity", 1, 0, 'a' }, 
-      { "timeout",   1, 0, 't' },
       { "max",       1, 0, 'm' },
       { "namespace", 1, 0, 'n' },
+      { "output",    1, 0, 'o' },
+      { "timeout",   1, 0, 't' },
+      { "uri",       0, 0, 'u' },
       { 0,0,0,0 }
     };    
     c = GNgetopt_long(argc,
 		      argv, 
-		      "a:vhdc:L:H:t:o:n:m:", 
+		      "a:vhdc:L:H:t:o:n:m:u", 
 		      long_options, 
 		      &option_index);    
     if (c == -1) 
@@ -211,7 +260,8 @@ static int parseOptions(int argc,
 
       if (1 != sscanf(GNoptarg, "%ud", &receivePolicy)) {
         LOG(LOG_FAILURE,
-            "FAILURE: You must pass a number to the -a option.\n");
+	  _("You must pass a number to the '%s' option.\n"),
+	    "-a");
         return -1;
       }
       setConfigurationInt("AFS",
@@ -219,15 +269,26 @@ static int parseOptions(int argc,
                           receivePolicy);
       break;
     }
-    case 'v': 
-      printf("GNUnet v%s, gnunet-search v%s\n",
-	     VERSION, 
-	     AFS_VERSION);
-      return SYSERR;
     case 'h': 
       printhelp(); 
       return SYSERR;
-    case 's':
+    case 'm': {
+      unsigned int max;
+      if (1 != sscanf(GNoptarg, "%ud", &max)) {
+	LOG(LOG_FAILURE, 
+	    _("You must pass a number to the '%s' option.\n"),
+	    "-m");
+	return SYSERR;
+      } else {
+	setConfigurationInt("AFS",
+			    "MAXRESULTS",
+			    max);
+	if (max == 0) 
+	  return SYSERR; /* exit... */	
+      }
+      break;
+    }
+    case 'n':
       FREENONNULL(setConfigurationString("GNUNET-SEARCH",
       					 "NAMESPACE",
 					 GNoptarg));
@@ -241,7 +302,8 @@ static int parseOptions(int argc,
       unsigned int timeout;
       if (1 != sscanf(GNoptarg, "%ud", &timeout)) {
 	LOG(LOG_FAILURE, 
-	    "You must pass a number to the -t option.\n");
+	    _("You must pass a number to the '%s' option.\n"),
+	    "-t");
 	return SYSERR;
       } else {
 	setConfigurationInt("AFS",
@@ -250,33 +312,26 @@ static int parseOptions(int argc,
       }
       break;
     }
-    case 'm': {
-      unsigned int max;
-      if (1 != sscanf(GNoptarg, "%ud", &max)) {
-	LOG(LOG_FAILURE, 
-	    "You must pass a number to the -m option.\n");
-	return SYSERR;
-      } else {
-	setConfigurationInt("AFS",
-			    "MAXRESULTS",
-			    max);
-	if (max == 0) 
-	  return SYSERR; /* exit... */	
-      }
-      break;
-    }
+    case 'u': 
+      FREENONNULL(setConfigurationString("GNUNET-SEARCH",
+					 "HAVEURI",
+					 "YES"));
+      break;    
+    case 'v': 
+      printf("GNUnet v%s, gnunet-search v%s\n",
+	     VERSION, 
+	     AFS_VERSION);
+      return SYSERR;
     default: 
       LOG(LOG_FAILURE,
-	  "Unknown option %c. Aborting.\n"
-	  "Use --help to get a list of options.\n",
-	  c);
+	  _("Use --help to get a list of options.\n"));
       return SYSERR;
     } /* end of parsing commandline */
   } /* while (1) */
   if (argc - GNoptind <= 0) {
     LOG(LOG_FAILURE, 
-	"FAILURE: Not enough arguments. "
-	"You must specify a keyword or identifier.\n");
+	_("Not enough arguments. "
+	  "You must specify a keyword or identifier.\n"));
     printhelp();
     return SYSERR;
   }
@@ -293,13 +348,23 @@ static void * normalSearchMain(GNUNET_TCP_SOCKET * sock) {
   int i;
   int keywordCount;
   char ** keyStrings;
+  char * uri;
 
+  uri = getConfigurationString("GNUNET-SEARCH",
+			       "URI");
+  keywordCount = parseKeywordURI(uri,
+				 &keyStrings);
+  if (keywordCount <= 0) {
+    printf(_("Invalid URI specified!\n"));
+    FREE(uri);
+    return NULL;
+  }
+  FREE(uri);
   max.max = getConfigurationInt("AFS",
 				"MAXRESULTS");
   max.resultCount = 0;
   if (max.max == 0)
     max.max = (unsigned int)-1; /* infty */
-  keywordCount = getConfigurationStringList(&keyStrings);
   searchRBlock(sock,
 	       keyStrings,
 	       keywordCount,
@@ -321,46 +386,19 @@ static int namespaceSearchMain(GNUNET_TCP_SOCKET * sock) {
   NSSearchClosure sqc;
   HashCode160 namespace;
   HashCode160 identifier;
-  char * nsstring;
-  char * idstring;
-  char ** keyStrings;
-  int kc;
-  int i;
-	  
-  nsstring = getConfigurationString("GNUNET-SEARCH", 
-				    "NAMESPACE"); 
+  char * uri;
+
+  uri = getConfigurationString("GNUNET-SEARCH", 
+			       "URI"); 
+  parseSubspaceURI(uri,
+		   &namespace,
+		   &identifier);
+  FREE(uri);
   sqc.max = getConfigurationInt("AFS",
 				"MAXRESULTS");
   if (sqc.max == 0)
     sqc.max = (unsigned int)-1; /* infty */
-  hex2hash((HexName*)nsstring,
-	   &namespace);
-  FREE(nsstring);
   
-  kc = getConfigurationStringList(&keyStrings);
-  ret = 1; /* '\0' terminator */
-  for (i=0;i<kc;i++)
-    ret += strlen(keyStrings[i]);
-  ret += kc; /* spaces! */
-  idstring = MALLOC(ret);
-  idstring[0] = '\0';
-  for (i=0;i<kc;i++) {
-    strcat(idstring, keyStrings[i]);
-    FREE(keyStrings[i]);
-  } 
-  FREE(keyStrings);
-  
-  if (SYSERR == tryhex2hash(idstring,
-  			    &identifier)) {
-     LOG(LOG_DEBUG,
-         "DEBUG: namespace ID entered is not in HEX format, using hash of ASCII text (%s).\n",
-	 idstring);
-     hash(idstring,
-	  strlen(idstring), 
-	  &identifier);
-  }
-  FREE(idstring);
-
   sqc.results = NULL;
   sqc.resultCount = 0;
   ret = searchSBlock(sock,
@@ -371,7 +409,7 @@ static int namespaceSearchMain(GNUNET_TCP_SOCKET * sock) {
 		     (NSSearchResultCallback)&handleNamespaceResult,
 		     &sqc);
   if (ret == SYSERR) 
-    printf("Sorry, nothing found.\n");
+    printf(_("Sorry, nothing was found.\n"));
  
   FREENONNULL(sqc.results);
   return ret;
@@ -382,21 +420,118 @@ static int namespaceSearchMain(GNUNET_TCP_SOCKET * sock) {
  *
  * @param argc number of arguments from the command line
  * @param argv command line arguments
- * @return return value from gnunetsearch: 0: ok, -1: error
- **/   
+ * @return return value from gnunet-search: 0: ok, -1: error
+ */   
 int main(int argc,
 	 char ** argv) {
   GNUNET_TCP_SOCKET * sock;
   PTHREAD_T searchThread;
   void * unused;
   PThreadMain type;
-  char * ns;
- 
+  char * uri;
+  HashCode160 ns;
+  HashCode160 id;
+  
   if (SYSERR == initUtil(argc, argv, &parseOptions))
     return 0;
+
+
+  argc = getConfigurationStringList(&argv);
+
+  if (testConfigurationString("GNUNET-SEARCH",
+			      "HAVEURI",
+			      "YES")) {
+    if (argc - GNoptind != 1) {
+      LOG(LOG_FAILURE,
+	  _("Only one URI may be passed.\n"));
+      return SYSERR;
+    }
+    FREENONNULL(setConfigurationString("GNUNET-SEARCH",
+				       "URI",
+				       argv[GNoptind]));
+  } else {    
+    char * uri;
+    char * ns = getConfigurationString("GNUNET-SEARCH",
+				       "NAMESPACE");
+    if (ns != NULL) {
+      HashCode160 hc;
+      HashCode160 id;
+   
+      if (OK != enc2hash(ns,
+			 &hc)) {
+	NBlock * list;
+	int cnt;
+	int i;
+	int found;
+
+	found = NO;
+	list = NULL;
+	cnt = listNamespaces(&list);
+	for (i=0;i<cnt;i++) {
+	  char * nick = getUniqueNickname(&list[i].namespace);
+	  if (0 == strcmp(nick, ns)) {
+	    hc = list[i].namespace;
+	    found = YES;
+	  }
+	  FREE(nick);
+	}
+	if (found == NO) {
+	  LOG(LOG_FAILURE,
+	      _("Invalid namespace identifier '%s' specified.\n"),
+	      ns);
+	  for (i=0;i<cnt;i++) {
+	    char * nick = getUniqueNickname(&list[i].namespace);
+	    LOG(LOG_FAILURE,
+		_("Valid choices are: '%s'\n"), nick);
+	    FREE(nick);
+	  }
+	  FREENONNULL(list);
+	  return SYSERR;
+	}
+	FREENONNULL(list);
+      }
+      if (argc != 1) {
+	LOG(LOG_FAILURE,
+	    _("Only one identifier in the namespace may be passed.\n"));
+	return SYSERR;
+      }
+      if (OK != enc2hash(argv[0],
+			 &id)) {
+	if ( (strlen(argv[0]) == sizeof(EncName)-1) &&
+	     (argv[0][sizeof(EncName)-2] == '/') )
+	  argv[0][sizeof(EncName)-2] = '\0';
+	hash(argv[0],
+	     strlen(argv[0]),
+	     &id);	     
+      }
+      uri = createSubspaceURI(&hc,
+			      &id);      
+    } else {
+      /* keyword search */
+      if (argc < 1) {
+	LOG(LOG_FAILURE,
+	    _("You must specify a keyword.\n"));
+	return SYSERR;
+      }
+      uri = createKeywordURI(&argv[0],
+			     argc);
+    }
+    FREENONNULL(setConfigurationString("GNUNET-SEARCH",
+				       "URI",
+				       uri));
+    FREE(uri);    
+  }
+
+  while (argc > 0)
+    FREE(argv[--argc]);
+  FREE(argv);
+
+
+
+
   sock = getClientSocket();
   if (sock == NULL)
-    errexit("FATAL: could not connect to gnunetd.\n");
+    errexit(_("Could not connect to gnunetd.\n"));
   initAnonymityPolicy(NULL);
   initializeShutdownHandlers();
 
@@ -409,21 +544,22 @@ int main(int argc,
   startAFSPriorityTracker();
   startCron();
   
-  ns = getConfigurationString("GNUNET-SEARCH", 
-			      "NAMESPACE");
-  if (ns != NULL) {
-    FREE(ns);
+  uri = getConfigurationString("GNUNET-SEARCH", 
+			       "URI");
+  if (OK == parseSubspaceURI(uri,
+			     &ns,
+			     &id)) {
     type = (PThreadMain) &namespaceSearchMain;
   } else {
     type = (PThreadMain) &normalSearchMain;
   }
+  FREE(uri);
 
   if (0 != PTHREAD_CREATE(&searchThread, 
 			  type,
 			  sock,
 			  8 * 1024)) 
-    errexit("FATAL: failed to create search thread (%s).\n",
-	    strerror(errno));
+    DIE_STRERROR("pthread_create");
   wait_for_shutdown();
   closeSocketTemporarily(sock);
   stopCron();

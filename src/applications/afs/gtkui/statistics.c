@@ -86,17 +86,13 @@ static void updateStatValues(GNUNET_TCP_SOCKET * sock) {
       return;    
     }
     if (ntohs(statMsg->header.size) < sizeof(STATS_CS_MESSAGE)) {
-      LOG(LOG_WARNING,
-	  "WARNING: received malformed stats message (%d < %d)\n",
-	  ntohs(statMsg->header.size), 
-	  sizeof(STATS_CS_MESSAGE) );
+      BREAK();
       break;
     }
     mpos = sizeof(unsigned long long) * ntohl(statMsg->statCounters);
     if ( ((char*)(((STATS_CS_MESSAGE_GENERIC*)statMsg)->values))
 	 [ntohs(statMsg->header.size) - sizeof(STATS_CS_MESSAGE) - 1] != '\0') {
-      LOG(LOG_WARNING,
-	  "WARNING: received malformed stats message (does not end with 0-termination)\n");
+      BREAK();
       break;
     }      
     for (i=0;i<ntohl(statMsg->statCounters);i++) {
@@ -104,10 +100,7 @@ static void updateStatValues(GNUNET_TCP_SOCKET * sock) {
       if ( (mpos > ntohs(statMsg->header.size) - sizeof(STATS_CS_MESSAGE)) ||
 	   (mpos + strlen(optName) + 1 > 
 	    ntohs(statMsg->header.size) - sizeof(STATS_CS_MESSAGE)) ) {
-	LOG(LOG_WARNING,
-	    "WARNING: received malformed stats message (%d > %d)\n",
-	    mpos+strlen(optName)+1,
-	    ntohs(statMsg->header.size) - sizeof(STATS_CS_MESSAGE));
+	BREAK();
 	break; /* out of bounds! */      
       }
       found = -1;
@@ -178,20 +171,20 @@ static int getConnectedNodesStat(GNUNET_TCP_SOCKET * sock,
 				 gfloat ** data) {
   long long val;
   char * cmh;
-  long long cval;
+  long cval;
 
   cmh = getConfigurationOptionValue(sock,
 				    "gnunetd",
 				    "connection-max-hosts");
   if (cmh == NULL)
     return SYSERR;
-  cval = atoll(cmh);
+  cval = atol(cmh);
   FREE(cmh);
   if (OK != getStatValue(&val,
 			 NULL,
 			 NULL,
 			 sock,
-			 "# currently connected nodes")) 
+			 _("# currently connected nodes"))) 
     return SYSERR;
   data[0][0] = 0.8 * val / cval;
   return OK;
@@ -206,11 +199,24 @@ static int getCPULoadStat(GNUNET_TCP_SOCKET * sock,
 			 NULL,
 			 NULL,
 			 sock,
-			 "% of allowed cpu load"))
+			 _("% of allowed cpu load")))
     return SYSERR;
   data[0][0] = val / 125.0;
   return OK;
 }
+
+static const unsigned short afs_protocol_messages_queries[] = {
+  AFS_p2p_PROTO_QUERY,
+  AFS_p2p_PROTO_NSQUERY,
+  0,
+};
+
+static const unsigned short afs_protocol_messages_content[] = {
+  AFS_p2p_PROTO_3HASH_RESULT,
+  AFS_p2p_PROTO_CHK_RESULT,
+  AFS_p2p_PROTO_SBLOCK_RESULT,
+  0,
+};
 
 static int getTrafficRecvStats(GNUNET_TCP_SOCKET * sock,
 			       const void * closure,
@@ -228,70 +234,62 @@ static int getTrafficRecvStats(GNUNET_TCP_SOCKET * sock,
   long long ltmp;
   cron_t dtime;
   char * available;
+  char * buffer;
+  int i;
 
   MUTEX_LOCK(&lock);
   if (OK != getStatValue(&total,	
 			 &ltotal,
 			 &dtime,
 			 sock,
-			 "# bytes decrypted"))
+			 _("# bytes decrypted")))
     return SYSERR;
   if (OK != getStatValue(&noise,
 			 &lnoise,
 			 NULL,
 			 sock,
-			 "# bytes of noise received"))
+			 _("# bytes of noise received")))
     return SYSERR;
+  i = 0;
   content = lcontent = 0;
-  if (OK == getStatValue(&tmp,
-			 &ltmp,
-			 NULL,
-			 sock,
-			 "# bytes received of type 17")) {
-    content += tmp;
-    lcontent += ltmp;
+  buffer = MALLOC(512);
+  while (afs_protocol_messages_content[i] != 0) {
+    SNPRINTF(buffer, 
+	     512,
+	     _("# bytes received of type %d"),
+	     afs_protocol_messages_content[i++]);
+    if (OK == getStatValue(&tmp,
+			   &ltmp,
+			   NULL,
+			   sock,
+			   buffer)) {
+      content += tmp;
+      lcontent += ltmp;
+    }
   }
-  if (OK == getStatValue(&tmp,
-			 &ltmp,
-			 NULL,
-			 sock,
-			 "# bytes received of type 18")) {
-    content += tmp;
-    lcontent += ltmp;
+  i = 0;
+  while (afs_protocol_messages_queries[i] != 0) {
+    SNPRINTF(buffer, 
+	     512,
+	     _("# bytes received of type %d"),
+	     afs_protocol_messages_queries[i++]);
+    if (OK == getStatValue(&tmp,
+			   &ltmp,
+			   NULL,
+			   sock,
+			   buffer)) {
+      queries += tmp;
+      lqueries += ltmp;
+    }
   }
-  if (OK == getStatValue(&tmp,
-			 &ltmp,
-			 NULL,
-			 sock,
-			 "# bytes received of type 20")) {
-    content += tmp;
-    lcontent += ltmp;
-  }
-  queries = lqueries = 0;
-  if (OK == getStatValue(&tmp,
-			 &ltmp,
-			 NULL,
-			 sock,
-			 "# bytes received of type 16")) {
-    queries += tmp;
-    lqueries += ltmp;
-  }
-  if (OK == getStatValue(&tmp,
-			 &ltmp,
-			 NULL,
-			 sock,
-			 "# bytes received of type 19")) {
-    queries += tmp;
-    lqueries += ltmp;
-  }
-  
+  FREE(buffer);
   MUTEX_UNLOCK(&lock);
   available = getConfigurationOptionValue(sock,
 					  "LOAD",
 					  "MAXNETDOWNBPSTOTAL");
   if (available == NULL)
     return SYSERR; 
-  band = atoll(available) * dtime / cronSECONDS;
+  band = atol(available) * dtime / cronSECONDS;
   FREE(available);
   total -= ltotal;
   noise -= lnoise;
@@ -317,7 +315,7 @@ static int getTrafficRecvStats(GNUNET_TCP_SOCKET * sock,
 }
 
 
-static int getTrafficSendStats(GNUNET_TCP_SOCKET * sock,
+  static int getTrafficSendStats(GNUNET_TCP_SOCKET * sock,
 			       const void * closure,
 			       gfloat ** data) {
   long long total;
@@ -333,69 +331,62 @@ static int getTrafficSendStats(GNUNET_TCP_SOCKET * sock,
   long long ltmp;
   cron_t dtime;
   char * available;
+  char * buffer;
+  int i;
 
   MUTEX_LOCK(&lock);
   if (OK != getStatValue(&total,	
 			 &ltotal,
 			 &dtime,
 			 sock,
-			 "# encrypted bytes sent"))
+			 _("# encrypted bytes sent")))
     return SYSERR;
   if (OK != getStatValue(&noise,
 			 &lnoise,
 			 NULL,
 			 sock,
-			 "# bytes noise sent"))
+			 _("# bytes noise sent")))
     return SYSERR;
+  i = 0;
   content = lcontent = 0;
-  if (OK == getStatValue(&tmp,
-			 &ltmp,
-			 NULL,
-			 sock,
-			 "# bytes transmitted of type 17")) {
-    content += tmp;
-    lcontent += ltmp;
+  buffer = MALLOC(512);
+  while (afs_protocol_messages_content[i] != 0) {
+    SNPRINTF(buffer, 
+	     512,
+	     _("# bytes transmitted of type %d"),
+	     afs_protocol_messages_content[i++]);
+    if (OK == getStatValue(&tmp,
+			   &ltmp,
+			   NULL,
+			   sock,
+			   buffer)) {
+      content += tmp;
+      lcontent += ltmp;
+    }
   }
-  if (OK == getStatValue(&tmp,
-			 &ltmp,
-			 NULL,
-			 sock,
-			 "# bytes transmitted of type 18")) {
-    content += tmp;
-    lcontent += ltmp;
+  i = 0;
+  while (afs_protocol_messages_queries[i] != 0) {
+    SNPRINTF(buffer, 
+	     512,
+	     _("# bytes received of type %d"),
+	     afs_protocol_messages_queries[i++]);
+    if (OK == getStatValue(&tmp,
+			   &ltmp,
+			   NULL,
+			   sock,
+			   buffer)) {
+      queries += tmp;
+      lqueries += ltmp;
+    }
   }
-  if (OK == getStatValue(&tmp,
-			 &ltmp,
-			 NULL,
-			 sock,
-			 "# bytes transmitted of type 20")) {
-    content += tmp;
-    lcontent += ltmp;
-  }
-  queries = lqueries = 0;
-  if (OK == getStatValue(&tmp,
-			 &ltmp,
-			 NULL,
-			 sock,
-			 "# bytes transmitted of type 16")) {
-    queries += tmp;
-    lqueries += ltmp;
-  }
-  if (OK == getStatValue(&tmp,
-			 &ltmp,
-			 NULL,
-			 sock,
-			 "# bytes transmitted of type 19")) {
-    queries += tmp;
-    lqueries += ltmp;
-  }
+  FREE(buffer);
   MUTEX_UNLOCK(&lock);
   available = getConfigurationOptionValue(sock,
 					  "LOAD",
 					  "MAXNETUPBPSTOTAL");
   if (available == NULL)
     return SYSERR;
-  band = atoll(available) * dtime / cronSECONDS;
+  band = atol(available) * dtime / cronSECONDS;
   FREE(available);
   total -= ltotal;
   noise -= lnoise;
@@ -435,32 +426,32 @@ typedef struct SE_ {
 
 static StatEntry stats[] = {
   { 
-    "Connectivity",
-    "# connected nodes (100% = connection table size)",
+    gettext_noop("Connectivity"),
+    gettext_noop("# connected nodes (100% = connection table size)"),
     &getConnectedNodesStat,
     NULL,
     1,
     NO,
   }, 
   { 
-    "CPU load",
-    "CPU load (in percent of allowed load)",
+    gettext_noop("CPU load"),
+    gettext_noop("CPU load (in percent of allowed load)"),
     &getCPULoadStat,
     NULL,
     1,
     NO,
   },
   { 
-    "Inbound Traffic",
-    "Noise (red), Content (green), Queries (yellow), other (blue)",
+    gettext_noop("Inbound Traffic"),
+    gettext_noop("Noise (red), Content (green), Queries (yellow), other (blue)"),
     &getTrafficRecvStats,
     NULL,
     4,
     YES,
   },
   { 
-    "Outbound Traffic",
-    "Noise (red), Content (green), Queries (yellow), other (blue)",
+    gettext_noop("Outbound Traffic"),
+    gettext_noop("Noise (red), Content (green), Queries (yellow), other (blue)"),
     &getTrafficSendStats,
     NULL,
     4,
@@ -476,10 +467,23 @@ static StatEntry stats[] = {
   },
 };
 
-static void statClose(void);
+
+/**
+ * Remove the active page from the notebook.
+ */
+static void statClose(void) {
+  gint pagenr;
+
+  pagenr = gtk_notebook_get_current_page(notebook);
+  gtk_notebook_remove_page(notebook, pagenr);
+  /* Need to refresh the widget --
+     This forces the widget to redraw itself. */
+  gtk_widget_draw(GTK_WIDGET(notebook), NULL);
+}
 
 static GtkItemFactoryEntry statWindowMenu[] = {
-  { "/Close display",   
+  { 
+    gettext_noop("/Close display"),   
     NULL, 
     statClose, 
     0, 
@@ -488,6 +492,27 @@ static GtkItemFactoryEntry statWindowMenu[] = {
 };
 static gint statWindowMenuItems 
   = sizeof (statWindowMenu) / sizeof (statWindowMenu[0]);
+
+
+/**
+ */
+static void addClosePopupMenu(GtkWidget * widget) {
+  GtkWidget * menu;
+  GtkItemFactory * popupFactory;
+
+  popupFactory = gtk_item_factory_new(GTK_TYPE_MENU, "<main>",
+				      NULL);
+  gtk_item_factory_create_items(popupFactory,
+  				statWindowMenuItems,
+				statWindowMenu,
+				NULL);
+  menu = gtk_item_factory_get_widget(popupFactory, "<main>");
+  gtk_signal_connect(GTK_OBJECT(widget),
+		     "button_press_event",
+		     GTK_SIGNAL_FUNC(popupCallback),
+		     menu); 
+}
+
 
 typedef struct {
   gint type;
@@ -529,20 +554,10 @@ typedef struct ProcData {
 #define GNOME_PAD_SMALL 2
 #define FRAME_WIDTH 0
 
+
 /**
- * Remove the active page from the notebook.
- **/
-static void statClose(void) {
-  gint pagenr;
-
-  pagenr = gtk_notebook_get_current_page(notebook);
-  gtk_notebook_remove_page(notebook, pagenr);
-  /* Need to refresh the widget --
-     This forces the widget to redraw itself. */
-  gtk_widget_draw(GTK_WIDGET(notebook), NULL);
-}
-
-/* Redraws the backing pixmap for the load graph and updates the window */
+ * Redraws the backing pixmap for the load graph and updates the window 
+ */
 static void load_graph_draw(LoadGraph *g) {
   guint i;
   guint j;
@@ -730,7 +745,6 @@ static gint load_graph_configure(GtkWidget *widget,
 				widget->allocation.width,
 				widget->allocation.height,
 				gtk_widget_get_visual (c->disp)->depth);
-  
   gdk_draw_rectangle (c->pixmap,
 		      widget->style->black_gc,
 		      TRUE, 0,0,
@@ -743,6 +757,7 @@ static gint load_graph_configure(GtkWidget *widget,
 		   0, 0,
 		   c->disp->allocation.width,
 		   c->disp->allocation.height);  
+
   load_graph_draw (c); 
   return TRUE;
 }
@@ -790,14 +805,11 @@ static LoadGraph * load_graph_new(ProcData *procdata) {
 
   if ( (procdata->statIdx < 0) ||
        (procdata->statIdx >= STATS_COUNT) ) {
-    LOG(LOG_ERROR,
-	"ERROR: invalid statIdex %d!",
-	procdata->statIdx);
+    BREAK();
     return NULL;
   }
   if (stats[procdata->statIdx].count > MAX_COLOR) {
-    LOG(LOG_ERROR,
-	"ERROR: more colors requested than available!\n");
+    BREAK();
     return NULL;
   }
   
@@ -827,8 +839,8 @@ static LoadGraph * load_graph_new(ProcData *procdata) {
   gtk_signal_connect (GTK_OBJECT(g->disp),
 		      "destroy",
 		      GTK_SIGNAL_FUNC (load_graph_destroy), g); 
-  gtk_widget_set_events(g->disp, GDK_EXPOSURE_MASK);  
-  gtk_box_pack_start(GTK_BOX (g->main_widget), g->disp, TRUE, TRUE, 0);  
+  gtk_widget_add_events(g->disp, GDK_EXPOSURE_MASK | GDK_BUTTON_PRESS_MASK);
+  gtk_box_pack_start(GTK_BOX (g->main_widget), g->disp, TRUE, TRUE, 0);
   load_graph_alloc(g);  
   gtk_widget_show_all (g->main_widget);  
   g->timer_index = gtk_timeout_add(g->speed,
@@ -849,46 +861,23 @@ static void load_graph_start(LoadGraph *g) {
 }
 
 static GtkWidget * create_sys_view(ProcData * procdata) {
-  GtkWidget * vbox;
   GtkWidget * mem_frame;
-  GtkWidget * menu;
-  GtkItemFactory * popupFactory;
   LoadGraph * mem_graph;
 
   mem_graph = load_graph_new(procdata);
+  procdata->mem_graph = mem_graph;
   if (mem_graph == NULL)
     return NULL; /* oops */
-  vbox = gtk_vbox_new (FALSE, 0);
-
-  mem_frame = gtk_frame_new (stats[procdata->statIdx].frameName);
-  gtk_container_set_border_width (GTK_CONTAINER (mem_frame), GNOME_PAD_SMALL);
-  gtk_box_pack_start (GTK_BOX (vbox), mem_frame, TRUE, TRUE, 0);
-  
- 
-  gtk_container_add (GTK_CONTAINER (mem_frame), mem_graph->main_widget);
-  gtk_container_set_border_width (GTK_CONTAINER (mem_graph->main_widget),
+  mem_frame = gtk_frame_new(_(stats[procdata->statIdx].frameName));
+  gtk_container_add(GTK_CONTAINER(mem_frame),
+		    mem_graph->main_widget);
+  gtk_container_set_border_width(GTK_CONTAINER(mem_graph->main_widget),
+				 GNOME_PAD_SMALL);
+  gtk_container_set_border_width (GTK_CONTAINER(mem_frame),
 				  GNOME_PAD_SMALL);
-  procdata->mem_graph = mem_graph;
-
-  /* FIXME: this should add a right-button popup-menu 
-     but does not. Somehow popupCallback() never gets called,
-     i.e. event does not occur or has been blocked or 
-     overridden somewhere. Trying to connect to some other
-     widget instead of vbox stays equally unresponsive */
-  popupFactory = gtk_item_factory_new (GTK_TYPE_MENU, "<main>",
-  				       NULL);
-  gtk_item_factory_create_items(popupFactory,
-  				statWindowMenuItems,
-				statWindowMenu,
-				NULL);
-  menu = gtk_item_factory_get_widget(popupFactory, "<main>");
-  gtk_signal_connect(GTK_OBJECT(vbox),
- 		     "event",
-		     GTK_SIGNAL_FUNC(popupCallback),
-		     menu);
-  gtk_widget_show_all (vbox);
-  
-  return vbox;
+  gtk_widget_show(mem_frame);
+  addClosePopupMenu(mem_frame);
+  return mem_frame;
 }
 
 
@@ -913,8 +902,7 @@ static GtkWidget * create_main_window(int stat) {
 		  &procdata.config.mem_color[2]);
   gdk_color_parse("blue",
 		  &procdata.config.mem_color[3]);
-  if (MAX_COLOR != 4)
-    errexit("Assertion failed! MAX_COLOR wrong!");
+  GNUNET_ASSERT(MAX_COLOR == 4);
   sys_box = create_sys_view(&procdata);
   if (sys_box == NULL)
     return NULL;
@@ -934,13 +922,11 @@ void displayStatistics(GtkWidget * widget,
   dptr = (int) data;
   if ( (dptr < 0) ||
        (dptr >= STATS_COUNT) ) {
-    LOG(LOG_ERROR,
-	"ERROR: displayStatistics called with invalid argument (%d)\n",
-	dptr);
+    BREAK();
   } else {    
     wid = create_main_window(dptr);
     if (wid != NULL)
-      addToNotebook(stats[dptr].paneName,
+      addToNotebook(_(stats[dptr].paneName),
 		    wid);
   }
 }

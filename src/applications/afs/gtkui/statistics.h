@@ -25,9 +25,6 @@
 #ifndef GTKUI_STATISTICS_H
 #define GTKUI_STATISTICS_H
 
-/* for GTK 2 */
-#define GTK_ENABLE_BROKEN
-
 #include "platform.h"
 #include <gtk/gtk.h>
 #include <gtk/gtktext.h>

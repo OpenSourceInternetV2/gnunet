@@ -146,11 +146,11 @@ int testTAPI(LowAPI * lapi) {
   return OK;
 }
 
-static char * tselect = NULL;
+static char * tselect = DBSELECT;
 
 /**
  * Perform option parsing from the command line. 
- **/
+ */
 static int parser(int argc, 
 		  char * argv[]) {
   int cont = OK;
@@ -159,6 +159,9 @@ static int parser(int argc,
   FREENONNULL(setConfigurationString("GNUNETD",
 				     "_MAGIC_",
 				     "YES"));
+  FREENONNULL(setConfigurationString("GNUNETD",
+				     "LOGFILE",
+				     NULL));
   FREENONNULL(setConfigurationString("",
 				     "GNUNETD_HOME",
 				     "/tmp/gnunet_test/"));
@@ -172,13 +175,12 @@ static int parser(int argc,
       { "config",  1, 0, 'c' },
       { "version", 0, 0, 'v' },
       { "help",    0, 0, 'h' },
-      { "type",    1, 0, 't' },
       { 0,0,0,0 }
     };
     
     c = GNgetopt_long(argc,
 		      argv, 
-		      "vhc:L:t:", 
+		      "vhc:L:", 
 		      long_options, 
 		      &option_index);
     
@@ -191,9 +193,6 @@ static int parser(int argc,
 					 "gnunet.conf",
 					 GNoptarg));
       break;
-    case 't':
-      tselect = STRDUP(GNoptarg);
-      break;
     case 'v': 
       printf("GNUnet Low-level DB API Tester v%s\n",
 	     VERSION);
@@ -202,7 +201,7 @@ static int parser(int argc,
     case 'h': 
       printf("GNUnet Low-level DB API Tester. Options:"
 	     " -c config, -L loglevel, -h help,"
-	     " -v version, -t DBAPI\n");
+	     " -v version\n");
       cont = SYSERR;
       break;
     case 'L':
@@ -212,7 +211,7 @@ static int parser(int argc,
       break;
     default:
       LOG(LOG_FAILURE, 
-	  "FAILURE: Unknown option %c. Aborting.\n"\
+	  " Unknown option %c. Aborting.\n"\
 	  "Use --help to get a list of options.\n",
 	  c);
       cont = SYSERR;    
@@ -220,16 +219,18 @@ static int parser(int argc,
   }
   if (GNoptind < argc) {
     LOG(LOG_WARNING, 
-	"WARNING: Invalid arguments: ");
+	" Invalid arguments: ");
     while (GNoptind < argc)
       LOG(LOG_WARNING, 
 	  "%s ", argv[GNoptind++]);
     LOG(LOG_FATAL,
-	"FATAL: Invalid arguments. Exiting.\n");
+	" Invalid arguments. Exiting.\n");
     return SYSERR;
   }
   return cont;
 }
+
+
 
 #define DSO_PREFIX "libgnunetafs_database_"
 
@@ -240,16 +241,10 @@ int main(int argc, char *argv[]) {
 
   if (OK != initUtil(argc, argv, &parser))
     return SYSERR;
-  if (tselect == NULL)
-    tselect = getConfigurationString("AFS",
-				     "DATABASETYPE");
-  if (tselect == NULL)
-    errexit("You must specify the DB type with option -t or in gnunet.conf\n");
-  
   lib = loadDynamicLibrary(DSO_PREFIX,
                            tselect);
   if (lib == NULL)
-    errexit("FATAL: could not load plugin %s\n",
+    errexit(" could not load plugin %s\n",
 	    tselect);
   l.lowInitContentDatabase 
     = bindDynamicMethod(lib,
@@ -289,7 +284,6 @@ int main(int argc, char *argv[]) {
 			"lowEstimateSize");  
   ok = testTAPI(&l);
   unloadDynamicLibrary(lib);  
-  FREE(tselect);
   doneUtil();
   if (ok == SYSERR) {
     fprintf(stderr, "\nFAILED!\n");

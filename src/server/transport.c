@@ -21,7 +21,7 @@
  * @file server/transport.c
  * @brief Methods to access the transport layer.
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_util.h"
 #include "transport.h"
@@ -49,7 +49,7 @@ void setPercentRandomOutboundDrop(int value) {
 
 /**
  * Initialize the transport layer.
- **/
+ */
 void initTransports() {
   CoreAPIForTransport * ctapi;
   TransportAPI * tapi;
@@ -65,9 +65,10 @@ void initTransports() {
     helo_live = MAX_HELO_EXPIRES;
   
   if (helo_live <= 0) {
-    LOG(LOG_WARNING,
-	"HELOEXPIRES not set in configuration under GNUNETD, setting to 1h\n");
     helo_live = 60 * 60;
+    LOG(LOG_WARNING,
+	_("Option '%s' not set in configuration in section '%s', setting to %dm.\n"),
+	"HELOEXPIRES", "GNUNETD", helo_live / 60);
   }
   GROW(tapis,
        tapis_count,
@@ -81,7 +82,8 @@ void initTransports() {
 			       "TRANSPORTS");
   if (dso == NULL || dso[0] == 0) {
     LOG(LOG_FAILURE,
-	"FAILURE: You should specify at least one transport under GNUNETD item TRANSPORTS\n");
+	_("You should specify at least one transport service under option '%s' in section '%s'.\n"),
+	"TRANSPORTS", "GNUNETD");
     return;
   }
   next = dso;
@@ -102,8 +104,9 @@ void initTransports() {
 			     "inittransport_",
 			     pos);  
     if (tptr == NULL) 
-      errexit("FATAL: Transport module %s did not provide required inittransport_%s function\n",
+      errexit(_("Transport library '%s' did not provide required function '%s%s'.\n"),
 	      pos,
+	      "inittransport_",
 	      pos);
     tapi = tptr(ctapi);
     tapi->libHandle = lib;
@@ -116,7 +119,7 @@ void initTransports() {
 /**
  * Actually start the transport services and begin
  * receiving messages.
- **/
+ */
 void startTransports() {
   int i;
   for (i=0;i<tapis_count;i++)
@@ -126,7 +129,7 @@ void startTransports() {
 
 /**
  * Stop the transport services, stop receiving messages.
- **/
+ */
 void stopTransports() {  
   int i;
   for (i=0;i<tapis_count;i++)
@@ -137,7 +140,7 @@ void stopTransports() {
 /**
  * Create signed HELO for this transport and put it into
  * the cache tapi->helo.
- **/
+ */
 void createSignedHELO(TransportAPI * tapi) {
   MUTEX_LOCK(&tapis_lock);
   FREENONNULL(tapi->helo);
@@ -173,7 +176,7 @@ void createSignedHELO(TransportAPI * tapi) {
 
 /**
  * Shutdown the transport layer.
- **/
+ */
 void doneTransports() {
   int i;
   void (*ptr)();
@@ -208,7 +211,7 @@ void doneTransports() {
 /**
  * Is this transport mechanism available (for sending)?
  * @return YES or NO
- **/
+ */
 int isTransportAvailable(unsigned short ttype) {
   if (ttype >= tapis_count) 
     return NO;
@@ -219,7 +222,7 @@ int isTransportAvailable(unsigned short ttype) {
 
 /**
  * Add an implementation of a transport protocol.
- **/
+ */
 int addTransport(TransportAPI * tapi) {  
   if (tapi->protocolNumber >= tapis_count) 
     GROW(tapis,
@@ -236,14 +239,15 @@ int addTransport(TransportAPI * tapi) {
 
 /**
  * Convert HELO to string.
- **/
-char * heloToString(HELO_Message * helo) {
+ */
+char * heloToString(const HELO_Message * helo) {
   TransportAPI * tapi;
   unsigned short prot;
   
   if (ntohs(helo->protocol) >= tapis_count) {
     LOG(LOG_INFO,
-	"INFO: heloToString failed, protocol %d not supported\n",
+	"%s failed, transport type %d not supported\n",
+	__FUNCTION__,
 	ntohs(helo->protocol));
     return NULL;
   }
@@ -251,7 +255,8 @@ char * heloToString(HELO_Message * helo) {
   tapi = tapis[prot];
   if (tapi == NULL) {
     LOG(LOG_INFO,
-	"INFO: transportConnect failed, protocol %d not supported\n",
+	"%s failed, transport type %d not supported\n",
+	__FUNCTION__,
 	ntohs(helo->protocol));
      return NULL;
   } else 
@@ -263,7 +268,7 @@ char * heloToString(HELO_Message * helo) {
  * Iterate over all available transport mechanisms.
  * @param callback the method to call on each transport API implementation
  * @param data second argument to callback
- **/
+ */
 void forEachTransport(TransportCallback callback,
 		      void * data) {
   int i;
@@ -283,7 +288,7 @@ void forEachTransport(TransportCallback callback,
  *        if SYSERR is returned!
  * @param tsession the transport session to create
  * @return OK on success, SYSERR on error
- **/
+ */
 int transportConnect(HELO_Message * helo,
 		     TSession ** tsession) { 
   TransportAPI * tapi;
@@ -291,7 +296,8 @@ int transportConnect(HELO_Message * helo,
   
   if (ntohs(helo->protocol) >= tapis_count) {
     LOG(LOG_INFO,
-	"INFO: transportConnect failed, protocol %d not supported\n",
+	"%s failed, transport type %d not supported\n",
+	__FUNCTION__,
 	ntohs(helo->protocol));
     return SYSERR;
   }
@@ -299,7 +305,8 @@ int transportConnect(HELO_Message * helo,
   tapi = tapis[prot];
   if (tapi == NULL) {
     LOG(LOG_INFO,
-	"INFO: transportConnect failed, protocol %d not supported\n",
+	"%s failed, transport type %d not supported\n",
+	__FUNCTION__,
 	ntohs(helo->protocol));
      return SYSERR;
   } else {
@@ -309,8 +316,8 @@ int transportConnect(HELO_Message * helo,
       (*tsession)->ttype = prot;
 #if DEBUG_TRANSPORT
       LOG(LOG_DEBUG,
-	  "DEBUG: core connected to tsession %x\n",
-	  (int)*tsession);
+	  "Core connected to tsession %p.\n",
+	  *tsession);
 #endif
       return OK;
     } else
@@ -328,7 +335,7 @@ int transportConnect(HELO_Message * helo,
  *   layer
  * @return OK if the session could be associated,
  *         SYSERR if not.
- **/
+ */
 int transportAssociate(TSession * tsession) {
   TransportAPI * tapi;
   
@@ -342,7 +349,7 @@ int transportAssociate(TSession * tsession) {
   else {
 #if DEBUG_TRANSPORT
     LOG(LOG_DEBUG,
-	"DEBUG: core associates with tsession %x\n",
+	"Core associates with tsession %p.\n",
 	tsession);
 #endif
     return tapi->associate(tsession);
@@ -352,7 +359,7 @@ int transportAssociate(TSession * tsession) {
 
 /**
  * Get the cost of a message in for the given transport mechanism.
- **/
+ */
 unsigned int transportGetCost(int ttype) {
   TransportAPI * tapi;
   
@@ -372,9 +379,9 @@ unsigned int transportGetCost(int ttype) {
  * @param isEncrypted YES if the message is encrypted
  * @param crc the CRC of the (plaintext) message
  * @return OK on success, SYSERR on error
- **/
+ */
 int transportSend(TSession * tsession,
-		  void * msg,
+		  const void * msg,
 		  const unsigned int size,
 		  int isEncrypted,
 		  const int crc) {
@@ -385,7 +392,8 @@ int transportSend(TSession * tsession,
 		      that call core with TSession being NULL. */
   if (tsession->ttype >= tapis_count) {
     LOG(LOG_FAILURE,
-	"FAILURE: transportSend failed, transport type %d unknown\n",
+	"%s failed, transport type %d unknown.\n",
+	__FUNCTION__,
 	tsession->ttype);
     return SYSERR;
   }
@@ -395,7 +403,8 @@ int transportSend(TSession * tsession,
   tapi = tapis[tsession->ttype];
   if (tapi == NULL) {
     LOG(LOG_FAILURE,
-	"FAILURE: transportSend failed, transport type %d unknown\n",
+	"%s failed, transport type %d unknown.\n",
+	__FUNCTION__,
 	tsession->ttype);
     return SYSERR;
   } else
@@ -415,9 +424,9 @@ int transportSend(TSession * tsession,
  * @param isEncrypted YES if the message is encrypted
  * @param crc the CRC of the (plaintext) message
  * @return OK on success, SYSERR on error
- **/
+ */
 int transportSendReliable(TSession * tsession,
-			  void * msg,
+			  const void * msg,
 			  const unsigned int size,
 			  int isEncrypted,
 			  const int crc) {
@@ -428,14 +437,16 @@ int transportSendReliable(TSession * tsession,
 		      that call core with TSession being NULL. */
   if (tsession->ttype >= tapis_count) {
     LOG(LOG_FAILURE,
-	"FAILURE: transportSend failed, transport type %d unknown\n",
+	"%s failed, transport type %d unknown.\n",
+	__FUNCTION__,
 	tsession->ttype);
     return SYSERR;
   }
   tapi = tapis[tsession->ttype];
   if (tapi == NULL) {
     LOG(LOG_FAILURE,
-	"FAILURE: transportSend failed, transport type %d unknown\n",
+	"%s failed, transport type %d unknown.\n",
+	__FUNCTION__,
 	tsession->ttype);
     return SYSERR;
   }
@@ -450,31 +461,26 @@ int transportSendReliable(TSession * tsession,
 /**
  * Close the session with the remote node.
  * @return OK on success, SYSERR on error
- **/ 
+ */ 
 int transportDisconnect(TSession * tsession) {
   TransportAPI * tapi;
   
   if (tsession == NULL) {
-    LOG(LOG_WARNING,
-	"WARNING: you called disconnect on a tsession that is null!\n");
+    BREAK();
     return SYSERR;
   }
   if (tsession->ttype >= tapis_count) {
-    LOG(LOG_WARNING,
-	"WARNING: disconnecting tsession of unknown type. "\
-	"This should never happen.\n");
+    BREAK();
     return SYSERR;
   }
   tapi = tapis[tsession->ttype];
   if (tapi == NULL) {
-    LOG(LOG_WARNING,
-	"WARNING: disconnecting tsession of unknown type. "\
-	"This should never happen.\n");
+    BREAK();
     return SYSERR;
   } else {
 #if DEBUG_TRANSPORT
     LOG(LOG_DEBUG,
-	"DEBUG: core calls disconnect on tsession %x\n",
+	"Core calls disconnect on tsession %p.\n",
 	tsession);
 #endif
     return tapi->disconnect(tsession);
@@ -486,22 +492,22 @@ int transportDisconnect(TSession * tsession) {
  * if the verification was successful.
  * @return OK if the attempt to verify is on the way,
  *        SYSERR if the transport mechanism is not supported
- **/
-int transportVerifyHelo(HELO_Message * helo) {
+ */
+int transportVerifyHelo(const HELO_Message * helo) {
   TransportAPI * tapi;
 
   if (ntohs(helo->protocol) >= tapis_count) {
     LOG(LOG_EVERYTHING,
-	"EVERYTHING: protocol number advertised (%d)"
-	" does not match any known protocol.\n",
+	"Advertised transport type %d"
+	" does not match any known transport.\n",
 	ntohs(helo->protocol));
     return SYSERR;
   }
   tapi = tapis[ntohs(helo->protocol)];
   if (tapi == NULL) {
     LOG(LOG_EVERYTHING,
-	"EVERYTHING: protocol number advertised (%d)"
-	" does not match any known protocol.\n",
+	"Advertised transport type %d"
+	" does not match any known transport.\n",
 	ntohs(helo->protocol));
     return SYSERR;
   } else 
@@ -510,7 +516,7 @@ int transportVerifyHelo(HELO_Message * helo) {
 
 /**
  * Get the MTU for a given transport type.
- **/
+ */
 int transportGetMTU(unsigned short ttype) {
   TransportAPI * tapi;
   
@@ -526,7 +532,7 @@ int transportGetMTU(unsigned short ttype) {
 /**
  * Create a HELO advertisement for the given
  * transport type for this node.
- **/
+ */
 int transportCreateHELO(unsigned short ttype,
 			HELO_Message ** helo) {
   TransportAPI * tapi;
@@ -552,15 +558,15 @@ int transportCreateHELO(unsigned short ttype,
   }
   if (ttype >= tapis_count) {
     LOG(LOG_WARNING, 
-	"WARNING: Transport type %d > %d (maximum transport ID)\n",
-	ttype, tapis_count);
+	_("No transport of type %d known.\n"),
+	ttype);
     MUTEX_UNLOCK(&tapis_lock);
     return SYSERR;
   }
   tapi = tapis[ttype];
   if (tapi == NULL) {
     LOG(LOG_WARNING, 
-	"WARNING: No transport of type %d known.\n",
+	_("No transport of type %d known.\n"),
 	ttype);
     MUTEX_UNLOCK(&tapis_lock);
     return SYSERR;
@@ -568,7 +574,7 @@ int transportCreateHELO(unsigned short ttype,
   if (tapi->helo == NULL) {
 #if DEBUG_TRANSPORT
     LOG(LOG_DEBUG, 
-	"DEBUG: Transport of type %d configured for sending only.\n",
+	"Transport of type %d configured for sending only.\n",
 	ttype);
 #endif
     MUTEX_UNLOCK(&tapis_lock);
@@ -595,7 +601,7 @@ int transportCreateHELO(unsigned short ttype,
  * @param maxLen the maximum size of the HELO message collection in bytes
  * @param buff where to write the HELO messages
  * @return the number of bytes written to buff, -1 on error
- **/
+ */
 int getAdvertisedHELOs(int maxLen,
 		       char * buff) {
   int i;

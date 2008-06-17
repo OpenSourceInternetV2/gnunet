@@ -20,198 +20,119 @@
 /**
  * @file include/gnunet_dht_lib.h
  * @brief convenience API to the DHT infrastructure for use by clients
- *        (for library in applications/dht/tools/dht_api.c)
- * @author Tomi Tukiainen
- * @version dht_api.h,v 1.11 2004/05/11 12:14:02 mjraiha Exp 
- *
- *
- * Todo:
- * - rename all symbols (method names!) to be prefixed with "DHT_".
+ * @author Christian Grothoff
  */
 
 #ifndef GNUNET_DHT_LIB_H
 #define GNUNET_DHT_LIB_H 
 
-#include "gnunet_util.h"
-#include "gnunet_dht.h"
-
-
-/* sleeping time to be used when waiting for data to be received */
-#define API_SLEEP_MILLIS 50
-
-/* sleeping time between receive thread polling for any operation waiting for data */
-#define RECEIVE_THREAD_SLEEP_MILLIS 50
-
-/* timeouts (ms) for different operations or suboperations */
-#define API_INITIALIZE_RESULTS_TIMEOUT 2000
-
-#define API_CREATE_ACK_TIMEOUT         1000
-#define API_CREATE_RESULTS_TIMEOUT     4000
-
-#define API_INSERT_ACK_TIMEOUT         1000
-#define API_INSERT_RESULTS_TIMEOUT     4000
-
-#define API_FETCH_ACK_TIMEOUT          1000
-#define API_FETCH_RESULTS_TIMEOUT      9000
-
-#define API_JOIN_ACK_TIMEOUT           1000
-#define API_JOIN_RESULTS_TIMEOUT       9000
-
-#define API_LEAVE_ACK_TIMEOUT           1000
-#define API_LEAVE_RESULTS_TIMEOUT       4000
-
-#define API_TABLES_ACK_TIMEOUT           1000
-#define API_TABLES_RESULTS_TIMEOUT       9000
-
-#define API_INSERTED_ACK_TIMEOUT         1000
-#define API_INSERTED_RESULTS_TIMEOUT     4000
-
-#define API_DROP_ACK_TIMEOUT             1000
-#define API_DROP_RESULTS_TIMEOUT         4000
-
-/* operation status numbering, we are only interested in waitfor-statuses */
-#define OPERATION_STATUS_OTHER 0
-#define OPERATION_STATUS_WAITFOR_ACK 1
-#define OPERATION_STATUS_WAITFOR_RESULTS 2
-#define OPERATION_STATUS_WAITFOR_STATUS 3
-
-
-
-typedef struct {
-  unsigned int errorCode;
-  DHT_TableId tableId; 
-} DHT_TableHandle; 
-
-
-
-/* ************************* MAIN FUCNTIONALITY *********************** */
-/* These functions offer the main interface to DHT's functionality      */
+#include "gnunet_dht_service.h"
 
 /**
- * Initializes API for application use. 
- *
- * @return errorcode for the execution, see error_handling.h
+ * Initialize DHT_LIB. Call first.
  */
-int initializeApi(); 
+void DHT_LIB_init();
 
 /**
- * Destroys API and free's resources that it uses. 
- *
- * @return errorcode for the execution, see error_handling.h
+ * Initialize DHT_LIB. Call after leaving all tables!
  */
-int destroyApi();
+void DHT_LIB_done();
 
 /**
- * Creates a new DHT-table. 
+ * Join a table (start storing data for the table).  Join
+ * fails if the node is already joint with the particular
+ * table.
  *
- * @param meta description for the table
- * @param config configuration for the table
- * @return handle to the created table
+ * @param datastore the storage callbacks to use for the table
+ * @param table the ID of the table
+ * @param timeout how long to wait for other peers to respond to 
+ *   the join request (has no impact on success or failure)
+ * @param flags 
+ * @return SYSERR on error, OK on success
  */
-DHT_TableHandle *create(DHT_TableMetaData * meta,
-			DHT_TableConfig * config);
-
-/**
- * Joins to a DHT-table. 
- *
- * @param address address of the DHT-node that is used to join the network
- * @param table_id id of the table that is to be joined to
- * @return handle to the joined table
- */
-DHT_TableHandle *join(DHT_TableId * table_id);
-
-/**
- * Leaves a DHT-table.
- *
- * @param handle of the table that is to be leaved from
- * @return errorcode for the execution, see error_handling.h
- */
-int leave(DHT_TableHandle * table);
-
-/**
- * Inserts a <key,value>-mapping into a DHT-table. 
- *
- * @param table handle of the table where insertion is to be done
- * @param key key of the <key,value>-mapping
- * @param value value of the <key,value>-mapping
- * @return errorcode for the execution, see error_handling.h
- */
-int insert(DHT_TableHandle * table, 
-	   DHT_DataContainer * key,
-	   DHT_DataContainer * value);
+int DHT_LIB_join(DHT_Datastore * store,
+		 DHT_TableId * table,
+		 cron_t timeout,
+		 int flags);
 
 
 /**
- * Retrieves values that are mapped to given key in a DHT-table.
+ * Leave a table (stop storing data for the table).  Leave
+ * fails if the node is not joint with the table.
  *
- * @param table handle of the table where retrieval is to be done
- * @param key key that is used when searching mappings
- * @return set that contains values that are mapped to the key
+ * @param datastore the storage callbacks to use for the table
+ * @param table the ID of the table
+ * @param timeout how long to wait for other peers to respond to 
+ *   the leave request (has no impact on success or failure);
+ *   but only timeout time is available for migrating data, so
+ *   pick this value with caution.
+ * @param flags 
+ * @return SYSERR on error, OK on success
  */
-DHT_ResultSet *fetch(DHT_TableHandle * table,
-		     DHT_DataContainer * key);
-
-/**
- * Retrieves a listing of tables to whom a DHT-node is joined. Information is 
- * received only about public tables.
- *
- * @param address address of the DHT-node whose joined tables are to be listed.
- * @return set that contains information about tables to whom DHT-node is joined.
- */
-DHT_TableSet *listTables();
-
-/**
- * Lists all <key,value>-pairs that are inserted to a DHT-table by DHT-node.
- *
- * @param handle of the table where data is inserted
- * @return set that contains information about all inserted keys. 
- */
-DHT_DataList *listInsertedData(DHT_TableHandle * table);
+int DHT_LIB_leave(DHT_TableId * table,
+		  cron_t timeout,
+		  int flags); 
 
 
 /**
- * Drops data that is inserted to a DHT-table by DHT-node.
+ * Perform a synchronous GET operation on the DHT identified by
+ * 'table' using 'key' as the key; store the result in 'result'.  If
+ * result->dataLength == 0 the result size is unlimited and
+ * result->data needs to be allocated; otherwise result->data refers
+ * to dataLength bytes and the result is to be stored at that
+ * location; dataLength is to be set to the actual size of the
+ * result.
  *
- * @param table table where <key,value>-pair is
- * @param reference to the <key,value>-mapping to be dropped
- * @return errorcode for the execution, see error_handling.h
+ * The peer does not have to be part of the table!
+ *
+ * @param table table to use for the lookup
+ * @param key the key to look up  
+ * @param timeout how long to wait until this operation should
+ *        automatically time-out
+ * @param maxResults maximum number of results to obtain, size of the results array
+ * @param results where to store the results (on success)
+ * @return number of results on success, SYSERR on error (i.e. timeout)
  */
-int dropInsertedData(DHT_TableHandle * table, 
-		     DHT_StoredDataReference * uniqueReference);
-
-
-/* ************************* UTILITY FUNCTIONS *********************** */
-/* These functions are used to handle results of the DHT main functions */
+int DHT_LIB_get(DHT_TableId * table,
+		HashCode160 * key,
+		cron_t timeout,
+		unsigned int maxResults,
+		DHT_DataContainer ** results);
+	
+/**
+ * Perform a synchronous put operation.   The peer does not have
+ * to be part of the table!
+ *
+ * @param table table to use for the lookup
+ * @param key the key to store
+ * @param timeout how long to wait until this operation should
+ *        automatically time-out
+ * @param value what to store
+ * @param flags bitmask
+ * @return OK on success, SYSERR on error (or timeout)
+ */
+int DHT_LIB_put(DHT_TableId * table,
+		HashCode160 * key,
+		cron_t timeout,
+		DHT_DataContainer * value,
+		int flags);
 
 /**
- * Returns a boolean value that indicates if errorcode returned by a
- * DHT's API function is actually an error. 
+ * Perform a synchronous remove operation.  The peer does not have
+ * to be part of the table!
  *
- * @param errorcode to check 
- * @return 1 on error, 0 otherwise
+ * @param table table to use for the lookup
+ * @param key the key to store
+ * @param timeout how long to wait until this operation should
+ *        automatically time-out
+ * @param value what to remove; NULL for all values matching the key
+ * @param flags bitmask
+ * @return OK on success, SYSERR on error (or timeout)
  */
-int isError(int errorCode); 
+int DHT_LIB_remove(DHT_TableId * table,
+		   HashCode160 * key,
+		   cron_t timeout,
+		   DHT_DataContainer * value,
+		   int flags);
 
-/**
- * Sets dataPointer to point to the next data item that is in the resultset. 
- * While iterating through a resultset with this method, resultset items 
- * contained in the resultset will be freed (returned ones will not). 
- *
- * @param resultSet resultset whose next dataitem is to be returned
- * @param dataPointer pointer that will be set to point to next dataitem
- * @return errorcode for the execution, see error_handling.h. 
- */
-int resultSetNext(DHT_ResultSet * resultSet, DHT_DataContainer ** dataPointer);
-
-/**
- * Sets tablePointer to point to the next table that is in the tableset. 
- * While iterating through a tableset with this method, tableset items 
- * contained in the tableset will be freed (returned ones will not)
- *
- * @param tableSet tableset whose next table is to be returned
- * @param tablePointer pointer that will be set to point to next table
- * @return errorcode for the execution, see error_handling.h. 
- */
-int tableSetNext(DHT_TableSet * tableSet, DHT_TableSetItem ** tablePointer);
-
-#endif /* DHT_API_H */
+#endif /* GNUNET_DHT_LIB_H */

@@ -31,7 +31,7 @@
  *   stops all pending downloads.  This used to
  *   be implemented but got lost when Igor added
  *   the download window.
- **/
+ */
 
 #include "gnunet_afs_esed2.h"
 #include "helper.h"
@@ -85,13 +85,13 @@ static gint abortSelectedDownloads(GtkWidget * widget,
  	                    GtkWidget * clist);
 
 static GtkItemFactoryEntry dlWindowMenu[] = {
- { "/Select all",       NULL,    selectAll,           0, "<Item>" },
- { "/Unselect all",     NULL,    unSelectAll,         0, "<Item>" },
+ { gettext_noop("/Select all"),       NULL,    selectAll,           0, "<Item>" },
+ { gettext_noop("/Unselect all"),     NULL,    unSelectAll,         0, "<Item>" },
  { "/sep1",             NULL,    NULL,                0, "<Separator>" },
- { "/Remove selected",  NULL,    abortHelper,         0, "<Item>" },
- { "/Remove finished",  NULL,    removeFinished,      0, "<Item>" },
+ { gettext_noop("/Remove selected"),  NULL,    abortHelper,         0, "<Item>" },
+ { gettext_noop("/Remove finished"),  NULL,    removeFinished,      0, "<Item>" },
  { "/sep2",             NULL,    NULL,                0, "<Separator>" },
- { "/Hide dl window",   NULL,    hideHelper,          0, "<Item>" }
+ { gettext_noop("/Hide window"),   NULL,    hideHelper,          0, "<Item>" }
 };
 
 static gint dlWindowMenuItems 
@@ -132,7 +132,7 @@ static void removeFinished(void)
                          i,
 			 1,
 			 &string);
-      if(strcmp(string, "DONE")==0)
+      if (strcmp(string, _("DONE"))==0)
         gtk_clist_select_row(clist,
 			     i,
 			     1);
@@ -164,7 +164,7 @@ static void abortHelper(void)
 
 /**
  * Changes the current sort column and sorts the list.
- **/
+ */
 static void sort_column_callback(GtkCList * clist,
                                  gint column,
                                  gpointer data) {
@@ -208,7 +208,7 @@ static void sort_column_callback(GtkCList * clist,
  *
  * @param widget not used
  * @param clist the list of downloads
- **/
+ */
 static gint abortSelectedDownloads(GtkWidget * widget,
 			           GtkWidget * clist) {
   DownloadModel * dlm;
@@ -216,7 +216,8 @@ static gint abortSelectedDownloads(GtkWidget * widget,
   GList * tmp;
 
   LOG(LOG_DEBUG,
-      "DEBUG: abortSelectedDownloads %x (%x)\n",
+      "In '%s'(%p, %p)\n",
+      __FUNCTION__,
       clist, widget);
   if(!GTK_CLIST(clist))
     return TRUE;
@@ -288,8 +289,8 @@ static gint displayStats(SaveCall *call) {
 
   if (dlStats->stats->filesize == dlStats->stats->progress) {
     /* reset the request counters (just cosmetic) */
-    snprintf(dlStats->areq, sizeof(dlStats->areq), "0");
-    snprintf(dlStats->cra, sizeof(dlStats->cra), "0.0");
+    SNPRINTF(dlStats->areq, sizeof(dlStats->areq), "0");
+    SNPRINTF(dlStats->cra, sizeof(dlStats->cra), "0.0");
     
     gtk_clist_freeze(GTK_CLIST(dlm->dlList));
     gtk_clist_set_text(GTK_CLIST(dlm->dlList),
@@ -308,11 +309,12 @@ static gint displayStats(SaveCall *call) {
     else
       dlm->downloadStatus = DOWNLOAD_COMPLETE;
     SEMAPHORE_UP(dlm->doneSem); /* signal: we're done with download */
-    
+    gdk_flush();
     gtkSaveCallDone(call->sem);
     
     return FALSE;
   }
+  gdk_flush();
   gtkSaveCallDone(call->sem);
     
   return FALSE;  
@@ -324,7 +326,7 @@ static gint displayStats(SaveCall *call) {
  *
  * @param stats the new statistical values
  * @param dlm the accessor to the GTK window
- **/
+ */
 static void modelCallback(ProgressStats * stats,
 			  DownloadModel * dlm) {
   double currentRetryAvg, averageBps, percentage;
@@ -361,7 +363,10 @@ static void modelCallback(ProgressStats * stats,
     averageBps = 0;
 
 #if DEBUG_WRITE_CPSDATA
-  sprintf(scratch, "/tmp/cps-%x.txt", dlm->root.header.fileIdentifier.crc);
+  SNPRINTF(scratch,
+	   128,
+	   "/tmp/cps-%x.txt", 
+	   dlm->root.header.fileIdentifier.crc);
   fp = FOPEN(scratch, "a+");
   fprintf(fp, "%d %d %d %f\n", (int)(now-(dlm->downloadStartTime)),
 	  stats->progress,
@@ -375,12 +380,12 @@ static void modelCallback(ProgressStats * stats,
   else
     percentage = 0;
 
-  snprintf(dlStats.pos, sizeof(dlStats.pos), "%d", stats->progress);
-  snprintf(dlStats.kbs, sizeof(dlStats.kbs), "%.1f", averageBps);
-  snprintf(dlStats.perc, sizeof(dlStats.perc), "%3.1f%%", percentage);
-  snprintf(dlStats.areq, sizeof(dlStats.areq), "%d", stats->requestsSent);
-  snprintf(dlStats.cra, sizeof(dlStats.cra), "%3.1f", currentRetryAvg);
-  snprintf(dlStats.tr, sizeof(dlStats.tr), "%d", stats->totalRetries);
+  SNPRINTF(dlStats.pos, sizeof(dlStats.pos), "%d", stats->progress);
+  SNPRINTF(dlStats.kbs, sizeof(dlStats.kbs), "%.1f", averageBps);
+  SNPRINTF(dlStats.perc, sizeof(dlStats.perc), "%3.1f%%", percentage);
+  SNPRINTF(dlStats.areq, sizeof(dlStats.areq), "%d", stats->requestsSent);
+  SNPRINTF(dlStats.cra, sizeof(dlStats.cra), "%3.1f", currentRetryAvg);
+  SNPRINTF(dlStats.tr, sizeof(dlStats.tr), "%d", stats->totalRetries);
   dlStats.stats = stats; 
   dlStats.dlm = dlm;
   
@@ -402,7 +407,7 @@ gint setDownloadEntry(SaveCall *call) {
              1,
              ((SetDownloadEntry *) call->args)->text);
   gtk_clist_thaw(GTK_CLIST(dlm->dlList));
-
+  gdk_flush();
   gtkSaveCallDone(call->sem);
   
   return FALSE;
@@ -419,7 +424,7 @@ gint disentangleFromCLIST(SaveCall *call) {
                          row,
 			                   NULL);
   gtk_clist_thaw(GTK_CLIST(dlm->dlList));
-
+  gdk_flush();
   gtkSaveCallDone(call->sem);
 
   return FALSE;
@@ -432,13 +437,14 @@ gint disentangleFromCLIST(SaveCall *call) {
  * requestmanager.
  * 
  * @param dlm the download model
- **/
+ */
 static void downloadFile_(DownloadModel * dlm) {
   char * mime;
   SetDownloadEntry entry;
 
   LOG(LOG_DEBUG,
-      "DEBUG: Entering downloadFile_ for %s (%x)\n", 
+      "Entering '%s' for file '%s' (%p)\n", 
+      __FUNCTION__,
       dlm->fileName,
       dlm);
 
@@ -452,7 +458,7 @@ static void downloadFile_(DownloadModel * dlm) {
 			 (ProgressModel)&modelCallback,
 			 dlm);
   if (dlm->rm == NULL) {
-    guiMessage("ERROR: could not download %s.\nConsult logs.\n",
+    guiMessage(_("Could not download file '%s'.\nConsult logs.\n"),
 	       dlm->fileName);
     SEMAPHORE_FREE(dlm->doneSem);
     FREE(dlm->fileName);
@@ -462,12 +468,13 @@ static void downloadFile_(DownloadModel * dlm) {
   /* Wait here until download is complete or
      the window is closed or gnunet-gtk is terminated */
   LOG(LOG_DEBUG,
-      "DEBUG: waiting for DL completion (%x)\n",
+      "Waiting for download completion (%p).\n",
       dlm);
   SEMAPHORE_DOWN(dlm->doneSem);
   LOG(LOG_DEBUG,
-      "DEBUG: download complete (%d) enter destroyRequestManager (%x)\n",
+      "Download complete (%d) calling '%s' (%p).\n",
       dlm->downloadStatus,
+      "destroyRequestManager",
       dlm);
 
   /* stop the RequestManager */
@@ -476,8 +483,7 @@ static void downloadFile_(DownloadModel * dlm) {
   } else {
     /* this can happen if the requestmanager initialization
      * failed for reason or another (e.g. write permission denied) */
-    LOG(LOG_WARNING, 
-        "WARNING: dlm->rm was NULL\n");
+    BREAK();
   }
 
   /*
@@ -498,32 +504,23 @@ static void downloadFile_(DownloadModel * dlm) {
     /* color successful dl green */
     entry.dlm = dlm;
     entry.color = &textColors[3];
-    entry.text = "DONE";
+    entry.text = _("DONE");
     gtkSaveCall((GtkFunction) setDownloadEntry, &entry);
     
-    switch (ntohs(dlm->root.header.major_formatVersion)) {
-    case ROOT_MAJOR_VERSION:
-      mime = dlm->root.header.mimetype;
-      break;
-    case SBLOCK_MAJOR_VERSION:
-      mime = ((SBlock*)&dlm->root)->mimetype;
-      break;
-    default:
-      mime = "unknown";
-      break;
-    }
+    mime = getMimetypeFromNode(&dlm->root);
     if (0 == strcmp(mime,
 		    GNUNET_DIRECTORY_MIME)) {
       displayDirectory(dlm->fileName,
 		       &dlm->root);
     }
+    FREE(mime);
     SEMAPHORE_DOWN(dlm->doneSem); /* wait for window closing */
     break;
   case DOWNLOAD_FAILED:
     /* color failed dl red */ 
     entry.dlm = dlm;
     entry.color = &textColors[4];
-    entry.text = "FAIL";
+    entry.text = _("FAIL");
     gtkSaveCall((GtkFunction) setDownloadEntry, &entry);
   
     SEMAPHORE_DOWN(dlm->doneSem); /* wait for window closing */    
@@ -549,8 +546,8 @@ static void downloadFile_(DownloadModel * dlm) {
  *        (must copy, will be freed by caller)
  * @param root information about what to download 
  *        (will be freed by caller, must copy!)
- **/
-void startDownload(gchar * filename,
+ */
+void startDownload(const gchar * filename,
 		   RootNode * root) {
   GtkWidget * clist;
   char * fileNameRoot;
@@ -586,29 +583,31 @@ void startDownload(gchar * filename,
     GtkWidget * menu;
     GtkItemFactory *popupFactory;
     static gchar * descriptions[] = {
-      "Filename",
+      gettext_noop("filename"),
       "%",              /* Completion percentage */
-      "Position",	/* Bytes dl'ed so far */
-      "Size",
-      "AReq",		/* Active block requests */
-      "CR/A",           /* Current Retries per Active requests */
-      "totR",           /* Total Retries */
-      "BPS",            /* Current bytes per second -estimate */
+      gettext_noop("position"),	/* Bytes dl'ed so far */
+      gettext_noop("size"),
+      gettext_noop("active requests"),		/* Active block requests */
+      gettext_noop("retrie per active request"),           /* Current Retries per Active requests */
+      gettext_noop("total retries"),           /* Total Retries */
+      gettext_noop("BPS"),            /* Current bytes per second -estimate */
     };
     static int widths[] = {
-      290, 50, 70, 70, 40, 30, 50, 50
+      300, 50,  50, 50, 50,  50, 50, 50
     };
 
     dlWindow = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(dlWindow), 
-  	  	         "gnunet-gtk: Downloads");
+  	  	         _("gnunet-gtk: Downloads"));
     gtk_widget_set_usize(GTK_WIDGET(dlWindow),
                          780, /* x-size */
                          300); /* y-size */
-    gtk_signal_connect_object(GTK_OBJECT(dlWindow), "delete_event",
+    gtk_signal_connect_object(GTK_OBJECT(dlWindow), 
+			      "delete_event",
                               GTK_SIGNAL_FUNC(hideWindow),
                               GTK_OBJECT(dlWindow));
-    gtk_signal_connect_object(GTK_OBJECT(dlWindow), "destroy",
+    gtk_signal_connect_object(GTK_OBJECT(dlWindow), 
+			      "destroy",
                               GTK_SIGNAL_FUNC(hideWindow),
                               GTK_OBJECT(dlWindow));
 
@@ -654,7 +653,7 @@ void startDownload(gchar * filename,
     gtk_widget_show(box);
     gtk_widget_show(scrolled_window);
     /* cancel/remove button */
-    button = gtk_button_new_with_label("Remove selected entries");
+    button = gtk_button_new_with_label(_("Remove selected entries"));
     gtk_signal_connect (GTK_OBJECT(button),
                       "clicked",
                       GTK_SIGNAL_FUNC(abortSelectedDownloads),
@@ -668,7 +667,7 @@ void startDownload(gchar * filename,
 
     /* activate the pulldown menu option now */
     entry = gtk_item_factory_get_widget(itemFactory,
-                                        "/File/Show downloads");
+                                        gettext_noop("/File/Show downloads"));
     gtk_widget_set_sensitive(entry, TRUE);
 
     /* add popup menu */
@@ -698,7 +697,7 @@ void startDownload(gchar * filename,
   fileInfo[5]="-";
   fileInfo[6]="-";
   fileInfo[7]="-";
-  snprintf(fileInfo[3], 
+  SNPRINTF(fileInfo[3], 
 	   32, 
 	   "%u", 
 	   (unsigned int) ntohl(dlm->root.header.fileIdentifier.file_length));
@@ -728,8 +727,9 @@ void startDownload(gchar * filename,
   gtk_widget_show(dlWindow);
 
   /* append an info note */
-  fstring = fileIdentifierToString(&dlm->root.header.fileIdentifier);
-  infoMessage(NO, "gnunet-download -o \"%s\" %s\n",
+  fstring = createFileURI(&dlm->root.header.fileIdentifier);
+  infoMessage(NO, 
+	      "gnunet-download -o \"%s\" %s\n",
   	      dlm->fileName,
 	      fstring);
   FREE(fstring);
@@ -739,18 +739,16 @@ void startDownload(gchar * filename,
 			  (PThreadMain) &downloadFile_,
 			  dlm,
 			  64 * 1024))
-    errexit("FATAL: could not create download thread (%s)!\n",
-	    STRERROR(errno));
+    DIE_STRERROR("pthread_create");
   PTHREAD_DETACH(&dlm->downloadThread);  
 }
 
 /**
  * Starts a file download when user has filled in the fields
- **/ 
+ */ 
 void fetchURICallback(GtkWidget * widget,
-			 gpointer data) {
-  gchar * uri;
-  FileIdentifier * fid;
+		      gpointer data) {
+  const gchar * uri;
   GtkWidget * entry;
   RootNode root;
 
@@ -761,28 +759,26 @@ void fetchURICallback(GtkWidget * widget,
   if(!uri)
     return;
 
-  fid = stringToFileIdentifier(uri);
-  if(!fid) {
-    guiMessage("Invalid gnunet AFS URI");
+  if (OK != parseFileURI(uri,
+			 &root.header.fileIdentifier)) {
+    guiMessage(_("Invalid gnunet AFS URI '%s'."),
+	       uri);
     gtk_widget_destroy(data);
     return;
   }
 
   root.header.major_formatVersion = ROOT_MAJOR_VERSION;
   root.header.minor_formatVersion = ROOT_MINOR_VERSION;
-  memcpy(&root.header.fileIdentifier,
-	 fid,
-         sizeof(FileIdentifier));
   strcpy(root.header.mimetype,
 	 "unknown");
-  
-  /* FIXME: Future URLs should contain suggested filename 
-   * (or the code should ask one from user) */
-  sprintf(root.header.filename, "unknown.%ld", (unsigned long)time(NULL));
 
+  /* FIXME: prompt for filename! */
+  SNPRINTF(root.header.filename,
+	   sizeof(root.header.filename),
+	   "unknown.%ld", 
+	   (unsigned long)time(NULL));  
   startDownload(root.header.filename,
                 &root);
-
   gtk_widget_destroy(data);
 }
 
@@ -801,7 +797,7 @@ void fetchURI(GtkWidget * widget,
   		       780,
 		       100);
   gtk_window_set_title(GTK_WINDOW(window),
-  		       "Download URI");
+  		       _("Download URI"));
   /* add container for window elements */
   vbox = gtk_vbox_new(FALSE, 15);
   gtk_container_add(GTK_CONTAINER(window),
@@ -825,7 +821,7 @@ void fetchURI(GtkWidget * widget,
 		     0);
   gtk_widget_show(hbox);
  
-  label = gtk_label_new("GNUnet AFS URI: ");
+  label = gtk_label_new(_("GNUnet AFS URI: "));
   gtk_box_pack_start(GTK_BOX(hbox),
 		     label,
 		     FALSE,
@@ -847,8 +843,8 @@ void fetchURI(GtkWidget * widget,
 		      entry);
   gtk_widget_show(entry);
 
-  button_ok = gtk_button_new_with_label("Ok");
-  button_cancel = gtk_button_new_with_label("Cancel");
+  button_ok = gtk_button_new_with_label(_("Ok"));
+  button_cancel = gtk_button_new_with_label(_("Cancel"));
 
   hbox = gtk_hbox_new(FALSE, 0);
   gtk_box_pack_start(GTK_BOX(vbox),
@@ -878,9 +874,6 @@ void fetchURI(GtkWidget * widget,
   gtk_widget_show(button_ok);
   gtk_widget_show(button_cancel);
   gtk_widget_show(window);
- 
-
-
 }
 		 
 

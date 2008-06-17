@@ -21,7 +21,7 @@
  * @file applications/afs/esed2/sblock.c
  * @brief data structure SBlock
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_afs_esed2.h"
 #include "platform.h"
@@ -47,8 +47,8 @@
 /**
  * Verify that a given SBlock is well-formed.
  * @param sb the sblock
- **/
-int verifySBlock(SBlock * sb) {
+ */
+int verifySBlock(const SBlock * sb) {
   HashCode160 S;
   HashCode160 NmI;
   HashCode160 HNmI;
@@ -89,16 +89,12 @@ int verifySBlock(SBlock * sb) {
                     &sb->signature,
                     &sb->subspace);
     FREE(tmp);
-    if (OK == ret)
-      addNamespace(&S);
     return ret;
   } else {
     ret = verifySig(sb,
                     SIGNED_SIZE,
                     &sb->signature,
                     &sb->subspace);
-    if (OK == ret)
-      addNamespace(&S);
     return ret;
   }
 }
@@ -112,14 +108,14 @@ int verifySBlock(SBlock * sb) {
  * @param sb the SBlock (must be in plaintext)
  * @param now the time for which the ID should be computed
  * @param c the resulting current ID (set)
- **/
-void computeIdAtTime(SBlock * sb,
+ */
+void computeIdAtTime(const SBlock * sb,
 		     TIME_T now,
 		     HashCode160 * c) {
   TIME_T pos;
   HashCode160 tmp;
 #if DEBUG_SBLOCK 
-  HexName hex;
+  EncName enc;
 #endif
 
   if (ntohl(sb->updateInterval) == (TIME_T) SBLOCK_UPDATE_SPORADIC) {
@@ -146,18 +142,37 @@ void computeIdAtTime(SBlock * sb,
 		  
     memcpy(c, &tmp, sizeof(HashCode160));
 #if DEBUG_SBLOCK 
-    hash2hex(c,
-             &hex);
-    LOG(LOG_DEBUG, "Update at %s should have key %s\n",
+    hash2enc(c,
+             &enc);
+    LOG(LOG_DEBUG, 
+	"Update at time '%s' should have key '%s'.\n",
         GN_CTIME(&pos),
-        (char*)&hex);
+        (char*)&enc);
 #endif
   }
 }
 
 
-void decryptSBlock(HashCode160 * k,
-		   SBlock * in,
+void encryptSBlock(const HashCode160 * k,
+		   const SBlock * in,
+		   SBlock * out) {
+  SESSIONKEY skey;
+  unsigned char iv[BLOWFISH_BLOCK_LENGTH];
+
+  memcpy(out, in, sizeof(SBlock));
+  hashToKey(k, &skey, &iv[0]);
+  if (ENCRYPTED_SIZE !=
+      encryptBlock(in,
+		   ENCRYPTED_SIZE,
+		   &skey,
+		   &iv[0],
+		   out))
+    GNUNET_ASSERT(0);
+}
+
+
+void decryptSBlock(const HashCode160 * k,
+		   const SBlock * in,
 		   SBlock * out) {
   SESSIONKEY skey;
   unsigned char iv[BLOWFISH_BLOCK_LENGTH];
@@ -170,21 +185,23 @@ void decryptSBlock(HashCode160 * k,
 		   ENCRYPTED_SIZE,
 		   &iv[0],
 		   out))
-    errexit("FATAL: decryptBlock failed.\n");
+    GNUNET_ASSERT(0);
 }
+
+#define MIN(a,b) ( ((a) < (b)) ? (a) : (b) )
 
 /**
  * Build an (encrypted) SBlock.
  */
-SBlock * buildSBlock(Hostkey pseudonym,
-		     FileIdentifier * fi,
-		     char * description,
-		     char * filename,
-		     char * mimetype,
+SBlock * buildSBlock(const Hostkey pseudonym,
+		     const FileIdentifier * fi,
+		     const char * description,
+		     const char * filename,
+		     const char * mimetype,
 		     TIME_T creationTime,
 		     TIME_T interval,
-		     HashCode160 * k,
- 		     HashCode160 * n) {
+		     const HashCode160 * k,
+ 		     const HashCode160 * n) {
   SBlock * result;
   SBlock plainSBlock;
   HashCode160 s; /* subspace identifier = H(PubKey) */ 
@@ -194,20 +211,20 @@ SBlock * buildSBlock(Hostkey pseudonym,
   void * tmp;
   SESSIONKEY skey;
   unsigned char iv[BLOWFISH_BLOCK_LENGTH];
-  HexName hex1;
-  HexName hex2;
+  EncName enc1;
+  EncName enc2;
   
   IFLOG(LOG_DEBUG,
-	hash2hex(k, &hex1);
-	hash2hex(n, &hex2));
+	hash2enc(k, &enc1);
+	hash2enc(n, &enc2));
   LOG(LOG_DEBUG,
-      "DEBUG: building SBlock %s: %s -- %s\n",
+      "Building SBlock %s: %s -- %s\n",
       filename,
       description,
       mimetype);
   LOG(LOG_DEBUG,
-      "DEBUG: building SBlock with key %s and next key %s\n",
-      &hex1, &hex2);
+      "Building SBlock with key '%s' and next key '%s'.\n",
+      &enc1, &enc2);
 
   result = MALLOC(sizeof(SBlock));
   memset(result, 0, sizeof(SBlock));
@@ -218,21 +235,15 @@ SBlock * buildSBlock(Hostkey pseudonym,
   memcpy(&result->fileIdentifier,
 	 fi,
 	 sizeof(FileIdentifier));
-  if (strlen(description) >= MAX_DESC_LEN)
-    description[MAX_DESC_LEN-1] = '\0';
   memcpy(&result->description[0],
 	 description,
-	 strlen(description));
-  if (strlen(filename) >= MAX_FILENAME_LEN/2)
-    filename[MAX_FILENAME_LEN/2-1] = '\0';
+	 MIN(strlen(description), MAX_DESC_LEN-1));
   memcpy(&result->filename[0],
 	 filename,
-	 strlen(filename));
-  if (strlen(mimetype) >= MAX_MIMETYPE_LEN/2)
-    mimetype[MAX_MIMETYPE_LEN/2-1] = '\0';
+	 MIN(strlen(filename), MAX_FILENAME_LEN/2-1));
   memcpy(&result->mimetype[0],
 	 mimetype,
-	 strlen(mimetype));
+	 MIN(strlen(mimetype), MAX_MIMETYPE_LEN/2-1));
   result->creationTime = htonl(creationTime);
   result->updateInterval = htonl(interval);
   getPublicKey(pseudonym,
@@ -258,11 +269,11 @@ SBlock * buildSBlock(Hostkey pseudonym,
 	 sizeof(HashCode160));
 
   IFLOG(LOG_DEBUG,
-	hash2hex(&s, &hex1);
-	hash2hex(&r, &hex2));
+	hash2enc(&s, &enc1);
+	hash2enc(&r, &enc2));
   LOG(LOG_DEBUG,
-      "DEBUG: building SBlock for namespace %s and query %s\n",
-      &hex1, &hex2);
+      "Building SBlock for namespace '%s' and query '%s'.\n",
+      &enc1, &enc2);
 
   hashToKey(k, &skey, &iv[0]);
   tmp = MALLOC(ENCRYPTED_SIZE);
@@ -301,9 +312,9 @@ SBlock * buildSBlock(Hostkey pseudonym,
  * Insert the SBlock
  *
  * @return OK on success, SYSERR on error
- **/
+ */
 int insertSBlock(GNUNET_TCP_SOCKET * sock,
-		 SBlock * sb) {
+		 const SBlock * sb) {
   AFS_CS_INSERT_SBLOCK * msg;
   int ok;
   int res;
@@ -322,12 +333,12 @@ int insertSBlock(GNUNET_TCP_SOCKET * sock,
   if (SYSERR == readTCPResult(sock,
 			      &res)) {
     LOG(LOG_WARNING, 
-	"WARNING: server did not send confirmation of insertion\n");
+	_("Server did not send confirmation of insertion.\n"));
     ok = SYSERR;
   } else {
     if (res == SYSERR)
       LOG(LOG_WARNING, 
-	  "WARNING: server could not perform insertion\n");
+	  _("Server could not perform insertion\n"));
     ok = res;
   }
   return ok;
@@ -336,12 +347,12 @@ int insertSBlock(GNUNET_TCP_SOCKET * sock,
 typedef struct {
   /**
    * Time when the cron-job was first started.
-   **/
+   */
   cron_t start;
 
   /**
    * How many cron-units may we run (total)?
-   **/
+   */
   cron_t timeout;
   GNUNET_TCP_SOCKET * sock;
   AFS_CS_NSQUERY * query;
@@ -354,7 +365,7 @@ static void sendNSQuery(SendNSQueryContext * sqc) {
   int new_priority;
 
 #if DEBUG_SBLOCK
-  LOG(LOG_DEBUG, "DEBUG: enter sendNSQuery\n");
+  LOG(LOG_DEBUG, "enter sendNSQuery\n");
 #endif
   
   cronTime(&now);
@@ -362,7 +373,7 @@ static void sendNSQuery(SendNSQueryContext * sqc) {
     remTime = sqc->start - now + sqc->timeout;
     if (remTime <= 0) {
       LOG(LOG_DEBUG, 
-	  "DEBUG: exiting sendNSQuery without making a query\n");
+	  "exiting sendNSQuery without making a query\n");
       return;
     }
   } else
@@ -397,7 +408,7 @@ static void sendNSQuery(SendNSQueryContext * sqc) {
   
 #if DEBUG_SBLOCK
   LOG(LOG_DEBUG,
-      "DEBUG: will wait for min(%d, %d) ms\n",
+      "will wait for min(%d, %d) ms\n",
       new_ttl, 
       remTime);
 #endif
@@ -409,7 +420,7 @@ static void sendNSQuery(SendNSQueryContext * sqc) {
   if (remTime > 0) {
 #if DEBUG_SBLOCK
     LOG(LOG_DEBUG, 
-	"DEBUG: reinstating sendNSQuery in %d\n", 
+	"reinstating sendNSQuery in %d\n", 
 	new_ttl);
 #endif
     addCronJob((CronJob)&sendNSQuery,
@@ -431,10 +442,10 @@ static void sendNSQuery(SendNSQueryContext * sqc) {
  * @param resultCallback function to call for results
  * @param closure argument to pass to resultCallback
  * @return OK on success, SYSERR on error (= no result found)
- **/
+ */
 int searchSBlock(GNUNET_TCP_SOCKET * sock,
-		 HashCode160 * s,
-		 HashCode160 * k,
+		 const HashCode160 * s,
+		 const HashCode160 * k,
 		 TestTerminateThread testTerminate,
 		 void * ttContext,
 		 NSSearchResultCallback resultCallback,
@@ -487,40 +498,56 @@ int searchSBlock(GNUNET_TCP_SOCKET * sock,
     }
 #if DEBUG_SBLOCK
     LOG(LOG_DEBUG,
-	"DEBUG: received message from gnunetd\n");
+	"Received message from gnunetd\n");
 #endif
     switch (ntohs(buffer->tcpType)) {
     case AFS_CS_PROTO_RESULT_SBLOCK: 
-      if (ntohs(buffer->size) != 
-	  sizeof(AFS_CS_RESULT_SBLOCK)) {
+      if (ntohs(buffer->size) != sizeof(AFS_CS_RESULT_SBLOCK)) {
 	closeSocketTemporarily(sock);
 	LOG(LOG_WARNING,
-	    "WARNING: received invalid reply from gnunetd, retrying\n");
+	    _("Received invalid reply from gnunetd, retrying.\n"));
 	break;
       }
       reply = (AFS_CS_RESULT_SBLOCK*)buffer;
-      if (OK != verifySBlock(&reply->result)) {
-	LOG(LOG_WARNING,
-	    "WARNING: SBlock received from gnunetd failed verification.\n");
-	break;
-      }
-      /* internal identifier (for routing HT, etc.) is
-	 "xor" of the user-identifier with the namespace
-	 ID to avoid keyword collisions with realnames
-	 in the global, 3HASH namespace */
       hash(&reply->result.subspace,
 	   sizeof(PublicKey),
 	   &hc); 
       if (! equalsHashCode160(&hc,
 			      s)) {
 	LOG(LOG_WARNING,
-	    "WARNING: SBlock received from gnunetd belongs to wrong namespace.\n");
+	    _("NBlock received from gnunetd belongs to wrong namespace.\n"));
 	break;	    
       }
+      if (OK != verifySBlock(&reply->result)) {
+	HashCode160 allZeros;
+
+	/* try NBlock */
+	memset(&allZeros, 0, sizeof(HashCode160));
+	if ( (equalsHashCode160(&reply->result.identifier,
+				&allZeros)) &&
+	     (equalsHashCode160(&allZeros,
+				k)) ) {
+	  if (OK == verifyNBlock((const NBlock*)&reply->result)) {
+	    decryptSBlock(k,
+			  &reply->result,
+			  &result);	  
+	    resultCallback(&result,
+			   closure);
+	    break;
+	  }
+	}
+	LOG(LOG_WARNING,
+	    _("SBlock received from gnunetd failed verification.\n"));
+	break;
+      }
+      /* internal identifier (for routing HT, etc.) is
+	 "xor" of the user-identifier with the namespace
+	 ID to avoid keyword collisions with realnames
+	 in the global, 3HASH namespace */
       if (! equalsHashCode160(&r,
 			      &reply->result.identifier) ) {
 	LOG(LOG_WARNING,
-	    "WARNING: SBlock received from gnunetd has wrong identifier.\n");
+	    _("SBlock received from gnunetd has wrong identifier.\n"));
 	break;	    
       }
       decryptSBlock(k, 
@@ -532,7 +559,7 @@ int searchSBlock(GNUNET_TCP_SOCKET * sock,
       break;
     default:
       LOG(LOG_WARNING,
-	  "WARNING: message from server is of unexpected type\n");
+	  _("Message from server is of unexpected type.\n"));
       break;
     }
     FREE(buffer);
@@ -551,58 +578,60 @@ int searchSBlock(GNUNET_TCP_SOCKET * sock,
  * 
  * @param stream where to print the information to
  * @param sb the SBlock -- in plaintext.
- **/
+ */
 void printSBlock(void * swrap,
-		 SBlock * sb) {
-  HexName hex;
+		 const SBlock * sb) {
+  EncName enc;
   HashCode160 hc;
   TIME_T now;
   TIME_T pos;
   char * fstring;
   char * filename;
   FILE * stream;
+  char * nick;
 
   stream = (FILE*) swrap;
   
-  sb->description[MAX_DESC_LEN-1] = 0;
-  sb->filename[MAX_FILENAME_LEN/2-1] = 0;
-  sb->mimetype[MAX_MIMETYPE_LEN/2-1] = 0;
   /* if it is a GNUnet directory, replace suffix '/' with ".gnd" */
   if (0 == strcmp(sb->mimetype,
   		  GNUNET_DIRECTORY_MIME)) {
-    filename = expandDirectoryName(sb->filename);
+    char * tmp = STRNDUP(sb->filename, MAX_FILENAME_LEN/2);
+    filename = expandDirectoryName(tmp);
+    FREE(tmp);
   } else {
-    filename = STRDUP(sb->filename);
+    filename = STRNDUP(sb->filename, MAX_FILENAME_LEN/2);
   }
      
   hash(&sb->subspace,
        sizeof(PublicKey),
        &hc);
-  hash2hex(&hc,
-	   &hex);
+  nick = getUniqueNickname(&hc);
   fprintf(stream,
-	  "%s (%s) published by %s\n",
+	  _("%.*s (%.*s) published by '%s'\n"),
+	  MAX_DESC_LEN,
 	  &sb->description[0],
+	  MAX_MIMETYPE_LEN/2,
 	  &sb->mimetype[0],
-	  (char*)&hex);
-  fstring = fileIdentifierToString(&sb->fileIdentifier);
+	  nick);
+  FREE(nick);
+  fstring = createFileURI(&sb->fileIdentifier);
   fprintf(stream,
-	  "gnunet-download -o \"%s\" %s\n",
+	  "\tgnunet-download -o \"%s\" %s\n",
 	  filename,
 	  fstring);
   FREE(filename);
   FREE(fstring);
   switch (ntohl(sb->updateInterval)) {
   case SBLOCK_UPDATE_SPORADIC:
-    hash2hex(&sb->nextIdentifier,
-	     &hex);
+    hash2enc(&sb->nextIdentifier,
+	     &enc);
     fprintf(stream,
-	    "Next update will be %s.\n",
-	    (char*)&hex);  
+	    _("\tNext update will be %s.\n"),
+	    (char*)&enc);  
     break;
   case SBLOCK_UPDATE_NONE:
     fprintf(stream,
-	    "SBlock indicates no updates.\n");  
+	    _("\tSBlock indicates no updates.\n"));  
     break;
   default:    
     pos = (TIME_T) ntohl(sb->creationTime);
@@ -620,12 +649,12 @@ void printSBlock(void * swrap,
       memcpy(&hc,	
 	     &tmp,
 	     sizeof(HashCode160));
-      hash2hex(&hc,
-	       &hex);
+      hash2enc(&hc,
+	       &enc);
       fprintf(stream,
-	      "Update due at %s has key %s\n",
+	      _("Update due at '%s' has key '%s'.\n"),
 	      GN_CTIME(&pos),
-	      (char*)&hex);
+	      (char*)&enc);
     }  
     break;    
   } /* end of switch on interval */

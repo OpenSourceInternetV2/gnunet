@@ -22,7 +22,7 @@
  * @file applications/afs/esed2/requestmanager.c
  * @brief The RequestManager keeps track of and re-issues queries
  * @author Christian Grothoff
- **/ 
+ */ 
 
 #include "gnunet_afs_esed2.h"
 #include "platform.h"
@@ -36,19 +36,19 @@
 
 /**
  * After how many retries do we print a warning?
- **/
+ */
 #define MAX_TRIES 50
 
 /**
  * Print the contents of the request manager. For debugging.
- **/
+ */
 void printRequestManager(RequestManager * this) {
   int i;
   HexName hex;
 
   MUTEX_LOCK(&this->lock);
   LOG(LOG_DEBUG,
-      "DEBUG: RM TTL %u duplicates %d\n",
+      "RM TTL %u duplicates %d\n",
       this->initialTTL, 
       this->duplicationEstimate);
   for (i=0;i<this->requestListIndex;i++) {
@@ -56,7 +56,7 @@ void printRequestManager(RequestManager * this) {
 	  hash2hex(&((AFS_CS_QUERY_GENERIC*)(this->requestList[i]->message))->queries[0], 
 		   &hex));
     LOG(LOG_DEBUG,
-	"DEBUG: %4i: %s for node %d (%d tries)\n",
+	"%4i: %s for node %d (%d tries)\n",
 	i, 
 	&hex, 
 	this->requestList[i]->receiverNode,
@@ -98,7 +98,7 @@ static void runContinuation(RequestManager * this,
     if (ok != OK) {
       /* we did not send this entry, revert! */
       LOG(LOG_DEBUG,
-	  "DEBUG: sending canceled (would block)\n");
+	  "sending canceled (would block)\n");
       cur->entry->message->ttl 
 	= htonl(cur->prevttl);
       cur->entry->message->priority 
@@ -118,7 +118,7 @@ static void runContinuation(RequestManager * this,
 	  /* we performed retransmission, treat as congestion (RFC 2001) */
 #if DEBUG_REQUESTMANAGER
 	  LOG(LOG_DEBUG,
-	      "DEBUG: received duplicate data, changing CW (%d to %d) and SST (%d->%d)\n",
+	      "received duplicate data, changing CW (%d to %d) and SST (%d->%d)\n",
 	      this->congestionWindow,
 	      (this->congestionWindow / 2) + 1,
 	      this->ssthresh,
@@ -147,7 +147,7 @@ static void runContinuation(RequestManager * this,
  *
  * @param this the RequestManager
  * @param requestIndex the index of the Request to issue
- **/
+ */
 static void issueRequest(RequestManager * this,
 			 int requestIndex) {
   RequestContinuations * con;
@@ -168,15 +168,8 @@ static void issueRequest(RequestManager * this,
     = this->requestList[requestIndex];
 
   if ((entry->lasttime +
-       ntohl(entry->message->ttl)) > now - TTL_DECREMENT) {
-    LOG(LOG_WARNING,
-	"WARNING: assertion failed: %d + %d > %llu + %d\n",
-	entry->lasttime,
-	ntohl(entry->message->ttl),
-	now,
-	TTL_DECREMENT);
-    BREAK();
-  }
+       ntohl(entry->message->ttl)) > now - TTL_DECREMENT) 
+    BREAK(); 
   if (entry->lasttime == 0) {
     entry->message->ttl = htonl(0); /* to avoid assert failure */
     con->ttl = this->initialTTL;
@@ -221,19 +214,14 @@ static void issueRequest(RequestManager * this,
 				 ntohs(entry->message->header.size)+sizeof(HostIdentity))) {
 #if DEBUG_REQUESTMANAGER
     LOG(LOG_DEBUG,
-	"DEBUG: not sending query %s due to anonymity policy!\n",
+	"Not sending query '%s' due to anonymity policy!\n",
 	&hex);
 #endif
     FREE(con);
     return; 
   }
-  if (con->ttl < ntohl(entry->message->ttl)) {
-    LOG(LOG_WARNING,
-	"WARNING: assertion failed; decrementing TTL from %u to %u!\n",
-	ntohl(entry->message->ttl),
-	con->ttl);
+  if (con->ttl < ntohl(entry->message->ttl)) 
     BREAK();
-  }
   con->prevpri 
     = ntohl(entry->message->priority);
   if (con->prevpri > 0x0FFFFFF)
@@ -289,7 +277,7 @@ static void issueRequest(RequestManager * this,
 		     &hex));
       if (con->prevlt == 0) {
 	LOG(LOG_DEBUG,
-	    "DEBUG: %d sending %dst time (last: NEVER; ttl %d) %s; ttl %d, priority %u (%d)\n",
+	    "%d sending %dst time (last: NEVER; ttl %d) %s; ttl %d, priority %u (%d)\n",
 	    i,
 	    entry->tries,
 	    con->prevttl,
@@ -299,7 +287,7 @@ static void issueRequest(RequestManager * this,
 	    this->initialTTL);
       } else {
 	LOG(LOG_DEBUG,
-	    "DEBUG: %d sending %d-th time (last: %lld ms ago; ttl %d) %s; ttl %d, priority %u (%d)\n",
+	    "%d sending %d-th time (last: %lld ms ago; ttl %d) %s; ttl %d, priority %u (%d)\n",
 	    i,
 	    entry->tries,
 	    (now - con->prevlt),
@@ -331,7 +319,7 @@ static void issueRequest(RequestManager * this,
 	  hash2hex(&((AFS_CS_QUERY_GENERIC*)(entry->message))->queries[0],
 		   &hex));
     LOG(LOG_WARNING,
-	"WARNING: %s seems to be not available on the network\n",
+	_("Content '%s' seems to be not available on the network.\n"),
 	&hex);
     entry->receiverNode->vtbl->print(entry->receiverNode, 0);
   }
@@ -359,8 +347,7 @@ static void issueRequest(RequestManager * this,
 				  msg);
     if (ok == SYSERR) {
       LOG(LOG_WARNING,
-	  "WARNING: could not send request to gnunetd, "
-	  "is it running?\n");
+	  _("Could not send request to gnunetd, is gnunetd running?\n"));
       runContinuation(this,
 		      SYSERR);
     } else {
@@ -377,7 +364,7 @@ static void issueRequest(RequestManager * this,
  * Cron job that re-issues requests. Should compute how long to sleep
  * (min ttl until next job is ready) and re-schedule itself
  * accordingly!
- **/
+ */
 static void requestJob(RequestManager * this) {
   cron_t minSleep;
   cron_t now;
@@ -388,8 +375,8 @@ static void requestJob(RequestManager * this) {
 
 #if DEBUG_REQUESTMANAGER
   LOG(LOG_CRON,
-      "CRON: requestJob %x running\n",
-      (int)this);
+      "requestJob %p running\n",
+      this);
 #endif
   MUTEX_LOCK(&this->lock);
   if (this->requestListIndex == 0) {
@@ -434,7 +421,7 @@ static void requestJob(RequestManager * this) {
 	/* do not print ALL the time, just once per iteration */
 	if ( (lpri % (this->requestListIndex+1)) == 0) 
 	  LOG(LOG_DEBUG,
-	      "DEBUG: congestion control: %d pending, %d window; %u initial TTL\n",
+	      " congestion control: %d pending, %d window; %u initial TTL\n",
 	      pending,
 	      this->congestionWindow,
 	      this->initialTTL);
@@ -446,7 +433,7 @@ static void requestJob(RequestManager * this) {
 	       ntohl(this->requestList[j]->message->ttl)) - now;
 #if DEBUG_REQUESTMANAGER
       LOG(LOG_DEBUG,
-	  "DEBUG: request %d:%x (TTL: %u) is still pending for %us\n",
+	  "request %d:%x (TTL: %u) is still pending for %us\n",
 	  i,
 	  ((AFS_CS_QUERY_GENERIC*) this->requestList[j]->message)->queries[0].a,
 	  ntohl(this->requestList[j]->message->ttl),
@@ -463,7 +450,7 @@ static void requestJob(RequestManager * this) {
   if (this->requestListIndex > 0) {
 #if DEBUG_REQUESTMANAGER
     LOG(LOG_CRON,
-	"CRON: scheduling next run for in %dms\n",
+	"scheduling next run for in %dms\n",
 	minSleep);
 #endif
     addCronJob((CronJob)&requestJob, 
@@ -474,7 +461,7 @@ static void requestJob(RequestManager * this) {
 #if DEBUG_REQUESTMANAGER
   else
     LOG(LOG_DEBUG,
-	"DEBUG: no more jobs pending, cron not renewed!\n");
+	"no more jobs pending, cron not renewed!\n");
 #endif
   MUTEX_UNLOCK(&this->lock);
 }
@@ -486,7 +473,7 @@ static void requestJob(RequestManager * this) {
  * 
  * @param this the request manager struct from createRequestManager
  * @param msg the message received from gnunetd
- **/ 
+ */ 
 static void requestManagerReceive(RequestManager * this,
 				  AFS_CS_RESULT_CHK * msg) {
   int pos;
@@ -527,7 +514,7 @@ static void requestManagerReceive(RequestManager * this,
       /* duplicate reply, treat as congestion (RFC 2001) */
 #if DEBUG_REQUESTMANAGER
       LOG(LOG_DEBUG,
-	  "DEBUG: received duplicate data, changing CW (%d to %d) and SST (%d->%d)\n",
+	  "received duplicate data, changing CW (%d to %d) and SST (%d->%d)\n",
 	  this->congestionWindow,
 	  (this->congestionWindow / 2) + 1,
 	  this->ssthresh,
@@ -547,7 +534,7 @@ static void requestManagerReceive(RequestManager * this,
 	    hash2hex(&query,
 		     &hex));
       LOG(LOG_INFO, 
-	  "INFO: RequestManager: received useless data matching query %s (%d, %us)!\n",
+	  "RequestManager: received useless data matching query %s (%d, %us)!\n",
 	  &hex,
 	  this->duplicationEstimate,
 	  this->initialTTL / cronSECONDS);   
@@ -563,7 +550,7 @@ static void requestManagerReceive(RequestManager * this,
 	  hash2hex(&((AFS_CS_QUERY_GENERIC*)this->requestList[pos]->message)->queries[0], 
 		   &hex));
     LOG(LOG_DEBUG,
-	"DEBUG: RequestManager: received reply for request %d (%s)\n",
+	"RequestManager: received reply for request %d (%s)\n",
 	pos,
 	&hex);
   }
@@ -597,7 +584,7 @@ static void requestManagerReceive(RequestManager * this,
      that we got a reply! */
 #if DEBUG_REQUESTMANAGER
   LOG(LOG_DEBUG,
-      "DEBUG: request manager receives data for %x\n",
+      "request manager receives data for %p\n",
       entry->receiverNode);
 #endif
 
@@ -614,7 +601,7 @@ static void requestManagerReceive(RequestManager * this,
        requesting... */
 #if DEBUG_REQUESTMANAGER
     LOG(LOG_DEBUG,
-	"DEBUG: entry->receiver aborted download!\n");
+	" entry->receiver aborted download!\n");
 #endif
     for (i=0;i<this->requestListIndex;i++) {
       freeInContinuations(this,
@@ -628,7 +615,7 @@ static void requestManagerReceive(RequestManager * this,
 /**
  * We are approaching the end of the download.  Cut
  * all TTLs in half.
- **/
+ */
 void requestManagerEndgame(RequestManager * this) {
   int i;
 
@@ -644,7 +631,7 @@ void requestManagerEndgame(RequestManager * this) {
 /**
  * Listen on socket and receive messages. Call requestManagerReceive
  * on every reply. Never returns, if the RM dies, it will cancel us.
- **/
+ */
 static void * receiveThread(RequestManager * this) {
   CS_HEADER * buffer;
   GNUNET_TCP_SOCKET * sock;
@@ -661,7 +648,7 @@ static void * receiveThread(RequestManager * this) {
       if (this->sock == NULL)
 	break;
       LOG(LOG_WARNING,
-	  "WARNING: %s at %s:%d could not "
+	  "'%s' at %s:%d could not "
 	  "read data from gnunetd, is the server running?\n",
 	  __FUNCTION__, __FILE__, __LINE__);
       sleep(15);
@@ -674,8 +661,7 @@ static void * receiveThread(RequestManager * this) {
       value = ntohl(((CS_RETURN_VALUE*)buffer)->return_value);
       MUTEX_LOCK(&this->lock);
       if (this->start == NULL) {
-	LOG(LOG_ERROR,
-	    "ERROR: received return value from gnunetd but I have no continuation! (bug!)\n");
+	BREAK();
       } else {
 	runContinuation(this,
 			value);
@@ -689,9 +675,9 @@ static void * receiveThread(RequestManager * this) {
       MUTEX_UNLOCK(&this->lock);    
     } else {
       /* This should no longer happen, but better check than sorry... */
-      LOG(LOG_WARNING,
-	  "WARNING: received unexpected message (%d) from gnunetd. "
-	  "(this is a bug, though we can probably recover gracefully)\n",
+      LOG(LOG_ERROR,
+	  _("Received unexpected message (%d) from gnunetd. "
+	    "(this is a bug, though we can probably recover gracefully).\n"),
 	  ntohs(buffer->tcpType));
       MUTEX_LOCK(&this->lock);
       releaseClientSocket(this->sock);
@@ -713,7 +699,7 @@ static void * receiveThread(RequestManager * this) {
  * such that it is possible to tell when we are done.
  *
  * @return NULL on error
- **/
+ */
 RequestManager * createRequestManager() {
   RequestManager * rm;
 
@@ -750,7 +736,7 @@ RequestManager * createRequestManager() {
     = getClientSocket();
   if (rm->sock == NULL) {
     LOG(LOG_WARNING,
-	"WARNING: could not create socket to connect to gnunetd\n");
+	_("Could not create socket to connect to gnunetd.\n"));
     GROW(rm->requestList,
 	 rm->requestListSize,
 	 0);
@@ -764,9 +750,8 @@ RequestManager * createRequestManager() {
 			  (PThreadMain)&receiveThread,
 			  rm, 
 			  256*1024)) {
-    LOG(LOG_ERROR,
-	    "ERROR: could not create receiveThread (%s)\n",
-	  STRERROR(errno));
+    DIE_STRERROR("pthread_create");
+    /* ok, we don't get here... */
     destroyRequestManager(rm);
     return NULL;
   }
@@ -779,7 +764,7 @@ RequestManager * createRequestManager() {
  * after the download is complete.
  *
  * @param this the request manager struct from createRequestManager
- **/
+ */
 void destroyRequestManager(RequestManager * this) {
   GNUNET_TCP_SOCKET * sock;
   int i;
@@ -830,7 +815,7 @@ void destroyRequestManager(RequestManager * this) {
  * @param callback the method to invoke
  * @param data the data argument to the Listener
  * @param message the query to send to gnunetd, freed by callee!
- **/
+ */
 void requestManagerRequest(RequestManager * this,
 			   Block * node,
 			   Listener callback,
@@ -840,7 +825,7 @@ void requestManagerRequest(RequestManager * this,
 
 #if DEBUG_REQUESTMANAGER
   LOG(LOG_DEBUG,
-      "DEBUG: requestManagerRequest for %x with callback %x\n",
+      "requestManagerRequest for %p with callback %p\n",
       node,
       callback);
 #endif
@@ -869,7 +854,7 @@ void requestManagerRequest(RequestManager * this,
   this->requestList[this->requestListIndex++] = entry;
 #if DEBUG_REQUESTMANAGER
   LOG(LOG_CRON,
-      "CRON: scheduling next run for now!\n");
+      "scheduling next run for now!\n");
 #endif
   advanceCronJob((CronJob)&requestJob,
 		 0, 
@@ -880,7 +865,7 @@ void requestManagerRequest(RequestManager * this,
 
 /**
  * Assert that there are no pending requests for this node.
- **/
+ */
 void requestManagerAssertDead(RequestManager * this,
 			      Block * node) {
   int i;
@@ -889,9 +874,7 @@ void requestManagerAssertDead(RequestManager * this,
     return; /* do not check */
   MUTEX_LOCK(&this->lock);
   for (i=0;i<this->requestListIndex;i++)
-    if (this->requestList[i]->receiverNode == node) 
-      errexit("FATAL: node %x is being destroyed while request is pending\n",
-	      node);
+    GNUNET_ASSERT(this->requestList[i]->receiverNode != node);
   MUTEX_UNLOCK(&this->lock);
 }
 
@@ -903,7 +886,7 @@ void requestManagerAssertDead(RequestManager * this,
  * @param node the block for which the request is updated
  * @param msg the new query message for that node, NULL for 
  *        none (then the request is dropped)
- **/
+ */
 void requestManagerUpdate(RequestManager * this,
 			  Block * node,
 			  AFS_CS_QUERY * msg) {
@@ -911,7 +894,7 @@ void requestManagerUpdate(RequestManager * this,
 
 #if DEBUG_REQUESTMANAGER
   LOG(LOG_DEBUG,
-      "DEBUG: updating request for %x to %x\n",
+      "updating request for %p to %p\n",
       node, 
       msg);
 #endif

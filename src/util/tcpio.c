@@ -35,7 +35,7 @@
  * uses unreliable, buffered, non-blocking, record-oriented TCP code
  * with a select call to reduce the number of threads which is
  * provided in transports/tcp.c.
- **/
+ */
 
 #include "gnunet_util.h"
 #include "platform.h"
@@ -48,7 +48,7 @@
  * @param ip IP of the host to connect to, in network byte order
  * @param result the SOCKET (filled in)
  * @return OK if successful, SYSERR on failure
- **/
+ */
 int initGNUnetClientSocketIP(unsigned short port,
 			     IPaddr ip,
 			     GNUNET_TCP_SOCKET * result) {
@@ -68,22 +68,22 @@ int initGNUnetClientSocketIP(unsigned short port,
  * @param hostname the name of the host to connect to
  * @param result the SOCKET (filled in)
  * @return OK if successful, SYSERR on failure
- **/
+ */
 int initGNUnetClientSocket(unsigned short port,
-			   char * hostname,
+			   const char * hostname,
 			   GNUNET_TCP_SOCKET * result) {
   struct hostent * he;
 
   he = GETHOSTBYNAME(hostname); 
 #if DEBUG_TCPIO
   LOG(LOG_DEBUG,
-      "DEBUG: connecting to host '%s:%d'\n",
+      "Connecting to host '%s:%d'.\n",
       hostname,
       port);
 #endif
   if (he == NULL) {
     LOG(LOG_ERROR,
-	"ERROR: could not find IP of host '%s'\n",
+	_("Could not find IP of host '%s'.\n"),
 	hostname);
     return SYSERR;
   }  
@@ -102,7 +102,7 @@ int initGNUnetClientSocket(unsigned short port,
  * @param sock the open socket
  * @param result the SOCKET (filled in)
  * @return OK (always successful)
- **/
+ */
 int initGNUnetServerSocket(int sock,
 			   GNUNET_TCP_SOCKET * result) {
   result->ip.addr = 0;
@@ -120,14 +120,14 @@ int initGNUnetServerSocket(int sock,
  * for a valid client socket (even if the connection is
  * closed), but will return false for a closed server socket.
  * @return 1 if open, 0 if closed
- **/
+ */
 int isOpenConnection(GNUNET_TCP_SOCKET * sock) {
   return (sock->socket != -1); 
 }
 
 /**
  * Check a socket, open and connect if it is closed and it is a client-socket.
- **/
+ */
 int checkSocket(GNUNET_TCP_SOCKET * sock) {
   int res;
   struct sockaddr_in soaddr;
@@ -142,10 +142,7 @@ int checkSocket(GNUNET_TCP_SOCKET * sock) {
     return OK;
   sock->socket = SOCKET(PF_INET, SOCK_STREAM, 6); /* 6: TCP */
   if (sock->socket == -1) {
-    LOG(LOG_FAILURE,
-	"FAILURE: Cannot create socket at %s:%d (%s).\n",
-	__FILE__, __LINE__,
-	STRERROR(errno));
+    LOG_STRERROR(LOG_FAILURE, "socket");
     return SYSERR;
   }
 
@@ -153,9 +150,7 @@ int checkSocket(GNUNET_TCP_SOCKET * sock) {
 	setBlocking(sock->socket, NO);
 	     
   soaddr.sin_family = AF_INET;
-  if (sizeof(struct in_addr) != sizeof(sock->ip.addr))
-    errexit("FATAL: assertion failed at %s:%d!\n",
-	    __FILE__, __LINE__);
+  GNUNET_ASSERT(sizeof(struct in_addr) == sizeof(sock->ip.addr));
   memcpy(&soaddr.sin_addr,
 	 &sock->ip.addr,
 	 sizeof(struct in_addr));
@@ -166,7 +161,7 @@ int checkSocket(GNUNET_TCP_SOCKET * sock) {
   if ( (res < 0) &&
        (errno != EINPROGRESS) ) {
     LOG(LOG_INFO,
-	"INFO: tcpio: Cannot connect to %d.%d.%d.%d:%d (%s)\n",
+	_("Cannot connect to %d.%d.%d.%d:%d: %s\n"),
 	PRIP(ntohl(*(int*)&sock->ip.addr)),
 	sock->port,
 	STRERROR(errno));
@@ -193,7 +188,7 @@ int checkSocket(GNUNET_TCP_SOCKET * sock) {
        (! FD_ISSET(sock->socket,
 		   &wset)) ) {
     LOG(LOG_INFO,
-	"INFO: tcpio: Cannot connect to %d.%d.%d.%d:%d (%s)\n",
+	_("Cannot connect to %d.%d.%d.%d:%d: %s\n"),
 	PRIP(ntohl(*(int*)&sock->ip.addr)),
 	sock->port,
 	STRERROR(errno));
@@ -211,9 +206,9 @@ int checkSocket(GNUNET_TCP_SOCKET * sock) {
  * @param sock the socket to write to
  * @param buffer the buffer to write
  * @return OK if the write was sucessful, otherwise SYSERR.
- **/
+ */
 int writeToSocket(GNUNET_TCP_SOCKET * sock,
-		  CS_HEADER * buffer) {
+		  const CS_HEADER * buffer) {
   int res;
   int size;
 
@@ -234,10 +229,7 @@ int writeToSocket(GNUNET_TCP_SOCKET * sock,
 	return SYSERR; /* can not send right now;
 			  but do NOT close socket in this case! */
       }      
-      LOG(LOG_INFO,
-	  "INFO: TCP-write: send returned %d (%s)\n",
-	  res, 
-	  STRERROR(errno));
+      LOG_STRERROR(LOG_INFO, "send");
       closeSocketTemporarily(sock);
       MUTEX_UNLOCK(&sock->writelock);
       return SYSERR;
@@ -256,10 +248,7 @@ int writeToSocket(GNUNET_TCP_SOCKET * sock,
       return SYSERR; /* would block, can not send right now;
 			but do NOT close socket in this case! */
     }
-    LOG(LOG_INFO,
-	"INFO: TCP-write: send returned %d (%s)\n",
-	res, 
-	STRERROR(errno));
+    LOG_STRERROR(LOG_INFO, "send");
     closeSocketTemporarily(sock);
     MUTEX_UNLOCK(&sock->writelock);
     return SYSERR;
@@ -281,9 +270,9 @@ int writeToSocket(GNUNET_TCP_SOCKET * sock,
  * @param buffer the buffer to write
  * @return OK if the write was sucessful, NO if it would have blocked and was not performed,
  *         otherwise SYSERR.
- **/
+ */
 int writeToSocketNonBlocking(GNUNET_TCP_SOCKET * sock,
-			     CS_HEADER * buffer) {
+			     const CS_HEADER * buffer) {
   int res;
   int size;
   
@@ -300,10 +289,7 @@ int writeToSocketNonBlocking(GNUNET_TCP_SOCKET * sock,
 	MUTEX_UNLOCK(&sock->writelock);
 	return NO; 
       }
-      LOG(LOG_INFO,
-	  "INFO: TCP-write-nonblocking: send returned %d (%s)\n",
-	  res, 
-	  STRERROR(errno));
+      LOG_STRERROR(LOG_INFO, "write");
       closeSocketTemporarily(sock);
       MUTEX_UNLOCK(&sock->writelock);
       return SYSERR;
@@ -337,10 +323,7 @@ int writeToSocketNonBlocking(GNUNET_TCP_SOCKET * sock,
 		    do not use SYSERR as return value
 		    since this is not an error! */
     }
-    LOG(LOG_INFO,
-	"INFO: TCP-write-nonblocking: send returned %d (%s)\n",
-	res, 
-	STRERROR(errno));
+    LOG_STRERROR(LOG_INFO, "send");
     closeSocketTemporarily(sock);
     MUTEX_UNLOCK(&sock->writelock);
     return SYSERR;
@@ -367,7 +350,7 @@ int writeToSocketNonBlocking(GNUNET_TCP_SOCKET * sock,
  *         was closed by the other side (if the socket is a
  *         client socket and is used again, tcpio will attempt
  *         to re-establish the connection [temporary error]).
- **/
+ */
 int readFromSocket(GNUNET_TCP_SOCKET * sock,
 		   CS_HEADER ** buffer) {
   int res;
@@ -387,12 +370,7 @@ int readFromSocket(GNUNET_TCP_SOCKET * sock,
 			  sizeof(unsigned short));
   if (pos != sizeof(unsigned short)) {
 #if DEBUG_TCPIO    
-    LOG(LOG_INFO,
-	"INFO: TCP-read: read on socket failed (pos: %d, socket: %d, sock %d, %s), closing\n",
-	pos, 
-	sock->socket,
-	(int) sock,
-	STRERROR(errno));
+    LOG_STRERROR(LOG_INFO, "recv");
 #endif
     closeSocketTemporarily(sock);
     MUTEX_UNLOCK(&sock->readlock);
@@ -401,11 +379,7 @@ int readFromSocket(GNUNET_TCP_SOCKET * sock,
   size = ntohs(size);
   if (size < sizeof(CS_HEADER)) {
 #if DEBUG_TCPIO    
-    LOG(LOG_INFO,
-	"INFO: TCP-read: invalid size read from socket (size: %d, socket: %d, sock %d), closing\n",
-	size, 
-	sock->socket,
-	(int) sock);
+    LOG_STRERROR(LOG_INFO, "recv");
 #endif
     closeSocketTemporarily(sock);
     MUTEX_UNLOCK(&sock->readlock);
@@ -421,11 +395,7 @@ int readFromSocket(GNUNET_TCP_SOCKET * sock,
 			  size - pos);
 
   if (res != (int)(size - pos)) {  /* error, abort */
-    LOG(LOG_INFO,
-	"INFO: TCP-read: Invalid read on socket (%d, %d, %s), closing\n",
-	res,
-	size - pos,
-	STRERROR(errno));
+    LOG_STRERROR(LOG_INFO, "recv");
     closeSocketTemporarily(sock);
     if (*buffer == NULL)
       FREE(buf);
@@ -434,7 +404,7 @@ int readFromSocket(GNUNET_TCP_SOCKET * sock,
   }    
 #if DEBUG_TCPIO
   LOG(LOG_DEBUG,
-      "DEBUG: successfully received %d bytes from TCP socket\n",
+      "Successfully received %d bytes from TCP socket.\n",
       size);
 #endif
   MUTEX_UNLOCK(&sock->readlock);
@@ -448,7 +418,7 @@ int readFromSocket(GNUNET_TCP_SOCKET * sock,
  * a TCP connection that will probably not be used for a long
  * time; the socket will still be auto-reopened by the
  * readFromSocket/writeToSocket methods if it is a client-socket).
- **/
+ */
 void closeSocketTemporarily(GNUNET_TCP_SOCKET * sock) {
   if (sock == NULL)
     return;
@@ -458,15 +428,12 @@ void closeSocketTemporarily(GNUNET_TCP_SOCKET * sock) {
     i = sock->socket;
 #if DEBUG_TCPIO
     LOG(LOG_DEBUG,
-	"DEBUG: TCP: closing socket %d\n",
+	"TCP: closing socket %d.\n",
 	sock->socket);
 #endif
     sock->socket = -1;
     if (0 != SHUTDOWN(i, SHUT_RDWR)) 
-      LOG(LOG_DEBUG,
-	  "DEBUG: error shutting down socket %d: %s\n",
-	  i,
-	  STRERROR(errno));
+      LOG_STRERROR(LOG_DEBUG, "shutdown");
     CLOSE(i);
   }
   sock->outBufLen = 0;
@@ -478,7 +445,7 @@ void closeSocketTemporarily(GNUNET_TCP_SOCKET * sock) {
  * Destroy a socket for good. If you use this socket afterwards,
  * you must first invoke initializeSocket, otherwise the operation
  * will fail.
- **/
+ */
 void destroySocket(GNUNET_TCP_SOCKET * sock) {
   closeSocketTemporarily(sock);
   sock->ip.addr = 0;

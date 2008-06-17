@@ -22,7 +22,7 @@
  * @file util/storage.c
  * @brief IO convenience methods
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_util.h"
 #include "platform.h"
@@ -64,8 +64,8 @@
 
 
 /* FIXME: Currently this function does not return errors */
-static void getSizeRec(char * filename,
-		       char * dirname,
+static void getSizeRec(const char * filename,
+		       const char * dirname,
 		       unsigned long long * size) {
   struct stat buf;  
   char * fn;
@@ -93,10 +93,7 @@ static void getSizeRec(char * filename,
     fn = STRDUP(filename);
 
   if (0 != STAT(fn, &buf)) {
-    LOG(LOG_EVERYTHING,
-	"EVERYTHING: Can not stat %s (%s)\n",
-	fn, 
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_EVERYTHING, "stat", fn);
     FREE(fn);
     return;
   }
@@ -111,8 +108,8 @@ static void getSizeRec(char * filename,
 }
 
 /* FIXME: Currently this function does not return errors */
-static void getSizeWithoutSymlinksRec(char * filename,
-				      char * dirname,
+static void getSizeWithoutSymlinksRec(const char * filename,
+				      const char * dirname,
 				      unsigned long long * size) {
   struct stat buf;  
   char * fn;
@@ -140,10 +137,7 @@ static void getSizeWithoutSymlinksRec(char * filename,
     fn = STRDUP(filename);
 
   if (0 != STAT(fn, &buf)) {
-    LOG(LOG_EVERYTHING,
-	"EVERYTHING: Can not stat %s (%s)\n",
-	fn, 
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_EVERYTHING, "stat", fn);
     FREE(fn);
     return;
   }
@@ -164,7 +158,7 @@ static void getSizeWithoutSymlinksRec(char * filename,
  *
  * @param part a file on the partition to check
  * @return -1 on errors, otherwise the number of free blocks
- **/
+ */
 long getBlocksLeftOnDrive(const char * part) {
 #ifdef SOLARIS
   struct statvfs buf;
@@ -172,9 +166,7 @@ long getBlocksLeftOnDrive(const char * part) {
   if (0 == statvfs(part, &buf)) {
     return buf.f_bavail;
   } else {
-    LOG(LOG_ERROR,
-	"ERROR: statfs failed: %s\n",
-	STRERROR(errno));
+    LOG_STRERROR(LOG_ERROR, "statfs");
     return -1;
   }
 #elif MINGW
@@ -186,7 +178,8 @@ long getBlocksLeftOnDrive(const char * part) {
   if(!GetDiskFreeSpace(szDrive, &dwDummy, &dwDummy, &dwBlocks, &dwDummy))
   {
     LOG(LOG_ERROR,
-        "ERROR: GetDiskFreeSpace failed for drive %s: %u\n",
+        _("'%s' failed for drive %s: %u\n"),
+	"GetDiskFreeSpace",
         szDrive, GetLastError());
         
     return -1;
@@ -199,10 +192,8 @@ long getBlocksLeftOnDrive(const char * part) {
   struct statfs s;
   if (0 == statfs(part, &s)) {
     return s.f_bavail;
-  } else {
-    LOG(LOG_ERROR,
-	"ERROR: statfs failed: %s\n",
-	STRERROR(errno));
+  } else {    
+    LOG_STRERROR(LOG_ERROR, "statfs");
     return -1;
   }
 #endif
@@ -212,8 +203,8 @@ long getBlocksLeftOnDrive(const char * part) {
  * Get the size of the file (or directory)
  * of the given file (in bytes).
  * FIXME: Currently this function does not return errors
- **/
-unsigned long long getFileSize(char * filename) {
+ */
+unsigned long long getFileSize(const char * filename) {
   unsigned long long size;
 
   size = 0;
@@ -225,8 +216,8 @@ unsigned long long getFileSize(char * filename) {
  * Get the size of the file (or directory) without 
  * counting symlinks.
  * FIXME: Currently this function does not return errors
- **/
-unsigned long long getFileSizeWithoutSymlinks(char * filename) {
+ */
+unsigned long long getFileSizeWithoutSymlinks(const char * filename) {
   unsigned long long size;
 
   size = 0;
@@ -237,8 +228,8 @@ unsigned long long getFileSizeWithoutSymlinks(char * filename) {
 
 /**
  * Convert string to value ('755' for chmod-call)
- **/
-static int atoo(char *s) {
+ */
+static int atoo(const char *s) {
   int n = 0;
 
   while ( ('0' <= *s) && (*s < '8') ) {
@@ -251,17 +242,14 @@ static int atoo(char *s) {
 /**
  * Test if fil is a directory.
  * @returns YES if yes, NO if not
- **/
+ */
 int isDirectory(const char * fil) {
   struct stat filestat;
   int ret;
 
   ret = STAT(fil, &filestat);
   if (ret != 0) {
-    LOG(LOG_EVERYTHING,
-	"EVERYTHING: Can not stat %s (%s).\n",
-	fil,
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_EVERYTHING, "stat", fil);
     return NO;
   }
   if (S_ISDIR(filestat.st_mode))
@@ -275,29 +263,24 @@ int isDirectory(const char * fil) {
  * (of a file that exists and that is not a directory).
  * @returns 1 if yes, 0 if not (will print an error
  * message in that case, too).
- **/
+ */
 int assertIsFile(const char * fil) {
   struct stat filestat;
   int ret;
 
   ret = STAT(fil, &filestat);
   if (ret != 0) {
-    LOG(LOG_EVERYTHING,
-	"EVERYTHING: Can not stat %s (%s).\n",
-	fil,
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_EVERYTHING, "stat", fil);
     return 0;
   }
   if (!S_ISREG(filestat.st_mode)) {
     LOG(LOG_WARNING,
-	"WARNING: %s is not a regular file.\n",
+	_("'%s' is not a regular file.\n"),
 	fil);
     return 0;
   }  
-  if ( ACCESS(fil, R_OK) < 0 ) {
-    LOG(LOG_WARNING,
-	"WARNING: access failed (%s).\n",
-	STRERROR(errno));
+  if (ACCESS(fil, R_OK) < 0 ) {
+    LOG_FILE_STRERROR(LOG_WARNING, "access", fil);
     return 0;
   }
   return 1;
@@ -309,10 +292,11 @@ int assertIsFile(const char * fil) {
  *        be relative to the current directory
  * @returns the full file name, 
  *          NULL is returned on error
- **/
+ */
 char * expandFileName(const char * fil) {
   char buffer[512];
   char * fn;
+  size_t n;
 #ifndef MINGW
   char * fm;
   const char *fil_ptr;
@@ -350,9 +334,11 @@ char * expandFileName(const char * fil) {
       fm = "$PWD";
   }
 
-  fn = MALLOC(strlen(fm) + 1 + strlen(fil_ptr) + 1);
+  n = strlen(fm) + 1 + strlen(fil_ptr) + 1;
+  fn = MALLOC(n);
 
-  sprintf(fn, "%s/%s", fm, fil_ptr);
+  SNPRINTF(fn, n,
+	   "%s/%s", fm, fil_ptr);
 #else
   fn = MALLOC(MAX_PATH + 1);
 
@@ -368,13 +354,15 @@ char * expandFileName(const char * fil) {
   {
     char szCurDir[MAX_PATH + 1];
     lRet = GetCurrentDirectory(MAX_PATH + 1, szCurDir);
-    if (lRet + strlen(fn) + 1 > (_MAX_PATH + 1))
+    if (lRet + strlen(fn) + 1 > (MAX_PATH + 1))
     {
       SetErrnoFromWinError(ERROR_BUFFER_OVERFLOW);
       
       return NULL;
     }
-    sprintf(fn, "%s\\%s", szCurDir, buffer);
+    SNPRINTF(fn,
+	     MAX_PATH+1,
+	     "%s\\%s", szCurDir, buffer);
   }
   else
   {
@@ -388,8 +376,8 @@ char * expandFileName(const char * fil) {
  * Implementation of "mkdir -p"
  * @param dir the directory to create
  * @returns OK on success, SYSERR on failure
- **/
-int mkdirp(char * dir) {
+ */
+int mkdirp(const char * dir) {
   char * rdir;
   int len;
   int pos;
@@ -436,10 +424,7 @@ int mkdirp(char * dir) {
 	if (0 != mkdir(rdir)) {    
 #endif
 	  if (errno != EEXIST) {
-	    LOG(LOG_ERROR,
-		"ERROR: could not mkdir %s: %s\n",
-		rdir,
-		STRERROR(errno));
+	    LOG_FILE_STRERROR(LOG_ERROR, "mkdir", rdir);
 	    ret = SYSERR;
 	  }
 	}
@@ -458,8 +443,8 @@ int mkdirp(char * dir) {
  * @param len the maximum number of bytes to read
  * @param result the buffer to write the result to
  * @return the number of bytes read on success, -1 on failure
- **/ 
-int readFile(char * fileName,
+ */ 
+int readFile(const char * fileName,
 	     int  len,
 	     void * result) {
   /* open file, must exist, open read only */
@@ -482,11 +467,11 @@ int readFile(char * fileName,
  * @param buffer the data to write
  * @param n number of bytes to write
  * @param mode permissions to set on the file
- **/ 
-void writeFile(char * fileName, 
-	       void * buffer,
+ */ 
+void writeFile(const char * fileName, 
+	       const void * buffer,
 	       int n,
-	       char *mode) {
+	       const char *mode) {
   int handle;
   /* open file, open with 600, create if not 
      present, otherwise overwrite */  
@@ -496,10 +481,7 @@ void writeFile(char * fileName,
 		O_CREAT|O_WRONLY,S_IRUSR|S_IWUSR);
   /* write the buffer take length from the beginning */
   if (n != WRITE(handle, buffer, n)) 
-    LOG(LOG_WARNING,
-	"WARNING: Writing %d bytes to file %s failed!\n",
-	n, 
-	fileName);
+    LOG_FILE_STRERROR(LOG_WARNING, "write", fileName);
   CHMOD(fileName, atoo(mode));
   CLOSE(handle);
 }
@@ -510,12 +492,11 @@ void writeFile(char * fileName,
  *        NOT be freed!
  * @param fil the name of the file, will NOT be deallocated anymore!
  * @param result where to store the full file name (must be large enough!)
- **/
-void buildFileName(char * dir,
-		   HexName * fil,
+ */
+void buildFileName(const char * dir,
+		   const EncName * fil,
 		   char * result) {
-  if ((dir == NULL) || (fil == NULL) || (result == NULL)) 
-    errexit("buildFileName called with NULL in arguments");
+  GNUNET_ASSERT((dir != NULL) && (fil != NULL) && (result != NULL));
   strcpy(result, dir);
   strcat(result, (char*)fil);
 }
@@ -528,8 +509,8 @@ void buildFileName(char * dir,
  *        can be NULL, in that case, we only count
  * @param data argument to pass to callback
  * @return the number of files found, -1 on error
- **/
-int scanDirectory(char * dirName,
+ */
+int scanDirectory(const char * dirName,
 		  DirectoryEntryCallback callback,
 		  void * data) {
   DIR * dinfo;
@@ -540,26 +521,21 @@ int scanDirectory(char * dirName,
   if (dirName == NULL) 
     return -1; 
   if (0 != STAT(dirName, &istat)) {
-    LOG(LOG_WARNING,
-	"WARNING: Could not stat %s (%s)\n",
-	dirName, 
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_WARNING, "stat", dirName);
     return -1;
   }
-  if (!S_ISDIR(istat.st_mode)) {
+  if (!S_ISDIR(istat.st_mode)) {    
     LOG(LOG_ERROR,
-	"ERROR: scanDirectory must be invoked on a directory (%s)!\n",
+	_("'%s' expected '%s' to be a directory!\n"),
+	__FUNCTION__,
 	dirName);
     return -1;
   }
   errno = 0;
   dinfo = OPENDIR(dirName);
   if ((errno == EACCES) || (dinfo == NULL)) {
-    LOG(LOG_WARNING,
-	"WARNING: scanDirectory: %s (%s)\n",
-	STRERROR(errno),
-	(char*)dirName);
-   return -1;
+    LOG_FILE_STRERROR(LOG_WARNING, "opendir", dirName);
+    return -1;
   }
   while ((finfo = readdir(dinfo)) != NULL) {
     if (finfo->d_name[0] == '.')
@@ -576,13 +552,16 @@ int scanDirectory(char * dirName,
 
 /**
  * Callback for rm_minus_rf.
- **/
-static void rmHelper(char * fil,
-		     char * dir,
+ */
+static void rmHelper(const char * fil,
+		     const char * dir,
 		     int * ok) {
   char * fn;
-  fn = MALLOC(strlen(dir) + strlen(fil) + 2);
-  sprintf(fn, "%s/%s", dir, fil);
+  size_t n;
+
+  n = strlen(dir) + strlen(fil) + 2;
+  fn = MALLOC(n);
+  SNPRINTF(fn, n, "%s/%s", dir, fil);
   if (SYSERR == rm_minus_rf(fn))
     *ok = SYSERR;
   FREE(fn);
@@ -595,8 +574,8 @@ static void rmHelper(char * fil,
  *
  * @param fileName the file to remove
  * @return OK on success, SYSERR on error
- **/
-int rm_minus_rf(char * fileName) {
+ */
+int rm_minus_rf(const char * fileName) {
   if (UNLINK(fileName) == 0)
     return OK;
   if ( (errno == EISDIR) || 
@@ -612,24 +591,18 @@ int rm_minus_rf(char * fileName) {
 		  &ok);
     if (ok == OK)
       if (0 != RMDIR(fileName)) {
-	LOG(LOG_WARNING,
-	    "WARNING: could not remove %s: %s\n",
-	    fileName, 
-	    STRERROR(errno));
+	LOG_FILE_STRERROR(LOG_WARNING, "rmdir", fileName);
 	ok = SYSERR;
       }
     return ok;
   } else {
-    LOG(LOG_WARNING,
-	"WARNING: could not remove %s: %s\n",
-	fileName,
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_WARNING, "unlink", fileName);
     return SYSERR;
   }
 }
 
 void close_(int fd,
-	    char * filename,
+	    const char * filename,
 	    int linenumber) {
 #ifdef MINGW
   /* Windows sockets have to be closed using closesocket() */
@@ -640,11 +613,11 @@ void close_(int fd,
       /* Close Windows handle */
       if (! CloseHandle((HANDLE) fd)) {
 #endif
-        LOG(LOG_INFO,
-	        "INFO: error closing file descriptor in %s:%d (%s)\n",
-	        filename,
-	        linenumber,
-	        STRERROR(errno));
+	LOG(LOG_INFO,
+	    _("'%s' failed at %s:%d with error: %s\n"), 
+	    "CloseHandle",
+	    filename,
+	    linenumber, STRERROR(errno));
       }
 #ifdef MINGW
     } else {

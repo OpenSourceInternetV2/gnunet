@@ -21,7 +21,7 @@
  * @file src/applications/afs/gtkui/delete.c
  * @brief handles file deletions
  * @author Igor Wronsky
- **/
+ */
 
 #include "gnunet_afs_esed2.h"
 #include "helper.h"
@@ -60,13 +60,13 @@ static void deleteFileGtkThread(InsertModel * ilm) {
   SEMAPHORE_DOWN(refuseToDie);
   sock = getClientSocket();
   if (sock == NULL) {
-    guiMessage("Failed to connect to gnunetd.  Consult logs.");
+    guiMessage(_("Failed to connect to gnunetd.  Consult logs."));
     SEMAPHORE_UP(refuseToDie);
     return;
   }
   
   LOG(LOG_DEBUG, 
-      "DEBUG: attempt to delete %s\n",
+      "Attempting to unindex file '%s'.\n",
       ilm->fileName);	
 
   res = deleteFile(sock,
@@ -78,10 +78,11 @@ static void deleteFileGtkThread(InsertModel * ilm) {
   refreshMenuSensitivity();
   
   if(res != OK) 
-    guiMessage("Failed to delete\n\n%s", 
+    guiMessage(_("Failed to unindex file '%s'\n"), 
 	       ilm->fileName);
   else
-    guiMessage("File deleted.");
+    guiMessage(_("File '%s' unindexed (no longer shared).\n"),
+	       ilm->fileName);
 
   releaseClientSocket(sock);
 
@@ -100,7 +101,7 @@ static void deleteFileGtkThread(InsertModel * ilm) {
  */
 static gint file_selected(GtkWidget * okButton, 
 			  GtkWidget * window) {
-  gchar * filename;
+  const gchar * filename;
   InsertModel * ilm;
   PTHREAD_T deleteThread;
 
@@ -108,26 +109,23 @@ static gint file_selected(GtkWidget * okButton,
     = gtk_file_selection_get_filename(GTK_FILE_SELECTION(window));
   if ( (filename == NULL) ||
        (0 == assertIsFile(filename)) ) {
-    guiMessage("Please select a file!\n");
+    guiMessage(_("Please select a file!\n"));
     gtk_widget_destroy(window);
     return FALSE;
   }
 
-  if (filename[0] != '/')
-    errexit("FATAL: ASSERTION failed: path name does not start with a '/'");
-
+  GNUNET_ASSERT(filename[0] == '/');
   ilm = MALLOC(sizeof(InsertModel));
   ilm->fileName = expandFileName(filename);
 
-  strcpy(ilm->opDescription, "deleted");
+  strcpy(ilm->opDescription, _("deleted"));
   createInsertProgressBar(ilm);
   /* start the delete thread */
   if (0 != PTHREAD_CREATE(&deleteThread,
   			  (PThreadMain) deleteFileGtkThread,
 			  ilm,
 			  16 * 1024))
-    errexit("FATAL: could not create delete thread (%s)!\n",
-    	    STRERROR(errno));
+    DIE_STRERROR("pthread_create");
   PTHREAD_DETACH(&deleteThread);
   
   /* destroy the file selector */
@@ -139,11 +137,11 @@ static gint file_selected(GtkWidget * okButton,
 
 /**
  * Close the open-file window.
- **/
+ */
 static gint destroyOpenFile(GtkWidget * widget,
 			    GtkWidget * window) {
   LOG(LOG_DEBUG, 
-      "DEBUG: destroying open-file window (%x)\n", 
+      "destroying open-file window (%p)\n", 
       window);
   return TRUE;
 }
@@ -152,11 +150,11 @@ static gint destroyOpenFile(GtkWidget * widget,
  * Pops up a file selector for the user. Callback starts
  * the file deletion thread.
  *
- **/
+ */
 void openDeleteFile(void) {
   GtkWidget * window;
 
-  window = gtk_file_selection_new("Choose file to be unindexed");
+  window = gtk_file_selection_new(_("Choose file to be unindexed"));
   gtk_signal_connect(GTK_OBJECT(window), 
 		     "destroy",
 		     GTK_SIGNAL_FUNC(destroyOpenFile),

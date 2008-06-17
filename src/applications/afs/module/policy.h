@@ -20,7 +20,7 @@
  * Policy interface. This is the interface to the C part of the policy.
  * @author Christian Grothoff
  * @file applications/afs/module/policy.h
- **/
+ */
 
 #ifndef AFS_POLICY_H
 #define AFS_POLICY_H
@@ -29,32 +29,32 @@
 
 /** 
  * Type of the results of the polciy module 
- **/
+ */
 typedef unsigned int QUERY_POLICY;
 
 /**
- * Drop the query if & with this bitmask is 0 
- **/
-#define QUERY_DROPMASK 0x00FF0000
-
-/**
  * Send answer if local files match 
- **/
+ */
 #define QUERY_ANSWER   0x00020000
 
 /**
  * Forward the query, priority is encoded in QUERY_PRIORITY_BITMASK 
- **/
+ */
 #define QUERY_FORWARD  0x00040000
 
 /**
  * Indirect the query (use this as the originating node)
- **/
+ */
 #define QUERY_INDIRECT 0x00080000
 
 /**
- * Maximum priority to use (apply this bitmask to the QueryPolicy)
- **/
+ * Drop the query if & with this bitmask is 0 
+ */
+#define QUERY_DROPMASK (QUERY_ANSWER|QUERY_FORWARD|QUERY_INDIRECT)
+
+/**
+ * Maximum priority to use (apply this bitmask to the QUERY_POLICY)
+ */
 #define QUERY_PRIORITY_BITMASK 0x0000FFFF
 
 /**
@@ -72,6 +72,13 @@ typedef unsigned int QUERY_POLICY;
 #define CONTENT_BANDWIDTH_VALUE 0.8
 
 /**
+ * Until which load do we consider the peer idle and do not 
+ * charge at all?
+ */
+#define IDLE_LOAD_THRESHOLD 50
+
+
+/**
  * A query has been received. The question is, if it should be forwarded
  * and if with which priority. Routing decisions(to whom) are to be taken elsewhere.
  * <p>
@@ -80,8 +87,8 @@ typedef unsigned int QUERY_POLICY;
  * @param priority the priority the query had when it came in, may be an arbitrary number if the 
  *        sender is malicious! Cap by trustlevel first!
  * @return binary encoding: QUERY_XXXX constants
- **/
-QUERY_POLICY evaluateQuery(HostIdentity * sender, 
+ */
+QUERY_POLICY evaluateQuery(const HostIdentity * sender, 
 			   unsigned int priority);
 
 
@@ -95,8 +102,8 @@ QUERY_POLICY evaluateQuery(HostIdentity * sender,
  * @param priority of the original query
  * @return SYSERR if the content should be dropped, the
  *   priority for keeping it otherwise
- **/
-int evaluateContent(HashCode160 * hc,
+ */
+int evaluateContent(const HashCode160 * hc,
 		    int priority);
 
 #endif

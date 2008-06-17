@@ -25,7 +25,7 @@
  * This file specifies subroutines that gdbm,tdb and directory
  * modules provide for db_simple.c, which is a higher level wrapper
  * implementing calls in high_backend.h. 
- **/
+ */
 
 #ifndef DB_SIMPLE_SUBROUTINES_H
 #define DB_SIMPLE_SUBROUTINES_H
@@ -34,7 +34,7 @@
 
 /**
  * Handle for a low-level database (tdb, gdbm, directory).
- **/
+ */
 typedef void * LowDBHandle;
 
 /**
@@ -42,8 +42,8 @@ typedef void * LowDBHandle;
  *
  * @param key the key of the entry
  * @param closure additional client specific argument
- **/
-typedef void (*LowEntryCallback)(HashCode160 * key,
+ */
+typedef void (*LowEntryCallback)(const HashCode160 * key,
 				 void * closure);
 
 
@@ -51,19 +51,19 @@ typedef void (*LowEntryCallback)(HashCode160 * key,
  * Initialize the storage module.
  * @param dir the name of the directory/file
  *        containing the content database
- **/
-LowDBHandle lowInitContentDatabase(char * dir);
+ */
+LowDBHandle lowInitContentDatabase(const char * dir);
 
 /**
  * Delete the low content database.
  * @param handle the database
- **/
+ */
 void lowDeleteContentDatabase(LowDBHandle handle);
 
 /**
  * Normal shutdown of the storage module.
  * @param handle the database
- **/
+ */
 void lowDoneContentDatabase(LowDBHandle handle);
 
 /**
@@ -72,14 +72,14 @@ void lowDoneContentDatabase(LowDBHandle handle);
  * @param handle the database
  * @param fn the key of the entry to remove
  * @return SYSERR on error, OK if ok.
- **/
+ */
 int lowUnlinkFromDB(LowDBHandle handle, 
-                    HashCode160 * fn);
+                    const HashCode160 * fn);
  
 /**
  * Get the number of entries in the database.
  * @return SYSERR on error, otherwise the number of entries
- **/
+ */
 int lowCountContentEntries(LowDBHandle handle);
 
 /**
@@ -90,9 +90,9 @@ int lowCountContentEntries(LowDBHandle handle);
  * @param result the buffer to write the result to 
  *        (*result should be NULL, sufficient space is allocated)
  * @return the number of bytes read on success, SYSERR on failure
- **/ 
+ */ 
 int lowReadContent(LowDBHandle handle,
-		   HashCode160 * fn,
+		   const HashCode160 * fn,
 		   void ** result);
 
 /**
@@ -103,11 +103,11 @@ int lowReadContent(LowDBHandle handle,
  * @param len the size of the block
  * @param block the data to store
  * @return SYSERR on error, OK if ok.
- **/
+ */
 int lowWriteContent(LowDBHandle handle,
-		    HashCode160 * fn, 
+		    const HashCode160 * fn, 
 		    int len,
-		    void * block);
+		    const void * block);
 
 /**
  * Call a method for each key in the database and
@@ -117,7 +117,7 @@ int lowWriteContent(LowDBHandle handle,
  * @param callback the callback method
  * @param data second argument to all callback calls
  * @return the number of items stored in the content database
- **/
+ */
 int lowForEachEntryInDatabase(LowDBHandle handle,
 			      LowEntryCallback callback,
 			      void * data);
@@ -127,7 +127,7 @@ int lowForEachEntryInDatabase(LowDBHandle handle,
  *
  * @param handle the database
  * @return the number of kb that the DB is assumed to use at the moment.
- **/
+ */
 int lowEstimateSize(LowDBHandle handle);
  
 #endif

@@ -20,7 +20,7 @@
  * @file src/applications/afs/gtkui/helper.c
  * @brief This file contains some GUI helper functions
  * @author Igor Wronsky
- **/
+ */
 
 #include "gnunet_afs_esed2.h"
 #include "helper.h"
@@ -50,7 +50,7 @@ static Mutex sclock;
  * Call a callback function from the mainloop/main thread ("SaveCall").
  * Since GTK doesn't work with multi-threaded applications under Windows,
  * all GTK operations have to be done in the main thread
- **/
+ */
 void gtkSaveCall(GtkFunction func, void *args) {
   SaveCall call;
   int i;
@@ -75,9 +75,7 @@ void gtkSaveCall(GtkFunction func, void *args) {
 	psc[i] = psc[pscCount-1];
 	break;
       }
-    if (i == pscCount)
-      errexit("ASSERTION failed at %s:%d\n",
-	      __FILE__, __LINE__);
+    GNUNET_ASSERT(i != pscCount);
     GROW(psc,
 	 pscCount,
 	 pscCount-1);
@@ -92,7 +90,7 @@ void gtkSaveCall(GtkFunction func, void *args) {
 
 /**
  * Initialize "SaveCalls"
- **/
+ */
 void gtkInitSaveCalls() {
   MUTEX_CREATE_RECURSIVE(&sclock);
   mainThread = pthread_self();
@@ -146,7 +144,7 @@ void gtkDoneSaveCalls() {
 
 /**
  * Called from a "SaveCall"-function to indicate that it is done
- **/
+ */
 void gtkSaveCallDone(Semaphore *sem) {
   if (sem)
     SEMAPHORE_UP(sem);
@@ -154,7 +152,7 @@ void gtkSaveCallDone(Semaphore *sem) {
 
 /**
  * Destroy a widget. Called from threads other than the main thread
- **/
+ */
 gint doDestroyWidget(SaveCall *call) {
   gtk_widget_destroy((GtkWidget *) call->args);
 
@@ -165,25 +163,27 @@ gint doDestroyWidget(SaveCall *call) {
 
 /**
  * Callback for handling "delete_event": close the window 
- **/
+ */
 gint deleteEvent(GtkWidget * widget,
 		 GdkEvent * event,
 		 gpointer data) {
 #if DEBUG_HELPER
   LOG(LOG_DEBUG, 
-      "DEBUG: deleteEvent\n");
+      "In '%s'.\n",
+      __FUNCTION__);
 #endif
   return FALSE;
 }
 
 /**
  * A callback to destroy any widget given as second argument
- **/
+ */
 void destroyWidget(GtkWidget * dummy, 
 		   GtkWidget * widget) {
 #if DEBUG_HELPER
   LOG(LOG_DEBUG, 
-      "DEBUG: destroyWidget %d\n", 
+      "In '%s' of %p.\n", 
+      __FUNCTION__,
       widget);
 #endif
   gtk_widget_destroy(widget);
@@ -191,17 +191,17 @@ void destroyWidget(GtkWidget * dummy,
 
 /**
  * Callback function for guiMessage()
- **/
+ */
 gint doGuiMessage(SaveCall *call) {
   GtkWidget * window;
   GtkWidget * label;
   GtkWidget * box;
   GtkWidget * button;
 
-  window = gtk_window_new(GTK_WINDOW_DIALOG);
+  window = gtk_window_new(GTK_WINDOW_POPUP);
   gtk_container_set_border_width(GTK_CONTAINER(window), 10);
   gtk_window_set_title(GTK_WINDOW(window), 
-		       "Note");
+		       _("Notification"));
   gtk_signal_connect(GTK_OBJECT(window), 
 		     "delete_event",
 		     GTK_SIGNAL_FUNC(deleteEvent), 
@@ -219,7 +219,7 @@ gint doGuiMessage(SaveCall *call) {
 		     FALSE,
 		     0);
   
-  button = gtk_button_new_with_label("Ok");
+  button = gtk_button_new_with_label(_("Ok"));
   gtk_signal_connect(GTK_OBJECT (button),
 		      "clicked",
 		      GTK_SIGNAL_FUNC(destroyWidget),
@@ -238,7 +238,7 @@ gint doGuiMessage(SaveCall *call) {
 
 /** 
  * Displays an informative message to the user in a fresh window 
- **/
+ */
 void guiMessage(const char * format, ...) {
   va_list args;
   gchar *note;
@@ -252,8 +252,11 @@ void guiMessage(const char * format, ...) {
 
 /**
  * Callback for infoMessage()
- **/
+ */
 gint doInfoMessage(SaveCall *call) {
+  GtkTextIter iter;
+  GtkTextBuffer * buffer;
+
   if(!infoWindow) {
     GtkWidget * box1;
     GtkWidget * button;
@@ -266,7 +269,7 @@ gint doInfoMessage(SaveCall *call) {
                        NULL);
 
     gtk_window_set_title(GTK_WINDOW(infoWindow),
-                         "Information");
+                         _("Messages"));
     gtk_widget_set_usize(GTK_WIDGET(infoWindow),
                          780,
                          300);
@@ -289,8 +292,9 @@ gint doInfoMessage(SaveCall *call) {
     gtk_widget_show(scrolled_window);
 
     /* create a text widget */
-    infoText = gtk_text_new(NULL, NULL);
-    gtk_text_set_editable(GTK_TEXT (infoText),
+    infoText = gtk_text_view_new();
+    
+    gtk_text_view_set_editable(GTK_TEXT_VIEW (infoText),
                           FALSE);
     gtk_container_add(GTK_CONTAINER(scrolled_window),
     		      infoText);
@@ -298,7 +302,7 @@ gint doInfoMessage(SaveCall *call) {
     gtk_widget_realize(infoText);
   
     /* finish with a close button */
-    button = gtk_button_new_with_label("Close");
+    button = gtk_button_new_with_label(_("Close"));
     gtk_box_pack_start(GTK_BOX (box1),
                        button,
                        FALSE,
@@ -308,10 +312,12 @@ gint doInfoMessage(SaveCall *call) {
                               "clicked",
                               GTK_SIGNAL_FUNC(hideWindow),
                               GTK_OBJECT(infoWindow));
-    gtk_signal_connect_object(GTK_OBJECT(infoWindow), "delete_event",
+    gtk_signal_connect_object(GTK_OBJECT(infoWindow), 
+			      "delete_event",
                               GTK_SIGNAL_FUNC(hideWindow),
                               GTK_OBJECT(infoWindow));
-    gtk_signal_connect_object(GTK_OBJECT(infoWindow), "destroy",
+    gtk_signal_connect_object(GTK_OBJECT(infoWindow), 
+			      "destroy",
                               GTK_SIGNAL_FUNC(hideWindow),
                               GTK_OBJECT(infoWindow));
     gtk_widget_show(button);
@@ -320,13 +326,12 @@ gint doInfoMessage(SaveCall *call) {
     gtk_widget_show(infoWindow);
 
   /* append the text */
-  gtk_text_freeze(GTK_TEXT(infoText));
-  gtk_text_insert(GTK_TEXT(infoText),
-                  NULL,
-                  &infoText->style->black,
-                  NULL,
-                  ((InfoMessage *) call->args)->note, -1);
-  gtk_text_thaw(GTK_TEXT(infoText));
+  buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW (infoText));
+  gtk_text_buffer_get_iter_at_offset(buffer, &iter, -1);
+  gtk_text_buffer_insert(buffer,
+			 &iter,
+			 ((InfoMessage *) call->args)->note, 
+			 -1);
 
   gtkSaveCallDone(call->sem);
 
@@ -338,7 +343,7 @@ gint doInfoMessage(SaveCall *call) {
  *
  * @param doPopup do we open the window, YES or NO
  *
- **/
+ */
 void infoMessage(int doPopup, const char * format, ...) {
   va_list args;
   InfoMessage info;
@@ -356,7 +361,7 @@ void infoMessage(int doPopup, const char * format, ...) {
  *
  * @param txt the log entry
  *
- **/
+ */
 void addLogEntry(const char *txt) {
   infoMessage(NO, txt);
 }
@@ -365,15 +370,17 @@ GtkNotebook * notebook = NULL;
 
 gint doAddToNotebook(SaveCall *call) {
   GtkWidget * label = gtk_label_new(((AddNotebook *) call->args)->labelName);
-  gtk_notebook_append_page(notebook, ((AddNotebook *) call->args)->frame, label);
-  gtk_widget_show(((AddNotebook *) call->args)->frame);
-
+  gtk_notebook_append_page(notebook, 
+			   ((AddNotebook *) call->args)->frame, 
+			   label);
+  gtk_widget_show(((AddNotebook *) call->args)->frame);  
+  
   gtkSaveCallDone(call->sem);
   
   return FALSE;
 }
 
-void addToNotebook(char * labelName,
+void addToNotebook(const char * labelName,
 		   GtkWidget * frame) {
   AddNotebook note;
   
@@ -391,7 +398,7 @@ void hideWindow(GtkWidget * widget,
 
 /**
  * A dirty way to pump some stats from gnunetd
- **/
+ */
 void showStats(GtkWidget * widget,
 	       gpointer data) {
   FILE *fp;
@@ -407,8 +414,8 @@ void showStats(GtkWidget * widget,
   GtkWidget * button;
   gchar * results[2];
   static gchar * descriptions[] = {
-    "Statistic",
-    "Value"
+    gettext_noop("Statistic"),
+    gettext_noop("Value"),
   };
   static int widths[] = {
     600, 70
@@ -418,7 +425,7 @@ void showStats(GtkWidget * widget,
   /* create window etc */
   window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   gtk_window_set_title(GTK_WINDOW(window),
-  		       "GNUnet: gnunetd statistics");
+  		       _("gnunetd statistics"));
   gtk_widget_set_usize(GTK_WIDGET(window),
   		       780,
 		       300);
@@ -446,7 +453,7 @@ void showStats(GtkWidget * widget,
   gtk_container_add(GTK_CONTAINER(scrolled_window),
   		    clist);
 
-  button = gtk_button_new_with_label("Close");
+  button = gtk_button_new_with_label(_("Close"));
   gtk_signal_connect(GTK_OBJECT(button),
   		     "clicked",
 		     GTK_SIGNAL_FUNC(destroyWidget),
@@ -463,14 +470,24 @@ void showStats(GtkWidget * widget,
   /* FIXME: done with a kludge until someone bothers to
    * use gnunet-stats code */
 
-  sprintf(fn, "gnunet-gtk_stats.XXXXXX");
+  SNPRINTF(fn,
+	   512,
+	   "/tmp/gnunet-gtk_stats.XXXXXX");
   mkstemp(fn);
+
+#ifdef MINGW
+  {
+    char *winfn = MALLOC(_MAX_PATH + 1);
+    conv_to_win_path(fn, winfn);
+    strcpy(fn, winfn);
+    FREE(winfn);
+  }
+#endif
 
   cfgFile = getConfigurationString("FILES",
   				   "gnunet.conf");
   if(cfgFile == NULL) {
-    LOG(LOG_WARNING,
-    	"WARNING: cfgFile was NULL (shouldn't happen ?!)\n");
+    BREAK();
     cfgFile = STRDUP(DEFAULT_CLIENT_CONFIG_FILE);
   }
 
@@ -479,22 +496,23 @@ void showStats(GtkWidget * widget,
   strcat(path, "\\");
 #else
   strcpy(path, "");
-#endif  
-  
-  sprintf(buffer, 
-          "%sgnunet-stats -c \"%s\" >%s",
-    path, 
-	  cfgFile,
-	  fn);
+#endif
+
+  SNPRINTF(buffer, 
+	   512,
+	   "%sgnunet-stats -c \"%s\" >%s",
+	   path, 
+	   cfgFile,
+	   fn);
   system(buffer);
   FREE(cfgFile);
   fp=FOPEN(fn, "r");
   if(!fp) {
     gtk_widget_destroy(window);
-    guiMessage("Error reading gnunet-stats output from %s\n",
+    guiMessage(_("Error reading '%s' output from file '%s'.\n"),
+	       "gnunet-stats",
     	       fn);
-    LOG(LOG_ERROR, "Unable to open %s for reading\n", 
-    	fn);
+    LOG_FILE_STRERROR(LOG_ERROR, "open", fn);
     return;
   }
   while(!feof(fp)) {
@@ -530,7 +548,7 @@ void showStats(GtkWidget * widget,
  * 
  * NOTE: Uses CS_PROTO_CLIENT_COUNT query to determine if 
  * gnunetd is running
- **/
+ */
 static int checkDaemonRunning(void) {
   GNUNET_TCP_SOCKET * sock;
   CS_HEADER csHdr;
@@ -538,8 +556,7 @@ static int checkDaemonRunning(void) {
 
   sock = getClientSocket();
   if(sock == NULL) {
-    LOG(LOG_WARNING,
-	"WARNING: socket create failed, shouldn't happen.\n");
+    BREAK();
     return SYSERR;  
   }    
 
@@ -549,13 +566,14 @@ static int checkDaemonRunning(void) {
     = htons(CS_PROTO_CLIENT_COUNT);
   if (SYSERR == writeToSocket(sock,
                               &csHdr)) {
-    LOG(LOG_DEBUG, "DEBUG: gnunetd is NOT running\n");
+    LOG(LOG_DEBUG, 
+	_("gnunetd is NOT running.\n"));
     releaseClientSocket(sock);
     return SYSERR;
   } 
   if (SYSERR == readTCPResult(sock, 
   			      &ret)) {
-    LOG(LOG_DEBUG, "DEBUG: failed to read reply from gnunetd\n");
+    BREAK();
     releaseClientSocket(sock);
     return SYSERR;
   }
@@ -592,27 +610,23 @@ static int launchWithExec() {
     }    
     args[1] = "-c";
     args[2] = getConfigurationString("FILES",
-				      "gnunet.conf");
+				     "gnunet.conf");
     args[3] = NULL;
     errno = 0;
     nice(10); /* return value is not well-defined */
-    if (errno != 0) {
-      LOG(LOG_WARNING,
-	  "WARNING: could not nice gnunetd (%s)\n",
-	  STRERROR(errno));
-    }
+    if (errno != 0) 
+      LOG_STRERROR(LOG_FAILURE, "nice");    
     if (path != NULL)
       execv(path,
 	    args);
     else
       execvp("gnunetd",
 	     args);
-    LOG(LOG_FAILURE,
-	"FAILURE: could not exec gnunetd: %s\n",
-	STRERROR(errno));
+    LOG_STRERROR(LOG_FAILURE, "exec");
     if (path != NULL)
       LOG(LOG_FAILURE,
-	  "FAILURE: determined path to be %s\n",
+	  _("Attempted path to '%s' was '%s'.\n"),
+	  "gnunetd",
 	  path);
     FREENONNULL(path); /* yeah, right, like we're likely to get
 			  here... */
@@ -623,26 +637,24 @@ static int launchWithExec() {
 
     ret = waitpid(pid, &status, 0);
     if (ret == -1) {
-      LOG(LOG_FAILURE,
-	  "FAILURE: waitpid failed: %s\n",
-	  STRERROR(errno));
+      LOG_STRERROR(LOG_ERROR, "waitpid");
       return SYSERR;
     }
     if ( (WIFEXITED(status) &&
 	  (0 != WEXITSTATUS(status)) ) ) {
-      guiMessage("Starting gnunetd failed, error code: %d",
+      guiMessage(_("Starting gnunetd failed, error code: %d"),
 		 WEXITSTATUS(status));
       return SYSERR;
     }
 #ifdef WCOREDUMP
     if (WCOREDUMP(status)) {
-      guiMessage("Starting gnunetd failed (core dumped)");
+      guiMessage(_("Starting gnunetd failed (core dumped)."));
       return SYSERR;
     }
 #endif
     if (WIFSIGNALED(status) ||
 	WTERMSIG(status) ) {
-      guiMessage("Starting gnunetd failed (aborted by signal)");
+      guiMessage(_("Starting gnunetd failed (aborted by signal)."));
       return SYSERR;
     }
     return OK;
@@ -678,7 +690,7 @@ static int doLaunch() {
 
 /** 
  * Launch gnunetd, don't check if its running
- **/
+ */
 static void launchDaemonNoCheck(GtkWidget * widget,
 				gpointer data) {
   /* sanity checks, not critical for ports */
@@ -690,9 +702,7 @@ static void launchDaemonNoCheck(GtkWidget * widget,
       char * hostname;
       hostname = MALLOC(1024);
       if (0 != gethostname(hostname, 1024)) {
-	LOG(LOG_ERROR,
-	    "ERROR: failed to get hostname (%s)\n",
-	    STRERROR(errno));
+	LOG_STRERROR(LOG_ERROR, "gethostname");
       } else {
 	/* we could go crazy here and try to open a socket locally
 	   and then attempt to connect to it using the NS lookup result
@@ -702,9 +712,9 @@ static void launchDaemonNoCheck(GtkWidget * widget,
 	   fix it if he cares to have the warning go away... */
 	if (0 != strcmp(host,
 			hostname)) {
-	  guiMessage("WARNING: gnunetd is configured to run on host %s and\n"
-		     "gnunet-gtk is running on host %s, which seems to be a different machine.\n"
-		     "gnunet-gtk can only start gnunetd on host %s.\n"
+	  guiMessage("gnunetd is configured to run on host '%s' and\n"
+		     "gnunet-gtk is running on host '%s', which seems to be a different machine.\n"
+		     "gnunet-gtk can only start gnunetd on host '%s'.\n"
 		     "This may not be what you want (it may not work).\n"
 		     "I will proceed anyway, good luck.",
 		     host,
@@ -724,11 +734,11 @@ static void launchDaemonNoCheck(GtkWidget * widget,
 
 /** 
  * Launch gnunetd w/ checks
- **/
+ */
 void launchDaemon(GtkWidget * widget,
  	          gpointer data) {
   if (OK == checkDaemonRunning() ) {
-    guiMessage("gnunetd is already running");
+    guiMessage(_("gnunetd is already running"));
     return;
   } else {					
     doLaunch();
@@ -738,7 +748,7 @@ void launchDaemon(GtkWidget * widget,
 
 /** 
  * Kill gnunetd
- **/
+ */
 void killDaemon(GtkWidget * widget,
  	        gpointer data) {
   if (OK == checkDaemonRunning() ) {
@@ -757,30 +767,30 @@ void killDaemon(GtkWidget * widget,
       = htons(CS_PROTO_SHUTDOWN_REQUEST);
     if (SYSERR == writeToSocket(sock,
     				&csHdr)) {
-      guiMessage("Error sending shutdown request to gnunetd");
+      guiMessage(_("Error sending shutdown request to gnunetd."));
       releaseClientSocket(sock);
       return;
     }
     if (SYSERR == readTCPResult(sock,
     				&ret)) {
-      guiMessage("Error reading shutdown reply from gnunetd");
+      guiMessage(_("Error reading shutdown confirmation from gnunetd."));
       releaseClientSocket(sock);
       return;
     }
     if (ret == OK)
-      guiMessage("gnunetd agreed to shut down.");
+      guiMessage(_("gnunetd agreed to shut down."));
     else
-      guiMessage("gnunetd refuses to shut down (reply=%d).", 
+      guiMessage(_("gnunetd refused to shut down (error code '%d')."), 
                  ret);
     releaseClientSocket(sock);
   } else {
-    guiMessage("gnunetd is not running...");
+    guiMessage(_("gnunetd is not running."));
   }
 }
 
 /**
  * Ask if the user wishes to start gnunetd
- **/
+ */
 static void initDaemonStartDialog(void) {
    GtkWidget *dialog;
    GtkWidget *label;
@@ -788,12 +798,12 @@ static void initDaemonStartDialog(void) {
    GtkWidget *no_button;
 
    dialog = gtk_dialog_new();
-   label = gtk_label_new("gnunetd (daemon) doesn't seem to be running.\nWould you like to start it?\n");
+   label = gtk_label_new(_("gnunetd (daemon) doesn't seem to be running.\nWould you like to start it?\n"));
    gtk_container_add (GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
                       label);
 
-   okay_button = gtk_button_new_with_label("Yes!");
-   no_button = gtk_button_new_with_label("Naah");
+   okay_button = gtk_button_new_with_label(_("Yes!"));
+   no_button = gtk_button_new_with_label(_("No."));
    
    gtk_signal_connect(GTK_OBJECT(okay_button), 
                       "clicked",
@@ -814,21 +824,22 @@ static void initDaemonStartDialog(void) {
 /**
  * Checks if gnunetd is running and if not, prompts user 
  * to run gnunetd. Always returns OK.
- **/
+ */
 int checkForDaemon(void) {  
   if (SYSERR == checkDaemonRunning()) {
     char * host;
 
     host = getConfigurationString("NETWORK",
       	  		  	  "HOST");
-    if (host != NULL && strcmp(host,"localhost")==0 )
+    if (host != NULL && strcmp(host,
+			       "localhost")==0 )
       initDaemonStartDialog();
     else
-      guiMessage("gnunetd doesn't seem to be running.\n"
-                 "Unfortunately, gnunet-gtk can't identify config entry"
-		 "\n\nNETWORK/HOST '%s'\n\n"
-		 "as a local machine, so gnunetd can not be\n"
-		 "launched by gnunet-gtk.",
+      guiMessage(_("gnunetd does not seem to be running.\n"
+		   "Unfortunately, gnunet-gtk cannot identify config entry"
+		   "\n\nNETWORK/HOST '%s'\n\n"
+		   "as a local machine, so gnunetd cannot be\n"
+		   "launched by gnunet-gtk."),
 		 (host == NULL ? "" : host) );
   }
 
@@ -876,7 +887,7 @@ static gint doUpdateMenus(SaveCall * call) {
     
     if (pollForLaunch == TRUE) {
       pollForLaunch = FALSE;
-      guiMessage("gnunetd is now up and running");
+      guiMessage(_("gnunetd is now running."));
     }
   }    
   gtkSaveCallDone(call->sem);
@@ -897,7 +908,7 @@ void cronCheckDaemon(void * dummy) {
 
 /**
  * A function for numeric comparisons of strings
- **/
+ */
 gint numericComp(GtkCList *clist,
                  gconstpointer ptr1,
                  gconstpointer ptr2) {
@@ -919,7 +930,7 @@ gint numericComp(GtkCList *clist,
 
 /**
  * A function for case-insensitive text comparisons
- **/
+ */
 gint alphaComp(GtkCList *clist,
                gconstpointer ptr1,
                gconstpointer ptr2) {
@@ -936,7 +947,7 @@ gint alphaComp(GtkCList *clist,
 
 /**
  * A function for percentage comparisons 
- **/
+ */
 gint percentComp(GtkCList *clist,
                  gconstpointer ptr1,
                  gconstpointer ptr2) {
@@ -983,7 +994,7 @@ gint percentComp(GtkCList *clist,
 
 /**
  * A general right-button popup menu callback
- **/
+ */
 gboolean popupCallback(GtkWidget *widget,
                        GdkEvent *event,
                        GtkWidget *menu )
@@ -1006,4 +1017,3 @@ gboolean popupCallback(GtkWidget *widget,
 }
 
 /* end of helper.c */
-

@@ -22,7 +22,7 @@
  * @brief box displaying search results for the gtk+ client.
  * @author Christian Grothoff
  * @author Igor Wronsky
- **/
+ */
 
 #include "gnunet_afs_esed2.h"
 #include "helper.h"
@@ -40,16 +40,16 @@ static void searchClose(void);
 static void searchDownloadSelected(void); 
 
 static GtkItemFactoryEntry searchWindowMenu[] = {
-  { "/Select all",            NULL,   searchSelectAll,      0, "<Item>" },
-  { "/Unselect all",          NULL,   searchSelectNone,     0, "<Item>" },
-  { "/sep1",                  NULL,   NULL,                 0, "<Separator>" },
-  { "/Select by filename",    NULL,   searchSelectByName,   0, "<Item>" },
-  { "/Select by description", NULL,   searchSelectByDesc,   0, "<Item>" },
-  { "/Select by mimetype",    NULL,   searchSelectByMime,   0, "<Item>" },
-  { "/sep2",                  NULL,   NULL,                 0, "<Separator>" },
-  { "/Download selected",     NULL,   searchDownloadSelected,  0, "<Item>" },
-  { "/sep3",                  NULL,   NULL,                 0, "<Separator>" },
-  { "/Abort search",          NULL,   searchClose,          0, "<Item>" }
+  { gettext_noop("/Select all"),            NULL,   searchSelectAll,      0, "<Item>" },
+  { gettext_noop("/Unselect all"),          NULL,   searchSelectNone,     0, "<Item>" },
+  { "/sep1",                                NULL,   NULL,                 0, "<Separator>" },
+  { gettext_noop("/Select by filename"),    NULL,   searchSelectByName,   0, "<Item>" },
+  { gettext_noop("/Select by description"), NULL,   searchSelectByDesc,   0, "<Item>" },
+  { gettext_noop("/Select by mimetype"),    NULL,   searchSelectByMime,   0, "<Item>" },
+  { "/sep2",                                NULL,   NULL,                 0, "<Separator>" },
+  { gettext_noop("/Download selected"),     NULL,   searchDownloadSelected,  0, "<Item>" },
+  { "/sep3",                                NULL,   NULL,                 0, "<Separator>" },
+  { gettext_noop("/Abort search"),          NULL,   searchClose,          0, "<Item>" }
 };
 
 static gint searchWindowMenuItems
@@ -57,7 +57,7 @@ static gint searchWindowMenuItems
 
 /**
  * Selects all search results from the current search page.
- **/
+ */
 static void searchSelectAll(void)
 {
   gint pagenr;
@@ -79,7 +79,7 @@ static void searchSelectAll(void)
 
 /**
  * Unselects all search results from the current search page.
- **/
+ */
 static void searchSelectNone(void)
 {
   gint pagenr;
@@ -101,7 +101,7 @@ static void searchSelectNone(void)
 
 static void selectByCallback(GtkWidget * dummy,
 		             GtkWidget * entry) {
-  gchar * nameString;
+  const gchar * nameString;
   gint pagenr;
   GtkWidget * page;
   GtkCList * clist;
@@ -118,11 +118,11 @@ static void selectByCallback(GtkWidget * dummy,
 
   nameString = gtk_entry_get_text(GTK_ENTRY(entry));
   if(nameString == NULL) {
-    guiMessage("nameString == NULL\n");
+    BREAK();
     return;
   }
-  if(nameString[0] == 0) {
-    guiMessage("Naah...\n");
+  if (nameString[0] == 0) {
+    BREAK();
     return;
   }
  
@@ -167,8 +167,8 @@ static void selectByCallback(GtkWidget * dummy,
     }
      
     gtk_clist_thaw(clist);
-    if(hits==0)
-      guiMessage("No matches...");
+    if (hits==0)
+      guiMessage(_("No matches."));
     FREE(needle);
   }
 }
@@ -186,11 +186,11 @@ static void searchSelectByColumn(int column)
   data = MALLOC(sizeof(int));
   *data = column;
 
-  window = gtk_window_new(GTK_WINDOW_DIALOG);
+  window = gtk_window_new(GTK_WINDOW_POPUP);
   vbox = gtk_vbox_new(FALSE, 0);
   gtk_container_add(GTK_CONTAINER(window),
                     vbox);
-  label = gtk_label_new("Pattern? ");
+  label = gtk_label_new(_("Pattern? "));
   gtk_container_add (GTK_CONTAINER(vbox),
                      label);
   entry = gtk_entry_new();
@@ -209,7 +209,7 @@ static void searchSelectByColumn(int column)
 		     window);
   gtk_container_add(GTK_CONTAINER(vbox),
   		    entry);
-  button = gtk_button_new_with_label("Ok");
+  button = gtk_button_new_with_label(_("Ok"));
   gtk_container_add(GTK_CONTAINER(vbox),
 		    button);
   gtk_signal_connect(GTK_OBJECT(button),
@@ -245,7 +245,7 @@ static void searchSelectByMime(void) {
  * Remove the active page from the search results notebook.
  * The respective search will be stopped as well
  * (by a callback assigned to the page earlier on).
- **/
+ */
 void searchClose(void) {
   gint pagenr;
   
@@ -262,7 +262,7 @@ void searchClose(void) {
  *
  * @param widget not used
  * @param listModel Data related to the search
- **/
+ */
 static void downloadGTK(GtkWidget * widget,
 			ListModel * listModel);
 
@@ -291,7 +291,7 @@ static void searchDownloadSelected(void) {
  *
  * @param widget not used
  * @param listModel Data related to the search
- **/
+ */
 static void downloadGTK(GtkWidget * widget,
 			ListModel * listModel) {  
   gint row;
@@ -300,7 +300,7 @@ static void downloadGTK(GtkWidget * widget,
   tmp=GTK_CLIST(listModel->search_result_list)->selection;
 	  
   if ( !tmp ) {
-    guiMessage("Nothing selected!\n");
+    guiMessage(_("Nothing selected!\n"));
     return;
   }
     
@@ -372,14 +372,15 @@ static gint doDisplayResult(SaveCall *call) {
  *
  * @param rootNode Data about a file
  * @param model Data related to the search
- **/
+ */
 void displayResultGTK(RootNode * rootNode,
 		      ListModel * model) {
   RootNode * rootCopy;
   SBlock * sb;
-  gchar * results[7];
+  gchar * results[5];
   Result result;
   int i;
+  char * verb;
   
   if(model->doTerminate == YES)
     return;
@@ -398,9 +399,10 @@ void displayResultGTK(RootNode * rootNode,
     
     results[0] = STRDUP(rootNode->header.description);
     results[1] = MALLOC(32);
-    sprintf(results[1],
-	    "%u", 
-	    (unsigned int) ntohl(rootNode->header.fileIdentifier.file_length));
+    SNPRINTF(results[1],
+	     32,
+	     "%u", 
+	     (unsigned int) ntohl(rootNode->header.fileIdentifier.file_length));
     if ( (0 == strcmp(rootNode->header.mimetype,
 		      GNUNET_DIRECTORY_MIME)) &&
 	 (rootNode->header.filename[strlen(rootNode->header.filename)-1] != DIR_SEPARATOR) ) {
@@ -409,17 +411,8 @@ void displayResultGTK(RootNode * rootNode,
       strcat(results[2], "/");      
     } else
       results[2] = STRDUP(rootNode->header.filename);
-    results[3] = MALLOC(12);
-    sprintf(results[3], 
-	    "%X", 
-	    (unsigned int) ntohl(rootNode->header.fileIdentifier.crc));
-    results[4] = MALLOC(sizeof(HexName));
-    hash2hex(&rootNode->header.fileIdentifier.chk.query,
-	     (HexName*) results[4]);
-    results[5] = MALLOC(sizeof(HexName));
-    hash2hex(&rootNode->header.fileIdentifier.chk.key,
-	     (HexName*) results[5]);
-    results[6] = STRDUP(rootNode->header.mimetype);
+    results[3] = STRDUP(rootNode->header.mimetype);
+    results[4] = createFileURI(&rootNode->header.fileIdentifier);
     break;
   case SBLOCK_MAJOR_VERSION:
     sb = (SBlock*) rootNode;
@@ -429,25 +422,25 @@ void displayResultGTK(RootNode * rootNode,
     
     results[0] = STRDUP(rootNode->header.description);
     results[1] = MALLOC(32);
-    sprintf(results[1], 
-	    "%u", 
-	    (unsigned int) ntohl(sb->fileIdentifier.file_length));
+    SNPRINTF(results[1], 
+	     32,
+	     "%u", 
+	     (unsigned int) ntohl(sb->fileIdentifier.file_length));
     results[2] = STRDUP(sb->filename);
-    results[3] = MALLOC(32);
-    sprintf(results[3],
-	    "%u", 
-	    (unsigned int) ntohl(sb->fileIdentifier.crc));
-    results[4] = MALLOC(sizeof(HexName));
-    hash2hex(&sb->fileIdentifier.chk.query,
-	     (HexName*) results[4]);
-    results[5] = MALLOC(sizeof(HexName));
-    hash2hex(&sb->fileIdentifier.chk.key,
-	     (HexName*) results[5]);
-    results[6] = STRDUP(sb->mimetype);    
+    results[3] = STRDUP(sb->mimetype);    
+    results[4] = createFileURI(&rootNode->header.fileIdentifier);
     break;
+  case NBLOCK_MAJOR_VERSION:
+    addNamespace((const NBlock*) rootNode);
+    verb = rootNodeToString(rootNode);
+    infoMessage(NO, 
+		_("Discovered namespace:\n%s\n"),
+		verb);
+    FREE(verb);
+    return;
   default:
     LOG(LOG_ERROR,
-	"ERROR: search result received of unsupported type %d\n",
+	_("Search result received of unsupported type %d.\n"),
 	ntohs(rootNode->header.major_formatVersion));
     return;
   }
@@ -458,14 +451,14 @@ void displayResultGTK(RootNode * rootNode,
   if (model->skipMenuRefresh != YES)
     refreshMenuSensitivity();
 
-  for (i=0;i<7;i++)
+  for (i=0;i<5;i++)
     FREE(results[i]);
 }
 
 /**
  * Struct to pass a couple of arguments to a new
  * thread "receiveResults_".
- **/
+ */
 typedef struct {
   char * searchString;
   ListModel * model;
@@ -478,7 +471,7 @@ typedef struct {
  * window!).
  *
  * @return YES if we should abort
- **/
+ */
 int testTermination(ListModel * model) {
   return model->doTerminate;
 }
@@ -488,7 +481,7 @@ int testTermination(ListModel * model) {
  * Runs the receiveResults method and frees some
  * data structures once the search is aborted.
  * See also "stopSearch".
- **/
+ */
 static void * receiveResults_(_receiveResultArgs_ * args) {
   char ** keywords;
   int num_Words;
@@ -509,7 +502,8 @@ static void * receiveResults_(_receiveResultArgs_ * args) {
   if (num_Words == 0) {
     FREENONNULL(args->searchString);
     FREE(args);
-    LOG(LOG_FAILURE, "No keywords specified!\n");
+    LOG(LOG_FAILURE, 
+	_("No keywords specified!\n"));
     return NULL;
   }
   keywords = MALLOC(num_Words * sizeof(char *));
@@ -543,7 +537,7 @@ static void * receiveResults_(_receiveResultArgs_ * args) {
  * @param searchString What to look for
  * @param model Data related to the search
  * @return OK on success, SYSERR on error
- **/
+ */
 static int startSearchThread(char * searchString,
 			     ListModel * model) {
   _receiveResultArgs_ * receiveArgs;
@@ -554,10 +548,8 @@ static int startSearchThread(char * searchString,
   if (0 != PTHREAD_CREATE(&model->thread,
 			  (PThreadMain) &receiveResults_,
 			  receiveArgs,
-			  16 * 1024)) {
-    errexit("FATAL: could not create receive thread (%s)!\n",
-	    STRERROR(errno));    
-  }
+			  16 * 1024)) 
+    DIE_STRERROR("pthread_create");  
   return OK;
 }
 
@@ -599,9 +591,7 @@ static void stopSearch_(ListModel * model) {
     releaseClientSocket(model->SEARCH_socket_);
     break;
   default:
-    LOG(LOG_ERROR, 
-    	"ERROR: Unknown model->type %d\n",
-	model->type);
+    BREAK();
     break;
   }
   if (model->sem != NULL)
@@ -616,12 +606,12 @@ static void stopSearch_(ListModel * model) {
  *
  * @param widget the window (not used)
  * @param model the model with the socket 
- **/
+ */
 static void stopSearch(GtkWidget * widget,
 		       ListModel * model) { 
   Semaphore * cs;
   LOG(LOG_DEBUG, 
-      "DEBUG: stopSearch called\n");
+      "stopSearch called\n");
   /* this must be done as a cron-job, since otherwise
      it may deadlock (this is called from the
      gtk event thread, and cron may be waiting for
@@ -641,11 +631,11 @@ static void stopSearch(GtkWidget * widget,
 
 /**
  * Changes the current sort column and sorts the list.
- **/
+ */
 static void sort_column_callback(GtkCList * clist,
 				 gint column,
 				 gpointer data) {
-  static int sortOrder[7]={0,0,0,0,0,0,0};
+  static int sortOrder[5]={0,0,0,0,0};
 
   sortOrder[column]^=1;
 
@@ -678,17 +668,15 @@ static gint doInitSearchResultList(SaveCall *call) {
   GtkWidget * menu;
   GtkItemFactory * popupFactory;
   static gchar * descriptions[] = {
-    "Description",
-    "Size",
-    "Filename",
-    "CRC",
-    "HASH1",
-    "HASH2",
-    "Mimetype"
+    gettext_noop("Description"),
+    gettext_noop("Size"),
+    gettext_noop("Filename"),
+    gettext_noop("Mimetype"),
+    gettext_noop("URI"),
   };
   /* widths of the colums in the search results */
   static int widths[] = {
-    470, 70, 200, 40, 40, 40, 200,
+    470, 70, 200, 100, 800,
   };
   int i;
   
@@ -709,7 +697,7 @@ static gint doInitSearchResultList(SaveCall *call) {
   
   /* result set list */
   search_result_list 
-    = gtk_clist_new_with_titles(7, descriptions);
+    = gtk_clist_new_with_titles(5, descriptions);
   model->search_result_list 
     = search_result_list;
   gtk_signal_connect(GTK_OBJECT(search_result_list), 
@@ -735,7 +723,7 @@ static gint doInitSearchResultList(SaveCall *call) {
   gtk_clist_column_title_active(GTK_CLIST(search_result_list),
 				2);
   gtk_clist_column_title_active(GTK_CLIST(search_result_list),
-				6);
+				3);
   gtk_signal_connect(GTK_OBJECT(search_result_list),
 		     "click-column",
 		     GTK_SIGNAL_FUNC(sort_column_callback),
@@ -752,13 +740,13 @@ static gint doInitSearchResultList(SaveCall *call) {
      GTK_JUSTIFY_RIGHT);
 
   /* set column widths */
-  for (i=0;i<7;i++)
+  for (i=0;i<5;i++)
     gtk_clist_set_column_width(GTK_CLIST(search_result_list), 
 			       i,
 			       widths[i]);
 
   /* download button */
-  button = gtk_button_new_with_label("Download");
+  button = gtk_button_new_with_label(_("Download"));
   gtk_signal_connect (GTK_OBJECT(button), 
 		      "clicked",
 		      GTK_SIGNAL_FUNC(downloadGTK), 
@@ -815,7 +803,7 @@ GtkWidget * initializeSearchResultList(ListModel * model) {
 
 /** 
  * Returns a box containing the search results list.
- **/
+ */
 GtkWidget * getSearchWindow(gchar * title) {
   GtkWidget * box;
   ListModel * model;  

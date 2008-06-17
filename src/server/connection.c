@@ -43,12 +43,13 @@
  *
  * @author Tzvetan Horozov
  * @author Christian Grothoff
- **/ 
+ */ 
 
 /* ******************* includes ******************** */
 #include "gnunet_util.h"
 
 #include "knownhosts.h"
+#include "core.h"
 #include "traffic.h"
 #include "pingpong.h"
 #include "handler.h"
@@ -78,20 +79,20 @@ FILE * prioFile;
 /**
  * If an attempt to establish a connection is not answered
  * within 150s, drop.
- **/
+ */
 #define SECONDS_NOPINGPONG_DROP 150
 
 /**
  * If an established connection is inactive for 5 minutes, 
  * drop.
- **/
+ */
 #define SECONDS_INACTIVE_DROP 300
 
 /**
  * After 2 minutes on an inactive connection, probe the other
  * node with a ping if we have achieved less than 50% of our
  * connectivity goal.
- **/
+ */
 #define SECONDS_PINGATTEMPT 120
 
 /**
@@ -101,7 +102,7 @@ FILE * prioFile;
  * querySize" plus a bit with the goal to be able to have at least
  * enough small entries to fill a message completely *and* to have
  * some room to manouver.
- **/
+ */
 #define TARGET_SBUF_SIZE 40
 
 unsigned int MAX_SEND_FREQUENCY = 50 * cronMILLIS;
@@ -109,13 +110,13 @@ unsigned int MAX_SEND_FREQUENCY = 50 * cronMILLIS;
 /**
  * High priority message that needs to go through fast,
  * but not if policies would be disregarded.
- **/
+ */
 #define ADMIN_PRIORITY 0xFFFF
 
 /** 
  * Masks to keep track when the trust has changed and
  * to get the real trust value.
- **/
+ */
 #define TRUST_REFRESH_MASK 0x80000000
 #define TRUST_ACTUAL_MASK  0x7FFFFFFF
 
@@ -124,30 +125,30 @@ unsigned int MAX_SEND_FREQUENCY = 50 * cronMILLIS;
  * much of that limit are we allowed to 'roll-over' into the next
  * period?  The number given here is a factor of the total per-minute
  * bandwidth limit.
- **/
+ */
 #define MAX_BUF_FACT 2
 
 /**
  * Expected MTU for a connection (1500 for Ethernet)
- **/
+ */
 #define EXPECTED_MTU 1500
 
 /**
  * Send limit we announce to peers initially, around 1 MTU for most transp.
- **/
+ */
 #define START_TRANSMIT_LIMIT 1500
 
 /**
  * How many MTU size messages to we want to transmit
  * per SECONDS_INACTIVE_DROP interval? (must be >=4 to
  * keep connection alive with reasonable probability).
- **/
+ */
 #define TARGET_MSG_SID 32
 
 /**
  * Minimum number of sample messages (per peer) before we recompute
  * traffic assignments?
- **/
+ */
 #define MINIMUM_SAMPLE_COUNT 8
 
 /**
@@ -182,22 +183,22 @@ unsigned int MAX_SEND_FREQUENCY = 50 * cronMILLIS;
 /**
  * Type of the linked list of send callbacks (to
  * implement a round-robbin invocation chain).
- **/
+ */
 typedef struct SendCallbackList__ {
   /**
    * Minimum number of bytes that must be available
    * to call this callback.
-   **/
+   */
   unsigned int minimumPadding;
 
   /**
    * The callback method.
-   **/
+   */
   BufferFillCallback callback;
 
   /**
    * Did we say that this is a linked list?
-   **/
+   */
   struct SendCallbackList__ * next;
 
 } SendCallbackList;
@@ -205,7 +206,7 @@ typedef struct SendCallbackList__ {
 /**
  * Record for state maintanance between scanHelperCount,
  * scanHelperSelect and scanForHosts.
- **/
+ */
 typedef struct {
   unsigned int index;
   unsigned int matchCount;
@@ -234,7 +235,7 @@ typedef struct fENHWrap {
  * priority, when the message was passed to unicast, a callback to
  * fill in the actual message and a closure (argument to the
  * callback).
- **/
+ */
 typedef struct {
   /** how long is this message part expected to be? */
   unsigned short len;
@@ -253,7 +254,7 @@ typedef struct {
 
 /**
  * Type of the connection table.
- **/
+ */
 typedef struct BufferEntry_ {
   /** Session for the connection */
   Session session;
@@ -268,7 +269,7 @@ typedef struct BufferEntry_ {
   TIME_T created;
   /** is this host alive? timestamp of the time of the last-active point */
   cron_t isAlive; 
-  /**  Status of the connection (STAT_XXX) **/
+  /**  Status of the connection (STAT_XXX) */
   unsigned int status;
 
 
@@ -298,10 +299,10 @@ typedef struct BufferEntry_ {
    *
    * The value is adjusted according to how fast we perceive the CPU
    * to be (and is also proportional too how much bandwidth we have)...
-   **/
+   */
   cron_t MAX_SEND_FREQUENCY;
 
-  /** a hash collision overflow chain **/
+  /** a hash collision overflow chain */
   struct BufferEntry_ * overflowChain;
 
 
@@ -341,7 +342,7 @@ typedef struct BufferEntry_ {
  * Type of a callback method on every buffer.
  * @param be the buffer entry
  * @param data context for callee
- **/
+ */
 typedef void (*BufferEntryCallback)(BufferEntry * be,
 				    void * data);
 
@@ -349,34 +350,34 @@ typedef void (*BufferEntryCallback)(BufferEntry * be,
 
 /**
  * The buffer containing all current connections.
- **/
+ */
 static BufferEntry ** CONNECTION_buffer_;
 
 /**
  * Size of the CONNECTION_buffer_
- **/
+ */
 static unsigned int CONNECTION_MAX_HOSTS_;
 
 /**
  * The DirContents array for scanning the hosts/ directory.
- **/
+ */
 static unsigned int CONNECTION_currentActiveHosts;
 
 /**
  * Experimental configuration: disable random padding of encrypted
  * messages.
- **/
+ */
 static int disable_random_padding = NO;
 
 /**
  * Send callbacks for making better use of noise padding...
- **/
+ */
 static SendCallbackList * scl_nextHead;
 static SendCallbackList * scl_nextTail;
 
 /**
  * statistics handles
- **/
+ */
 static int stat_number_of_connections;
 static int stat_number_of_bytes_noise_send;
 static int stat_number_of_bytes_send;
@@ -392,18 +393,18 @@ static int stat_total_messages_queued;
 
 /**
  * Lock for the connection module.
- **/
+ */
 static Mutex lock;
 
 /**
  * Where do we store trust information?
- **/
+ */
 static char * trustDirectory;
 
 /**
  * What is the available downstream bandwidth (in bytes
  * per minute)?
- **/
+ */
 static long long max_bpm;
 
 /* ******************** CODE ********************* */
@@ -411,7 +412,7 @@ static long long max_bpm;
 /** 
  * This allocates and initializes a BufferEntry.
  * @return the initialized BufferEntry
- **/
+ */
 static BufferEntry * initBufferEntry() {
   BufferEntry * be;
 
@@ -456,7 +457,7 @@ static BufferEntry * initBufferEntry() {
 /**
  * Update available_send_window.  Call only when already synchronized.
  * @param be the connection for which to update available_send_window
- **/
+ */
 void updateCurBPS(BufferEntry * be) {
   cron_t now;
   cron_t delta;
@@ -476,7 +477,7 @@ void updateCurBPS(BufferEntry * be) {
 
 /**
  * From time to time, do a recount on how many hosts are connected.
- **/
+ */
 static void cronCountConnections() {
   unsigned int act;
   unsigned int i;
@@ -506,18 +507,18 @@ static void cronCountConnections() {
 /**
  * Write host-infromation to a file - flush the buffer entry!
  * Assumes synchronized access.
- **/
+ */
 static void flushHostCredit(BufferEntry * be,
 			    void * unused) {
-  HexName fil;
+  EncName fil;
   char * fn;
 
   if ((be->trust & TRUST_REFRESH_MASK) == 0)
     return; /* unchanged */
   be->trust = be->trust & TRUST_ACTUAL_MASK;
-  hash2hex(&be->session.sender.hashPubKey,
+  hash2enc(&be->session.sender.hashPubKey,
 	   &fil);
-  fn = MALLOC(strlen((char*)trustDirectory)+sizeof(HexName)+1);
+  fn = MALLOC(strlen((char*)trustDirectory)+sizeof(EncName)+1);
   buildFileName(trustDirectory,
 		&fil,
 		fn);
@@ -525,8 +526,10 @@ static void flushHostCredit(BufferEntry * be,
     if (0 != UNLINK(fn)) {
       if (errno != ENOENT)
 	LOG(LOG_INFO,
-	    "INFO: could not unlink %s: %s\n",
+	    "'%s' of file '%s' at %s:%d failed: %s\n",
+	    "unlink",
 	    fn,
+	    __FILE__, __LINE__,
 	    STRERROR(errno));
     }
   } else {
@@ -544,7 +547,7 @@ static void flushHostCredit(BufferEntry * be,
  * @param a
  * @param b
  * @return gcd(a,b)
- **/
+ */
 static int gcd(int a, int b) {
   while (a != 0) {
     int t = a;
@@ -608,7 +611,7 @@ static int approximateKnapsack(BufferEntry * be,
  * @param available what is the maximum length available?
  * @param solution int[count] to store the solution as "YES" and "NO" values
  * @return the overall priority that was achieved 
- **/
+ */
 static int solveKnapsack(BufferEntry * be,
 			 int available,
 			 int * solution) {
@@ -624,8 +627,7 @@ static int solveKnapsack(BufferEntry * be,
 #define VARR(i,j) v[(i)+(j)*(count+1)]
 
   if (available < 0) {
-    LOG(LOG_ERROR,
-	"ERROR: available < 0 in solveKnapsack!\n");
+    BREAK();
     return -1;
   }
   ENTRY();
@@ -721,8 +723,7 @@ static int solveKnapsack(BufferEntry * be,
       }
     }
   }
-  if (j != 0)
-    errexit("FATAL: knapsack error\n");
+  GNUNET_ASSERT(j == 0);
   FREE(v);
   FREE(efflen);
   cronTime(&endTime);
@@ -743,7 +744,7 @@ static int solveKnapsack(BufferEntry * be,
  * message to the transport service.
  *
  * @param be connection of the buffer that is to be transmitted
- **/
+ */
 static void sendBuffer(BufferEntry * be) {
   int crc;
   unsigned int i;
@@ -766,8 +767,7 @@ static void sendBuffer(BufferEntry * be) {
   ENTRY();
   /* fast ways out */
   if (be == NULL) {
-    LOG(LOG_WARNING, 
-	"WARNING: sendBuffer called with invalid arguments (NULL).\n");
+    BREAK();
     return;
   }  
   if (be->status == STAT_DOWN)
@@ -776,7 +776,7 @@ static void sendBuffer(BufferEntry * be) {
   if (be->sendBufferSize == 0) {
 #if DEBUG_CONNECTION
     LOG(LOG_DEBUG,
-	"DEBUG: message queue empty.  Nothing transmitted.\n");
+	"Message queue empty.  Nothing transmitted.\n");
 #endif
     return; /* nothing to send */    
   }
@@ -801,7 +801,7 @@ static void sendBuffer(BufferEntry * be) {
        (be->sendBufferSize < MAX_SEND_BUFFER_SIZE/4) ) {
 #if DEBUG_CONNECTION 
     LOG(LOG_DEBUG,
-	"DEBUG: send frequency too high (CPU load), send deferred\n");
+	"Send frequency too high (CPU load), send deferred.\n");
 #endif
     return; /* frequency too high, wait */
   }
@@ -844,14 +844,15 @@ static void sendBuffer(BufferEntry * be) {
       j++;
   if (j == 0) {
     LOG(LOG_ERROR,
-	"ERROR: solveKnapsack selected %d out of %d messages (MTU: %d)\n",
+	_("'%s' selected %d out of %d messages (MTU: %d).\n"),
+	"solveKnapsack",
 	j,
 	be->sendBufferSize,
 	be->session.mtu - sizeof(SEQUENCE_Message));
     
     for (j=0;j<be->sendBufferSize;j++)
       LOG(LOG_ERROR,
-	  "ERROR: %u: len %d, pri: %d\n",
+	  _("Message details: %u: length %d, priority: %d\n"),
 	  j, 
 	  be->sendBuffer[j]->len,
 	  be->sendBuffer[j]->pri);
@@ -863,7 +864,7 @@ static void sendBuffer(BufferEntry * be) {
   updateCurBPS(be);
 #if DEBUG_CONNECTION
   LOG(LOG_DEBUG,
-      "DEBUG: receiver window available: %lld bytes (MTU: %u)\n",
+      "receiver window available: %lld bytes (MTU: %u)\n",
       be->available_send_window,
       be->session.mtu);
 #endif
@@ -875,7 +876,7 @@ static void sendBuffer(BufferEntry * be) {
       FREE(knapsackSolution);
 #if DEBUG_CONNECTION
       LOG(LOG_DEBUG,
-	  "DEBUG: bandwidth limits prevent sending (send window %u too small).\n",
+	  "bandwidth limits prevent sending (send window %u too small).\n",
 	  be->available_send_window);
 #endif
       return; /* can not send, BPS available is too small */
@@ -892,7 +893,7 @@ static void sendBuffer(BufferEntry * be) {
     cronTime(&be->lastSendAttempt);
 #if DEBUG_CONNECTION
     LOG(LOG_DEBUG,
-	"DEBUG: policy prevents sending message (priority too low: %d)\n",
+	"policy prevents sending message (priority too low: %d)\n",
 	priority);
 #endif
     
@@ -911,7 +912,7 @@ static void sendBuffer(BufferEntry * be) {
       if ( entry->transmissionTime < expired) {
 #if DEBUG_CONNECTION 
 	LOG(LOG_DEBUG,
-	    "DEBUG: expiring message, expired %ds ago, queue size is %u (bandwidth stressed)\n",
+	    "expiring message, expired %ds ago, queue size is %u (bandwidth stressed)\n",
 	    (int) ((cronTime(NULL) - entry->transmissionTime) / cronSECONDS),
 	    be->sendBufferSize);
 #endif
@@ -993,8 +994,8 @@ static void sendBuffer(BufferEntry * be) {
 #if DEBUG_CONNECTION == 2
 	p2p_HEADER * msg;
 	AFS_p2p_QUERY * qmsg;
-	HexName hex;
-	HexName hex2;
+	EncName enc;
+	EncName enc2;
 	int queries;
 
 	IFLOG(LOG_EVERYTHING,
@@ -1003,17 +1004,17 @@ static void sendBuffer(BufferEntry * be) {
 	      case AFS_p2p_PROTO_QUERY:
 		qmsg = (AFS_p2p_QUERY*) msg;	
 		queries = (ntohs(msg->size) - sizeof(AFS_p2p_QUERY)) / sizeof(HashCode160);
-		hash2hex(&qmsg->queries[0],
-			 &hex);	      
-		hash2hex(&be->session.sender.hashPubKey,
-			 &hex2);
+		hash2enc(&qmsg->queries[0],
+			 &enc);	      
+		hash2enc(&be->session.sender.hashPubKey,
+			 &enc2);
 		LOG(LOG_EVERYTHING,
-		    "EVERYTHING: sending query %s (%d) TTL %d PR %u to %s\n",
-		    &hex,
+		    "sending query %s (%d) TTL %d PR %u to %s\n",
+		    &enc,
 		    queries,
 		    ntohl(qmsg->ttl),
 		    ntohl(qmsg->priority),
-		    &hex2);
+		    &enc2);
 		break;
 
 	      });
@@ -1043,7 +1044,7 @@ static void sendBuffer(BufferEntry * be) {
 	   (entry->transmissionTime < expired) ) {
 #if DEBUG_CONNECTION 
 	LOG(LOG_DEBUG,
-	    "DEBUG: expiring message, expired %ds ago, queue size is %u (other messages went through)\n",
+	    "expiring message, expired %ds ago, queue size is %u (other messages went through)\n",
 	    (int) ((cronTime(NULL) - entry->transmissionTime) / cronSECONDS),
 	    remainingBufferSize);
 #endif
@@ -1124,7 +1125,7 @@ static void sendBuffer(BufferEntry * be) {
 	       p);
 #if DEBUG_CONNECTION
     LOG(LOG_DEBUG,
-	"DEBUG: calling transport layer to send %d bytes\n",
+	"calling transport layer to send %d bytes\n",
 	p);
 #endif
     if (OK == transportSend(be->session.tsession,
@@ -1155,9 +1156,9 @@ static void sendBuffer(BufferEntry * be) {
 	be->lastSequenceNumberSend++;
       }
     }
-  } else
-    LOG(LOG_FAILURE,
-	"FAILURE: Encryption of message failed!\n");
+  } else {
+    BREAK();
+  }
   FREE(encryptedMsg);
   FREE(plaintextMsg);
 }
@@ -1168,35 +1169,29 @@ static void sendBuffer(BufferEntry * be) {
  * 
  * @param be on which connection to transmit
  * @param se what to transmit (with meta-data)
- **/
+ */
 static void appendToBuffer(BufferEntry * be,
 			   SendEntry * se) {
 #if DEBUG_CONNECTION
-  HexName hex;
+  EncName enc;
 #endif  
   float apri;
   unsigned int i;
   SendEntry ** ne;
 
   ENTRY();
-  if (se == NULL) {
-    LOG(LOG_WARNING, 
-	"WARNING: appendToBuffer got garbage. Ignored.\n");
-    return;
-  }
-  if (se->len == 0) {
-    LOG(LOG_WARNING, 
-	"WARNING: appendToBuffer got entry of size 0. Ignored.\n");
+  if ( (se == NULL) || (se->len == 0) ) {
+    BREAK();
     return;
   }
 #if DEBUG_CONNECTION
   IFLOG(LOG_DEBUG,
-	hash2hex(&be->session.sender.hashPubKey, 
-		 &hex));
+	hash2enc(&be->session.sender.hashPubKey, 
+		 &enc));
   LOG(LOG_DEBUG, 
-      "DEBUG: adding message of size %d to buffer of host %s.\n",
+      "adding message of size %d to buffer of host %s.\n",
       se->len,
-      &hex);
+      &enc);
 #endif
   if ( (be->sendBufferSize > 0) &&
        (be->status != STAT_UP) ) {
@@ -1204,8 +1199,8 @@ static void appendToBuffer(BufferEntry * be,
        connection, do NOT queue messages! */
 #if DEBUG_CONNECTION
     LOG(LOG_DEBUG,
-	"DEBUG: not connected to %s, message dropped\n",
-	&hex);
+	"not connected to %s, message dropped\n",
+	&enc);
 #endif
     statChange(stat_MsgsExpired, 1);
     FREE(se->closure);
@@ -1221,7 +1216,7 @@ static void appendToBuffer(BufferEntry * be,
 	 FAR too much memory (200 MB easily) */
 #if DEBUG_CONNECTION
       LOG(LOG_DEBUG,
-	  "DEBUG: sendBufferSize >= %d, refusing to queue message.\n",
+	  "sendBufferSize >= %d, refusing to queue message.\n",
 	  MAX_SEND_BUFFER_SIZE);
 #endif
       statChange(stat_MsgsExpired, 1);
@@ -1258,7 +1253,7 @@ static void appendToBuffer(BufferEntry * be,
  *
  * @param hostId the ID of the peer for which the connection is returned
  * @return the connection of the host in the table, NULL if not connected
- **/
+ */
 static BufferEntry * lookForHost(const HostIdentity * hostId) {
   BufferEntry * root;
 
@@ -1278,14 +1273,14 @@ static BufferEntry * lookForHost(const HostIdentity * hostId) {
  * must be held.
  * 
  * @param be connection of the peer for which the trust is to be read
- **/
+ */
 static void initHostTrust(BufferEntry * be) {
-  HexName fil;
+  EncName fil;
   char * fn;
 
-  hash2hex(&be->session.sender.hashPubKey,
+  hash2enc(&be->session.sender.hashPubKey,
 	   &fil);
-  fn = MALLOC(strlen((char*)trustDirectory)+sizeof(HexName)+1);
+  fn = MALLOC(strlen((char*)trustDirectory)+sizeof(EncName)+1);
   buildFileName(trustDirectory, &fil, fn); 
   if (sizeof(unsigned int) !=
       readFile(fn, 
@@ -1303,20 +1298,20 @@ static void initHostTrust(BufferEntry * be) {
  * @param force if YES, drop another host from the table if the slot
  * is already in use. If NO, return NULL if the slot is busy.  
  * @return the table entry for the host (no keyexchange performed so far)
- **/
+ */
 static BufferEntry * addHost(const HostIdentity * hostId,
 			     int force) {
   BufferEntry * root;
   BufferEntry * prev;
-  HexName hex;
+#if DEBUG_CONNECTION
+  EncName enc;
 
   IFLOG(LOG_INFO,
-	hash2hex(&hostId->hashPubKey, 
-		 &hex));
-#if DEBUG_CONNECTION
+	hash2enc(&hostId->hashPubKey, 
+		 &enc));
   LOG(LOG_INFO, 
-      "INFO: Adding host %s to the connection table.\n",
-      &hex);
+      "Adding host %s to the connection table.\n",
+      &enc);
 #endif
 
   ENTRY();
@@ -1357,7 +1352,7 @@ static BufferEntry * addHost(const HostIdentity * hostId,
  * @param method the method to invoke (NULL for couting only)
  * @param arg the second argument to the method
  * @return the number of connected hosts
- **/ 
+ */ 
 static int forAllConnectedHosts(BufferEntryCallback method,
 				void * arg) {
   unsigned int i;
@@ -1385,7 +1380,7 @@ static int forAllConnectedHosts(BufferEntryCallback method,
  * @param be the connection 
  * @param arg closure of type fENHWrap giving the function
  *        to call
- **/
+ */
 static void fENHCallback(BufferEntry * be,
 			 void * arg) {
   fENHWrap * wrap;
@@ -1405,7 +1400,7 @@ static void fENHCallback(BufferEntry * be,
  * @param id which peer are we currently looking at
  * @param proto what transport protocol are we looking at
  * @param im updated structure used to select the peer
- **/
+ */
 static void scanHelperCount(const HostIdentity * id,
 			    const unsigned short proto,	
 			    IndexMatch * im) {
@@ -1420,7 +1415,7 @@ static void scanHelperCount(const HostIdentity * id,
 #if DEBUG_CONNECTION
   else
     LOG(LOG_DEBUG,
-	"DEBUG: transport %d is not available\n",
+	"transport %d is not available\n",
 	proto);
 #endif
 }
@@ -1432,7 +1427,7 @@ static void scanHelperCount(const HostIdentity * id,
  * @param id the current peer
  * @param proto the protocol of the current peer
  * @param im structure responsible for the selection process
- **/
+ */
 static void scanHelperSelect(const HostIdentity * id,
 			     const unsigned short proto,
 			     IndexMatch * im) {
@@ -1453,7 +1448,7 @@ static void scanHelperSelect(const HostIdentity * id,
 #if DEBUG_CONNECTION
   else
     LOG(LOG_DEBUG,
-	"DEBUG: transport %d is not available\n",
+	"transport %d is not available\n",
 	proto);
 #endif
 }
@@ -1467,7 +1462,7 @@ static void scanHelperSelect(const HostIdentity * id,
  * @param ret the address where to write the signed
  *        session key, first unsigned short_SIZE byte give length
  * @return OK on success, SYSERR on failure
- **/
+ */
 static int makeSessionKeySigned(HostIdentity * hostId,
 				SESSIONKEY * sk,
 				TIME_T created,
@@ -1476,34 +1471,30 @@ static int makeSessionKeySigned(HostIdentity * hostId,
   HostIdentity myId;
   HELO_Message * foreignHelo;
 #if EXTRA_CHECKS
-  HexName hostName;
+  EncName hostName;
 #endif
 
   ENTRY();
-  if ( (ret == NULL) ||
-       (sk == NULL) )
-    errexit("FATAL: makeSessionKeySigned called with"
-	    " ret or sk equal to NULL"
-	    " (interface violation)\n");
+
+  GNUNET_ASSERT((ret != NULL) && (sk != NULL) );
   /* create and encrypt sessionkey */
   if (SYSERR == identity2Helo(hostId, 
 			      ANY_PROTOCOL_NUMBER,
 			      YES,
 			      &foreignHelo)) {
     LOG(LOG_INFO, 
-	"INFO: makeSessionKeySigned: cannot encrypt"
-	" sessionkey, other host not known!\n");  
+	"%s: cannot encrypt sessionkey, other peer not known!\n",
+	__FUNCTION__);  
     return SYSERR; /* other host not known */  
   }
   if (foreignHelo == NULL)
-    errexit("FATAL: identity2Helo violated interface, "
+    errexit("identity2Helo violated interface, "
 	    "returned OK but did not set helo ptr\n");
   if (SYSERR == encryptHostkey(sk,
 			       sizeof(SESSIONKEY),
 			       &foreignHelo->publicKey,
 			       &ret->body.key)) {
-    LOG(LOG_FAILURE, 
-	"FAILURE: makeSesionKeySigned: encrypt failed!\n");
+    BREAK();
     FREE(foreignHelo);
     return SYSERR; /* encrypt failed */
   }
@@ -1516,8 +1507,7 @@ static int makeSessionKeySigned(HostIdentity * hostId,
   if (SYSERR == signData(&keyHash, 
 			 (unsigned short)sizeof(HashCode160),
 			 &ret->body.signature)) {
-    LOG(LOG_FAILURE, 
-	"FAILURE: signData failed. Trying to continue.\n");
+    BREAK();
   }
 
   /* complete header */
@@ -1527,12 +1517,8 @@ static int makeSessionKeySigned(HostIdentity * hostId,
   getHostIdentity(getPublicHostkey(),
 		  &myId); 
 #if EXTRA_CHECKS
-  hash2hex(&hostId->hashPubKey, &hostName);
-  if (SYSERR == verifySKS(&myId, ret)) {
-    errexit("FATAL: makeSessionKeySigned: generated sessionkey for host"
-	    " %s failed verification! exiting!\n",
-	    &hostName);
-  }
+  hash2enc(&hostId->hashPubKey, &hostName);
+  GNUNET_ASSERT(OK == verifySKS(&myId, ret));
 #endif
   return OK;
 } 
@@ -1543,9 +1529,9 @@ static int makeSessionKeySigned(HostIdentity * hostId,
  * semaphore of at the given index must already be down
  *
  * @param be connection on which the key exchange is performed
- **/
+ */
 static void exchangeKey(BufferEntry * be) {
-  HexName hex;
+  EncName enc;
   HELO_Message * helo;
   HELO_Message * targetHelo;
   SKEY_Message skey;
@@ -1553,20 +1539,17 @@ static void exchangeKey(BufferEntry * be) {
   char * sendBuffer;
 
   ENTRY();
-  if (be == NULL)
-    errexit("FATAL: exchangeKey called with be==NULL\n");
+  GNUNET_ASSERT(be != NULL);
   IFLOG(LOG_DEBUG,
-	hash2hex(&be->session.sender.hashPubKey, 
-		 &hex));
+	hash2enc(&be->session.sender.hashPubKey, 
+		 &enc));
 #if DEBUG_CONNECTION
   LOG(LOG_DEBUG, 
-      "DEBUG: Beginning of exchange key with %s\n",
-	&hex);
+      "Beginning of key exchange with '%s'.\n",
+      &enc);
 #endif
   if (be->status != STAT_DOWN) 
-    LOG(LOG_WARNING, 
-	"WARNING: exchangeKey: status must"
-	" be down for session key exchange!\n");
+    BREAK();
 
   makeSessionkey(&be->skey);
   TIME(&be->created); /* set creation time for session key! */
@@ -1589,7 +1572,7 @@ static void exchangeKey(BufferEntry * be) {
   targetTransport = ntohs(targetHelo->protocol);
 #if DEBUG_CONNECTION
   LOG(LOG_DEBUG,
-      "DEBUG: identity2Helo returned HELO with protocol %d\n",
+      "identity2Helo returned HELO with protocol %d\n",
       targetTransport);
 #endif
   if (SYSERR == transportCreateHELO(ANY_PROTOCOL_NUMBER,
@@ -1610,9 +1593,7 @@ static void exchangeKey(BufferEntry * be) {
 			transportConnect is now the owner! */
   be->session.mtu = transportGetMTU(be->session.tsession->ttype);
   if (be->sendBuffer != NULL)
-    LOG(LOG_FAILURE,
-	"FAILURE: expected be->sendBuffer to be NULL in file %s:%d\n",
-	__FILE__, __LINE__);
+    BREAK();
   be->lastSequenceNumberSend = 1;
   be->session.isEncrypted = NO;
 
@@ -1647,18 +1628,18 @@ static void exchangeKey(BufferEntry * be) {
  * mutex of at the given index must not be hold.
  *
  * @param index for which entry in the connection table are we looking for peers?
- **/
+ */
 static void scanForHosts(unsigned int index) {
   BufferEntry * be;
   IndexMatch indexMatch;
 #if DEBUG_CONNECTION
-  HexName hn;
+  EncName hn;
 #endif
   cron_t now;
 
 #if DEBUG_CONNECTION
   LOG(LOG_CRON, 
-      "CRON: Scanning for hosts (%d)\n",
+      "Scanning for hosts (%d).\n",
       index);
 #endif
   cronTime(&now);
@@ -1671,7 +1652,7 @@ static void scanForHosts(unsigned int index) {
   if (indexMatch.matchCount == 0) 
     return;  
   LOG(LOG_CRON, 
-      "CRON: Scanning for hosts (%d) found %d matching node identities.\n",
+      "Scanning for hosts (%d) found %d matching node identities.\n",
       index,
       indexMatch.matchCount);    
   if (indexMatch.costSelector > 0)
@@ -1685,21 +1666,19 @@ static void scanForHosts(unsigned int index) {
 	      &indexMatch);
   if (hostIdentityEquals(&myIdentity, 
 			 &indexMatch.match)) {
-    LOG(LOG_ERROR, 
-	"ERROR: scanHelperSelect did not find selected match!?\n");
+    BREAK();
     return;
   }
   if (computeIndex(&indexMatch.match) != index) {
-    LOG(LOG_ERROR, 
-	"ERROR: index of host to add is wrong!\n");
+    BREAK();
     return;
   }
 #if DEBUG_CONNECTION
   IFLOG(LOG_DEBUG,
-	hash2hex(&indexMatch.match.hashPubKey,
+	hash2enc(&indexMatch.match.hashPubKey,
 		 &hn));
   LOG(LOG_DEBUG, 
-      "DEBUG: attempting to connect to %s using slot %d.\n",
+      "Attempting to connect to peer '%s' using slot %d.\n",
       &hn, 
       index);
 #endif
@@ -1724,7 +1703,7 @@ static void scanForHosts(unsigned int index) {
  * @param closure the pre-build message
  * @param len the length of the pre-build message
  * @return OK (always successful)
- **/
+ */
 static int copyCallback(void * buf,
 			void * closure,
 			unsigned short len) {
@@ -1735,7 +1714,7 @@ static int copyCallback(void * buf,
 
 /**
  * Check if the buffer is up (we got a PONG), if not, repeat the PING 
- **/
+ */
 static void checkAndPing(BufferEntry * be) {
   HostIdentity * data;
   PINGPONG_Message pmsg;
@@ -1764,8 +1743,8 @@ static void checkAndPing(BufferEntry * be) {
     appendToBuffer(be, se);
   } else {
     FREE(data);
-    LOG(LOG_WARNING,
-	"WARNING: could not send checking ping, ping buffer full\n");
+    LOG(LOG_INFO,
+	_("Could not send checking ping, ping buffer full.\n"));
   }
 }
 
@@ -1774,7 +1753,7 @@ static void checkAndPing(BufferEntry * be) {
  * and mark the sessionkey as dead.
  *
  * @param be the connection to shutdown
- **/
+ */
 static void shutdownConnection(BufferEntry * be) {
   HANGUP_Message hangup;
   unsigned int i;
@@ -1827,7 +1806,7 @@ static void shutdownConnection(BufferEntry * be) {
  * Transmit an update to the bandwidth limit to the other peer.
  *
  * @param be the connection to transmit the limit over
- **/
+ */
 static void transmitConnectionLimit(BufferEntry * be) {
   SendEntry * entry;
   CAPABILITY_Message * cap;
@@ -1841,7 +1820,7 @@ static void transmitConnectionLimit(BufferEntry * be) {
     be->transmitted_limit = 1;
 #if DEBUG_CONNECTION
   LOG(LOG_INFO,
-      "INFO: ideal: %u bpm, prev. transmitted: %u bpm, will transmit: %s - peers own limit: %u bpm\n",
+      "ideal: %u bpm, prev. transmitted: %u bpm, will transmit: %s - peers own limit: %u bpm\n",
       be->idealized_limit,
       be->transmitted_limit,
       ( ( (delta * 100) / be->transmitted_limit) < 10) ? "NO" : "YES",
@@ -1869,7 +1848,7 @@ static void transmitConnectionLimit(BufferEntry * be) {
 		 entry);   
 #if DEBUG_CONNECTION
   LOG(LOG_INFO,
-      "INFO: transmitted: limit %u\n",
+      "transmitted: limit %u\n",
       be->idealized_limit);
 #endif
   be->transmitted_limit = be->idealized_limit;
@@ -2017,13 +1996,13 @@ static void scheduleInboundTraffic() {
 
 #if DEBUG_CONNECTION
     if (adjustedRR[u] > entries[u]->transmitted_limit) {
-      HexName hex;
+      EncName enc;
       IFLOG(LOG_INFO,
-	    hash2hex(&entries[u]->session.sender.hashPubKey,
-		     &hex));
+	    hash2enc(&entries[u]->session.sender.hashPubKey,
+		     &enc));
       LOG(LOG_INFO,
-	  "INFO: peer %s transmitted above limit: %llu bpm > %u bpm\n",
-	  &hex,
+	  "peer %s transmitted above limit: %llu bpm > %u bpm\n",
+	  &enc,
 	  adjustedRR[u],
 	  entries[u]->transmitted_limit);
     }
@@ -2035,13 +2014,13 @@ static void scheduleInboundTraffic() {
     if (adjustedRR[u] > 2 * MAX_BUF_FACT * 
 	entries[u]->max_transmitted_limit) {
 #if DEBUG_CONNECTION || 1
-      HexName hex;
+      EncName enc;
       IFLOG(LOG_INFO,
-	    hash2hex(&entries[u]->session.sender.hashPubKey,
-		     &hex));
+	    hash2enc(&entries[u]->session.sender.hashPubKey,
+		     &enc));
       LOG(LOG_INFO,
-	  "INFO: blacklisting %s, it sent >%dx+MTU above mLimit: %llu bpm > %u bpm (cLimit %u bpm)\n",
-	  &hex,
+	  "blacklisting %s, it sent >%dx+MTU above mLimit: %llu bpm > %u bpm (cLimit %u bpm)\n",
+	  &enc,
 	  2 * MAX_BUF_FACT,
 	  adjustedRR[u],
 	  entries[u]->max_transmitted_limit,
@@ -2067,7 +2046,7 @@ static void scheduleInboundTraffic() {
 
 #if DEBUG_CONNECTION
   LOG(LOG_DEBUG,
-      "DEBUG: freely schedulable bandwidth is %d bpm\n",
+      "freely schedulable bandwidth is %d bpm\n",
       schedulableBandwidth);
 #endif
   /* now distribute the schedulableBandwidth according
@@ -2141,15 +2120,15 @@ static void scheduleInboundTraffic() {
   lastRoundStart = now;
   for (u=0;u<activePeerCount;u++) {
 #if DEBUG_CONNECTION
-    HexName hex;
+    EncName enc;
 
     IFLOG(LOG_DEBUG,
-	  hash2hex(&entries[u]->session.sender.hashPubKey,
-		   &hex));
+	  hash2enc(&entries[u]->session.sender.hashPubKey,
+		   &enc));
     LOG(LOG_DEBUG,
-	"DEBUG: inbound limit for peer %u: %s set to %d bpm\n",
+	"inbound limit for peer %u: %s set to %d bpm\n",
 	u,
-	&hex,
+	&enc,
 	entries[u]->idealized_limit);
 #endif
     transmitConnectionLimit(entries[u]);
@@ -2171,7 +2150,7 @@ static void scheduleInboundTraffic() {
  * Call this method periodically to decrease liveness of hosts.
  *
  * @param unused not used, just to make signature type nicely
- **/
+ */
 static void cronDecreaseLiveness(void * unused) {  
   static unsigned int lastLivenessHost = 0;
   static unsigned int activePeerCount = 0;
@@ -2200,7 +2179,7 @@ static void cronDecreaseLiveness(void * unused) {
 	 the hostlist server... */
       if ( (delay % BACKOFF) == 0) {
 	LOG(LOG_DEBUG,
-	    "DEBUG: attempting to download hostlist from server.\n");
+	    "attempting to download hostlist from server.\n");
 	downloadHostlist();	
 	if (BACKOFF < 65536)
 	  BACKOFF = BACKOFF * 2; 
@@ -2209,7 +2188,7 @@ static void cronDecreaseLiveness(void * unused) {
 					    "HOSTLISTURL");
 	if (url != NULL) {
 	  LOG(LOG_DEBUG,
-	      "DEBUG: I only have %d peers connected (want %u), waiting for "
+	      "I only have %d peers connected (want %u), waiting for "
 	      "%u to reach %u before trying HTTP download of hostlist%s.\n",
 	      activePeerCount,
 	      CONNECTION_MAX_HOSTS_,
@@ -2248,15 +2227,15 @@ static void cronDecreaseLiveness(void * unused) {
     case STAT_UP:
       if ( (now > root->isAlive) && /* concurrency might make this false... */
 	   (now - root->isAlive > SECONDS_INACTIVE_DROP * cronSECONDS) ) {
-	HexName hex;
+	EncName enc;
 
 	/* switch state form UP to DOWN: too much inactivity */
 	IFLOG(LOG_DEBUG,
-	      hash2hex(&root->session.sender.hashPubKey,
-		       &hex));
+	      hash2enc(&root->session.sender.hashPubKey,
+		       &enc));
 	LOG(LOG_DEBUG,
-	    "DEBUG: closing connection with %s: too much inactivity (%llu ms)\n",
-	    &hex,
+	    "closing connection with %s: too much inactivity (%llu ms)\n",
+	    &enc,
 	    now - root->isAlive);
 	shutdownConnection(root);
 	whitelistHost(&root->session.sender); /* the host may still be worth trying again soon */
@@ -2274,14 +2253,14 @@ static void cronDecreaseLiveness(void * unused) {
 	PINGPONG_Message pmsg;
 	HostIdentity * hi = MALLOC(sizeof(HostIdentity));
 #if DEBUG_CONNECTION
-	HexName hex;
+	EncName enc;
 		
 	IFLOG(LOG_DEBUG,
-	      hash2hex(&root->session.sender.hashPubKey, 
-		       &hex));
+	      hash2enc(&root->session.sender.hashPubKey, 
+		       &enc));
 	LOG(LOG_DEBUG,
-	    "DEBUG: sending keepalive-ping to peer %s\n",
-	    &hex);
+	    "sending keepalive-ping to peer %s\n",
+	    &enc);
 #endif
 	memcpy(hi, 
 	       &root->session.sender, 
@@ -2312,12 +2291,12 @@ static void cronDecreaseLiveness(void * unused) {
       if ( (now > root->isAlive) &&
 	   (now - root->isAlive > SECONDS_NOPINGPONG_DROP * cronSECONDS) ) {
 #if DEBUG_CONNECTION
-        HexName hex;
+        EncName enc;
 	IFLOG(LOG_DEBUG, 
-	      hash2hex(&root->session.sender.hashPubKey, &hex));
+	      hash2enc(&root->session.sender.hashPubKey, &enc));
 	LOG(LOG_DEBUG,
-	    "DEBUG: closing connection to %s: SKEY not answered by PING\n",
-	    &hex);
+	    "closing connection to %s: SKEY not answered by PING\n",
+	    &enc);
 #endif
 	shutdownConnection(root);      
       }
@@ -2326,20 +2305,19 @@ static void cronDecreaseLiveness(void * unused) {
       if ( (now > root->isAlive) &&
 	   (now - root->isAlive > SECONDS_NOPINGPONG_DROP * cronSECONDS) ) {
 #if DEBUG_CONNECTION
-	HexName hex;
-	IFLOG(LOG_DEBUG, hash2hex(&root->session.sender.hashPubKey, &hex));
+	EncName enc;
+	IFLOG(LOG_DEBUG,
+	      hash2enc(&root->session.sender.hashPubKey, &enc));
 	LOG(LOG_DEBUG,
-	    "DEBUG: closing connection to %s: PING not answered by PONG\n",
-	    &hex);
+	    "closing connection to %s: PING not answered by PONG\n",
+	    &enc);
 #endif
 	shutdownConnection(root);      
       } else
 	checkAndPing(root);
       break;
     default:
-      LOG(LOG_WARNING,
-	  "WARNING: unknown type of connection status: %d\n",
-	  root->status);
+      BREAK(); /* root->status unknown! */
       break; /* do nothing */
     } /* end of switch */ 
     sendBuffer(root);
@@ -2349,7 +2327,7 @@ static void cronDecreaseLiveness(void * unused) {
   } /* end of while */
   if (CONNECTION_buffer_[lastLivenessHost] == NULL) {
     /*LOG(LOG_EVERYTHING,
-	"EVERYTHING: scanning for peer using slot %u\n",
+	" scanning for peer using slot %u\n",
 	lastLivenessHost);*/
     if (! testConfigurationString("GNUNETD",
 				  "DISABLE-AUTOCONNECT",
@@ -2370,9 +2348,9 @@ static void cronDecreaseLiveness(void * unused) {
  * @param sender from which peer did we receive the SEQ message
  * @param msg the sequence message
  * @returns OK if ok, SYSERR if not.
- **/
-static int checkSequenceNumber(HostIdentity * sender,
-			       p2p_HEADER * msg) {
+ */
+static int checkSequenceNumber(const HostIdentity * sender,
+			       const p2p_HEADER * msg) {
   SEQUENCE_Message * smsg;
   BufferEntry * be;
   int res;
@@ -2381,7 +2359,7 @@ static int checkSequenceNumber(HostIdentity * sender,
   ENTRY();
   if (ntohs(msg->size) != sizeof(SEQUENCE_Message)) {
     LOG(LOG_WARNING,
-	"WARNING: sequence message received has wrong size %d\n",
+	_("Sequence message received has wrong size: %d\n"),
 	ntohs(msg->size));
     return SYSERR;
   }
@@ -2390,8 +2368,7 @@ static int checkSequenceNumber(HostIdentity * sender,
   MUTEX_LOCK(&lock);
   be = lookForHost(sender);
   if (be == NULL) {
-    LOG(LOG_FAILURE,
-	"FAILURE: sequence message received for node that is not connected!?\n");
+    BREAK();
     MUTEX_UNLOCK(&lock);
     return SYSERR; /* host not found */
   }
@@ -2410,8 +2387,8 @@ static int checkSequenceNumber(HostIdentity * sender,
       res = SYSERR;
     if (res == SYSERR) {
       LOG(LOG_WARNING,
-	  "WARNING: Invalid sequence number"
-	  " %u <= %u, dropping rest of packet\n",
+	  _("Invalid sequence number"
+	    " %u <= %u, dropping rest of packet.\n"),
 	  sequenceNumber, 
 	  be->lastSequenceNumberReceived);
     }    
@@ -2423,7 +2400,7 @@ static int checkSequenceNumber(HostIdentity * sender,
   MUTEX_UNLOCK(&lock);
   if (res == SYSERR)
     LOG(LOG_INFO,
-	"INFO: message received has old sequence number. Dropped.\n");
+	_("Message received has old sequence number. Dropped.\n"));
   return res;
 }
 
@@ -2434,13 +2411,11 @@ static int checkSequenceNumber(HostIdentity * sender,
  * @param client the socket connecting to the client
  * @param msg the request from the client
  * @returns OK if ok, SYSERR if not.
- **/
+ */
 static int processGetConnectionCountRequest(ClientHandle client,
-					    CS_HEADER * msg) {
+					    const CS_HEADER * msg) {
   if (ntohs(msg->size) != sizeof(CS_HEADER)) {
-    LOG(LOG_WARNING,
-	"WARNING: request received from TCP has wrong size %d\n",
-	ntohs(msg->size));
+    BREAK();
     return SYSERR;
   }
   return sendTCPResultToClient
@@ -2456,11 +2431,11 @@ static int processGetConnectionCountRequest(ClientHandle client,
  * @param sender the peer sending the HANGUP message
  * @param msg the HANGUP message
  * @return OK on success, SYSERR on error
- **/
-static int handleHANGUP(HostIdentity * sender,
-			p2p_HEADER * msg) {
+ */
+static int handleHANGUP(const HostIdentity * sender,
+			const p2p_HEADER * msg) {
   BufferEntry * be;
-  HexName hex;
+  EncName enc;
 
   ENTRY();
   if (ntohs(msg->size) != sizeof(HANGUP_Message))
@@ -2469,12 +2444,12 @@ static int handleHANGUP(HostIdentity * sender,
 			  &((HANGUP_Message*)msg)->sender))
     return SYSERR;
   IFLOG(LOG_INFO,
-	hash2hex(&sender->hashPubKey, 
-		 &hex));
+	hash2enc(&sender->hashPubKey, 
+		 &enc));
 #if DEBUG_CONNECTION
   LOG(LOG_INFO,
-      "INFO: received HANGUP from %s\n",
-      &hex);
+      "received HANGUP from %s\n",
+      &enc);
 #endif
   MUTEX_LOCK(&lock);
   be = lookForHost(sender);
@@ -2484,7 +2459,7 @@ static int handleHANGUP(HostIdentity * sender,
   }
 #if DEBUG_CONNECTION
   LOG(LOG_DEBUG,
-      "DEBUG: closing connection, received HANGUP\n");
+      "closing connection, received HANGUP\n");
 #endif
   shutdownConnection(be);
   MUTEX_UNLOCK(&lock);
@@ -2499,11 +2474,11 @@ static int handleHANGUP(HostIdentity * sender,
  * @param sender peer that send the CAP message
  * @param msg the CAP message
  * @return OK on success, SYSERR on error
- **/
-static int handleCAPABILITY(HostIdentity * sender,
-			    p2p_HEADER * msg) {
+ */
+static int handleCAPABILITY(const HostIdentity * sender,
+			    const p2p_HEADER * msg) {
   BufferEntry * be;
-  HexName hex;
+  EncName enc;
   CAPABILITY_Message * cap;
 
   ENTRY();
@@ -2511,12 +2486,12 @@ static int handleCAPABILITY(HostIdentity * sender,
     return SYSERR;
   cap =  (CAPABILITY_Message*)msg;
   IFLOG(LOG_INFO,
-	hash2hex(&sender->hashPubKey, 
-		 &hex));
+	hash2enc(&sender->hashPubKey, 
+		 &enc));
 #if DEBUG_CONNECTION
   LOG(LOG_INFO,
-      "INFO: received CAPABILITY from %s\n",
-      &hex);
+      "received CAPABILITY from %s\n",
+      &enc);
 #endif
   MUTEX_LOCK(&lock);
   be = lookForHost(sender);
@@ -2529,7 +2504,7 @@ static int handleCAPABILITY(HostIdentity * sender,
     be->max_bpm = ntohl(cap->cap.value);
 #if DEBUG_CONNECTION
     LOG(LOG_DEBUG,
-	"DEBUG: received cap of %u bpm\n",
+	"received cap of %u bpm\n",
 	be->max_bpm);
 #endif
     if (be->available_send_window >= be->max_bpm) {
@@ -2538,9 +2513,8 @@ static int handleCAPABILITY(HostIdentity * sender,
     }
     break;
   default:
-    LOG(LOG_INFO,
-	"INFO: capability type unknown: %d, ignored\n",
-	ntohl(cap->cap.capabilityType));
+    IFLOG(LOG_INFO,
+	  BREAK()); /* unknown capability type (cap.capaibilityType) */
     break;
   }
   MUTEX_UNLOCK(&lock);  
@@ -2554,19 +2528,18 @@ static int handleCAPABILITY(HostIdentity * sender,
  * @param hostId the sender of the key
  * @param sks the session key message
  * @return SYSERR if invalid, OK if valid
- **/
+ */
 static int verifySKS(const HostIdentity * hostId,
 		     SKEY_Message * sks) {
   HashCode160 keyHash;
-  HexName hostName;
+  EncName hostName;
   HELO_Message * helo;
   char * limited;
   
   ENTRY();
   if ( (sks == NULL) ||
        (hostId == NULL) ) {
-    LOG(LOG_FAILURE,
-	"FAILURE: verifySKS called with NULL argument!\n");
+    BREAK();
     return SYSERR;
   }
   /* check if we are allowed to accept connections
@@ -2574,14 +2547,14 @@ static int verifySKS(const HostIdentity * hostId,
   limited = getConfigurationString("GNUNETD",
 				   "LIMIT-ALLOW");
   if (limited != NULL) {
-    HexName hex;
-    hash2hex(&hostId->hashPubKey,
-	     &hex);
+    EncName enc;
+    hash2enc(&hostId->hashPubKey,
+	     &enc);
     if (NULL == strstr(limited,
-		       (char*) &hex)) {
+		       (char*) &enc)) {
       LOG(LOG_DEBUG,
-	  "DEBUG: connection from %s rejected.\n",
-	  &hex);
+	  "Connection from peer '%s' was rejected.\n",
+	  &enc);
       FREE(limited);
       return SYSERR;
     }
@@ -2590,14 +2563,14 @@ static int verifySKS(const HostIdentity * hostId,
   limited = getConfigurationString("GNUNETD",
 				   "LIMIT-DENY");
   if (limited != NULL) {
-    HexName hex;
-    hash2hex(&hostId->hashPubKey,
-	     &hex);
+    EncName enc;
+    hash2enc(&hostId->hashPubKey,
+	     &enc);
     if (NULL != strstr(limited,
-		       (char*) &hex)) {
+		       (char*) &enc)) {
       LOG(LOG_DEBUG,
-	  "DEBUG: connection from %s rejected.\n",
-	  &hex);
+	  "Connection from peer '%s' was rejected.\n",
+	  &enc);
       FREE(limited);
       return SYSERR;
     }
@@ -2609,10 +2582,10 @@ static int verifySKS(const HostIdentity * hostId,
 			      YES,
 			      &helo)) {
     IFLOG(LOG_INFO,
-	  hash2hex(&hostId->hashPubKey, 
+	  hash2enc(&hostId->hashPubKey, 
 		   &hostName));
     LOG(LOG_INFO, 
-	"INFO: verifySKS: host %s for sessionkey exchange not known\n",
+	"verifySKS: host %s for sessionkey exchange not known\n",
 	&hostName);
     return SYSERR;
   }
@@ -2624,13 +2597,13 @@ static int verifySKS(const HostIdentity * hostId,
 		 sizeof(HashCode160),
 		 &sks->body.signature, 
 		 &helo->publicKey)) {
-    HexName hex;
+    EncName enc;
     IFLOG(LOG_WARNING,
-	  hash2hex(&hostId->hashPubKey,
-		   &hex));
+	  hash2enc(&hostId->hashPubKey,
+		   &enc));
     LOG(LOG_WARNING, 
-	"WARNING: session key from %s has invalid signature!\n",
-	&hex);
+	_("Session key from peer '%s' has invalid signature!\n"),
+	&enc);
     FREE(helo);
     return SYSERR; /*reject!*/
   }
@@ -2643,18 +2616,18 @@ static int verifySKS(const HostIdentity * hostId,
 
 /**
  * Call once in a while to synchronize trust values with the disk.
- **/
+ */
 static void cronFlushTrustBuffer(void * unused) {
 #if DEBUG_CONNECTION
   LOG(LOG_CRON,
-      "CRON: enter cronFlushTrustBuffer\n");
+      "enter cronFlushTrustBuffer\n");
 #endif
   MUTEX_LOCK(&lock);
   forAllConnectedHosts(&flushHostCredit, unused);
   MUTEX_UNLOCK(&lock);
 #if DEBUG_CONNECTION
   LOG(LOG_CRON, 
-      "CRON: exit cronFlushTrustBuffer\n");
+      "exit cronFlushTrustBuffer\n");
 #endif
 }
 
@@ -2663,22 +2636,20 @@ static void cronFlushTrustBuffer(void * unused) {
  *
  * @param hostId the peer to connect with
  * @return the connection handle
- **/
+ */
 static BufferEntry * connectTo(const HostIdentity * hostId) {
   BufferEntry * be;
-  HexName hex;
+  EncName enc;
 
   ENTRY();
   if (hostIdentityEquals(&myIdentity, 
 			 hostId)) {
-    LOG(LOG_ERROR, 
-	"ERROR: attempt to connect to myself! (dropped)\n");
     BREAK();
     return NULL;
   }
   IFLOG(LOG_DEBUG,
-	hash2hex(&hostId->hashPubKey, 
-		 &hex));
+	hash2enc(&hostId->hashPubKey, 
+		 &enc));
   be = lookForHost(hostId);
   if ( (be == NULL) || 
        (be->status == STAT_DOWN) ) {
@@ -2696,7 +2667,7 @@ static BufferEntry * connectTo(const HostIdentity * hostId) {
  * How important is it at the moment to establish more connections?
  *
  * @return a measure of the importance to establish connections
- **/
+ */
 int getConnectPriority() {
   if (CONNECTION_MAX_HOSTS_ > 4*CONNECTION_currentActiveHosts)
     return EXTREME_PRIORITY;
@@ -2721,9 +2692,9 @@ int getConnectPriority() {
  *
  * @param tsession the transport session that is for grabs
  * @param sender the identity of the other node
- **/
+ */
 void considerTakeover(TSession * tsession,
-		      HostIdentity * sender) {
+		      const HostIdentity * sender) {
   BufferEntry * be;
 
   ENTRY();
@@ -2767,12 +2738,12 @@ void considerTakeover(TSession * tsession,
  * @param tsession the transport session handle
  * @param msg message with the session key
  * @return SYSERR or OK
- **/
-int acceptSessionKey(HostIdentity * sender,
+ */
+int acceptSessionKey(const HostIdentity * sender,
 		     TSession * tsession,
-		     p2p_HEADER * msg) {
+		     const p2p_HEADER * msg) {
   BufferEntry * be;
-  HexName hostName;
+  EncName hostName;
   SESSIONKEY key;
   SKEY_Message * sessionkeySigned;
   unsigned short ttype;
@@ -2785,20 +2756,20 @@ int acceptSessionKey(HostIdentity * sender,
     return SYSERR;
   sessionkeySigned = (SKEY_Message *) msg;
   IFLOG(LOG_DEBUG,
-	hash2hex(&sender->hashPubKey,
+	hash2enc(&sender->hashPubKey,
 		 &hostName));
 #if DEBUG_CONNECTION
   LOG(LOG_DEBUG, 
-      "DEBUG: Received sessionkey from host %s.\n",
+      "Received sessionkey from host %s.\n",
       &hostName);
 #endif
   if (SYSERR == verifySKS(sender, 
 			  sessionkeySigned)) {
     IFLOG(LOG_INFO,
-	  hash2hex(&sender->hashPubKey,
+	  hash2enc(&sender->hashPubKey,
 		   &hostName));
     LOG(LOG_INFO, 
-	"INFO: session key from %s failed verification, ignored!\n", 
+	_("Session key from '%s' failed verification, ignored!\n"), 
 	&hostName);
     return SYSERR;  /* rejected */
   }
@@ -2813,10 +2784,11 @@ int acceptSessionKey(HostIdentity * sender,
 		  &key,
 		  sizeof(SESSIONKEY))) {
     IFLOG(LOG_WARNING,
-	  hash2hex(&sender->hashPubKey,
+	  hash2enc(&sender->hashPubKey,
 		   &hostName));
     LOG(LOG_WARNING, 
-	"WARNING: SKEY rejected from host %s\n",
+	_("Invalid '%s' message received from peer '%s'.\n"),
+	"SKEY",
 	&hostName);
     return SYSERR;
   }
@@ -2827,10 +2799,10 @@ int acceptSessionKey(HostIdentity * sender,
     be = addHost(sender, NO);
   if (be == NULL) {
     IFLOG(LOG_INFO,
-	  hash2hex(&sender->hashPubKey,
+	  hash2enc(&sender->hashPubKey,
 		   &hostName));
     LOG(LOG_INFO, 
-	"INFO: Session key exchange denied, slot busy.\n",
+	"Session key exchange denied, slot busy.\n",
 	&hostName);
     MUTEX_UNLOCK(&lock);
     return SYSERR;
@@ -2839,7 +2811,7 @@ int acceptSessionKey(HostIdentity * sender,
   if (be->created > (TIME_T)ntohl(sessionkeySigned->body.creationTime)) {
 #if DEBUG_CONNECTION
     LOG(LOG_INFO, 
-	"INFO: key dropped, we've sent or received a more recent key!\n");
+	"key dropped, we've sent or received a more recent key!\n");
 #endif
     MUTEX_UNLOCK(&lock);
     return SYSERR;
@@ -2850,10 +2822,10 @@ int acceptSessionKey(HostIdentity * sender,
   if (be->session.tsession != NULL) {
 #if DEBUG_CONNECTION
     IFLOG(LOG_DEBUG,
-	  hash2hex(&sender->hashPubKey,
+	  hash2enc(&sender->hashPubKey,
 		   &hostName));
     LOG(LOG_DEBUG,
-	"DEBUG: closing old connection with %s, received new SKEY\n",
+	"closing old connection with %s, received new SKEY\n",
 	&hostName);
 #endif
     shutdownConnection(be);
@@ -2871,11 +2843,11 @@ int acceptSessionKey(HostIdentity * sender,
 				NO,
 				&helo)) {
       IFLOG(LOG_WARNING,
- 	    hash2hex(&sender->hashPubKey,
+ 	    hash2enc(&sender->hashPubKey,
 		     &hostName));
       LOG(LOG_WARNING, 
-	  "WARNING: sessionkey received from %s,"
-	  " but could not find transport to reply (%d)\n",
+	  _("Sessionkey received from peer '%s',"
+	    " but I could not find a transport that would allow me to reply (%d).\n"),
 	  &hostName,
 	  ttype);
       MUTEX_UNLOCK(&lock);
@@ -2883,8 +2855,11 @@ int acceptSessionKey(HostIdentity * sender,
     }
     if (SYSERR == transportConnect(helo,
 				   &tsession)) {
+      IFLOG(LOG_WARNING,
+ 	    hash2enc(&sender->hashPubKey,
+		     &hostName));
       LOG(LOG_WARNING, 
-	  "WARNING: sessionkey received, but transport failed to connect\n");
+	  _("Sessionkey received from peer '%s', but transport failed to connect.\n"));
       FREE(helo);
       MUTEX_UNLOCK(&lock);
       return SYSERR;
@@ -2910,15 +2885,13 @@ int acceptSessionKey(HostIdentity * sender,
   be->lastPacketsBitmap 
     = (unsigned int) -1; /* all bits set */
   if (be->sendBuffer != NULL)
-    LOG(LOG_FAILURE,
-	"FAILURE: expected be->sendBuffer to be null in file %s:%d\n",
-	__FILE__, __LINE__);
+    BREAK();
   be->lastSequenceNumberSend
     = 1;
 
 #if DEBUG_CONNECTION
   LOG(LOG_DEBUG, 
-      "DEBUG: SKEY exchange - sending encrypted ping\n");
+      "SKEY exchange - sending encrypted ping\n");
 #endif
   checkAndPing(be);
   MUTEX_UNLOCK(&lock);
@@ -2991,7 +2964,7 @@ static void connectionConfigChangeCallback() {
       CONNECTION_buffer_ = newBuffer;
 
       LOG(LOG_DEBUG,
-	  "DEBUG: connection goal is %s%d peers (%llu BPS bandwidth downstream)\n",
+	  "connection goal is %s%d peers (%llu BPS bandwidth downstream)\n",
 	  (olen == 0) ? "" : "now ",
 	  CONNECTION_MAX_HOSTS_,
 	  max_bpm);
@@ -3006,33 +2979,33 @@ static void connectionConfigChangeCallback() {
 
 /**
  * Initialize this module.
- **/
+ */
 void initConnection() {
   char * gnHome;
 
   ENTRY();
   stat_MsgsExpired
-    = statHandle("# messages expired (bandwidth stressed too long)");
+    = statHandle(_("# messages expired (bandwidth stressed too long)"));
 #if VERBOSE_STATS
   stat_sessionkeys_received 
-    = statHandle("# sessionkeys received");
+    = statHandle(_("# sessionkeys received"));
   stat_sessionkeys_verified 
-    = statHandle("# valid sessionkeys received");
+    = statHandle(_("# valid sessionkeys received"));
   stat_sessionkeys_transmitted
-    = statHandle("# sessionkeys sent");
+    = statHandle(_("# sessionkeys sent"));
   stat_connections_shutdown
-    = statHandle("# connections shutdown");
+    = statHandle(_("# connections shutdown"));
 #endif
   stat_total_messages_queued
-    = statHandle("# messages in all queues");
+    = statHandle(_("# messages in all queues"));
   stat_number_of_connections 
-    = statHandle("# currently connected nodes");
+    = statHandle(_("# currently connected nodes"));
   stat_number_of_bytes_noise_send
-    = statHandle("# bytes noise sent");
+    = statHandle(_("# bytes noise sent"));
   stat_number_of_bytes_send
-    = statHandle("# encrypted bytes sent");
+    = statHandle(_("# encrypted bytes sent"));
   stat_number_of_bytes_received
-    = statHandle("# bytes decrypted");
+    = statHandle(_("# bytes decrypted"));
   scl_nextHead 
     = NULL;
   scl_nextTail 
@@ -3062,9 +3035,9 @@ void initConnection() {
 	     NULL); 
   gnHome = getFileName("",
 		       "GNUNETD_HOME",
-		       "Configuration file must specify a "
-		       "directory for GNUnet to store "
-		       "per-peer data under %s%s\n");
+		       _("Configuration file must specify a "
+			 "directory for GNUnet to store "
+			 "per-peer data under %s%s\n"));
   trustDirectory = MALLOC(strlen(gnHome) + 
 			  strlen(TRUSTDIR)+2);
   strcpy(trustDirectory, gnHome);
@@ -3085,7 +3058,7 @@ void initConnection() {
 
 /**
  * Shutdown the connection module.
- **/
+ */
 void doneConnection() {
   unsigned int i;
   BufferEntry * be;
@@ -3113,7 +3086,7 @@ void doneConnection() {
     be = CONNECTION_buffer_[i];
     while (be != NULL) {
       LOG(LOG_DEBUG,
-	  "DEBUG: closing connection: shutdown\n");
+	  "Closing connection: shutdown\n");
       shutdownConnection(be);
       flushHostCredit(be, NULL);    
       prev = be;
@@ -3174,7 +3147,7 @@ unsigned int changeHostCredit(const HostIdentity * hostId,
  * 
  * @param hostId the identity of the peer
  * @return the amount of trust we currently have in that peer
- **/
+ */
 unsigned int getHostCredit(const HostIdentity * hostId) {
   BufferEntry * be;
   unsigned int trust;
@@ -3197,7 +3170,7 @@ unsigned int getHostCredit(const HostIdentity * hostId) {
  * @param method method to call for each connected peer
  * @param arg second argument to method
  * @return number of connected nodes
- **/
+ */
 int forEachConnectedNode(PerNodeCallback method,
 			 void * arg) {
   fENHWrap wrap;
@@ -3214,12 +3187,12 @@ int forEachConnectedNode(PerNodeCallback method,
 
 /**
  * Print the contents of the connection buffer (for debugging).
- **/
+ */
 void printConnectionBuffer() {
   unsigned int i;
   BufferEntry * tmp;
-  HexName hostName;
-  HexName skey;
+  EncName hostName;
+  EncName skey;
   unsigned short ttype;
 
   MUTEX_LOCK(&lock);
@@ -3229,10 +3202,10 @@ void printConnectionBuffer() {
     while (tmp != NULL) {
       if (tmp->status != STAT_DOWN) {
         IFLOG(LOG_MESSAGE,
-  	      hash2hex(&tmp->session.sender.hashPubKey, 
+  	      hash2enc(&tmp->session.sender.hashPubKey, 
   	  	       &hostName));
 	IFLOG(LOG_MESSAGE,
-	      hash2hex((HashCode160*) &tmp->skey,
+	      hash2enc((HashCode160*) &tmp->skey,
 		       &skey));
 	ttype = 0;
 	if (tmp->session.tsession != NULL)
@@ -3278,7 +3251,7 @@ void printConnectionBuffer() {
  *   The callback method must return the number of bytes written to
  *   that buffer (must be a positive number).
  * @return OK if the handler was registered, SYSERR on error
- **/
+ */
 int registerSendCallback(const unsigned int minimumPadding,
 			 BufferFillCallback callback) {
   SendCallbackList * scl;
@@ -3312,7 +3285,7 @@ int registerSendCallback(const unsigned int minimumPadding,
  *   The callback method must return the number of bytes written to
  *   that buffer (must be a positive number).
  * @return OK if the handler was removed, SYSERR on error
- **/
+ */
 int unregisterSendCallback(const unsigned int minimumPadding,
 			   BufferFillCallback callback) {
   SendCallbackList * pos;
@@ -3345,10 +3318,10 @@ int unregisterSendCallback(const unsigned int minimumPadding,
  * We received a sign of life from this host. 
  * 
  * @param hostId the peer that gave a sign of live
- **/
+ */
 void notifyPONG(const HostIdentity * hostId) {
   BufferEntry * be;
-  HexName hex;
+  EncName enc;
 
   ENTRY();
   MUTEX_LOCK(&lock);
@@ -3370,21 +3343,19 @@ void notifyPONG(const HostIdentity * hostId) {
       statChange(stat_number_of_connections,
 		 1);
       IFLOG(LOG_DEBUG,
-	    hash2hex(&hostId->hashPubKey, 
-		     &hex));
+	    hash2enc(&hostId->hashPubKey, 
+		     &enc));
 #if DEBUG_CONNECTION
       LOG(LOG_DEBUG, 
-	  "DEBUG: Marking host %s active.\n",
-	  &hex);
+	  "Marking host %s active.\n",
+	  &enc);
 #endif
       break;
     case STAT_UP:
       cronTime(&be->isAlive);
       break;
     default:
-      LOG(LOG_WARNING, 
-	  "WARNING: undefined status (%d)!\n",
-	  be->status);
+      BREAK(); /* be->status undefined! */
       break;
     }
   }
@@ -3395,11 +3366,11 @@ void notifyPONG(const HostIdentity * hostId) {
  * We received a sign of life from this host. 
  *
  * @param hostId the peer that send a PING.
- **/
+ */
 void notifyPING(const HostIdentity * hostId) {
   BufferEntry * be;
 #if DEBUG_CONNECTION 
-  HexName hex;
+  EncName enc;
 #endif
 
   ENTRY();
@@ -3407,11 +3378,11 @@ void notifyPING(const HostIdentity * hostId) {
   be = lookForHost(hostId);
 #if DEBUG_CONNECTION
   IFLOG(LOG_DEBUG,
-	hash2hex(&hostId->hashPubKey, 
-		 &hex));
+	hash2enc(&hostId->hashPubKey, 
+		 &enc));
   LOG(LOG_DEBUG,
-      "DEBUG: notify ping called for peer %s lookup result: %s\n",
-      &hex,
+      "notify ping called for peer %s lookup result: %s\n",
+      &enc,
       (be == NULL) ? "not found" : "found");
 #endif
   if (be != NULL) {
@@ -3432,8 +3403,8 @@ void notifyPING(const HostIdentity * hostId) {
       cronTime(&be->isAlive);
 #if DEBUG_CONNECTION
       LOG(LOG_DEBUG, 
-	  "DEBUG: Marking host %s active.\n",
-	  &hex);
+	  "Marking host %s active.\n",
+	  &enc);
 #endif
       break;
     case STAT_UP:
@@ -3441,7 +3412,7 @@ void notifyPING(const HostIdentity * hostId) {
       break;
     default:
       LOG(LOG_WARNING, 
-	  "WARNING: unknown status!\n");
+	  "unknown status!\n");
       break;
     }
   }
@@ -3454,8 +3425,8 @@ void notifyPING(const HostIdentity * hostId) {
  * @param message the message to send
  * @param priority how important is the message? The higher, the more important
  * @param maxdelay how long can we wait (max), in CRON-time (ms)
- **/
-void broadcast(p2p_HEADER * message,
+ */
+void broadcast(const p2p_HEADER * message,
 	       unsigned int priority,
 	       unsigned int maxdelay) {
   unsigned int i;
@@ -3486,24 +3457,47 @@ void broadcast(p2p_HEADER * message,
  * @param hostId the identity of the receiver
  * @param priority how important is the message?
  * @param maxdelay how long can we wait (max), in CRON-time (ms)
- **/
+ */
 void sendToNode(const HostIdentity * hostId,
-		p2p_HEADER * message,
+		const p2p_HEADER * message,
 		unsigned int priority,
 		unsigned int maxdelay) {
   BufferEntry * be;
 #if DEBUG_CONNECTION
-  HexName hex;
+  EncName enc;
 
   IFLOG(LOG_DEBUG,
-	hash2hex(&hostId->hashPubKey, 
-		 &hex));
+	hash2enc(&hostId->hashPubKey, 
+		 &enc));
   LOG(LOG_DEBUG, 
-      "DEBUG: sendToNode: sending message to host %s message of type %d\n",
-      &hex,
+      "sendToNode: sending message to host %s message of type %d\n",
+      &enc,
       ntohs(message->requestType));
 #endif
   ENTRY();
+  if (ntohs(message->size) < sizeof(p2p_HEADER)) {
+    BREAK();
+    return;
+  }
+
+  if (hostIdentityEquals(hostId,
+			 &myIdentity)) {
+    MessagePack * mp;
+
+    mp = MALLOC(sizeof(MessagePack));
+    mp->msg = MALLOC(ntohs(message->size));
+    mp->tsession = NULL;
+    mp->sender = myIdentity;
+    mp->size = ntohs(message->size);
+    mp->isEncrypted = LOOPBACK;
+    mp->crc = crc32N(message, mp->size);
+    memcpy(mp->msg,
+	   message,
+	   ntohs(message->size));
+    core_receive(mp);
+    return;
+  }
+
   MUTEX_LOCK(&lock);
   be = connectTo(hostId); 
   if ( (be != NULL) &&
@@ -3536,7 +3530,7 @@ void sendToNode(const HostIdentity * hostId,
  * @param len how long is the message going to be?
  * @param importance how important is the message?
  * @param maxdelay how long can the message wait?
- **/
+ */
 void unicast(const HostIdentity * hostId,
 	     BuildMessageCallback callback,
 	     void * closure,
@@ -3545,14 +3539,14 @@ void unicast(const HostIdentity * hostId,
 	     unsigned int maxdelay) {
   BufferEntry * be;
 #if DEBUG_CONNECTION
-  HexName hex;
+  EncName enc;
 
   IFLOG(LOG_DEBUG,
-	hash2hex(&hostId->hashPubKey, 
-		 &hex));
+	hash2enc(&hostId->hashPubKey, 
+		 &enc));
   LOG(LOG_DEBUG, 
-      "DEBUG: unicast: sending message to host %s message of size %d\n",
-      &hex,
+      "unicast: sending message to host %s message of size %d\n",
+      &enc,
       len);
 #endif
   ENTRY();
@@ -3577,11 +3571,11 @@ void unicast(const HostIdentity * hostId,
 
 /**
  * Shutdown all connections (send HANGUPs, too).
- **/
+ */
 void shutdownConnections() {
   MUTEX_LOCK(&lock);
   LOG(LOG_DEBUG,
-      "DEBUG: shutdown of all connections\n");
+      "shutdown of all connections\n");
   forAllConnectedHosts((BufferEntryCallback)&shutdownConnection, 
 		       NULL);
   MUTEX_UNLOCK(&lock);
@@ -3592,7 +3586,7 @@ void shutdownConnections() {
  *
  * @param hi the peer in question
  * @return NO if we are not connected, YES if we are
- **/
+ */
 int isConnected(const HostIdentity * hi) {
   BufferEntry * be;
 
@@ -3615,41 +3609,39 @@ int isConnected(const HostIdentity * hi) {
  * @param result where to store the decrypted data, must
  *        be at least of size data->len long
  * @return the size of the decrypted data, SYSERR on error
- **/
-int decryptFromHost(void * data,
+ */
+int decryptFromHost(const void * data,
 		    const unsigned short size,
 		    const HostIdentity * hostId,
 		    void * result) {  
   BufferEntry * be;
   int res;
-  HexName hex;
+  EncName enc;
 
   ENTRY();
   statChange(stat_number_of_bytes_received, size);
   if ( (data == NULL) || 
        (hostId == NULL) ) {    
-    LOG(LOG_FAILURE, 
-	"CONNECTION: could not decrypt, message or hostId was NULL\n");
     BREAK();
     return SYSERR;
   }
   IFLOG(LOG_DEBUG,
-	hash2hex(&hostId->hashPubKey, 
-		 &hex));
+	hash2enc(&hostId->hashPubKey, 
+		 &enc));
 #if DEBUG_CONNECTION
   LOG(LOG_DEBUG, 
-      "DEBUG: decrypting message from host %s\n",
-      &hex);
+      "decrypting message from host %s\n",
+      &enc);
 #endif
   MUTEX_LOCK(&lock);
   be = lookForHost(hostId);
   if (be == NULL) {
     IFLOG(LOG_INFO,
-	  hash2hex(&hostId->hashPubKey, 
-		   &hex));
+	  hash2enc(&hostId->hashPubKey, 
+		   &enc));
     LOG(LOG_INFO, 
-	"INFO: decrypting message from host %s failed, no sessionkey!\n",
-	&hex);
+	"decrypting message from host %s failed, no sessionkey!\n",
+	&enc);
     /* try to establish a connection, that way, we don't keep
        getting bogus messages until the other one times out. */
     connectTo(hostId); 
@@ -3670,13 +3662,11 @@ int decryptFromHost(void * data,
  * 
  * @param hostId the ID of a peer
  * @return the index for this peer in the connection table
- **/
+ */
 unsigned int computeIndex(const HostIdentity * hostId) {
   unsigned int res = (((unsigned int)hostId->hashPubKey.a) & 
 		      ((unsigned int)(CONNECTION_MAX_HOSTS_ - 1)));
-  if (res >= CONNECTION_MAX_HOSTS_)
-    errexit("FATAL: CONNECTION_MAX_HOSTS_ not power of 2? (%d)\n",
-	    CONNECTION_MAX_HOSTS_);
+  GNUNET_ASSERT(res <  CONNECTION_MAX_HOSTS_);
   return res;
 }
 
@@ -3684,7 +3674,7 @@ unsigned int computeIndex(const HostIdentity * hostId) {
  * Obtain the lock for the connection module
  *
  * @return the lock
- **/
+ */
 Mutex * getConnectionModuleLock() {
   return &lock;
 }
@@ -3696,19 +3686,19 @@ Mutex * getConnectionModuleLock() {
  *
  * @param hostId the peer that send the message
  * @param size the size of the message
- **/
+ */
 void trafficReceivedFrom(const HostIdentity * hostId,
 			 const unsigned int size) {
   BufferEntry * be;
 #if DEBUG_CONNECTION
-  HexName hex;
+  EncName enc;
 
   IFLOG(LOG_DEBUG,
-	hash2hex(&hostId->hashPubKey, &hex));
+	hash2enc(&hostId->hashPubKey, &enc));
   LOG(LOG_DEBUG,
-      "DEBUG: received %u bytes from %s\n",
+      "received %u bytes from %s\n",
       size, 
-      &hex);
+      &enc);
 #endif
   ENTRY();
   MUTEX_LOCK(&lock);
@@ -3739,7 +3729,7 @@ unsigned int getBandwidthAssignedTo(const HostIdentity * node) {
  * Increase the preference for traffic from some other peer.
  * @param node the identity of the other peer
  * @param preference how much should the traffic preference be increased?
- **/
+ */
 void updateTrafficPreference(const HostIdentity * node,
 			     double preference) {
   BufferEntry * be;
@@ -3757,8 +3747,8 @@ void updateTrafficPreference(const HostIdentity * node,
  * side and mark the sessionkey as dead.
  *
  * @param peer the peer to disconnect
- **/
-void disconnectFromPeer(HostIdentity *node) {
+ */
+void disconnectFromPeer(const HostIdentity *node) {
   BufferEntry * be;
 
   ENTRY();

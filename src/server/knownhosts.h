@@ -22,7 +22,7 @@
  * (in memory structure of data/hosts) and temporary blacklisting
  * information.
  * @author Christian Grothoff
- **/ 
+ */ 
 
 #ifndef KNOWNHOSTS_H
 #define KNOWNHOSTS_H
@@ -41,45 +41,36 @@ extern HostIdentity myIdentity;
  * @param identity the identity of the host
  * @param protocol the available protocol
  * @param data the data-argument passed to forEachHost
- **/
+ */
 typedef void (*HostIterator)(const HostIdentity * identity, 
 			     const unsigned short protocol,
 			     void * data);
 
 /**
  * Initialize the knownhosts module.
- **/
+ */
 void initKnownhosts();
 
 /**
  * Shutdown the knownhosts module.
- **/
+ */
 void doneKnownhosts();
 
 /**
- * Check if 2 hosts are the same (returns 1 if yes)
- * @param first the first host
- * @param second the second host
- * @returns 1 if the hosts are the same, 0 otherwise
- **/
-int hostIdentityEquals(const HostIdentity * first, 
-		       const HostIdentity * second);
- 
-/**
  * Delete a host from the list
- **/
+ */
 void delHostFromKnown(const HostIdentity * identity,
 		      const unsigned short protocol);
 
 /**
  * Add a host to the temporary list.
- **/
+ */
 void addTemporaryHost(HELO_Message * tmp);
 
 /**
  * Bind a host addres (helo) to a hostId.
  * @param msg the verified (!) HELO message body
- **/
+ */
 void bindAddress(HELO_Message * msg);
 
 /**
@@ -92,7 +83,7 @@ void bindAddress(HELO_Message * msg);
  *        ANY_PROTOCOL_NUMBER  if we do not care which protocol
  * @param result where to store the result
  * @returns SYSERR on failure, OK on success
- **/
+ */
 int identity2Helo(const HostIdentity *  hostId,
 		  const unsigned short protocol,
 		  int tryTemporaryList,
@@ -104,8 +95,8 @@ int identity2Helo(const HostIdentity *  hostId,
  * @param desparation how desperate are we to connect? [0,MAXHOSTS]
  * @param strict should we reject incoming connections?
  * @return OK on success SYSERR on error
- **/
-int blacklistHost(HostIdentity * identity,
+ */
+int blacklistHost(const HostIdentity * identity,
 		  int desperation,
 		  int strict);
 
@@ -113,16 +104,16 @@ int blacklistHost(HostIdentity * identity,
  * Is the node currently 'strictly' blacklisted?
  * @param identity node to check
  * @return YES if true, else NO
- **/
-int isBlacklistedStrict(HostIdentity * identity);
+ */
+int isBlacklistedStrict(const HostIdentity * identity);
 
 /**
  * Whitelist a host. This method is called if a host
  * successfully established a connection. It typically
  * resets the exponential backoff to the smallest value.
  * @return OK on success SYSERR on error
- **/
-int whitelistHost(HostIdentity * identity);
+ */
+int whitelistHost(const HostIdentity * identity);
 
 /**
  * Call a method for each known host.
@@ -131,20 +122,20 @@ int whitelistHost(HostIdentity * identity);
  *        to go through all hosts.
  * @param data an argument to pass to the method
  * @return the number of known hosts matching
- **/
+ */
 int forEachHost(HostIterator callback,
 		cron_t now,
 		void * data);
  
 /**
  * Call this method periodically to scan data/hosts for new hosts.
- **/
+ */
 void cronScanDirectoryDataHosts(void * unused);
 
 /**
  * Get an estimate of the network size.
  * @return the estimated number of nodes, SYSERR on error
- **/
+ */
 int estimateNetworkSize();
 
 #endif

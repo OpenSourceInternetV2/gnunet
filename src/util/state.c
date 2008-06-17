@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003 Christian Grothoff (and other contributing authors)
+     (C) 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -29,7 +29,7 @@
  *
  *
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_util.h"
 #include "platform.h"
@@ -46,18 +46,20 @@ static char * handle = NULL;
 /**
  * Initialize the Directory module, expand filename
  * @param dir the directory where content is configured to be stored (e.g. ~/.gnunet/data/content).
- **/
+ */
 static char * getDirectory(char * dir) {
   char * result;
   char * tmp;
+  size_t n;
 
 #if STATE_DEBUG
-  LOG(LOG_INFO, 
+  LOG(LOG_DEBUG, 
       "Database (state): %s\n", 
       dir);
 #endif
-  tmp = MALLOC(strlen(dir) + strlen(DIR_EXT) + 5);
-  sprintf(tmp, "%s/%s/", dir, DIR_EXT);
+  n = strlen(dir) + strlen(DIR_EXT) + 5;
+  tmp = MALLOC(n);
+  SNPRINTF(tmp, n, "%s/%s/", dir, DIR_EXT);
   result = expandFileName(tmp);
   FREE(tmp);
   return result;
@@ -76,21 +78,21 @@ void initState() {
     base = "GNUNET_HOME";
   dir = getFileName("",
 		    base,
-		    "Configuration file must specify a directory"
-		    " for GNUnet to store per-peer data under %s%s\n");
+		    _("Configuration file must specify a directory"
+		      " for GNUnet to store per-peer data under %s%s.\n"));
   dbh = getDirectory(dir);  
   FREE(dir);
-  if (dbh == NULL) 
-    errexit("FATAL: could not open directory %s!\n",
-	    (char*) dbh);
+  GNUNET_ASSERT(dbh != NULL);
   mkdirp(dbh);
   handle = dbh;
 }
 
 /**
  * Clean shutdown of the storage module (not used at the moment)
- **/
+ */
 void doneState() {
+  if (handle == NULL)
+    return; /* bogus call! */
   FREE(handle);
   handle = NULL;
 }
@@ -102,8 +104,8 @@ void doneState() {
  * @param result the buffer to write the result to 
  *        (*result should be NULL, sufficient space is allocated)
  * @return the number of bytes read on success, -1 on failure
- **/ 
-int stateReadContent(char * name,
+ */ 
+int stateReadContent(const char * name,
 		     void ** result) {
   /* open file, must exist, open read only */
   char * dbh = handle;
@@ -111,14 +113,18 @@ int stateReadContent(char * name,
   int size;
   char * fil;
   size_t fsize;
+  size_t n;
 
+  GNUNET_ASSERT(handle != NULL);
   if (result == NULL)
     return -1;
-  fil = MALLOC(strlen(dbh) + strlen(name) + 2);
-  sprintf(fil, 
-	  "%s/%s", 
-	  dbh, 
-	  name);
+  n = strlen(dbh) + strlen(name) + 2;
+  fil = MALLOC(n);
+  SNPRINTF(fil, 
+	   n,
+	   "%s/%s", 
+	   dbh, 
+	   name);
   fd = OPEN(fil, 
 	    O_RDONLY,
 	    S_IRUSR);
@@ -153,26 +159,28 @@ int stateReadContent(char * name,
  * @param len the number of bytes in block
  * @param block the data to store
  * @return SYSERR on error, OK if ok.
- **/
-int stateAppendContent(char * name,
+ */
+int stateAppendContent(const char * name,
 		       int len,
-		       void * block) {
+		       const void * block) {
   char * dbh = handle;
   char * fil;
   int fd;
+  size_t n;
 
-  fil = MALLOC(strlen(dbh) + strlen(name) + 2);
-  sprintf(fil,
-	  "%s/%s", 
-	  dbh, 
-	  name);
+  GNUNET_ASSERT(handle != NULL);
+  n = strlen(dbh) + strlen(name) + 2;
+  fil = MALLOC(n);
+  SNPRINTF(fil,
+	   n,
+	   "%s/%s", 
+	   dbh, 
+	   name);
   fd = OPEN(fil,
 	    O_RDWR|O_CREAT,
 	    S_IRUSR|S_IWUSR);
   if (fd == -1) {
-    LOG(LOG_WARNING,
-	"WARNING: Failed to open file %s\n", 
-	fil);
+    LOG_FILE_STRERROR(LOG_WARNING, "open", fil);
     FREE(fil);
     return SYSERR; /* failed! */
   }
@@ -194,27 +202,28 @@ int stateAppendContent(char * name,
  * @param len the number of bytes in block
  * @param block the data to store
  * @return SYSERR on error, OK if ok.
- **/
-int stateWriteContent(char * name,
+ */
+int stateWriteContent(const char * name,
 		      int len,
-		      void * block) {
+		      const void * block) {
   char * dbh = handle;
   char * fil;
   int fd;
+  size_t n;
 
-  fil = MALLOC(strlen(dbh) + strlen(name) + 2);
-  sprintf(fil,
-	  "%s/%s", 
-	  dbh, 
-	  name);
+  GNUNET_ASSERT(handle != NULL);
+  n = strlen(dbh) + strlen(name) + 2;
+  fil = MALLOC(n);
+  SNPRINTF(fil,
+	   n,
+	   "%s/%s", 
+	   dbh, 
+	   name);
   fd = OPEN(fil,
 	    O_RDWR|O_CREAT,
 	    S_IRUSR|S_IWUSR);
   if (fd == -1) {
-    LOG(LOG_WARNING,
-	"WARNING: Failed to open file %s: %s\n", 
-	fil,
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_WARNING, "open", fil);
     FREE(fil);
     return SYSERR; /* failed! */
   }
@@ -222,10 +231,7 @@ int stateWriteContent(char * name,
 	block, 
 	len);
   if (0 != ftruncate(fd, len))
-    LOG(LOG_WARNING,
-	"WARNING: truncate of %s failed: %s\n",
-	fil,
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_WARNING, "ftruncate", fil);
   CLOSE(fd);
   FREE(fil);
   return OK;
@@ -235,16 +241,20 @@ int stateWriteContent(char * name,
  * Free space in the database by removing one file
  * @param name the hashcode representing the name of the file 
  *        (without directory)
- **/
-int stateUnlinkFromDB(char * name) {
+ */
+int stateUnlinkFromDB(const char * name) {
   char * dbh = handle;
   char * fil;
+  size_t n;
 
-  fil = MALLOC(strlen(dbh) + strlen(name) + 2);
-  sprintf(fil, 
-	  "%s/%s",
-	  dbh, 
-	  name);
+  GNUNET_ASSERT(handle != NULL);
+  n = strlen(dbh) + strlen(name) + 2;
+  fil = MALLOC(n);
+  SNPRINTF(fil, 
+	   n,
+	   "%s/%s",
+	   dbh, 
+	   name);
   UNLINK(fil);
   FREE(fil);
   return OK;

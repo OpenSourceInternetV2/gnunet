@@ -22,7 +22,7 @@
  * @file server/gnunet-peer-info.c
  * @brief Print information about other known peers.
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_util.h"
 
@@ -31,7 +31,7 @@
 
 /**
  * Perform option parsing from the command line. 
- **/
+ */
 static int parser(int argc, 
 		  char * argv[]) {
   int cont = OK;
@@ -86,7 +86,7 @@ static int parser(int argc,
 	HELP_END,
       };
       formatHelp("gnunet-peer-info [OPTIONS]",
-		 "Print information about GNUnet peers.",
+		 _("Print information about GNUnet peers."),
 		 help);
       cont = SYSERR;
       break;
@@ -98,20 +98,18 @@ static int parser(int argc,
       break;
     default:
       LOG(LOG_FAILURE, 
-	  "FAILURE: Unknown option %c. Aborting.\n"\
-	  "Use --help to get a list of options.\n",
-	  c);
+	  _("Use --help to get a list of options.\n"));
       cont = SYSERR;    
     } /* end of parsing commandline */
   }
   if (GNoptind < argc) {
     LOG(LOG_WARNING, 
-	"WARNING: Invalid arguments: ");
+	_("Invalid arguments: "));
     while (GNoptind < argc)
       LOG(LOG_WARNING, 
 	  "%s ", argv[GNoptind++]);
     LOG(LOG_FATAL,
-	"FATAL: Invalid arguments. Exiting.\n");
+	_("Invalid arguments. Exiting.\n"));
     return SYSERR;
   }
   return cont;
@@ -131,25 +129,25 @@ static char * trustDirectory ;
  * Print information about the peer.
  * Currently prints the HostIdentity, trust and the IP. 
  * Could of course do more (e.g. resolve via DNS).
- **/ 
+ */ 
 static void printHostInfo(const HostIdentity * id,
 			  const unsigned short proto,
 			  void * data) {
   HELO_Message * helo;
   char * info;
-  HexName hex;
+  EncName enc;
   unsigned int trust;
   char * fn;
 
-  hash2hex(&id->hashPubKey,
-	   &hex);
+  hash2enc(&id->hashPubKey,
+	   &enc);
   if (SYSERR == identity2Helo(id,
 			      proto,
 			      NO,
 			      &helo)) {
     LOG(LOG_WARNING,
-	"WARNING: could not get address of %s\n",
-	&hex);
+	_("Could not get address of peer '%s'.\n"),
+	&enc);
     return;
   }  
   if (SYSERR == verifySig(&helo->senderIdentity,
@@ -157,19 +155,19 @@ static void printHostInfo(const HostIdentity * id,
 			  &helo->signature,
 			  &helo->publicKey)) {
     LOG(LOG_WARNING, 
-	"WARNING: HELO message invalid (signature invalid).\n");
+	_("HELO message invalid (signature invalid).\n"));
   }
   info = heloToString(helo);
   FREE(helo);
   if (info == NULL) {
     LOG(LOG_WARNING,
-	"WARNING: could not get address of %s\n",
-	&hex);
+	_("Could not get address of peer '%s'\n"),
+	&enc);
     return;
   }
   
-  fn = MALLOC(strlen((char*)trustDirectory)+sizeof(HexName)+1);
-  buildFileName(trustDirectory, &hex, fn);
+  fn = MALLOC(strlen((char*)trustDirectory)+sizeof(EncName)+1);
+  buildFileName(trustDirectory, &enc, fn);
  
   if (sizeof(unsigned int) !=
       readFile(fn,
@@ -178,8 +176,8 @@ static void printHostInfo(const HostIdentity * id,
     trust = 0;
   FREE(fn);
   
-  printf("%s trust %8d addr %s\n",
-	 (char*)&hex,
+  printf(_("Peer '%s' with trust %8d and address '%s'\n"),
+	 (char*)&enc,
 	 trust,
 	 info);
   FREE(info);
@@ -197,7 +195,7 @@ int main(int argc, char *argv[]) {
 
   gnHome = getFileName("",
                        "GNUNETD_HOME",
-                       "Configuration file must specify a directory for GNUnet to store per-peer data under %s%s\n");
+                       _("Configuration file must specify a directory for GNUnet to store per-peer data under %s%s\n"));
   trustDirectory = MALLOC(strlen(gnHome) + strlen(TRUSTDIR)+2);
   strcpy(trustDirectory, gnHome);
   FREE(gnHome);

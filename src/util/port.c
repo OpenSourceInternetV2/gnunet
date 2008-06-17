@@ -20,20 +20,21 @@
  * @file util/port.c
  * @brief functions for GNUnet clients to establish connection with gnunetd
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_util.h"
+#include "platform.h"
 
 /**
  * Return the port-number (in host byte order)
- **/
+ */
 unsigned short getGNUnetPort() {
   unsigned short port;
 
   port = (unsigned short) getConfigurationInt("NETWORK",
 					      "PORT");
   if (port == 0) { /* try lookup in services */
-    errexit("Cannot determine port of gnunetd server. Define in configuration file in section %s under %s.\n",
+    errexit(_("Cannot determine port of gnunetd server. Define in configuration file in section '%s' under '%s'.\n"),
 	    "NETWORK", 
 	    "PORT");
   }
@@ -44,7 +45,7 @@ unsigned short getGNUnetPort() {
  * Configuration: get the GNUnetd host where the client
  * should connect to (via TCP)
  * @return the name of the host, caller must free!
- **/
+ */
 char * getGNUnetdHost() {
   char * res;
 
@@ -57,7 +58,7 @@ char * getGNUnetdHost() {
 
 /**
  * Get a GNUnet TCP socket that is connected to gnunetd.
- **/
+ */
 GNUNET_TCP_SOCKET * getClientSocket() {
   GNUNET_TCP_SOCKET * sock;
   char * host;
@@ -68,7 +69,7 @@ GNUNET_TCP_SOCKET * getClientSocket() {
 				       host,
 				       sock)) {    
     LOG(LOG_ERROR,
-	"ERROR: could not connect to gnunetd\n");
+	_("Could not connect to gnunetd\n"));
     FREE(sock);
     FREE(host);
     return NULL;
@@ -79,7 +80,7 @@ GNUNET_TCP_SOCKET * getClientSocket() {
 
 /**
  * Free a Client socket.
- **/
+ */
 void releaseClientSocket(GNUNET_TCP_SOCKET * sock) {
   if (sock != NULL) {
     destroySocket(sock);

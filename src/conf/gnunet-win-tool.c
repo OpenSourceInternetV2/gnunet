@@ -22,7 +22,7 @@
  * @file conf/gnunet-win-tool.c 
  * @brief tool for Windows specific tasks
  * @author Nils Durner
- **/
+ */
 
 #include "platform.h"
 
@@ -33,7 +33,7 @@ static int bPrintAdapters, bInstall, bUninstall;
 /**
  * Prints the usage information for this command if the user errs.
  * Aborts the program.
- **/
+ */
 static void printhelp() {
   static Help help[] = {
     HELP_CONFIG,
@@ -52,7 +52,7 @@ static void printhelp() {
 
 /**
  * Print all network adapters with their index number
- **/
+ */
 void PrintAdapters()
 {
   PMIB_IFTABLE pTable;
@@ -106,7 +106,7 @@ void PrintAdapters()
           GlobalFree(pAddrTbl);
   	}
   	else
-          printf("ERROR: Could not get list of network adapters.\n");
+          printf(" Could not get list of network adapters.\n");
 
     GlobalFree(pTable);
   }
@@ -116,7 +116,7 @@ void PrintAdapters()
 
 /**
  * Install GNUnet as Windows service
- **/
+ */
 void Install()
 {
   HANDLE hManager, hService;
@@ -156,7 +156,7 @@ void Install()
 
 /**
  * Uninstall the service
- **/
+ */
 void Uninstall()
 {
   HANDLE hManager, hService;
@@ -200,7 +200,7 @@ void Uninstall()
  * @param argc the number of options
  * @param argv the option list (including keywords)
  * @return SYSERR if we should abort, OK to continue
- **/
+ */
 static int parseOptions(int argc, char ** argv) {
   int option_index;
   int c;
@@ -268,7 +268,7 @@ static int parseOptions(int argc, char ** argv) {
  * @param argc number of arguments from the command line
  * @param argv command line arguments
  * @return 0 ok, 1 on error
- **/   
+ */   
 int main(int argc, char ** argv) {
   int res;
 

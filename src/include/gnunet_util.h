@@ -27,7 +27,7 @@
  * @author Gerd Knorr <kraxel@bytesex.org> 
  * @author Ioana Patrascu
  * @author Tzvetan Horozov
- **/
+ */
 
 #ifndef GNUNET_UTIL_H
 #define GNUNET_UTIL_H
@@ -47,7 +47,6 @@ extern "C" {
    are doing, you'll get a ton of output... */
 #define DEBUG_LOCKING 0
 
-
 /**
  * Just the version number of GNUnet-util implementation.
  * Encoded as 
@@ -59,7 +58,7 @@ extern "C" {
  * to match exactly with the GNUnet version number;
  * especially the least significant bits may change
  * frequently, even between different CVS versions.
- **/
+ */
 
 #define GNUNET_UTIL_VERSION 0x00060200
 
@@ -71,7 +70,7 @@ typedef Hostkey__ * Hostkey;
 
 /**
  * We use an unsigned short in the protocol header, thus: 
- **/
+ */
 #define MAX_BUFFER_SIZE 65536
 
 /* ********* transport protocol numbers ************* */
@@ -82,47 +81,47 @@ typedef Hostkey__ * Hostkey;
  * protocol, but they are not used in the same way. They just indicate
  * _internally_ to GNUnet which protocol from the TCP/IP suite to use
  * to run GNUnet over.
- **/
+ */
    
 /**
  * protocol number for "unspecified"
- **/
+ */
 #define ANY_PROTOCOL_NUMBER 0
 
 /**
  * protocol number for 'NAT'.  Used as the advertisements for peers behind
  * a NAT box.
- **/
+ */
 #define NAT_PROTOCOL_NUMBER 1
 
 /**
  * protocol number of TCP. Do NEVER change, also used in other context! 
- **/
+ */
 #define TCP_PROTOCOL_NUMBER 6
 
 /**
  * protocol number for HTTP (80 is too big, so 8 will have to do)
- **/
+ */
 #define HTTP_PROTOCOL_NUMBER 8
 
 /**
  * Protocol number for TCP on IPv6 (TCP+6)
- **/
+ */
 #define TCP6_PROTOCOL_NUMBER 12
 
 /**
  * protocol number of UDP. Do NEVER change, also used in other context! 
- **/
+ */
 #define UDP_PROTOCOL_NUMBER 17
 
 /**
  * Protocol number for UDP on IPv6 (UDP+6)
- **/
+ */
 #define UDP6_PROTOCOL_NUMBER 23
 
 /**
  * protocol number for SMTP 
- **/
+ */
 #define SMTP_PROTOCOL_NUMBER 25
 
 
@@ -132,45 +131,45 @@ typedef Hostkey__ * Hostkey;
 
 /**
  * return value for remote calls 
- **/
+ */
 #define CS_PROTO_RETURN_VALUE 0
 
 /**
  * client to gnunetd: to how many nodes are we connected? 
  * reply is a CS_RETURN_VALUE message. 
- **/
+ */
 #define CS_PROTO_CLIENT_COUNT 1
 
 /**
  * Client to gnunetd: how much traffic do we have at the moment?
- **/
+ */
 #define CS_PROTO_TRAFFIC_QUERY 2
 
 /**
  * gnunetd to client: traffic statistics 
- **/
+ */
 #define CS_PROTO_TRAFFIC_INFO 3
 
 /* *********** messages for statistics ************* */
 
 /**
  * client to gnunetd: request statistics 
- **/
+ */
 #define STATS_CS_PROTO_GET_STATISTICS 4
 
 /**
  * gnunetd to client: statistics 
- **/
+ */
 #define STATS_CS_PROTO_STATISTICS 5
 
 /**
  * client to gnunetd: is client server message supported
- **/
+ */
 #define STATS_CS_PROTO_GET_CS_MESSAGE_SUPPORTED 6
 
 /**
  * client to gnunetd: is p2p message supported
- **/
+ */
 #define STATS_CS_PROTO_GET_P2P_MESSAGE_SUPPORTED 7
 
 /* ********** CS AFS application messages ********** */
@@ -182,94 +181,94 @@ typedef Hostkey__ * Hostkey;
 
 /**
  * gnunetd to client: here is your answer (3-hash-content) 
- **/
+ */
 #define AFS_CS_PROTO_RESULT_3HASH 9
 
 /**
  * gnunetd to client: here is your answer (CHK-content) 
- **/
+ */
 #define AFS_CS_PROTO_RESULT_CHK 10
 
 /**
  * client to gnunetd: insert CHK content (no index) 
- **/
+ */
 #define AFS_CS_PROTO_INSERT_CHK 11
 
 /**
  * client to gnunetd: insert 3HASH content (no index) 
- **/
+ */
 #define AFS_CS_PROTO_INSERT_3HASH 12
 
 /**
  * client to gnunetd: index content 
- **/
+ */
 #define AFS_CS_PROTO_INDEX_BLOCK 13
 
 /**
  * client to gnunetd: get an index for a file
- **/
+ */
 #define AFS_CS_PROTO_INDEX_FILE 14
 
 /**
  * client to gnunetd: index super-block
- **/
+ */
 #define AFS_CS_PROTO_INDEX_SUPER 15
 
 /**
  * client to gnunetd: delete CHK content (no index) 
- **/
+ */
 #define AFS_CS_PROTO_DELETE_CHK 16
 
 /**
  * client to gnunetd: delete 3HASH content (no index) 
  * Not used so far!
- **/
+ */
 #define AFS_CS_PROTO_DELETE_3HASH 17
 
 /**
  * client to gnunetd: unindex content (remove)
- **/
+ */
 #define AFS_CS_PROTO_UNINDEX_BLOCK 18
 
 /**
  * client to gnunetd: remove an file from the indexed list
- **/
+ */
 #define AFS_CS_PROTO_UNINDEX_FILE 19
 
 /**
  * client to gnunetd: unindex super-block
- **/
+ */
 #define AFS_CS_PROTO_UNINDEX_SUPER 20
 
 /**
  * client to gnunetd: issue namespace query
- **/
+ */
 #define AFS_CS_PROTO_NSQUERY 21
 
 /**
  * client to gnunetd: store SBlock
- **/
+ */
 #define AFS_CS_PROTO_INSERT_SBLOCK 22
 
 /**
  * gnuentd to client: SBlock found
- **/
+ */
 #define AFS_CS_PROTO_RESULT_SBLOCK 23
 
 /**
  * client to gnunetd: bits of file to upload (indexing)
- **/
+ */
 #define AFS_CS_PROTO_UPLOAD_FILE 24
 
 /**
  * Client to gnunetd: try using a link for the file
- **/
+ */
 #define AFS_CS_PROTO_LINK_FILE 25
 
 /**
  * Client to gnunetd: what is the average priority of entries
  * in the routing table?
- **/
+ */
 #define AFS_CS_PROTO_GET_AVG_PRIORITY 26
 
 /* ********** CS CHAT application messages ********** */
@@ -296,52 +295,72 @@ typedef Hostkey__ * Hostkey;
 
 /** 
  * client to gnunetd: shutdown
- **/
+ */
 #define CS_PROTO_SHUTDOWN_REQUEST 64
 
 /** 
  * client to gnunetd: get configuration option
- **/
+ */
 #define CS_PROTO_GET_OPTION_REQUEST 65
 
 /**
  * gnunetd to client: option value
- **/
+ */
 #define CS_PROTO_GET_OPTION_REPLY 66
 
 /* ********** CS DHT application messages ********** */
-                                                                                
-#define DHT_CS_PROTO_REQUEST_API_ID   70 /* client to CS: ask ID for API     */
-#define DHT_CS_PROTO_REQUEST_CREATE   71 /* client to CS: create new table   */
-#define DHT_CS_PROTO_REQUEST_JOIN     72 /* client to CS: join table         */
-#define DHT_CS_PROTO_REQUEST_LEAVE    73 /* client to CS: leave table        */
-#define DHT_CS_PROTO_REQUEST_INSERT   74 /* client to CS: insert to table    */
-#define DHT_CS_PROTO_REQUEST_FETCH    75 /* client to CS: fetch from table   */
-#define DHT_CS_PROTO_REQUEST_TABLES   76 /* client to CS: list tables        */
-#define DHT_CS_PROTO_REQUEST_INSERTED 77 /* client to CS: list inserted data */
-#define DHT_CS_PROTO_REQUEST_DROP     78 /* client to CS: drop inserted data */
-#define DHT_CS_PROTO_REQUEST_STATUS   79 /* client to CS: operation status   */
-                                         /*               request            */
-#define DHT_CS_PROTO_REPLY_STANDARD   80 /* CS to client: ack or denial      */
-#define DHT_CS_PROTO_REPLY_FAILURE    81 /* CS to client: operation failed   */
-#define DHT_CS_PROTO_REPLY_RESULTS    82 /* CS to client: operation results  */
-#define DHT_CS_PROTO_REPLY_STATUS     83 /* CS to client: operation status   */
+                                        
+/**
+ * client to CS: join table        
+*/
+#define DHT_CS_PROTO_REQUEST_JOIN     72
+
+/**
+ * client to CS: leave table       
+ */
+#define DHT_CS_PROTO_REQUEST_LEAVE    73
+
+/**
+ * Client to CS or CS to client: get from table   
+ */
+#define DHT_CS_PROTO_REQUEST_GET      74
+
+/**
+ * Client to CS or CS to client: put into table    
+ */
+#define DHT_CS_PROTO_REQUEST_PUT      75 
+
+/**
+ * Client to CS or CS to client: remove from table
+ */
+#define DHT_CS_PROTO_REQUEST_REMOVE   76 
+
+/**
+ * Client to CS or CS to client: results from get
+ */
+#define DHT_CS_PROTO_REPLY_GET        77
+
+/**
+ * Client to CS or CS to client: confirmed
+ */
+#define DHT_CS_PROTO_REPLY_ACK        78
+
 
 
 /* **************** common structs ******************* */
 
 /**
  * Header for all Client-Server communications.
- **/
+ */
 typedef struct {
   /**
    * The length of the struct (in bytes, including the length field itself) 
-   **/
+   */
   unsigned short size;
 
   /**
    * The type of the message (XX_CS_PROTO_XXXX) 
-   **/
+   */
   unsigned short tcpType;
 
 } CS_HEADER;
@@ -349,33 +368,33 @@ typedef struct {
 /**
  * Generic version of CS_HEADER with field for accessing end of struct (use the
  * other version for allocation).
- **/
+ */
 typedef struct {
   /**
    * actual header
-   **/
+   */
   CS_HEADER cs_header;
 
   /**
    * This is followed by a requestType specific data block, consisting
    * of size bytes.
-   **/
+   */
   char data[1];
 
 } CS_HEADER_GENERIC;
 
 /**
  * CS communication: simple return value
- **/
+ */
 typedef struct {
   /**
    * The CS header (values: sizeof(CS_RETURN_VALUE), CS_PROTO_RETURN_VALUE)
-   **/ 
+   */ 
   CS_HEADER header;
 
   /**
    * The return value (network byte order) 
-   **/
+   */
   int return_value;
 } CS_RETURN_VALUE;
 
@@ -386,76 +405,76 @@ typedef struct {
 
 /**
  * announcement of public key 
- **/
+ */
 #define p2p_PROTO_HELO 0
 
 /**
  * session key exchange, session key is encrypted with hostkey 
- **/
+ */
 #define p2p_PROTO_SKEY 1
 
 /**
  * PING 
- **/
+ */
 #define p2p_PROTO_PING 2
 
 /**
  * PONG (response to PING) 
- **/
+ */
 #define p2p_PROTO_PONG 3
 
 /**
  * timestamp (until when is the packet valid) 
- **/
+ */
 #define p2p_PROTO_TIMESTAMP 4
 
 /**
  * sequence number (discard packet if sequence number
  * is not higher than previously received number) 
- **/
+ */
 #define p2p_PROTO_SEQUENCE 5
 
 /**
  * noise, used to fill packets to sizes >1k.
- **/
+ */
 #define p2p_PROTO_NOISE 6
 
 /**
  * termination of connection (other host is nice
  * and tells us, there is NO requirement to do so!) 
- **/
+ */
 #define p2p_PROTO_HANGUP 7
 
 /**
  * Advertise capability (or limitation).
- **/
+ */
 #define p2p_PROTO_CAPABILITY 8
 
 /* ************* p2p AFS application messages *********** */
 
 /**
  * Query for content. 
- **/
+ */
 #define AFS_p2p_PROTO_QUERY 16
 
 /**
  * receive content 
- **/
+ */
 #define AFS_p2p_PROTO_3HASH_RESULT 17
 
 /**
  * receive CHK content 
- **/
+ */
 #define AFS_p2p_PROTO_CHK_RESULT 18
 
 /**
  * Request namespace entry
- **/
+ */
 #define AFS_p2p_PROTO_NSQUERY 19
 
 /**
  * Received namespace entry
- **/
+ */
 #define AFS_p2p_PROTO_SBLOCK_RESULT 20
 
 
@@ -463,7 +482,7 @@ typedef struct {
 
 /**
  * chat message 
- **/
+ */
 #define CHAT_p2p_PROTO_MSG 32
 
 /* *************** p2p TRACEKIT application messages ******** */
@@ -476,11 +495,11 @@ typedef struct {
 
 /**
  * benchmark message: send back reply asap 
- **/
+ */
 #define TBENCH_p2p_PROTO_REQUEST 40
 #define TBENCH_p2p_PROTO_REPLY 	 41
 
-/************** p2p RPC/DHT application messages *************/
+/************** p2p RPC/DHT application messages ************/
                                                                                 
 #define RPC_p2p_PROTO_REQ 42
 #define RPC_p2p_PROTO_RES 43
@@ -492,16 +511,16 @@ typedef struct {
 
 /**
  * p2p message part header
- **/
+ */
 typedef struct {
   /**
    * size of this MESSAGE_PART (network byte order) 
-   **/
+   */
   unsigned short size;
 
   /**
    * type of the request, XX_p2p_PROTO_XXX (network byte order) 
-   **/
+   */
   unsigned short requestType; 
 } p2p_HEADER;
 
@@ -509,20 +528,20 @@ typedef struct {
 /**
  * Generic version of p2p_HEADER with field for accessing end of struct (use 
  * the other version for allocation).
- **/
+ */
 typedef struct {
   p2p_HEADER p2p_header;
 
   /**
    * this is followed by a requestType specific data block,
    * consisting of size bytes. 
-   **/
+   */
   char data[1];
 } p2p_HEADER_GENERIC;
 
 /**
  * Named constants for return values.
- **/
+ */
 
 
 #define OK 1
@@ -539,21 +558,21 @@ typedef struct {
  * @param buf the data over which we're taking the CRC
  * @param len the length of the buffer in bytes
  * @return the resulting CRC32 checksum 
- **/
-int crc32N(void * buf, int len);
+ */
+int crc32N(const void * buf, int len);
 
 /**
  * Produce a random value.
  *
  * @param i the upper limit (exclusive) for the random number
  * @return a random value in the interval [0,i[. 
- **/
+ */
 int randomi(int i);
 
 /**
  * Random on unsigned 64-bit values.  We break them down into signed
  * 32-bit values and reassemble the 64-bit random value bit-wise.
- **/
+ */
 unsigned long long randomi64(unsigned long long u);
 
 /**
@@ -561,26 +580,47 @@ unsigned long long randomi64(unsigned long long u);
  * numbers 0...n-1.
  * @param n the size of the array
  * @return the permutation array (allocated from heap)
- **/
+ */
 int * permute(int n);
 
 /**
  * Convert a long-long to host-byte-order.
  * @param n the value in network byte order
  * @return the same value in host byte order
- **/
+ */
 unsigned long long ntohll(unsigned long long n);
 
 /**
  * Convert a long long to network-byte-order.
  * @param n the value in host byte order
  * @return the same value in network byte order
- **/
+ */
 unsigned long long htonll(unsigned long long n);
+
+
+/**
+ * GNU gettext support macro.
+ */
+#define _(String) gettext (String)
+
+/**
+ * Macro for assertions in GNUnet.  Use liberally and instead
+ * of specific but cryptic error messages that merely refer
+ * to the location of the problem but that would be evident
+ * by looking at the code instead.  Do NOT use this macro if
+ * an error message with context information (strerror,
+ * filenames, etc.) would be useful.
+ *
+ * Note that a failed assertion always aborts, so do not use
+ * this for errors that can be managed.
+ */
+#define GNUNET_ASSERT(cond)  do { if (! (cond)) errexit(_("Assertion failed at %s:%d.\n"), __FILE__, __LINE__); } while(0);
+
+#define GNUNET_ASSERT_FL(cond, f, l)  do { if (! (cond)) errexit(_("Assertion failed at %s:%d.\n"), f, l); } while(0);
 
 /**
  * Configuration management.
- **/
+ */
 
 /* ****************** config values **************** */
 
@@ -617,7 +657,7 @@ void triggerGlobalConfigurationRefresh();
  * been parsed (and eventually the configuration filename
  * default has been overriden) and if gnunetd receives
  * a SIGHUP.
- **/
+ */
 void readConfiguration();
 
 
@@ -634,9 +674,9 @@ void readConfiguration();
  *
  * @return the specified filename (caller must free), or NULL if no
  * filename was specified and errMsg == NULL
- **/
-char * getFileName(char * section,
-		   char * option,
+ */
+char * getFileName(const char * section,
+		   const char * option,
 		   const char * errMsg);
 
 /**
@@ -649,9 +689,9 @@ char * getFileName(char * section,
  * @param option which option, may not be NULL
  * @param value the value to compare against
  * @return YES or NO
- **/
-int testConfigurationString(char * section,
-			    char * option,
+ */
+int testConfigurationString(const char * section,
+			    const char * option,
 			    const char * value);
 
 /**
@@ -660,18 +700,18 @@ int testConfigurationString(char * section,
  * @param option which option, may not be NULL
  * @return a freshly allocated string, caller must free!
  *   Note that the result can be NULL if the option is not set.
- **/
-char * getConfigurationString(char * section,
-			      char * option);
+ */
+char * getConfigurationString(const char * section,
+			      const char * option);
 
 /**
  * Obtain an int from the configuration.
  * @param section from which section
  * @param option which option
  * @return 0 if no option is specified
- **/
-unsigned int getConfigurationInt(char * section,
-				 char * option);
+ */
+unsigned int getConfigurationInt(const char * section,
+				 const char * option);
 
 /**
  * Set an option.
@@ -680,9 +720,9 @@ unsigned int getConfigurationInt(char * section,
  * @param value the value to use, may be NULL
  * @return the previous value (or NULL if none),
  *     caller must free!
- **/
-char * setConfigurationString(char * section,
-			      char * option,
+ */
+char * setConfigurationString(const char * section,
+			      const char * option,
 			      const char * value);
 
 /**
@@ -691,9 +731,9 @@ char * setConfigurationString(char * section,
  * @param option which option, may not be NULL
  * @param value the value to use
  * @return the previous value (or 0 if none)
- **/
-unsigned int setConfigurationInt(char * section,
-				 char * option,
+ */
+unsigned int setConfigurationInt(const char * section,
+				 const char * option,
 				 const unsigned int value);
 
 /**
@@ -701,21 +741,22 @@ unsigned int setConfigurationInt(char * section,
  * remaining after getopt-style parsing).
  * @param value the values
  + @return the number of values
- **/
+ */
 int getConfigurationStringList(char *** value);
 
 /**
- * Set the list of command line options (remainder
- * after getopt style parsing).
+ * Set the list of command line options (remainder after getopt style
+ * parsing).
+ *
  * @param value the values 
  + @param count the number of values
- **/
+ */
 void setConfigurationStringList(char ** value,
 				int count);
 
 /**
  * @brief Module to run background jobs.
- **/
+ */
 
 /* use these constants to specify timeings */
 #define cronMILLIS 1
@@ -729,32 +770,32 @@ void setConfigurationStringList(char ** value,
 
 /**
  * Time for absolute times used by cron.
- **/
+ */
 typedef unsigned long long cron_t;  
 
 /**
  * Type of a cron-job method.
- **/
+ */
 typedef void (*CronJob)(void *);
 
 /**
  * Initialize controlThread.
- **/
+ */
 void initCron();
 
 /**
  * Make sure to call stopCron before calling this method!
- **/
+ */
 void doneCron();
 
 /**
  * Start the cron jobs.
- **/
+ */
 void startCron();
 
 /**
  * Stop the cron service.
- **/
+ */
 void stopCron();
 
 /**
@@ -762,12 +803,12 @@ void stopCron();
  * called by a thread that is not holding any locks.  It will cause
  * a deadlock if this method is called from within a cron-job.
  * Use with caution.
- **/
+ */
 void suspendCron();
 
 /**
  * Resume running cron-jobs.
- **/
+ */
 void resumeCron();
 
 /**
@@ -775,7 +816,7 @@ void resumeCron();
  * that we use the unit of time that the cron-jobs use).
  * @param setme will set the current time if non-null
  * @return the current time 
- **/
+ */
 cron_t cronTime(cron_t * setme);
 
 /**
@@ -785,7 +826,7 @@ cron_t cronTime(cron_t * setme);
  * @param deltaRepeat if this is a periodic, the time between
  *        the runs, otherwise 0.
  * @param data argument to pass to the method
- **/
+ */
 void addCronJob(CronJob method,
 		unsigned int delta,
 		unsigned int deltaRepeat,
@@ -803,7 +844,7 @@ void addCronJob(CronJob method,
  * @param data extra argument to calls to method, freed if
  *        non-null and cron is shutdown before the job is
  *        run and/or delCronJob is called
- **/
+ */
 void advanceCronJob(CronJob method,
 		   unsigned int deltaRepeat,
 		   void * data);
@@ -819,7 +860,7 @@ void advanceCronJob(CronJob method,
  * @param repeat which repeat factor was chosen? 
  * @param data what was the data given to the method
  * @return the number of jobs removed
- **/
+ */
 int delCronJob(CronJob method,
 	       unsigned int repeat,
 	       void * data);
@@ -836,14 +877,14 @@ int gnunet_util_sleep(cron_t delay);
 
 /**
  * Support for loading dynamic libraries.
- **/
+ */
 
-void * loadDynamicLibrary(char * libprefix,
-			  char * dsoname);
+void * loadDynamicLibrary(const char * libprefix,
+			  const char * dsoname);
 
 void * bindDynamicMethod(void * libhandle,
-			 char * methodprefix,
-			 char * dsoname);
+			 const char * methodprefix,
+			 const char * dsoname);
 
 void unloadDynamicLibrary(void * libhandle);
 
@@ -922,18 +963,18 @@ int GNgetopt_long (int argc,
 
 /**
  * @brief check IP addresses against a blacklist
- **/
+ */
 
 /**
  * @brief an IPv4 address
- **/ 
+ */ 
 typedef struct {
   unsigned int addr; /* struct in_addr */
 } IPaddr;
 
 /**
  * @brief IPV4 network in CIDR notation.
- **/
+ */
 typedef struct {
   IPaddr network;
   IPaddr netmask;
@@ -949,8 +990,8 @@ typedef struct {
  * <p>
  * @param routeList a string specifying the forbidden networks
  * @return the converted list, NULL if the synatx is flawed
- **/
-CIDRNetwork * parseRoutes(char * routeList);
+ */
+CIDRNetwork * parseRoutes(const char * routeList);
 
 
 /**
@@ -959,20 +1000,20 @@ CIDRNetwork * parseRoutes(char * routeList);
  * @param list a list of networks
  * @param ip the IP to check (in network byte order)
  * @return NO if the IP is not in the list, YES if it it is
- **/
-int checkIPListed(CIDRNetwork * list,
+ */
+int checkIPListed(const CIDRNetwork * list,
 		  IPaddr ip);
 
 /**
  * @brief an IPV6 address.
- **/
+ */
 typedef struct {
   unsigned int addr[4]; /* struct in6_addr addr; */
 } IP6addr;
 
 /**
  * @brief network in CIDR notation for IPV6.
- **/
+ */
 typedef struct {
   IP6addr network;
   IP6addr netmask;
@@ -985,9 +1026,9 @@ typedef struct {
  * @param list a list of networks
  * @param ip the IP to check (in network byte order)
  * @return NO if the IP is not in the list, YES if it it is
- **/
-int checkIP6Listed(CIDR6Network * list,
-		   IP6addr * ip);
+ */
+int checkIP6Listed(const CIDR6Network * list,
+		   const IP6addr * ip);
 
 /**
  * Parse a network specification. The argument specifies
@@ -999,19 +1040,19 @@ int checkIP6Listed(CIDR6Network * list,
  * <p>
  * @param routeList a string specifying the forbidden networks
  * @return the converted list, NULL if the synatx is flawed
- **/
-CIDR6Network * parseRoutes6(char * routeList);
+ */
+CIDR6Network * parseRoutes6(const char * routeList);
 
 
 
 /**
  * This type is for messages that we send.
- **/
+ */
 #define TC_SENT      0x8000
 
 /**
  * This type is for messages that we receive.
- **/
+ */
 #define TC_RECEIVED  0x4000
 
 #define TC_TYPE_MASK (TC_RECEIVED|TC_SENT)
@@ -1019,34 +1060,34 @@ CIDR6Network * parseRoutes6(char * routeList);
 /**
  * From/To how many different peers did we receive/send
  * messages of this type? (bitmask)
- **/
+ */
 #define TC_DIVERSITY_MASK 0xFFF
 
 /**
  * Counter for traffic.
- **/
+ */
 typedef struct {
 
   /**
    * Flags. See TC_XXXX definitions.
-   **/
+   */
   unsigned short flags;
 
   /**
    * What was the number of messages of this type that the peer
    * processed in the last n time units?
-   **/
+   */
   unsigned short count;
 
   /**
    * What is the message type that this counter is concerned with?
-   **/
+   */
   unsigned short type;
 
   /**
    * What is the average size of the last "count" messages that
    * the peer processed?
-   **/
+   */
   unsigned short avrg_size;
 
   /**
@@ -1054,7 +1095,7 @@ typedef struct {
    * message of this type? The lowest bit (1) corresponds to -31
    * seconds ago, the highest bit (2^31) corresponds to the current
    * second.
-   **/
+   */
   unsigned int time_slots;
 } TRAFFIC_COUNTER;
 
@@ -1062,14 +1103,14 @@ typedef struct {
  * Format of the reply-message to a CS_TRAFFIC_QUERY.
  * A message of this format is send back to the client
  * if it sends a CS_TRAFFIC_QUERY to gnunetd.
- **/
+ */
 typedef struct {
   CS_HEADER header;
 
   /**
    * The number of different message types we have seen
    * in the last time.
-   **/
+   */
   unsigned int count;
 
 } CS_TRAFFIC_INFO;
@@ -1077,33 +1118,33 @@ typedef struct {
 /**
  * Generic version of CS_TRAFFIC_INFO with field for accessing end of struct 
  * (use the other version for allocation).
- **/
+ */
 typedef struct {
   CS_TRAFFIC_INFO cs_traffic_info;
 
   /**
    * The number of different message types we have seen
    * in the last time.
-   **/
+   */
   unsigned int count;
 
   /**
    * "count" traffic counters.
-   **/
+   */
   TRAFFIC_COUNTER counters[1];
 
 } CS_TRAFFIC_INFO_GENERIC;
 
 /**
  * Request for CS_TRAFFIC_INFO.
- **/
+ */
 typedef struct {
   CS_HEADER header;
 
   /**
    * How many time units back should the statistics returned contain? 
    * (in network byte order) Must be smaller or equal to HISTORY_SIZE.
-   **/
+   */
   unsigned int timePeriod;
 
 } CS_TRAFFIC_REQUEST;
@@ -1112,14 +1153,14 @@ typedef struct {
  * What is the unit of time (in cron_t) for the traffic module? This
  * constant essentially specifies the resolution of the distribution
  * function that is applied for sampling traffic. Default is 1s.
- **/ 
+ */ 
 #define TRAFFIC_TIME_UNIT cronSECONDS
 
 #define CS_GET_OPTION_REQUEST_OPT_LEN 32
 
 /**
  * Request for option value.
- **/
+ */
 typedef struct {
   CS_HEADER header;
   char section[CS_GET_OPTION_REQUEST_OPT_LEN];
@@ -1129,7 +1170,7 @@ typedef struct {
 
 /**
  * Reply with option value.
- **/
+ */
 typedef struct {
   CS_HEADER header;
   char value[1];
@@ -1162,19 +1203,19 @@ typedef void (*TLogProc)(const char *txt);
 
 /**
  * Get the current loglevel.
- **/
+ */
 int getLogLevel();
 
 /**
  * Return the logfile
- **/
+ */
 void *getLogfile();
 
 /**
  * errexit - log an error message and exit.
  *
  * @param format the string describing the error message
- **/
+ */
 void errexit(const char *format, ...);
 
 /**
@@ -1182,23 +1223,57 @@ void errexit(const char *format, ...);
  * called whenever GNUnet LOG()s something
  *
  * @param proc the function to register
- **/
+ */
 void setCustomLogProc(TLogProc proc);
 
 /**
  * Log a message.
  * @param minLogLevel the minimum loglevel that we must be at
  * @param format the format string describing the message
- **/
+ */
 void LOG(int minLogLevel,
 	 const char * format,
 	 ...);
 
-#define BREAK() breakpoint_(__FILE__,__LINE__)
+#define BREAK() do { breakpoint_(__FILE__,__LINE__); } while(0);
+
+#define BREAK_FL(f, n) do { breakpoint_(f,n); } while(0);
+
+/**
+ * Log an error message at log-level 'level' that indicates
+ * a failure of the command 'cmd' with the message given
+ * by strerror(errno).
+ */
+#define LOG_STRERROR(level, cmd) do { LOG(level, _("'%s' failed at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, STRERROR(errno)); } while(0);
+
+/**
+ * Die with an error message that indicates
+ * a failure of the command 'cmd' with the message given
+ * by strerror(errno).
+ */
+#define DIE_STRERROR(cmd) do { errexit(_("'%s' failed at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, STRERROR(errno)); } while(0);
+
+#define DIE_STRERROR_FL(cmd, f, l) do { errexit(_("'%s' failed at %s:%d with error: %s\n"), cmd, f, l, STRERROR(errno)); } while(0);
+
+/**
+ * Log an error message at log-level 'level' that indicates
+ * a failure of the command 'cmd' on file 'filename'
+ * with the message given by strerror(errno).
+ */
+#define LOG_FILE_STRERROR(level, cmd, filename) do { LOG(level, _("'%s' failed on file '%s' at %s:%d with error: %s\n"), cmd, filename, __FILE__, __LINE__, STRERROR(errno)); } while(0);
+
+#define LOG_FILE_STRERROR_FL(level, cmd, filename, f, l) do { LOG(level, _("'%s' failed on file '%s' at %s:%d with error: %s\n"), cmd, filename, f, l, STRERROR(errno)); } while(0);
+
+/**
+ * Die with an error message that indicates
+ * a failure of the command 'cmd' on file 'filename'
+ * with the message given by strerror(errno).
+ */
+#define DIE_FILE_STRERROR(cmd, filename) do { errexit(_("'%s' failed on file '%s' at %s:%d with error: %s\n"), cmd, filename, __FILE__, __LINE__, STRERROR(errno)); } while(0);
 
 /**
  * gdb breakpoint
- **/
+ */
 void breakpoint_(const char * filename,
                  const int linenumber);
 
@@ -1207,7 +1282,7 @@ void breakpoint_(const char * filename,
  * Allocate memory. Checks the return value, aborts if no more
  * memory is available.  Don't use xmalloc_ directly. Use the
  * MALLOC macro.
- **/
+ */
 void * xmalloc_(size_t size, 
 		const char * filename,
 		const int linenumber);
@@ -1217,7 +1292,7 @@ void * xmalloc_(size_t size,
  * allocation request is within reasonable bounds, allowing
  * allocations larger than 40 MB.  If you don't expect the
  * possibility of very large allocations, use MALLOC instead.
- **/
+ */
 void * xmalloc_unchecked_(size_t size, 
 			  const char * filename,
 			  const int linenumber);
@@ -1226,14 +1301,14 @@ void * xmalloc_unchecked_(size_t size,
  * Wrapper around malloc. Allocates size bytes of memory.
  * @param size the number of bytes to allocate
  * @return pointer to size bytes of memory
- **/
+ */
 #define MALLOC(size) xmalloc_(size, __FILE__,__LINE__)
 
 /**
  * Free memory. Merely a wrapper for the case that we
  * want to keep track of allocations.  Don't use xfree_
  * directly. Use the FREE macro.
- **/
+ */
 void xfree_(void * ptr, 
 	    const char * filename,
 	    const int linenumber);
@@ -1245,19 +1320,19 @@ void xfree_(void * ptr,
  *
  * @param ptr location where to free the memory. ptr must have
  *     been returned by STRDUP, MALLOC or GROW earlier. 
- **/
+ */
 #define FREE(ptr) xfree_(ptr, __FILE__, __LINE__)
 
 /**
  * Free the memory pointed to by ptr if ptr is not NULL.
  * Equivalent to if (ptr!=null)FREE(ptr).
  * @param ptr the location in memory to free
- **/
+ */
 #define FREENONNULL(ptr) do { void * __x__ = ptr; if (__x__ != NULL) { FREE(__x__); } } while(0)
 
 /**
  * Dup a string. Don't call xstrdup_ directly. Use the STRDUP macro.
- **/
+ */
 char * xstrdup_(const char * str,
 		const char * filename,
 		const int linenumber);
@@ -1267,7 +1342,7 @@ char * xstrdup_(const char * str,
  * pointed to by a. 
  * @param a pointer to a zero-terminated string
  * @return a copy of the string including zero-termination
- **/
+ */
 #define STRDUP(a) xstrdup_(a,__FILE__,__LINE__)
 
 /**
@@ -1278,7 +1353,7 @@ char * xstrdup_(const char * str,
  * @param filename where in the code was the call to GROW
  * @param linenumber where in the code was the call to GROW
  * @return strdup(str)
- **/
+ */
 char * xstrndup_(const char * str,
 		 const size_t n,
 		 const char * filename,
@@ -1290,7 +1365,7 @@ char * xstrndup_(const char * str,
  * @param a pointer to a zero-terminated string
  * @param n the maximum number of characters to copy (+1 for 0-termination)
  * @return a copy of the string including zero-termination
- **/
+ */
 #define STRNDUP(a,n) xstrndup_(a,n,__FILE__,__LINE__)
 
 /**
@@ -1305,12 +1380,12 @@ char * xstrndup_(const char * str,
  * @param elementSize the size of the elements of the array
  * @param oldCount address of the number of elements in the *old array
  * @param newCount number of elements in the new array, may be 0 (then *old will be NULL afterwards)
- **/
+ */
 void xgrow_(void ** old,
 	    size_t elementSize,
 	    unsigned int * oldCount,
 	    unsigned int newCount,
-	    char * filename,
+	    const char * filename,
 	    const int linenumber);
 
 /**
@@ -1345,31 +1420,31 @@ void xgrow_(void ** old,
  *        of elements to copy over)
  * @param tsize the target size for the resulting vector, use 0 to 
  *        free the vector (then, arr will be NULL afterwards).
- **/
+ */
 #define GROW(arr,size,tsize) xgrow_((void**)&arr, sizeof(arr[0]), &size, tsize, __FILE__, __LINE__)
 
 /**
  * @brief wrapper around time calls
- **/
+ */
 
 /**
  * 32-bit timer value.
- **/
+ */
 typedef unsigned int TIME_T;
 
 /**
  * TIME prototype. "man time".
- **/
+ */
 TIME_T TIME(TIME_T * t);
 
 /**
  * "man ctime".
- **/
+ */
 char * GN_CTIME(const TIME_T * t);
 
 /**
  * @brief sym encrypt/decrypt operations
- **/
+ */
 
 /** length of the sessionkey in bytes
    (128 BIT sessionkey) */
@@ -1382,19 +1457,19 @@ char * GN_CTIME(const TIME_T * t);
 #define BLOWFISH_BLOCK_LENGTH 8 
 
 /** value for the IV in the streamcipher for the
-    link-to-link encryption **/
+    link-to-link encryption */
 #define INITVALUE "GNUnet!!"
 
 /** 
  * type for session keys 
- **/
+ */
 typedef struct {
   unsigned char key[SESSIONKEY_LEN];
 } SESSIONKEY;
 
 /**
  * Create a new Session key.
- **/
+ */
 void makeSessionkey(SESSIONKEY * key);
 
 /**
@@ -1406,11 +1481,11 @@ void makeSessionkey(SESSIONKEY * key);
  * @param iv the initialization vector to use, use INITVALUE
  *        for streams.
  * @returns the size of the encrypted block, -1 for errors
- **/
-int encryptBlock(void * block, 
+ */
+int encryptBlock(const void * block, 
 		 unsigned short len,
-		 SESSIONKEY * sessionkey,
-		 unsigned char * iv,
+		 const SESSIONKEY * sessionkey,
+		 const unsigned char * iv,
 		 void * result);
 
 /**
@@ -1422,11 +1497,11 @@ int encryptBlock(void * block,
  *        for streams.
  * @param result address to store the result at
  * @return -1 on failure, size of decrypted block on success
- **/
-int decryptBlock(SESSIONKEY * sessionkey, 
-		 void * block,
+ */
+int decryptBlock(const SESSIONKEY * sessionkey, 
+		 const void * block,
 		 unsigned short size,
-		 unsigned char * iv,
+		 const unsigned char * iv,
 		 void * result);
 
 
@@ -1434,14 +1509,14 @@ int decryptBlock(SESSIONKEY * sessionkey,
  * @brief Structure for MUTual EXclusion (Mutex).  
  *
  * Essentially a wrapper around pthread_mutex_t.
- **/ 
+ */ 
 typedef struct Mutex {
   void * internal;
 } Mutex;
 
 /**
  * @brief Semaphore abstraction implemented with pthreads
- **/
+ */
 typedef struct Semaphore {
   int v;
   Mutex mutex;
@@ -1520,7 +1595,7 @@ int PTHREAD_CREATE(PTHREAD_T * handle,
 		   size_t stackSize);
 
 void PTHREAD_JOIN(PTHREAD_T * handle,
-		  void * ret);
+		  void ** ret);
 
 void PTHREAD_KILL(PTHREAD_T * handle,
 		  int signal);
@@ -1566,7 +1641,7 @@ void ipc_semaphore_free_(IPC_Semaphore * sem,
  * While we must define these globally to make the
  * compiler happy, always use the macros in the sources
  * instead! 
- **/
+ */
 void create_mutex_(Mutex * mutex);
 void create_recursive_mutex_(Mutex * mutex);
 void create_fast_mutex_(Mutex * mutex);
@@ -1595,11 +1670,11 @@ int semaphore_up_(Semaphore * s,
 
 /**
  * @brief Hashing and hash conversion methods.
- **/
+ */
 
 /**
  * A 160-bit hashcode
- **/
+ */
 typedef struct {
   int a;
   int b;
@@ -1611,7 +1686,7 @@ typedef struct {
 /**
  * The identity of the host (basically the RIPE160 hashcode of
  * it's public key).
- **/
+ */
 typedef struct {
   HashCode160 hashPubKey;
 } HostIdentity;
@@ -1620,10 +1695,35 @@ typedef struct {
 /**
  * Hash2Hex: filename, consisting of 32 bytes [0-9A-Z] plus
  * null-termination.
- **/
+ */
 typedef struct {
   unsigned char data[sizeof(HashCode160)*2+1];
 } HexName;
+
+/**
+ * ASCII encoding of a HashCode160.
+ */
+typedef struct {
+  unsigned char encoding[33];
+} EncName;
+
+/**
+ * Convert hash to ASCII encoding.
+ * @param block the hash code
+ * @param result where to store the encoding (EncName can be
+ *  safely cast to char*, a '\0' termination is set).
+ */
+void hash2enc(const HashCode160 * block,
+	      EncName * result);
+
+/**
+ * Convert ASCII encoding back to hash
+ * @param enc the encoding
+ * @param result where to store the hash code 
+ * @return OK on success, SYSERR if result has the wrong encoding
+ */
+int enc2hash(const char * enc,
+	     HashCode160 * result);
 
 /**
  * Compute the distance between 2 hashcodes.
@@ -1631,13 +1731,13 @@ typedef struct {
  * a.a or a.e (they're used elsewhere), and
  * be somewhat consistent. And of course, the
  * result should be a positive number.
- **/
-int distanceHashCode160(HashCode160 * a, 
-			HashCode160 * b);
+ */
+int distanceHashCode160(const HashCode160 * a, 
+			const HashCode160 * b);
  
 /**
  * compare two hashcodes.
- **/
+ */
 int equalsHashCode160(const HashCode160 * a, 
 		      const HashCode160 * b);
  
@@ -1645,7 +1745,7 @@ int equalsHashCode160(const HashCode160 * a,
  * Convert (hash) block to hex (= filename)
  * @param block the sequence to convert
  * @param result where to store thestring (\0-terminated), hex-encoding
- **/
+ */
 void hash2hex(const HashCode160 * block,
 	      HexName * result);
 
@@ -1653,17 +1753,17 @@ void hash2hex(const HashCode160 * block,
  * Convert hex (filename) to the hostIdentity
  * @param hex the filename
  * @param hash is set to the correspoinding host identity
- **/
-void hex2hash(HexName * hex,
+ */
+void hex2hash(const HexName * hex,
 	      HashCode160 * hash);
 
-/**
+  /**
  * Convert ch to a hex sequence.  If ch is a HexName, the hex is
  * converted back to a HashCode.  If ch is NULL or an empty string, a
  * random Id is generated.  Otherwise, the hash of the string "ch" is
  * used.
  */
-void tryhex2hashOrHashString(char * ch,
+void tryhex2hashOrHashString(const char * ch,
 			     HashCode160 * hc);
 
 /**
@@ -1671,16 +1771,16 @@ void tryhex2hashOrHashString(char * ch,
  * @param ch the hex sequence
  * @param hash the resulting hash code
  * @return OK on success, SYSERR on error
- **/
-int tryhex2hash(char * ch,
+ */
+int tryhex2hash(const char * ch,
 		HashCode160 * hash);
 
 /**
  * Hash block of given size.
  * @param block the data to hash, length is given as a second argument
  * @param ret pointer to where to write the hashcode
- **/
-void hash(void * block,
+ */
+void hash(const void * block,
 	  int size,
 	  HashCode160 * ret);
 
@@ -1689,38 +1789,72 @@ void hash(void * block,
  * Compute the hash of an entire file.
  * @return OK on success, SYSERR on error
  */
-int getFileHash(char * filename,
+int getFileHash(const char * filename,
      	        HashCode160 * ret);
 
-
+/**
+ * Check if 2 hosts are the same (returns 1 if yes)
+ * @param first the first host
+ * @param second the second host
+ * @returns 1 if the hosts are the same, 0 otherwise
+ */
+int hostIdentityEquals(const HostIdentity * first, 
+		       const HostIdentity * second);
+ 
 void makeRandomId(HashCode160 * result);
 
 /* compute result(delta) = b - a */
-void deltaId(HashCode160 * a,
-	     HashCode160 * b,
+void deltaId(const HashCode160 * a,
+	     const HashCode160 * b,
 	     HashCode160 * result);
 
 /* compute result(b) = a + delta */
-void addHashCodes(HashCode160 * a,
-		  HashCode160 * delta,
+void addHashCodes(const HashCode160 * a,
+		  const HashCode160 * delta,
 		  HashCode160 * result);
 
 /* compute result = a ^ b */
-void xorHashCodes(HashCode160 * a,
-		  HashCode160 * b,
+void xorHashCodes(const HashCode160 * a,
+		  const HashCode160 * b,
 		  HashCode160 * result);
 
 /**
  * Convert a hashcode into a key.
- **/
-void hashToKey(HashCode160 * hc,
+ */
+void hashToKey(const HashCode160 * hc,
 	       SESSIONKEY * skey,
 	       unsigned char * iv);
 
+/**
+ * Obtain a bit from a hashcode.
+ * @param code the hash to index bit-wise
+ * @param bit index into the hashcode, [0...159]
+ * @return Bit \a bit from hashcode \a code, -1 for invalid index
+ */
+int getHashCodeBit(const HashCode160 * code, 
+		   unsigned int bit);
+
+/**
+ * Compare function for HashCodes, producing a total ordering
+ * of all hashcodes.
+ * @return 1 if h1 > h2, -1 if h1 < h2 and 0 if h1 == h2.
+ */
+int hashCodeCompare(const HashCode160 * h1,
+		    const HashCode160 * h2);
+
+/**
+ * Find out which of the two hash codes is closer to target
+ * in the XOR metric (Kademlia).
+ * @return -1 if h1 is closer, 1 if h2 is closer and 0 if h1==h2.
+ */
+int hashCodeCompareDistance(const HashCode160 * h1,
+			    const HashCode160 * h2,
+			    const HashCode160 * target);
+  
 
 /**
  * @brief Hostkey - management of the node's main identity.
- **/
+ */
 
 /**
  * We currently do not handle encryption of data
@@ -1729,16 +1863,16 @@ void hashToKey(HashCode160 * hc,
  * We should never need that, as we can use
  * the hash for larger pieces of data for signing,
  * and for encryption, we only need to encode sessionkeys!
- **/
+ */
 
 /**
  * Length of RSA encrypted data (2048 bit)
- **/
+ */
 #define RSA_ENC_LEN 256
 
 /**
  * Length of an RSA KEY (d,e,len), 2048 bit (=256 octests) key d, 2 byte e
- **/
+ */
 #define RSA_KEY_LEN 258
 
 typedef struct {
@@ -1755,13 +1889,13 @@ typedef struct {
 /**
  * Generic version of HostKeyEncoded with field for accessing the end of
  * the data structure (use the other version for allocation)
- **/
+ */
 typedef struct {
   HostKeyEncoded host_key_encoded;
 
   /**
    * Address of this field used for finding the end of the structure
-   **/
+   */
   unsigned char key[1];
 } HostKeyEncoded_GENERIC;
 
@@ -1784,20 +1918,26 @@ typedef struct {
 
 /**
  * create a new hostkey. Callee must free return value.
- **/
+ */
 Hostkey makeHostkey(); 
+
+/**
+ * Deterministically (!) create a hostkey using only the
+ * given HashCode as input to the PRNG.
+ */
+Hostkey makeKblockKey(const HashCode160 * input);
 
 /**
  * Free memory occupied by hostkey
  * @param hostkey pointer to the memory to free
- **/
+ */
 void freeHostkey(Hostkey hostkey); 
 
 /**
  * Extract the public key of the host.
  * @param result where to write the result.
- **/
-void getPublicKey(Hostkey hostkey,
+ */
+void getPublicKey(const Hostkey hostkey,
 		  PublicKey * result);
 
 /**
@@ -1805,16 +1945,16 @@ void getPublicKey(Hostkey hostkey,
  * storing it into a file.
  * @param hostkey the hostkey to use
  * @returns encoding of the private key.
- **/
-HostKeyEncoded * encodeHostkey(Hostkey hostkey);
+ */
+HostKeyEncoded * encodeHostkey(const Hostkey hostkey);
 
 /**
  * Decode the private key from the file-format back
  * to the "normal", internal, RSA format.
  * @param encoded the encoded hostkey
  * @returns the decoded hostkey
- **/
-Hostkey decodeHostkey(HostKeyEncoded * encoding);
+ */
+Hostkey decodeHostkey(const HostKeyEncoded * encoding);
 
 /**
  * Encrypt a block with the public key of another
@@ -1824,10 +1964,10 @@ Hostkey decodeHostkey(HostKeyEncoded * encoding);
  * @param publicKey the encoded public key used to encrypt
  * @param target where to store the encrypted block
  * @returns SYSERR on error, OK if ok
- **/
-int encryptHostkey(void * block, 
+ */
+int encryptHostkey(const void * block, 
 		   unsigned short size,
-		   PublicKey * publicKey,
+		   const PublicKey * publicKey,
 		   RSAEncryptedData * target);
 
 /**
@@ -1838,9 +1978,9 @@ int encryptHostkey(void * block,
  * @param max the maximum number of bits to store for the result, if
  *        the decrypted block is bigger, an error is returned
  * @returns the size of the decrypted block, -1 on error
- **/
-int decryptHostkey(Hostkey hostkey, 
-		   RSAEncryptedData * block,
+ */
+int decryptHostkey(const Hostkey hostkey, 
+		   const RSAEncryptedData * block,
 		   void * result,
 		   unsigned int max);
 
@@ -1850,10 +1990,10 @@ int decryptHostkey(Hostkey hostkey,
  * @param size how many bytes to sign
  * @param result where to write the signature
  * @return SYSERR on error, OK on success
- **/
-int sign(Hostkey hostkey, 
+ */
+int sign(const Hostkey hostkey, 
 	 unsigned short size,
-	 void * block,
+	 const void * block,
 	 Signature * result);
 
 /**
@@ -1863,17 +2003,17 @@ int sign(Hostkey hostkey,
  * @param sig signature
  * @param publicKey public key of the signer
  * @returns OK if ok, SYSERR if invalid
- **/
-int verifySig(void * block,
+ */
+int verifySig(const void * block,
 	      unsigned short len,
-	      Signature * sig,	      
-	      PublicKey * publicKey);
+	      const Signature * sig,	      
+	      const PublicKey * publicKey);
 
 
 /**
  * Methods for initializing things in util in
  * the right order.
- **/
+ */
 
 /**
  * Method to parse the command line. The results
@@ -1882,7 +2022,7 @@ int verifySig(void * block,
  * @param argv the command line arguments
  * @return OK on success, SYSERR if we should abort the
  *   initialization sequence and exit the program
- **/
+ */
 typedef int (*CommandLineParser)(int argc, char * argv[]);
 
 /**
@@ -1891,7 +2031,7 @@ typedef int (*CommandLineParser)(int argc, char * argv[]);
  * @param argv the command line arguments
  * @param parser parser to call at the right moment
  * @return OK on success, SYSERR if we should abort
- **/
+ */
 int initUtil(int argc,
 	     char * argv[],
 	     CommandLineParser parser);
@@ -1901,28 +2041,28 @@ int initUtil(int argc,
  * The configuration was re-loaded. All
  * util modules should check if it has
  * changed for them.
- **/
+ */
 void resetUtil();
 
 /**
  * Shutdown the util services in proper order.
- **/
+ */
 void doneUtil();
 
 /**
  * Common methods for GNUnet clients.
- **/
+ */
 
 /**
  * Configuration: get the GNUnet port for the client to
  * connect to (via TCP).
- **/
+ */
 unsigned short getGNUnetPort();
 
 /**
  * Configuration: get the GNUnetd host where the client
  * should connect to (via TCP)
- **/
+ */
 char * getGNUnetdHost();
 
 /**
@@ -1930,34 +2070,34 @@ char * getGNUnetdHost();
  * This is more than just a socket because if the server
  * drops the connection, the client automatically tries
  * to reconnect (and for that needs connection information).
- **/
+ */
 typedef struct {
 
   /**
    * the socket handle, -1 if invalid / not life 
-   **/
+   */
   int socket;
 
   /**
    * the following is the IP for the remote host for client-sockets,
    * as returned by gethostbyname("hostname"); server sockets should
    * use 0.
-   **/
+   */
   IPaddr ip;
   
   /**
    * the port number, in host byte order 
-   **/
+   */
   unsigned short port;
 
   /**
    * Write buffer length for non-blocking writes.
-   **/ 
+   */ 
   unsigned int outBufLen;
 
   /**
    * Write buffer for non-blocking writes.
-   **/ 
+   */ 
   void * outBufPending;
 
   Mutex readlock; 
@@ -1967,12 +2107,12 @@ typedef struct {
 
 /**
  * Get a GNUnet TCP socket that is connected to gnunetd.
- **/
+ */
 GNUNET_TCP_SOCKET * getClientSocket();
 
 /**
  * Free a Client socket.
- **/
+ */
 void releaseClientSocket(GNUNET_TCP_SOCKET * sock);
 
 /**
@@ -1980,7 +2120,7 @@ void releaseClientSocket(GNUNET_TCP_SOCKET * sock);
  * to keep track of GNUnet _internal_ configuration parameters
  * that users are not supposed to see (e.g. *previous* quota,
  * previous database type for AFS, etc.)
- **/
+ */
 
 
 /**
@@ -1990,8 +2130,8 @@ void releaseClientSocket(GNUNET_TCP_SOCKET * sock);
  * @param result the buffer to write the result to 
  *        (*result should be NULL, sufficient space is allocated)
  * @return the number of bytes read on success, -1 on failure
- **/ 
-int stateReadContent(char * name,
+ */ 
+int stateReadContent(const char * name,
 		     void ** result);
 
 /**
@@ -2001,10 +2141,10 @@ int stateReadContent(char * name,
  * @param len the number of bytes in block
  * @param block the data to store
  * @return SYSERR on error, OK if ok.
- **/
-int stateAppendContent(char * name,
+ */
+int stateAppendContent(const char * name,
 		       int len,
-		       void * block);
+		       const void * block);
 
 /**
  * Write content to a file. 
@@ -2013,17 +2153,17 @@ int stateAppendContent(char * name,
  * @param len the number of bytes in block
  * @param block the data to store
  * @return SYSERR on error, OK if ok.
- **/
-int stateWriteContent(char * name,
+ */
+int stateWriteContent(const char * name,
 		      int len,
-		      void * block);
+		      const void * block);
 
 /**
  * Free space in the database by removing one file
  * @param name the hashcode representing the name of the file 
  *        (without directory)
- **/
-int stateUnlinkFromDB(char * name);
+ */
+int stateUnlinkFromDB(const char * name);
 
 /**
  * Generic TCP code. This module is used to receive or send records
@@ -2035,7 +2175,7 @@ int stateUnlinkFromDB(char * name);
  * stream is broken into records of maximum length MAX_BUFFER_SIZE,
  * each preceeded by an unsigned short giving the length of the
  * following record.<p>
- **/
+ */
 
 /**
  * Initialize a GNUnet client socket.
@@ -2043,9 +2183,9 @@ int stateUnlinkFromDB(char * name);
  * @param hostname the name of the host to connect to
  * @param result the SOCKET (filled in)
  * @return OK if successful, SYSERR on failure
- **/
+ */
 int initGNUnetClientSocket(unsigned short port,
-			   char * hostname,
+			   const char * hostname,
 			   GNUNET_TCP_SOCKET * result);
 
 /**
@@ -2054,7 +2194,7 @@ int initGNUnetClientSocket(unsigned short port,
  * @param ip IP of the host to connect to
  * @param result the SOCKET (filled in)
  * @return OK if successful, SYSERR on failure
- **/
+ */
 int initGNUnetClientSocketIP(unsigned short port,
 			     IPaddr ip,
 			     GNUNET_TCP_SOCKET * result);
@@ -2064,7 +2204,7 @@ int initGNUnetClientSocketIP(unsigned short port,
  * @param sock the open socket
  * @param result the SOCKET (filled in)
  * @return OK (always successful)
- **/
+ */
 int initGNUnetServerSocket(int socket,
 			   GNUNET_TCP_SOCKET * result);
 
@@ -2073,13 +2213,13 @@ int initGNUnetServerSocket(int socket,
  * for a valid client socket (even if the connection is
  * closed), but will return false for a closed server socket.
  * @return 1 if open, 0 if closed
- **/
+ */
 int isOpenConnection(GNUNET_TCP_SOCKET * sock);
 
 /**
  * Check a socket, open and connect if it is closed and it is a
  * client-socket.
- **/
+ */
 int checkSocket(GNUNET_TCP_SOCKET * sock);
 
 /**
@@ -2091,7 +2231,7 @@ int checkSocket(GNUNET_TCP_SOCKET * sock);
  *         was closed by the other side (if the socket is a
  *         client socket and is used again, tcpio will attempt
  *         to re-establish the connection [temporary error]).
- **/
+ */
 int readFromSocket(GNUNET_TCP_SOCKET * sock,
 		   CS_HEADER ** buffer);
 
@@ -2100,9 +2240,9 @@ int readFromSocket(GNUNET_TCP_SOCKET * sock,
  * @param sock the socket to write to
  * @param buffer the buffer to write
  * @return OK if the write was sucessful, otherwise SYSERR.
- **/
+ */
 int writeToSocket(GNUNET_TCP_SOCKET * sock,
-		  CS_HEADER * buffer);
+		  const CS_HEADER * buffer);
 
 /**
  * Write to a GNUnet TCP socket non-blocking.
@@ -2110,23 +2250,23 @@ int writeToSocket(GNUNET_TCP_SOCKET * sock,
  * @param buffer the buffer to write
  * @return OK if the write was sucessful, NO if it would have blocked and was not performed,
  *         otherwise SYSERR.
- **/
+ */
 int writeToSocketNonBlocking(GNUNET_TCP_SOCKET * sock,
-			     CS_HEADER * buffer);
+			     const CS_HEADER * buffer);
 
 /**
  * Close a GNUnet TCP socket for now (use to temporarily close
  * a TCP connection that will probably not be used for a long
  * time; the socket will still be auto-reopened by the
  * readFromSocket/writeToSocket methods if it is a client-socket).
- **/
+ */
 void closeSocketTemporarily(GNUNET_TCP_SOCKET * sock);
 
 /**
  * Destroy a socket for good. If you use this socket afterwards,
  * you must first invoke initializeSocket, otherwise the operation
  * will fail.
- **/
+ */
 void destroySocket(GNUNET_TCP_SOCKET * sock);
 
 
@@ -2137,7 +2277,7 @@ void destroySocket(GNUNET_TCP_SOCKET * sock);
  * @param ret the return value from TCP
  * @return SYSERR on error, OK if the return value was
  *         read successfully
- **/
+ */
 int readTCPResult(GNUNET_TCP_SOCKET * sock,
 		  int * ret);
 
@@ -2148,7 +2288,7 @@ int readTCPResult(GNUNET_TCP_SOCKET * sock,
  * @param ret the return value to send via TCP
  * @return SYSERR on error, OK if the return value was
  *         send successfully
- **/
+ */
 int sendTCPResult(GNUNET_TCP_SOCKET * sock,
 		  int ret);
 
@@ -2156,10 +2296,10 @@ int sendTCPResult(GNUNET_TCP_SOCKET * sock,
 /**
  * Obtain option from a peer.
  * @return NULL on error
- **/   
+ */   
 char * getConfigurationOptionValue(GNUNET_TCP_SOCKET * sock,
-				   char * section,
-				   char * option);
+				   const char * section,
+				   const char * option);
 
 /**
  * @brief Determine the (external) IP of the local machine.
@@ -2172,34 +2312,34 @@ char * getConfigurationOptionValue(GNUNET_TCP_SOCKET * sock,
  * Which way applies depends on the OS, the configuration
  * (dynDNS? static IP? NAT?) and at the end what the user 
  * needs.
- **/
+ */
 
 
 
 /**
  * Get the IP address for the local machine.
  * @return SYSERR on error, OK on success
- **/
+ */
 int getPublicIPAddress(IPaddr  * address);
 
 /**
  * Get the IP address for the local machine.
  * @return SYSERR on error, OK on success
- **/
+ */
 int getPublicIP6Address(IP6addr  * address);
 
 
 /**
  * GNUnet statistics module.
- **/
+ */
 
 
 /**
  * Get a handle to a statistical entity.
  * @param name a description of the entity
  * @return a handle for updating the associated value
- **/
-int statHandle(char * name);
+ */
+int statHandle(const char * name);
 
 /**
  * Manipulate statistics.
@@ -2207,7 +2347,7 @@ int statHandle(char * name);
  * the handle to value.
  * @param handle the handle for the value to change
  * @param value to what the value should be set
- **/
+ */
 void statSet(const int handle,
 	     const unsigned long long value);
 
@@ -2217,7 +2357,7 @@ void statSet(const int handle,
  * the value by delta.
  * @param handle the handle for the value to change
  * @param delta by how much should the value be changed
- **/
+ */
 void statChange(const int handle,
 		const int delta);
 
@@ -2235,13 +2375,13 @@ typedef struct ClientH * ClientHandle;
  * transfer happens asynchronously.
  */
 typedef int (*SendToClientCallback)(ClientHandle handle,
-				    CS_HEADER * message);
+				    const CS_HEADER * message);
 
 /**
  * Send statistics to a TCP socket.
- **/
+ */
 int sendStatistics(ClientHandle sock,
-		   CS_HEADER * message,
+		   const CS_HEADER * message,
 		   SendToClientCallback callback);
 
 
@@ -2251,12 +2391,12 @@ int sendStatistics(ClientHandle sock,
  * Statistics message. Contains the timestamp and an aribtrary
  * (bounded by the maximum CS message size!) number of statistical
  * numbers. If needed, several messages are used.
- **/
+ */
 typedef struct {
   CS_HEADER header;
   /**
    * For 64-bit alignment...
-   **/
+   */
   int reserved;
   /* timestamp  (network byte order)*/
   cron_t startTime;
@@ -2270,7 +2410,7 @@ typedef struct {
 /**
  * Generic version of STATS_CS_MESSAGE with field for finding the end
  * of the struct. Use the other version for allocation.
- **/
+ */
 typedef struct {
   STATS_CS_MESSAGE stats_cs_message;
 
@@ -2287,19 +2427,19 @@ typedef struct {
 /**
  * Query protocol supported message.  Contains the type of
  * the message we are requesting the status of.
- **/
+ */
 typedef struct {
   CS_HEADER header;
 
   /**
    * For 64-bit alignment...
-   **/
+   */
   int reserved;
 
   /**
    * The type of the message (XX_CS_PROTO_XXXX) 
    * we want to know the status of.
-   **/
+   */
   unsigned short tcpType;
 
 } STATS_CS_GET_MESSAGE_SUPPORTED;
@@ -2309,7 +2449,7 @@ typedef struct {
  * Status calls implementation.  Usage is how much we are using
  * (relative to what is available). Load is what we are using relative
  * to what we are allowed to use.
- **/
+ */
 
 /**
  * The following routine returns the percentage of available used
@@ -2331,7 +2471,7 @@ int networkUsageDown();
  * The following routine returns a positive number which indicates
  * the percentage CPU usage. 100 corresponds to one runnable process
  * on average.
- **/
+ */
 int cpuUsage();
 
 /**
@@ -2339,7 +2479,7 @@ int cpuUsage();
  * 
  * @return the CPU load as a percentage of allowed
  *        (100 is equivalent to full load)
- **/
+ */
 int getCPULoad();
 
 /**
@@ -2349,7 +2489,7 @@ int getCPULoad();
  *
  * @return the network load as a percentage of allowed
  *        (100 is equivalent to full load)
- **/
+ */
 int getNetworkLoadUp();
 
 /**
@@ -2359,34 +2499,34 @@ int getNetworkLoadUp();
  *
  * @return the network load as a percentage of allowed
  *        (100 is equivalent to full load)
- **/
+ */
 int getNetworkLoadDown();
 
 /**
  * Tell statuscalls to increment the number of bytes sent
- **/
+ */
 void incrementBytesSent(unsigned long long delta);
 
 /**
  * Tell statuscalls to increment the number of bytes received
- **/
+ */
 void incrementBytesReceived(unsigned long long delta);
 
 /**
  * Storage - management of the node's files.
- **/
+ */
 
 /**
  * Get the size of the file (or directory)
  * of the given file (in bytes).
- **/
-unsigned long long getFileSize(char * filename);
+ */
+unsigned long long getFileSize(const char * filename);
 
 /**
  * Get the size of the file (or directory) without
  * counting symlinks.
- **/
-unsigned long long getFileSizeWithoutSymlinks(char * filename);
+ */
+unsigned long long getFileSizeWithoutSymlinks(const char * filename);
 
 /**
  * Get the number of blocks that are left on the partition that
@@ -2394,7 +2534,7 @@ unsigned long long getFileSizeWithoutSymlinks(char * filename);
  *
  * @param part a file on the partition to check
  * @return -1 on errors, otherwise the number of free blocks
- **/
+ */
 long getBlocksLeftOnDrive(const char * part);
 
 /**
@@ -2402,7 +2542,7 @@ long getBlocksLeftOnDrive(const char * part);
  * (of a file that exists and that is not a directory).
  * @returns 1 if yes, 0 if not (will print an error
  * message in that case, too).
- **/
+ */
 int assertIsFile(const char * fil);
 
 /**
@@ -2411,15 +2551,15 @@ int assertIsFile(const char * fil);
  *        be relative to the current directory
  * @returns the full file name, 
  *          NULL is returned on error
- **/
+ */
 char * expandFileName(const char * fil);
 
 /**
  * Implementation of "mkdir -p"
  * @param dir the directory to create
  * @returns SYSERR on failure, OK otherwise
- **/
-int mkdirp(char * dir);
+ */
+int mkdirp(const char * dir);
 
 /**
  * Read the contents of a binary file into a buffer.
@@ -2428,8 +2568,8 @@ int mkdirp(char * dir);
  * @param len the maximum number of bytes to read
  * @param result the buffer to write the result to
  * @return the number of bytes read on success, -1 on failure
- **/ 
-int readFile(char * fileName,
+ */ 
+int readFile(const char * fileName,
 	     int len,
 	     void * result);
 
@@ -2439,11 +2579,11 @@ int readFile(char * fileName,
  * @param buffer the data to write
  * @param n number of bytes to write
  * @param mode the mode for file permissions
- **/ 
-void writeFile(char * fileName, 
-	       void * buffer,
+ */ 
+void writeFile(const char * fileName, 
+	       const void * buffer,
 	       int n,
-	       char *mode);
+	       const char * mode);
 
 /**
  * Build a filename from directory and filename, completing like the shell does
@@ -2451,13 +2591,13 @@ void writeFile(char * fileName,
  *        NOT be freed!
  * @param fil the name of the file, will NOT be deallocated anymore!
  * @param result where to store the full file name (must be large enough!)
- **/
-void buildFileName(char * dir,
-		   HexName * fil,
+ */
+void buildFileName(const char * dir,
+		   const EncName * fil,
 		   char * result);
 
-typedef void (*DirectoryEntryCallback)(char * filename,
-				       char * dirName,
+typedef void (*DirectoryEntryCallback)(const char * filename,
+				       const char * dirName,
 				       void * data);
 
 /**
@@ -2467,15 +2607,15 @@ typedef void (*DirectoryEntryCallback)(char * filename,
  * @param callback the method to call for each file
  * @param data argument to pass to callback
  * @return the number of files found, -1 on error
- **/
-int scanDirectory(char * dirName,
+ */
+int scanDirectory(const char * dirName,
 		  DirectoryEntryCallback callback,
 		  void * data);
 
 /**
  * Test if fil is a directory.
  * @returns YES if yes, NO if not
- **/
+ */
 int isDirectory(const char * fil);
 
 /**
@@ -2485,11 +2625,11 @@ int isDirectory(const char * fil);
  *
  * @param fileName the file to remove
  * @return OK on success, SYSERR on error
- **/
-int rm_minus_rf(char * fileName);
+ */
+int rm_minus_rf(const char * fileName);
 
 /* use the CLOSE macro... */
-void close_(int fd, char * filename, int linenumber);
+void close_(int fd, const char * filename, int linenumber);
 
 #define CLOSE(fd) close_(fd, __FILE__, __LINE__)
 
@@ -2499,23 +2639,23 @@ void close_(int fd, char * filename, int linenumber);
 /**
  * Stop the application.
  * @param signum is ignored
- **/
+ */
 void run_shutdown(int signum);
 
 /**
  * Test if the shutdown has been initiated.
  * @return YES if we are shutting down, NO otherwise
- **/
+ */
 int testShutdown();
 
 /**
  * Initialize the signal handlers, etc.
- **/
+ */
 void initializeShutdownHandlers();
 
 /**
  * Wait until the shutdown has been initiated.
- **/
+ */
 void wait_for_shutdown();
 
 
@@ -2531,31 +2671,31 @@ typedef struct {
 
 #define HELP_HELP \
   { 'h', "help", NULL,				\
-      "print this help" }
+    gettext_noop("print this help") }
 #define HELP_LOGLEVEL \
   { 'L', "loglevel", "LEVEL",			\
-      "set verbosity to LEVEL" }
+    gettext_noop("set verbosity to LEVEL") }
 #define HELP_CONFIG \
   { 'c', "config", "FILENAME",			\
-  "use configuration FILENAME" }
+    gettext_noop("use configuration file FILENAME") }
 #define HELP_HOSTNAME \
   { 'H', "host", "HOSTNAME",			\
-  "specify host on which gnunetd is running" }
+    gettext_noop("specify host on which gnunetd is running") }
 #define HELP_VERSION \
-    { 'v', "version", NULL,			\
-      "print the version number" }
+  { 'v', "version", NULL,			\
+    gettext_noop("print the version number") }
 #define HELP_VERBOSE \
   { 'V', "verbose", NULL,			\
-      "be verbose" }
+    gettext_noop("be verbose") }
 #define HELP_END \
     { 0, NULL, NULL, NULL, }
 
 /**
  * Print output of --help in GNU format.
- **/
-void formatHelp(char * general,
-		char * description,
-		Help * opt);
+ */
+void formatHelp(const char * general,
+		const char * description,
+		const Help * opt);
 
 /**
  * Parse the default set of options and set
@@ -2563,7 +2703,7 @@ void formatHelp(char * general,
  * This does not include --help or --version.
  * @return YES if the option was a default option
  *  that was successfully processed
- **/
+ */
 int parseDefaultOptions(char c,
 			char * optarg);
 
@@ -2571,7 +2711,7 @@ int parseDefaultOptions(char c,
  * Default "long" version of the options, use
  * "vhdc:L:H:" in the short option argument 
  * to getopt_long for now.
- **/
+ */
 #define LONG_DEFAULT_OPTIONS \
       { "config",        1, 0, 'c' }, \
       { "version",       0, 0, 'v' }, \
@@ -2614,8 +2754,8 @@ typedef struct {
  * @param k the number of hash-functions to apply per
  *        element (number of bits set per element in the set)
  * @return the bloomfilter
- **/
-Bloomfilter * loadBloomfilter(char * filename,
+ */
+Bloomfilter * loadBloomfilter(const char * filename,
 			      unsigned int size,
 			      unsigned int k);
 
@@ -2624,38 +2764,38 @@ Bloomfilter * loadBloomfilter(char * filename,
  * @param e the element
  * @param bf the filter
  * @return YES if the element is in the filter, NO if not
- **/
+ */
 int testBloomfilter(Bloomfilter * bf,
-		    HashCode160 * e);
+		    const HashCode160 * e);
 
 /**
  * Add an element to the filter
  * @param bf the filter
  * @param e the element
- **/
+ */
 void addToBloomfilter(Bloomfilter * bf,
-		      HashCode160 * e);
+		      const HashCode160 * e);
 
 /**
  * Remove an element from the filter.
  * @param bf the filter
  * @param e the element to remove
- **/
+ */
 void delFromBloomfilter(Bloomfilter * bf,
-			HashCode160 * e);
+			const HashCode160 * e);
 
 /**
  * Free the space associcated with a filter
  * in memory, flush to drive if needed (do not
  * free the space on the drive)
  * @param bf the filter
- **/
+ */
 void freeBloomfilter(Bloomfilter * bf);
 
 /**
  * Reset a bloom filter to empty.
  * @param bf the filter
- **/
+ */
 void resetBloomfilter(Bloomfilter * bf);
 
 typedef HashCode160 * (*ElementIterator)(void * arg);
@@ -2670,7 +2810,7 @@ typedef HashCode160 * (*ElementIterator)(void * arg);
  * @param iterator_arg argument to the iterator function
  * @param size the new size for the filter
  * @param k the new number of hash-function to apply per element
- **/
+ */
 void resizeBloomfilter(Bloomfilter * bf,
 		       ElementIterator iterator,
 		       void * iterator_arg,
@@ -2684,7 +2824,7 @@ void resizeBloomfilter(Bloomfilter * bf,
  *
  * @return Upon successful completion, it returns zero.
  * @return Otherwise -1 is returned.
- **/
+ */
 int setBlocking(int s, int doBlock);
 
 
@@ -2692,7 +2832,7 @@ int setBlocking(int s, int doBlock);
  * Check whether the socket is blocking
  * @param s the socket
  * @return YES if blocking, NO non-blocking
- **/
+ */
 int isSocketBlocking(int s);
 
 
@@ -2735,7 +2875,7 @@ int RECV_BLOCKING_ALL(int s,
  * @return the number of bytes written or SYSERR. 
  */ 
 int SEND_NONBLOCKING(int s,
-		     void * buf,
+		     const void * buf,
 		     size_t max);
 
 
@@ -2748,14 +2888,164 @@ int SEND_NONBLOCKING(int s,
  *   otherwise the number of bytes transmitted (must be len)
  */
 int SEND_BLOCKING_ALL(int s,
-		      void * buf,
+		      const void * buf,
 		      size_t len);
 
 /**
  * Check if socket is valid
  * @return 1 if valid, 0 otherwise
- **/
+ */
 int isSocketValid(int s);
+
+/**
+ * Like snprintf, just aborts if the buffer is of insufficient size.
+ */
+int SNPRINTF(char * buf,
+	     size_t size,
+	     const char * format,
+	     ...);
+
+
+typedef struct vector_t {
+  unsigned int VECTOR_SEGMENT_SIZE;
+  struct vector_segment_t * segmentsHead;
+  struct vector_segment_t * segmentsTail;
+  struct vector_segment_t * iteratorSegment;
+  unsigned int iteratorIndex;
+  size_t size;
+} Vector;
+
+
+/**
+ * A debug function that dumps the vector to stderr.
+ */
+void vectorDump(Vector *v);
+
+/**
+ * @param vss Size of the VectorSegment data area. The "correct" value for this
+ * is a bit of a gamble, as it depends on both the operations you
+ * perform on the vectors and how much data is stored in them. In
+ * general, the more data you store the bigger the segments should be,
+ * or otherwise the increased length of the linked list will become a
+ * bottleneck for operations that are performed on arbitrary indexes.
+ */
+Vector * vectorNew(unsigned int vss);
+
+/**
+ * Free vector structure including its data segments, but _not_ including the
+ * stored void pointers. It is the user's responsibility to empty the vector
+ * when necessary to avoid memory leakage.
+ */
+void vectorFree(Vector * v);
+
+size_t vectorSize(const Vector * v);
+
+/**
+ * Insert a new element in the vector at given index. 
+ * @return OK on success, SYSERR if the index is out of bounds.
+ */
+int vectorInsertAt(Vector * v, 
+		   void * object,
+		   unsigned int index);
+
+/**
+ * Insert a new element at the end of the vector.
+ */
+void vectorInsertLast(Vector * v, void * object);
+
+/**
+ * Return the element at given index in the vector or NULL if the index is out
+ * of bounds. The iterator is set to point to the returned element.
+ */
+void * vectorGetAt(Vector * v, 
+		   unsigned int index);
+
+/** 
+ * Return the first element in the vector, whose index is 0, or NULL if the
+ * vector is empty. The iterator of the vector is set to point to the first
+ * element.
+ */
+void * vectorGetFirst(Vector * v);
+
+/**
+ * Return the last element in the vector or NULL if the vector is empty. The
+ * iterator of the vector is set to point to the last element.
+ */
+void * vectorGetLast(Vector * v);
+
+/**
+ * Return the next element in the vector, as called after vector_get_at() or
+ * vector_get_first(). The return value is NULL if there are no more elements
+ * in the vector or if the iterator has not been set. 
+ */
+void * vectorGetNext(Vector * v);
+
+/**
+ * Return the previous element in the vector, as called after vector_get_at()
+ * or vector_get_last(). The return value is NULL if there are no more
+ * elements in the vector or if the iterator has not been set.
+ */
+void * vectorGetPrevious(Vector * v);
+
+/**
+ * Delete and return the element at given index. NULL is returned if index is 
+ * out of bounds. 
+ */
+void * vectorRemoveAt(Vector * v, 
+		      unsigned int index);
+
+/**
+ * Delete and return the last element in the vector, or NULL if the vector
+ * is empty.
+ */
+void * vectorRemoveLast(Vector * v);
+
+/**
+ * Delete and return given object from the vector, or return NULL if the object
+ * is not found.
+ */
+void * vectorRemoveObject(Vector * v, void * object);
+
+/**
+ * Set the given index in the vector. The old value of the index is 
+ * returned, or NULL if the index is out of bounds.
+ */
+void * vectorSetAt(Vector * v,
+		   void * object, 
+		   unsigned int index);
+
+/**
+ * Set the index occupied by the given object to point to the new object.
+ * The old object is returned, or NULL if it's not found.
+ */
+void * vectorSetObject(Vector * v, 
+		       void * object,
+		       void * old_object);
+
+/** 
+ * Swaps the contents of index1 and index2. Return value is OK
+ * on success, SYSERR if either index is out of bounds.
+ */
+int vectorSwap(Vector * v, 
+	       unsigned int index1, 
+	       unsigned int index2);
+
+/**
+ * Return the index of given element or -1 if the element is not found.
+ */
+unsigned int vectorIndexOf(Vector * v, 
+			   void * object);
+
+/**
+ * Return the data stored in the vector as a single dynamically
+ * allocated array of (void *), which must be FREEed by the caller.
+ * Use the functions get_{at,first,last,next,previous} instead, unless
+ * you really need to access everything in the vector as fast as
+ * possible.
+ */
+void ** vectorElements(Vector * v);
+
+
 
 #ifdef __cplusplus
 }

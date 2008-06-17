@@ -3,7 +3,7 @@ global $trusted;
 include("connect.php3");
 if (!$connection) {
   echo "<HTML><HEAD><TITLE>GNUnet-testbed registration: startup</TITLE></HEAD><BODY>";
-  echo "Database is down. Can not register peers.";
+  echo "Database is down. Cannot register peers.";
   echo "</body></html>";
   die(-1);
 }

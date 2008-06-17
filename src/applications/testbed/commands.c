@@ -30,7 +30,7 @@
  * - implement shutdown (in particular, kill ssh connections / processes!)
  * - design and implement better topology management
  * - test
- **/
+ */
 
 #include "platform.h"
 #include "testbed.h"
@@ -127,7 +127,7 @@ static int sendMessage(unsigned msgType,
 			&msg->header);
   FREE(msg);
   if (msgsz == SYSERR) {
-    PRINTF("ERROR: Could not send message to peer %s.\n", 
+    PRINTF(" Could not send message to peer %s.\n", 
 	   nodes[peer].ips);
     return SYSERR;
   }
@@ -144,7 +144,7 @@ static int readResult(int peer,
 		      int * result) {
   if (OK != readTCPResult(&nodes[peer].sock,
 			  result)) {
-    PRINTF("ERROR: peer %s is not responding.\n",
+    PRINTF(" peer %s is not responding.\n",
 	   nodes[peer].ips);
     return SYSERR;
   }
@@ -197,7 +197,7 @@ static int addNode(int argc, char * argv[]) {
   if (SYSERR == initGNUnetClientSocket(nodes[currindex].port,
 				       nodes[currindex].ips,
 				       &nodes[currindex].sock)) {
-    PRINTF("ERROR: could not connect to %s:%d.\n",
+    PRINTF(" could not connect to %s:%d.\n",
 	   nodes[currindex].ips,
 	   nodes[currindex].port);
     return -1;
@@ -220,7 +220,7 @@ static int addNode(int argc, char * argv[]) {
   hdr = NULL;
   if (SYSERR == readFromSocket(&nodes[currindex].sock, 
 			       (CS_HEADER**)&hdr)) {
-    PRINTF("ERROR: peer %s is not responding.\n",
+    PRINTF(" peer %s is not responding.\n",
 	   nodes[currindex].ips);
     destroySocket(&nodes[currindex].sock);
     FREE(nodes[currindex].ips);
@@ -240,7 +240,7 @@ static int addNode(int argc, char * argv[]) {
   } else {
     FREE(hdr);
     destroySocket(&nodes[currindex].sock);
-    PRINTF("ERROR: peer %s did not respond with proper HELO.\n",
+    PRINTF(" peer %s did not respond with proper HELO.\n",
 	   nodes[currindex].ips);
     FREE(nodes[currindex].ips);
     GROW(nodes, nnodes, nnodes-1);    
@@ -293,7 +293,7 @@ static int addSshNode(int argc, char * argv[]) {
 
     s = SOCKET(PF_INET, SOCK_STREAM, 0);
     if (s == -1) {
-      PRINTF("Can not open socket: %s\n",
+      PRINTF("Cannot open socket: %s\n",
 	     strerror(errno));
       return -1;
     }
@@ -321,7 +321,7 @@ static int addSshNode(int argc, char * argv[]) {
     }    
   }
   if (lport == 65535) {
-    PRINTF("ERROR: Can not find available local port!\n");
+    PRINTF(" Cannot find available local port!\n");
     return -1;
   }
   
@@ -333,18 +333,19 @@ static int addSshNode(int argc, char * argv[]) {
     sargv[1] = "-l";
     sargv[2] = argv[0]; /* login */
     sargv[3] = "-L";
-    sprintf(pohopo,
-	    "%d:%s:%d",
-	    lport, /* local port */
-	    "localhost", /* loopback on remote host */
-	    port /* remote port */);
+    SNPRINTF(pohopo,
+	     64,
+	     "%d:%s:%d",
+	     lport, /* local port */
+	     "localhost", /* loopback on remote host */
+	     port /* remote port */);
     sargv[4] = pohopo;
     sargv[5] = argv[1]; /* remote hostname */
     sargv[6] = NULL; /* last argument */
     execvp("ssh",
 	   sargv);
     LOG(LOG_ERROR,
-	"ERROR: execvp failed: %s\n",
+	" execvp failed: %s\n",
 	strerror(errno));
     exit(-1);
   } 
@@ -381,7 +382,7 @@ static int addSshNode(int argc, char * argv[]) {
     gnunet_util_sleep(cronSECONDS);
   }
   if (ret == SYSERR) {
-    PRINTF("ERROR: could not connect to %s:%d.\n",
+    PRINTF(" could not connect to %s:%d.\n",
 	   nodes[currindex].ips,
 	   nodes[currindex].port);
     kill(nodes[currindex].ssh,
@@ -416,7 +417,7 @@ static int addSshNode(int argc, char * argv[]) {
   hdr = NULL;
   if (SYSERR == readFromSocket(&nodes[currindex].sock, 
 			       (CS_HEADER**)&hdr)) {
-    PRINTF("ERROR: peer %s is not responding.\n",
+    PRINTF(" peer %s is not responding.\n",
 	   nodes[currindex].ips);
     destroySocket(&nodes[currindex].sock);
     FREE(nodes[currindex].ips);
@@ -442,7 +443,7 @@ static int addSshNode(int argc, char * argv[]) {
   } else {
     FREE(hdr);
     destroySocket(&nodes[currindex].sock);
-    PRINTF("ERROR: peer %s did not respond with proper HELO.\n",
+    PRINTF(" peer %s did not respond with proper HELO.\n",
 	   nodes[currindex].ips);
     FREE(nodes[currindex].ips);
     /* fixme: check error conditions on kill/waidpid! */
@@ -485,7 +486,7 @@ static int delConnection(int argc,
     PRINTF("OK.\n");
     return 0;
   } else {
-    PRINTF("ERROR: Connection NOT deleted.\n");
+    PRINTF(" Connection NOT deleted.\n");
     return -1;
   }
 }
@@ -514,7 +515,7 @@ static int delAllConnections(int argc,
     PRINTF("OK.\n");
     return 0;
   } else {
-    PRINTF("ERROR: Connections NOT deleted.\n");
+    PRINTF(" Connections NOT deleted.\n");
     return -1;
   }
 }
@@ -543,7 +544,7 @@ static int addConnection(int argc,
     PRINTF("OK.\n");
     return 0;
   } else {
-    PRINTF("ERROR: peer can not connect.\n");
+    PRINTF(" peer cannot connect.\n");
     return -1;
   }
 }
@@ -575,7 +576,7 @@ static int setTrust(int argc, char * argv[]) {
 		       &ack)) 
     return -1;
   if (htonl(ack) != OK) {
-    PRINTF("ERROR: peer could not set trust value.\n");
+    PRINTF(" peer could not set trust value.\n");
     return -1;
   } else {
     PRINTF("OK.\n");
@@ -602,7 +603,7 @@ static int getTrust(int argc, char *argv[]) {
   if (SYSERR == readResult(src, &value)) 
     return -1;
   if (value < 0) {
-    PRINTF("ERROR: could not get trust value.\n");
+    PRINTF(" could not get trust value.\n");
     return -1;
   } else {
     PRINTF("%d\n", 
@@ -630,7 +631,7 @@ static int disableHELO(int argc, char *argv[]) {
   if (SYSERR == readResult(dst, &value)) 
     return -1;
   if (value != OK) {
-    PRINTF("ERROR: could disable HELO\n");
+    PRINTF(" could disable HELO\n");
     return -1;
   } else {
     PRINTF("OK.\n");
@@ -657,7 +658,7 @@ static int enableHELO(int argc, char *argv[]) {
   if (SYSERR == readResult(dst, &value)) 
     return -1;
   if (value != OK) {
-    PRINTF("ERROR: could enable HELO\n");
+    PRINTF(" could enable HELO\n");
     return -1;
   } else {
     PRINTF("OK.\n");
@@ -684,7 +685,7 @@ static int disableAUTOCONNECT(int argc, char *argv[]) {
   if (SYSERR == readResult(dst, &value)) 
     return -1;
   if (value != OK) {
-    PRINTF("ERROR: could disable AUTOCONNECT\n");
+    PRINTF(" could disable AUTOCONNECT\n");
     return -1;
   } else {
     PRINTF("OK.\n");
@@ -711,7 +712,7 @@ static int enableAUTOCONNECT(int argc, char *argv[]) {
   if (SYSERR == readResult(dst, &value)) 
     return -1;
   if (value != OK) {
-    PRINTF("ERROR: could enable AUTOCONNECT\n");
+    PRINTF(" could enable AUTOCONNECT\n");
     return -1;
   } else {
     PRINTF("OK.\n");
@@ -756,7 +757,7 @@ static int allowDenyConnectHelper(unsigned int argc,
   if (SYSERR == readResult(dst, &value)) 
     return -1;
   if (value != OK) {
-    PRINTF("ERROR: could change setting.\n");
+    PRINTF(" could change setting.\n");
     return -1;
   } else {
     PRINTF("OK.\n");
@@ -807,7 +808,7 @@ static int loadModuleHelper(unsigned short type,
 		       &ok)) 
     return -1;
   if (ok != OK) {
-    PRINTF("ERROR: peer %s refused.\n",
+    PRINTF(" peer %s refused.\n",
 	   nodes[dst].ips);
     return -1;
   }
@@ -888,7 +889,7 @@ static int startProcess(int argc,
 	   ack);
     return 0;
   } else {
-    PRINTF("ERROR: Peer could not fork process.\n");
+    PRINTF(" Peer could not fork process.\n");
     return -1;
   }  
 }
@@ -931,7 +932,7 @@ static int signalProcess(int argc, char *argv[]) {
     PRINTF("OK.\n");
     return 0;
   } else {
-    PRINTF("ERROR: Peer could not signal process.\n");
+    PRINTF(" Peer could not signal process.\n");
     return -1;
   }  
 }
@@ -969,7 +970,7 @@ static int dumpProcessOutput(int argc,
       reply = NULL;
       if (SYSERR == readFromSocket(&nodes[dst].sock, 
 				   (CS_HEADER**)&reply)) {
-	PRINTF("ERROR: peer %s is not responding after %d of %d bytes.\n",
+	PRINTF(" peer %s is not responding after %d of %d bytes.\n",
 	       nodes[dst].ips,
 	       pos,
 	       ack);
@@ -990,7 +991,7 @@ static int dumpProcessOutput(int argc,
     }    
     return 0;
   } else {
-    PRINTF("ERROR: Peer could not return process output.\n");
+    PRINTF(" Peer could not return process output.\n");
     return -1;
   }  
 }
@@ -1010,7 +1011,7 @@ static int setBW(int argc, char * argv[]) {
   in  = atoi(argv[1]);
   out = atoi(argv[2]);
   if ((in < 0) || (out < 0)) {
-    PRINTF("ERROR: Invalid bandwidth specification.\n");
+    PRINTF(" Invalid bandwidth specification.\n");
     return -1;
   }
   msg.in_bw  = htonl(in);
@@ -1023,7 +1024,7 @@ static int setBW(int argc, char * argv[]) {
   if (OK != readResult(dst, &ack)) 
     return -1;
   if (ack != OK) {
-    PRINTF("ERROR: peer could not set the specified bandwith.\n");
+    PRINTF(" peer could not set the specified bandwith.\n");
     return -1;
   } else {
     PRINTF("OK.\n");
@@ -1057,7 +1058,7 @@ static int setLoss(int argc, char * argv[]) {
   if (OK != readResult(dst, &ack)) 
     return -1;
   if (ack != OK) {
-    PRINTF("ERROR: peer could not set the specified loss rates.\n");
+    PRINTF(" peer could not set the specified loss rates.\n");
     return -1;
   } else {
     PRINTF("OK.\n");
@@ -1071,7 +1072,7 @@ static int setLoss(int argc, char * argv[]) {
  * @param argc number of arguments from the command line
  * @param argv command line arguments
  * @return 0 ok, 1 on error
- **/   
+ */   
 static int getStat(int argc, char ** argv) {
   int res, peer, printProtocols;
   
@@ -1095,7 +1096,7 @@ static int getStat(int argc, char ** argv) {
  * @param argc number of arguments from the command line
  * @param argv command line arguments
  * @return 0 ok, 1 on error
- **/   
+ */   
 static int getStats(int argc, char ** argv) {
   int res, peer, printProtocols;
   
@@ -1130,7 +1131,7 @@ static int getStats(int argc, char ** argv) {
  * @param argc number of arguments from the command line
  * @param argv command line arguments
  * @return 0 ok, 1 on error
- **/   
+ */   
 static int getOption(int argc, char ** argv) {
   int peer;
   CS_GET_OPTION_REQUEST req;
@@ -1200,13 +1201,13 @@ static int uploadFile(int argc,
   CHECK_PEER(peer, argv[0]);
   infile = FOPEN(argv[1], "r");
   if (infile == NULL) {
-    PRINTF("ERROR: Could not open file %s\n",
+    PRINTF(" Could not open file %s\n",
 	   argv[1]);
     return -1;
   }
   flen = strlen(argv[2]) + 1; /* '\0' added in the flen */
   if (flen > TESTBED_FILE_BLK_SIZE) {
-    PRINTF("ERROR: destination file name too long (%d characters, limit %d).\n", 
+    PRINTF(" destination file name too long (%d characters, limit %d).\n", 
 	   flen-1,
 	   TESTBED_FILE_BLK_SIZE);
     return -1;
@@ -1227,7 +1228,7 @@ static int uploadFile(int argc,
 			      &msg->header.header)) {
     fclose(infile);
     FREE(msg);
-    PRINTF("ERROR: Could not send message to peer %s.\n", 
+    PRINTF(" Could not send message to peer %s.\n", 
 	   nodes[peer].ips);
     return -1;
   }
@@ -1241,7 +1242,7 @@ static int uploadFile(int argc,
   if (ack != OK) {
     fclose(infile);
     FREE(msg);
-    PRINTF("ERROR: Peer returned error (delete existing file).\n");
+    PRINTF(" Peer returned error (delete existing file).\n");
     return -1;
   }
   msg->type = htonl(TESTBED_FILE_APPEND);
@@ -1257,7 +1258,7 @@ static int uploadFile(int argc,
     if (SYSERR == writeToSocket(&nodes[peer].sock, &msg->header.header)) {
       fclose(infile);
       FREE(msg);
-      PRINTF("ERROR: could not send file to node %s.\n",
+      PRINTF(" could not send file to node %s.\n",
 	     nodes[peer].ips);
       return -1;
     }
@@ -1269,14 +1270,14 @@ static int uploadFile(int argc,
     if (ack != OK) {
       fclose(infile);
       FREE(msg);
-      PRINTF("ERROR: peer returned error.\n");
+      PRINTF(" peer returned error.\n");
       return -1;
     }
   }
   if (ferror(infile)) {
     fclose(infile);
     FREE(msg);
-    PRINTF("ERROR: could not read source file. Transmission aborted.\n");
+    PRINTF(" could not read source file. Transmission aborted.\n");
     return -1;
   }
   fclose(infile);
@@ -1345,15 +1346,17 @@ static int processCommands(char * buffer,
       char ports[12];
       char ips[128];
       char * argv[2];
-      sprintf(ports,
-	      "%d",
-	      port);
-      sprintf(ips,
-	      "%d.%d.%d.%d",
-	      ip[0],
-	      ip[1],
-	      ip[2],
-	      ip[3]);
+      SNPRINTF(ports,
+	       12,
+	       "%d",
+	       port);
+      SNPRINTF(ips,
+	       128,
+	       "%d.%d.%d.%d",
+	       ip[0],
+	       ip[1],
+	       ip[2],
+	       ip[3]);
       argv[0] = ips;
       argv[1] = ports;
       if (0 != addNode(2, argv)) 
@@ -1372,15 +1375,17 @@ static int processCommands(char * buffer,
 	char ports[12];
 	char ips[128];
 	char * argv[3];
-	sprintf(ports,
-		"%d",
-		port);
-	sprintf(ips,
-		"%d.%d.%d.%d",
-		ip[0],
-		ip[1],
-		ip[2],
-		ip[3]);
+	SNPRINTF(ports,
+		 12,
+		 "%d",
+		 port);
+	SNPRINTF(ips,
+		 128,
+		 "%d.%d.%d.%d",
+		 ip[0],
+		 ip[1],
+		 ip[2],
+		 ip[3]);
 	argv[0] = login;
 	argv[1] = ips;
 	argv[2] = ports;
@@ -1405,7 +1410,7 @@ static int processCommands(char * buffer,
  * TESTBED-HTTP registry.  Optional argument:
  * URL of the registry (by default we use the
  * value from the configuration file value).
- **/
+ */
 static int addAvailable(int argc,
 			char * argv[]) {
   char * reg = NULL;
@@ -1426,12 +1431,13 @@ static int addAvailable(int argc,
   struct sockaddr_in theProxy;
   char *proxy, *proxyPort;
   struct hostent *ip;
+  size_t n;
 
   if (argc == 0) {
     reg = getConfigurationString("GNUNET-TESTBED",
 				 "REGISTERURL");
     if (reg == NULL) {
-      PRINTF("ERROR: no testbed registration URL given.\n");
+      PRINTF(" no testbed registration URL given.\n");
       return -1;
     }
   } else
@@ -1444,7 +1450,7 @@ static int addAvailable(int argc,
   if (proxy != NULL) {
     ip = GETHOSTBYNAME(proxy);
     if (ip == NULL) {
-      PRINTF("ERROR: Couldn't resolve name of HTTP proxy %s\n",
+      PRINTF(" Couldn't resolve name of HTTP proxy %s\n",
 	     proxy);
       theProxy.sin_addr.s_addr = 0;
     } else {
@@ -1467,7 +1473,7 @@ static int addAvailable(int argc,
   if (0 != strncmp(HTTP_URL,
 		   reg, 
 		   strlen(HTTP_URL)) ) {
-    PRINTF("WARNING: invalid URL %s (must begin with %s)\n",
+    PRINTF(" invalid URL %s (must begin with %s)\n",
 	   reg, 
 	   HTTP_URL);
     return -1;
@@ -1505,7 +1511,7 @@ static int addAvailable(int argc,
     }
     port = strtol(pstring, &buffer, 10);
     if ( (port < 0) || (port > 65536) ) {
-      PRINTF("ERROR: malformed http URL: %s at %s.\n",
+      PRINTF(" malformed http URL: %s at %s.\n",
 	     reg,
 	     buffer);
       FREE(hostname);
@@ -1519,7 +1525,7 @@ static int addAvailable(int argc,
 
 #if DEBUG_TESTBED
   LOG(LOG_INFO,
-      "INFO: Trying to download a hostlist from %s\n",
+      " Trying to download a hostlist from %s\n",
       reg);
 #endif
 
@@ -1529,7 +1535,7 @@ static int addAvailable(int argc,
 		SOCK_STREAM,
 		0);
   if (sock < 0) {
-    PRINTF("ERROR: could not open socket for hostlist download (%s).\n",
+    PRINTF(" could not open socket for hostlist download (%s).\n",
 	   STRERROR(errno));
     FREE(hostname);   
     FREE(reg);
@@ -1541,7 +1547,7 @@ static int addAvailable(int argc,
     /* no proxy */
     ip_info = GETHOSTBYNAME(hostname);
     if (ip_info == NULL) {
-      PRINTF("WARNING: could not download hostlist, host %s unknown\n",
+      PRINTF(" could not download hostlist, host %s unknown\n",
 	     hostname);
       FREE(reg);
       FREE(hostname);
@@ -1562,7 +1568,7 @@ static int addAvailable(int argc,
   if (CONNECT(sock, 
 	      (struct sockaddr*)&soaddr, 
 	      sizeof(soaddr)) < 0) {
-    PRINTF("WARNING: failed to send HTTP request to host %s: %s\n",
+    PRINTF(" failed to send HTTP request to host %s: %s\n",
 	   hostname,
 	   STRERROR(errno));
     FREE(reg);
@@ -1571,18 +1577,19 @@ static int addAvailable(int argc,
     return -1;
   }
   
-  command = MALLOC(strlen(GET_COMMAND) 
-		   + strlen(reg));
-  sprintf(command, 
-	  GET_COMMAND,
-	  reg);
+  n = strlen(GET_COMMAND) + strlen(reg);
+  command = MALLOC(n);
+  SNPRINTF(command, 
+	   n,
+	   GET_COMMAND,
+	   reg);
   FREE(reg);
   curpos = strlen(command)+1;
   curpos = SEND_BLOCKING_ALL(sock,
 			     command,
 			     curpos);
   if (SYSERR == (int)curpos) {
-    PRINTF("WARNING: failed so send HTTP request %s to host %s (%u - %d) - %s\n",
+    PRINTF(" failed so send HTTP request %s to host %s (%u - %d) - %s\n",
 	   command,
 	   hostname,
 	   curpos, 
@@ -1619,7 +1626,7 @@ static int addAvailable(int argc,
       curpos=0;    
   }
   if (curpos < 4) { /* invalid response */
-    PRINTF("WARNING: exit register (error: no http response read)\n");
+    PRINTF(" exit register (error: no http response read)\n");
     CLOSE(sock);
     return -1;
   }

@@ -23,7 +23,7 @@
  * @brief tool to obtain statistics from gnunetd.
  * @author Christian Grothoff
  * @author Igor Wronsky
- **/
+ */
 
 #include "gnunet_util.h"
 #include "platform.h"
@@ -177,7 +177,7 @@ static const char *csMessageName( unsigned short type ) {
  * @param stream where to print the statistics
  * @param sock the socket to use 
  * @return OK on success, SYSERR on error
- **/
+ */
 static int requestAndPrintStatistics(FILE * stream,
 				     GNUNET_TCP_SOCKET * sock) {
   STATS_CS_MESSAGE * statMsg;
@@ -213,7 +213,7 @@ static int requestAndPrintStatistics(FILE * stream,
     }
     if (ntohs(statMsg->header.size) < sizeof(STATS_CS_MESSAGE)) {
       LOG(LOG_WARNING,
-	  "WARNING: received malformed stats message (%d < %d)\n",
+	  " received malformed stats message (%d < %d)\n",
 	  ntohs(statMsg->header.size), 
 	  sizeof(STATS_CS_MESSAGE) );
       break;
@@ -230,7 +230,7 @@ static int requestAndPrintStatistics(FILE * stream,
       if (mpos+strlen(&((char*)(((STATS_CS_MESSAGE_GENERIC*)statMsg)->values))[mpos])+1 > 
 	  ntohs(statMsg->header.size) - sizeof(STATS_CS_MESSAGE)) {
 	LOG(LOG_WARNING,
-	    "WARNING: received malformed stats message (%d > %d)\n",
+	    " received malformed stats message (%d > %d)\n",
 	    mpos+strlen(&((char*)(((STATS_CS_MESSAGE_GENERIC*)statMsg)->values))[mpos])+1,
 	    ntohs(statMsg->header.size) - sizeof(STATS_CS_MESSAGE));
 	break; /* out of bounds! */      
@@ -253,7 +253,7 @@ static int requestAndPrintStatistics(FILE * stream,
  * @param stream where to print the statistics
  * @param sock the socket to use 
  * @return OK on success, SYSERR on error
- **/
+ */
 static int requestAndPrintProtocols(FILE * stream,
 				     GNUNET_TCP_SOCKET * sock) {
   STATS_CS_GET_MESSAGE_SUPPORTED csStatMsg;
@@ -328,7 +328,7 @@ static int requestAndPrintProtocols(FILE * stream,
 /**
  * Prints the usage information for this command if the user errs.
  * Aborts the program.
- **/
+ */
 static void printhelp() {
   static Help help[] = {
     HELP_CONFIG,
@@ -350,7 +350,7 @@ static void printhelp() {
  * @param argc the number of options
  * @param argv the option list (including keywords)
  * @return SYSERR if we should abort, OK to continue
- **/
+ */
 static int parseOptions(int argc,
 			char ** argv) {
   int option_index;
@@ -400,7 +400,7 @@ static int parseOptions(int argc,
  * @param argc number of arguments from the command line
  * @param argv command line arguments
  * @return 0 ok, 1 on error
- **/   
+ */   
 int main(int argc, char ** argv) {
   int res;
   GNUNET_TCP_SOCKET * sock;

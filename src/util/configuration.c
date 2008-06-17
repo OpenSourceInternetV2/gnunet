@@ -29,29 +29,24 @@
  * the data stored in it. It also provides methods to override options
  * which can be used to add command-line options to the configuration
  * API.
- **/
+ */
 
 #include "gnunet_util.h"
 #include "platform.h"
 
-
 struct CFG_ENTRIES {
-    int  ent_count;
-    char **ent_names;
-    char **ent_values;
+  int  ent_count;
+  char **ent_names;
+  char **ent_values;
 };
 
 struct CFG_SECTIONS {
-    int                 sec_count;
-    char                **sec_names;
-    struct CFG_ENTRIES  **sec_entries;
+  int                 sec_count;
+  char                **sec_names;
+  struct CFG_ENTRIES  **sec_entries;
 };
 
-/* ------------------------------------------------------------------------ */
-
 static struct CFG_SECTIONS * c = NULL;
-
-/* ------------------------------------------------------------------------ */
 
 #define ALLOC_SIZE 16
 
@@ -79,7 +74,7 @@ static struct CFG_ENTRIES * cfg_init_entries() {
 }
 
 static struct CFG_ENTRIES * cfg_find_section(struct CFG_SECTIONS *c, 
-					     char * name) {
+					     const char * name) {
   struct CFG_ENTRIES * e;
   int i;
   
@@ -106,8 +101,8 @@ static struct CFG_ENTRIES * cfg_find_section(struct CFG_SECTIONS *c,
 }
 
 static void cfg_set_entry(struct CFG_ENTRIES * e, 
-			  char * name, 
-			  char * value) {
+			  const char * name, 
+			  const char * value) {
   int i;
   
   for (i=0; i<e->ent_count; i++)
@@ -138,98 +133,95 @@ static void cfg_set_entry(struct CFG_ENTRIES * e,
   e->ent_values[i] = STRDUP(value);
 }
 
-/* ------------------------------------------------------------------------ */
-
 static int cfg_parse_file(char *filename) {
-    struct CFG_ENTRIES * e = NULL;
-    char line[256],tag[64],value[192];
-    FILE *fp;
-    int nr;
-    int i;
-    int emptyline;
-    
-    if (NULL == c)
-	c = cfg_init_sections();
-    if (NULL == (fp = FOPEN(filename,"r")))
-	return -1;
-
-    memset(line, 
-           0, 
-	   256);
-
-    nr = 0;
-    while (NULL != fgets(line,255,fp)) {
-	nr++;
-	for (i=0;i<255;i++) {
-	  if (line[i] == '\t')
-	    line[i] = ' ';
-	}
-	emptyline=1;
-	for (i=0;(i<255 && line[i] != 0);i++) {
-	  if (line[i] != ' ' && line[i] != '\n' && line[i] != '\r')
-	    emptyline=0;
-	}
-	if (emptyline == 1)
-	  continue;
-	if (line[0] == '\n' || line[0] == '#' || line[0] == '%' ||
-            line[0] == '\r')
-	    continue;
-	for (i=strlen(line)-2 ; 
-	     (i>=0) && (line[i] == ' ' || line[i] == '\t' ) ;
-	     i--)
-	    line[i] = 0;
-	if (1 == sscanf(line, "@INLINE@ %191[^\n]", value) ) {
-	  char * expanded = expandFileName(value);
-	  LOG(LOG_DEBUG,
-	      "DEBUG: inlining configration %s\n",
-	      expanded);
-	  if (cfg_parse_file(expanded) != 0)
-	    LOG(LOG_WARNING,
-		"WARNING: could not parse configuration file %s\n",
-		value);
-	} else if (1 == sscanf(line,"[%99[^]]]", value)) {
-	    /* [section] */
-	    e = cfg_find_section(c,value);
-	} else if (2 == sscanf(line," %63[^= ] = %191[^\n]",tag,value)) {
-	    /* foo = bar */
-	  if (NULL == e) /* no section defined so far: put in "global" section (change by CG) */
-	    e = cfg_find_section(c, "");  
-	  i=0;
-	  if (value[0] == '"') {
-	    i=1;
-	    while ( (value[i] != '\0') && 
-		    (value[i] != '"') )
-	      i++;
-	    if (value[i] == '"') {
-	      value[i] = '\0';
-	      i=1;
-	    } else
-	      i=0;
-	  }
-#ifdef MINGW
-          /* Strip LF */
-          nr = strlen(value) - 1;
-          if (nr >= 0 && value[nr] == '\r')
-            value[nr] = 0;
-#endif
-	  cfg_set_entry(e, tag, &value[i]);
-	    
-	} else {
-	    /* Huh ? */
-	  LOG(LOG_ERROR,
-	      "ERROR: %s:%d: syntax error\n",
-	      filename,
-	      nr);
-	}
+  struct CFG_ENTRIES * e = NULL;
+  char line[256],tag[64],value[192];
+  FILE *fp;
+  int nr;
+  int i;
+  int emptyline;
+  
+  if (NULL == c)
+    c = cfg_init_sections();
+  if (NULL == (fp = FOPEN(filename,"r")))
+    return -1;
+  
+  memset(line, 
+	 0, 
+	 256);
+  
+  nr = 0;
+  while (NULL != fgets(line,255,fp)) {
+    nr++;
+    for (i=0;i<255;i++) {
+      if (line[i] == '\t')
+	line[i] = ' ';
     }
-    fclose(fp);
-    return 0;
+    emptyline=1;
+    for (i=0;(i<255 && line[i] != 0);i++) {
+      if (line[i] != ' ' && line[i] != '\n' && line[i] != '\r')
+	emptyline=0;
+    }
+    if (emptyline == 1)
+      continue;
+    if (line[0] == '\n' || line[0] == '#' || line[0] == '%' ||
+	line[0] == '\r')
+      continue;
+    for (i=strlen(line)-2 ; 
+	 (i>=0) && (line[i] == ' ' || line[i] == '\t' ) ;
+	 i--)
+      line[i] = 0;
+    if (1 == sscanf(line, "@INLINE@ %191[^\n]", value) ) {
+      char * expanded = expandFileName(value);
+      LOG(LOG_DEBUG,
+	  _("inlining configration file '%s'\n"),
+	  expanded);
+      if (cfg_parse_file(expanded) != 0)
+	LOG(LOG_WARNING,
+	    _("Could not parse configuration file '%s'.\n"),
+	    value);
+    } else if (1 == sscanf(line,"[%99[^]]]", value)) {
+      /* [section] */
+      e = cfg_find_section(c,value);
+    } else if (2 == sscanf(line," %63[^= ] = %191[^\n]",tag,value)) {
+      /* foo = bar */
+      if (NULL == e) /* no section defined so far: put in "global" section (change by CG) */
+	e = cfg_find_section(c, "");  
+      i=0;
+      if (value[0] == '"') {
+	i=1;
+	while ( (value[i] != '\0') && 
+		(value[i] != '"') )
+	  i++;
+	if (value[i] == '"') {
+	  value[i] = '\0';
+	  i=1;
+	} else
+	  i=0;
+      }
+#ifdef MINGW
+      /* Strip LF */
+      nr = strlen(value) - 1;
+      if (nr >= 0 && value[nr] == '\r')
+	value[nr] = 0;
+#endif
+      cfg_set_entry(e, tag, &value[i]);
+      
+    } else {
+      /* Huh ? */
+      LOG(LOG_ERROR,
+	  _("Syntax error in configuration file '%s' at line %d.\n"),
+	  filename, nr);
+    }
+  }
+  fclose(fp);
+  return 0;
 }
 
 /* ------------------------------------------------------------------------ */
 
-static char * cfg_get_str(char * sec, 
-			  char * ent) {
+static char * cfg_get_str(const char * sec, 
+			  const char * ent) {
   struct CFG_ENTRIES * e = NULL;
   int i;
   
@@ -245,8 +237,8 @@ static char * cfg_get_str(char * sec,
   return NULL;
 }
 
-static int cfg_get_signed_int(char *sec, 
-			      char *ent) {
+static int cfg_get_signed_int(const char *sec, 
+			      const char *ent) {
   char *val;
 
   val = cfg_get_str(sec, ent);    
@@ -283,7 +275,7 @@ static void doneParseConfig() {
 
 /**
  * Type for user-defined configuration entries.
- **/
+ */
 typedef struct UserConfStruct {
   char * section;
   char * option;
@@ -294,29 +286,29 @@ typedef struct UserConfStruct {
 
 /**
  * GNUnet configuration (OpenSSL datastructure)
- **/
+ */
 static int parseConfigInit = NO;
 
 /**
  * The filename of the config (for re-reading!)
- **/
+ */
 static char * configuration_filename = NULL;
 
 /**
  * Lock to access configuration (we may receive an
  * update signal at any time!)
- **/
+ */
 static Mutex configLock;
 
 /**
  * List of run-time options (not in the configuration
  * file, but for example from the command line).
- **/
+ */
 static UserConf * userconfig = NULL;
 
 /**
  * The command line strings (rest)
- **/ 
+ */ 
 static char ** values;
 static int valuesCount;
 
@@ -325,8 +317,8 @@ static int valuesCount;
  * "$FOO/BAR" to "DIRECTORY/BAR" where
  * either in the current section or
  * globally FOO is set to DIRECTORY.
- **/
-static char * expandDollar(char * section,
+ */
+static char * expandDollar(const char * section,
 			   char * orig) {
   int i;
   char * prefix;
@@ -375,9 +367,9 @@ static char * expandDollar(char * section,
  *
  * @return the specified filename (caller must free), or NULL if no
  * filename was specified and errMsg == NULL
- **/
-char * getFileName(char * section,
-		   char * option,
+ */
+char * getFileName(const char * section,
+		   const char * option,
 		   const char * errMsg) {
   char * fn;  
   char * fnExpand;
@@ -403,7 +395,7 @@ void generate_gnunet_conf(FILE * f);
 /**
  * Read the configuration file.  The previous configuration will be
  * discarded if this method is invoked twice.
- **/
+ */
 void readConfiguration() {
   /* getFileName aquires the mutex, so we better do this first */
   char * cfgName;
@@ -439,7 +431,7 @@ void readConfiguration() {
     FREE(c);
     /* try generating a configuration file */
     LOG(LOG_WARNING,
-	"WARNING: no configuration file found, trying to create one at %s\n",
+	_("Configuration file '%s' not found. I will try to create the default configuration file at that location.\n"),
 	expCfgName);
     f = FOPEN(expCfgName,
 	      "a+");
@@ -455,7 +447,7 @@ void readConfiguration() {
     }
   }
   if (0 == assertIsFile(expCfgName)) 
-    errexit("Cannot open configuration file %s\n",
+    errexit(_("Cannot open configuration file '%s'\n"),
 	    expCfgName); 
   FREENONNULL(cfgName);
 
@@ -471,7 +463,7 @@ void readConfiguration() {
     parseConfigInit = NO;
   }
   if (0 != cfg_parse_file(configuration_filename))
-    errexit("Bad configuration file %s.\n",
+    errexit("Failed to parse configuration file '%s'.\n",
 	    configuration_filename);
   parseConfigInit = YES;
   MUTEX_UNLOCK(&configLock);
@@ -486,8 +478,7 @@ static int cbCnt = 0;
  * as a cron-job or while cron is suspended, so it is safe
  * to edit (delete) cron jobs in the callback.
  */
-void registerConfigurationUpdateCallback
-(NotifyConfigurationUpdateCallback cb) {
+void registerConfigurationUpdateCallback(NotifyConfigurationUpdateCallback cb) {
   MUTEX_LOCK(&configLock);
   GROW(cbl,
        cbCnt,
@@ -496,23 +487,18 @@ void registerConfigurationUpdateCallback
   MUTEX_UNLOCK(&configLock);
 }
 
-void unregisterConfigurationUpdateCallback
-(NotifyConfigurationUpdateCallback cb) {
+void unregisterConfigurationUpdateCallback(NotifyConfigurationUpdateCallback cb) {
   int i;
   
   MUTEX_LOCK(&configLock);
   for (i=0;i<cbCnt;i++)
     if (cbl[i] == cb)
       break;
-  if (i < cbCnt) {
-    cbl[i] = cbl[cbCnt-1];
-    GROW(cbl,
-	 cbCnt,
-	 cbCnt-1);
-  } else 
-    LOG(LOG_WARNING,
-	"WARNING: unregisterConfigurationUpdateCallback called with handler %p which is not registered.\n",
-	(void*) cb);
+  GNUNET_ASSERT(i<cbCnt);
+  cbl[i] = cbl[cbCnt-1];
+  GROW(cbl,
+       cbCnt,
+       cbCnt-1);
   MUTEX_UNLOCK(&configLock);
 }
 
@@ -535,7 +521,7 @@ void triggerGlobalConfigurationRefresh() {
  * This method must be called first! It reads
  * the config file and makes everything else
  * possible.
- **/
+ */
 void initConfiguration() {
   MUTEX_CREATE_RECURSIVE(&configLock);
 }
@@ -544,7 +530,7 @@ void initConfiguration() {
  * This method may be called at last to clean up.
  * Afterwards everything but initConfiguration will result
  * in errors...
- **/
+ */
 void doneConfiguration() {
   parseConfigInit = NO;
   doneParseConfig();
@@ -568,15 +554,13 @@ void doneConfiguration() {
  * @param option which option, may not be NULL
  * @return a freshly allocated string, caller must free!
  *   Note that the result can be NULL if the option is not set.
- **/
-char * getConfigurationString(char * section,
-			      char * option) {
+ */
+char * getConfigurationString(const char * section,
+			      const char * option) {
   UserConf * pos;
   char * retval;
 
-  if ( (section == NULL) || 
-       (option == NULL) )
-    errexit("getConfigurationString called with section or option being NULL!\n");
+  GNUNET_ASSERT( (section != NULL) && (option != NULL) );
   MUTEX_LOCK(&configLock);
   pos = userconfig;
   while (pos != NULL) {
@@ -618,15 +602,13 @@ char * getConfigurationString(char * section,
  * @param option which option, may not be NULL
  * @param value the value to compare against
  * @return YES or NO
- **/
-int testConfigurationString(char * section,
-			    char * option,
+ */
+int testConfigurationString(const char * section,
+			    const char * option,
 			    const char * value) {
   char * c;
 
-  if ( (section == NULL) || 
-       (option == NULL) )
-    errexit("testConfigurationString called with section or option being NULL!\n");
+  GNUNET_ASSERT( (section != NULL) && (option != NULL) );
   c = getConfigurationString(section, option);
   if (c == NULL) {
     if (value == NULL)
@@ -654,14 +636,13 @@ int testConfigurationString(char * section,
  * @param section from which section, may not be NULL
  * @param option which option, may not be NULL
  * @return 0 if no option is specified
- **/
-unsigned int getConfigurationInt(char * section,
-				 char * option) {
+ */
+unsigned int getConfigurationInt(const char * section,
+				 const char * option) {
   UserConf * pos;
   unsigned int retval;
 
-  if ( (section == NULL) || (option == NULL) )
-    errexit("getConfigurationInt called with section or option being NULL!\n");
+  GNUNET_ASSERT( (section != NULL) && (option != NULL) );
   MUTEX_LOCK(&configLock);
   pos = userconfig;
   while (pos != NULL) {
@@ -687,17 +668,15 @@ unsigned int getConfigurationInt(char * section,
  * @param value the value to use, may be NULL
  * @return the previous value (or NULL if none),
  *     caller must free!
- **/
-char * setConfigurationString(char * section,
-			      char * option,
+ */
+char * setConfigurationString(const char * section,
+			      const char * option,
 			      const char * value) {
   UserConf * pos;
   UserConf * prev; 
   char * res;
 
-  if ( (section == NULL) ||
-       (option == NULL) )
-    errexit("setConfigurationString called with section or option being NULL!\n");
+  GNUNET_ASSERT( (section != NULL) && (option != NULL) );
   MUTEX_LOCK(&configLock);
   prev = NULL;
   pos = userconfig;
@@ -746,16 +725,15 @@ char * setConfigurationString(char * section,
  * @param option which option, may not be NULL
  * @param value the value to use
  * @return the previous value (or 0 if none)
- **/
-unsigned int setConfigurationInt(char * section,
-				 char * option,
+ */
+unsigned int setConfigurationInt(const char * section,
+				 const char * option,
 				 const unsigned int value) {
   UserConf * pos;
   UserConf * prev; 
   unsigned int res;
 
-  if ( (section == NULL) || (option == NULL) )
-    errexit("setConfigurationInt called with section or option being NULL!\n");
+  GNUNET_ASSERT( (section != NULL) && (option != NULL) );
   MUTEX_LOCK(&configLock);
   prev = NULL;
   pos = userconfig;
@@ -790,11 +768,12 @@ unsigned int setConfigurationInt(char * section,
 }
 
 /**
- * Get the command line strings (the ones
- * remaining after getopt-style parsing).
+ * Get the command line strings (the ones remaining after getopt-style
+ * parsing).
+ *
  * @param value the values
  + @return the number of values
- **/
+ */
 int getConfigurationStringList(char *** value) {
   char ** cpy;
   int i;
@@ -807,17 +786,16 @@ int getConfigurationStringList(char *** value) {
 }
 
 /**
- * Set the list of command line options (remainder
- * after getopt style parsing).
+ * Set the list of command line options (remainder after getopt style
+ * parsing).
+ *
  * @param value the values 
  + @param count the number of values
- **/
+ */
 void setConfigurationStringList(char ** value,
 				int count) {
   values = value;
   valuesCount = count;
 }
-
-
 
 /* end of configuration.c */

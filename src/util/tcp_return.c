@@ -26,7 +26,7 @@
  *
  * Helper methods to send and receive return values over a TCP stream
  * that has tcpio (see util/tcpio.c) semantics.
- **/
+ */
 
 #include "gnunet_util.h"
 #include "platform.h"
@@ -38,7 +38,7 @@
  * @param ret the return value from TCP
  * @return SYSERR on error, OK if the return value was read
  * successfully
- **/
+ */
 int readTCPResult(GNUNET_TCP_SOCKET * sock,
 		  int * ret) {
   CS_RETURN_VALUE * rv;
@@ -47,15 +47,15 @@ int readTCPResult(GNUNET_TCP_SOCKET * sock,
   if (SYSERR == readFromSocket(sock,
 			       (CS_HEADER **) &rv)) { 
     LOG(LOG_WARNING,
-	"WARNING: readTCPResult failed, server closed connection\n");
+	_("'%s' failed, other side closed connection.\n"),
+	__FUNCTION__);
     return SYSERR;
   }
   if ( (ntohs(rv->header.size) != sizeof(CS_RETURN_VALUE)) ||
        (ntohs(rv->header.tcpType) != CS_PROTO_RETURN_VALUE) ) {
     LOG(LOG_WARNING,
-	"WARNING: readTCPResult failed, reply invalid (%d, %d)\n",
-	ntohs(rv->header.size),
-	ntohs(rv->header.tcpType));
+	_("'%s' failed, reply invalid!\n"),
+	__FUNCTION__);
     FREE(rv);
     return SYSERR;
   }
@@ -71,7 +71,7 @@ int readTCPResult(GNUNET_TCP_SOCKET * sock,
  * @param ret the return value to send via TCP
  * @return SYSERR on error, OK if the return value was
  *         send successfully
- **/
+ */
 int sendTCPResult(GNUNET_TCP_SOCKET * sock,
 		  int ret) {
   CS_RETURN_VALUE rv;
@@ -90,10 +90,10 @@ int sendTCPResult(GNUNET_TCP_SOCKET * sock,
 /**
  * Obtain option from a peer.
  * @return NULL on error
- **/   
+ */   
 char * getConfigurationOptionValue(GNUNET_TCP_SOCKET * sock,
-				   char * section,
-				   char * option) {
+				   const char * section,
+				   const char * option) {
   CS_GET_OPTION_REQUEST req;
   CS_GET_OPTION_REPLY * reply;
   int res;

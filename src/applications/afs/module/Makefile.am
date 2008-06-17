@@ -4,28 +4,25 @@ bin_PROGRAMS = \
  gnunet-check \
  gnunet-convert
 
-check_PROGRAMS = \
- low_db_test \
- high_db_test 
-
-TESTS = \
- $(check_PROGRAMS)
-
 if HAVE_GDBM
 LIB_GDBM = libgnunetafs_database_gdbm.la 
+TEST_GDBM = low_db_test_gdbm high_db_test_gdbm
 else
 LIB_GDBM =
 XGDBM =
 endif
 
+
 if HAVE_TDB
 LIB_TDB = libgnunetafs_database_tdb.la
+TEST_TDB = low_db_test_tdb high_db_test_tdb
 else
 LIB_TDB =
 endif
 
 if HAVE_MYSQL
 LIB_MYSQL = libgnunetafs_database_mysql.la
+TEST_MYSQL = high_db_test_mysql
 else
 LIB_MYSQL =
 XMYSQL = 
@@ -33,6 +30,7 @@ endif
 
 if HAVE_DIRECTORY
 LIB_DIRECTORY = libgnunetafs_database_directory.la
+TEST_DIRECTORY = low_db_test_directory high_db_test_directory
 else
 LIB_DIRECTORY =
 XDIR = 
@@ -40,6 +38,7 @@ endif
 
 if HAVE_BDB
 LIB_BDB = libgnunetafs_database_bdb.la
+TEST_BDB = low_db_test_bdb high_db_test_bdb
 else
 LIB_BDB =
 XBDB =
@@ -88,6 +87,12 @@ libgnunetafs_protocol_la_LIBADD = \
   $(top_builddir)/src/util/libgnunetutil.la 
 
 
+if HAVE_BDB_DLL
+  BDB_LDFLAGS =
+else
+  BDB_LDFLAGS = -ldb
+endif
+
 libgnunetafs_database_bdb_la_SOURCES = \
   high_simple.c \
   high_simple_helper.c \
@@ -97,7 +102,7 @@ libgnunetafs_database_bdb_la_LIBADD = \
  $(top_builddir)/src/util/libgnunetutil.la  
 
 libgnunetafs_database_bdb_la_LDFLAGS = \
- -export-dynamic -avoid-version -module -ldb
+ -export-dynamic -avoid-version -module $(BDB_LDFLAGS)
 
 
 libgnunetafs_database_directory_la_SOURCES = \
@@ -130,8 +135,13 @@ libgnunetafs_database_mysql_la_SOURCES = \
 libgnunetafs_database_mysql_la_LIBADD = \
  $(top_builddir)/src/util/libgnunetutil.la  
 
+if HAVE_ZLIB
 libgnunetafs_database_mysql_la_LDFLAGS = \
- -export-dynamic -avoid-version -module -lmysqlclient
+ -export-dynamic -avoid-version -module -lmysqlclient -lz
+else
+libgnunetafs_database_mysql_la_LDFLAGS = \
+ -export-dynamic -avoid-version -module -lmysqlclient 
+endif
 
 
 libgnunetafs_database_tdb_la_SOURCES = \
@@ -161,14 +171,74 @@ gnunet_convert_LDADD = \
   $(top_builddir)/src/util/libgnunetutil.la
 
 
-low_db_test_SOURCES = \
+check_PROGRAMS = \
+ $(TEST_GDBM) $(TEST_TDB) $(TEST_MYSQL) $(TEST_DIRECTORY) $(TEST_BDB)
+
+TESTS = \
+ $(check_PROGRAMS)
+
+
+low_db_test_gdbm_SOURCES = \
  low_db_test.c
-
-low_db_test_LDADD    = \
+low_db_test_gdbm_LDADD    = \
  $(top_builddir)/src/util/libgnunetutil.la  
+low_db_test_gdbm_CFLAGS = \
+ -DDBSELECT="\"gdbm\""
 
-high_db_test_SOURCES = \
+low_db_test_directory_SOURCES = \
+ low_db_test.c
+low_db_test_directory_LDADD    = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+low_db_test_directory_CFLAGS = \
+ -DDBSELECT="\"directory\""
+
+low_db_test_bdb_SOURCES = \
+ low_db_test.c
+low_db_test_bdb_LDADD    = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+low_db_test_bdb_CFLAGS = \
+ -DDBSELECT="\"bdb\""
+
+low_db_test_tdb_SOURCES = \
+ low_db_test.c
+low_db_test_tdb_LDADD    = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+low_db_test_tdb_CFLAGS = \
+ -DDBSELECT="\"tdb\""
+
+
+high_db_test_gdbm_SOURCES = \
  high_db_test.c
-
-high_db_test_LDADD    = \
+high_db_test_gdbm_LDADD    = \
  $(top_builddir)/src/util/libgnunetutil.la  
+high_db_test_gdbm_CFLAGS = \
+ -DDBSELECT="\"gdbm\""
+
+high_db_test_directory_SOURCES = \
+ high_db_test.c
+high_db_test_directory_LDADD    = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+high_db_test_directory_CFLAGS = \
+ -DDBSELECT="\"directory\""
+
+high_db_test_tdb_SOURCES = \
+ high_db_test.c
+high_db_test_tdb_LDADD    = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+high_db_test_tdb_CFLAGS = \
+ -DDBSELECT="\"tdb\""
+
+high_db_test_bdb_SOURCES = \
+ high_db_test.c
+high_db_test_bdb_LDADD    = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+high_db_test_bdb_CFLAGS = \
+ -DDBSELECT="\"bdb\""
+
+high_db_test_mysql_SOURCES = \
+ high_db_test.c
+high_db_test_mysql_LDADD    = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+high_db_test_mysql_CFLAGS = \
+ -DDBSELECT="\"mysql\""
+

@@ -34,7 +34,7 @@
  * to store the data.  Note that state does not do any locking,
  * and that it in particular can not do any locking for us since 
  * it is IPC!
- **/
+ */
 
 #include "gnunet_afs_esed2.h"
 #include "platform.h"
@@ -46,10 +46,13 @@ static IPC_Semaphore * createIPC() {
   char * tmpname;
   char * ipcName;
   IPC_Semaphore * sem;
+  size_t n;
+
   basename = getConfigurationString("",
 				    "GNUNET_HOME");
-  tmpname = MALLOC(strlen(basename) + 512);
-  sprintf(tmpname, "%s/directory_ipc_lock", basename);
+  n = strlen(basename) + 512;
+  tmpname = MALLOC(n);
+  SNPRINTF(tmpname, n, "%s/directory_ipc_lock", basename);
   ipcName = expandFileName(tmpname);
   FREE(basename);
   FREE(tmpname);
@@ -73,8 +76,8 @@ static IPC_Semaphore * createIPC() {
  * 
  * @param root the file identifier that was encountered
  * @param context the context in which the identifier was encountered
- **/
-void makeRootNodeAvailable(RootNode * root,
+ */
+void makeRootNodeAvailable(const RootNode * root,
 			   unsigned int context) {
   IPC_Semaphore * sem;
   char name[32];
@@ -85,12 +88,13 @@ void makeRootNodeAvailable(RootNode * root,
 				"COLLECT-FILE-IDENTIFIERS",
 				"YES") ) {
     LOG(LOG_DEBUG,
-	"DEBUG: collecting file identifiers disabled.\n");
+	"Collecting file identifiers disabled by configuration.\n");
     return;
   }
-  sprintf(name, 
-	  STATE_NAME,
-	  context);
+  SNPRINTF(name, 
+	   32,
+	   STATE_NAME,
+	   context);
   sem = createIPC();
   IPC_SEMAPHORE_DOWN(sem); 
   result = NULL;
@@ -125,7 +129,7 @@ void makeRootNodeAvailable(RootNode * root,
  * from the directory database.
  *
  * @param contexts context bitmask of the databases that should be emptied.
- **/ 
+ */ 
 void emptyDirectoryDatabase(unsigned int contexts) {
   IPC_Semaphore * sem;
   unsigned int i;
@@ -138,9 +142,10 @@ void emptyDirectoryDatabase(unsigned int contexts) {
     if ((contexts & i) > 0) {
       contexts -= i;
 
-      sprintf(name, 
-	      STATE_NAME,
-	      i);
+      SNPRINTF(name, 
+	       32,
+	       STATE_NAME,
+	       i);
       stateUnlinkFromDB(name);
     }
     i*=2;
@@ -157,7 +162,7 @@ void emptyDirectoryDatabase(unsigned int contexts) {
  * @param callback function to call on each entry, may be NULL
  * @param closure extra argument to the callback
  * @return number of entries found
- **/
+ */
 int iterateDirectoryDatabase(unsigned int contexts,
 			     RootNodeCallback callback,
 			     void * closure) {
@@ -174,9 +179,10 @@ int iterateDirectoryDatabase(unsigned int contexts,
   while (contexts > 0) {
     if ((contexts & i) > 0) {
       contexts -= i;
-      sprintf(name, 
-	      STATE_NAME,
-	      i);
+      SNPRINTF(name, 
+	       32,
+	       STATE_NAME,
+	       i);
       ret = stateReadContent(name, &result);
       if (ret > 0) {
 	/* if size is not a multiple of the RootNode
@@ -211,12 +217,14 @@ int iterateDirectoryDatabase(unsigned int contexts,
  * @param name what is the name of the directory
  * @param entries the entries in the directory
  * @return the directory
- **/
+ */
 GNUnetDirectory * buildDirectory(int numberOfEntries,
-				 char * name,
-				 RootNode * entries) {
+				 const char * nameConst,
+				 const RootNode * entries) {
   GNUnetDirectory * result;
+  char * name;
 
+  name = STRDUP(nameConst);
   result = MALLOC(sizeof(GNUnetDirectory)+numberOfEntries*sizeof(RootNode));
   memset(result,
 	 0,
@@ -231,9 +239,9 @@ GNUnetDirectory * buildDirectory(int numberOfEntries,
     tmp = MALLOC(strlen(name)+2);
     strcpy(tmp, name);
     strcat(tmp, "/");
+    FREE(name);
     name = tmp;
-  } else
-    name = STRDUP(name);
+  }
   if (strlen(name) > MAX_DESC_LEN-1)
     name[MAX_DESC_LEN-1] = 0;
   memcpy(&result->description[0],
@@ -252,9 +260,9 @@ GNUnetDirectory * buildDirectory(int numberOfEntries,
  * @param dir the directory
  * @param fn the filename
  * @return OK on success, SYSERR on error
- **/
-int writeGNUnetDirectory(GNUnetDirectory * dir,
-			 char * fn) {
+ */
+int writeGNUnetDirectory(const GNUnetDirectory * dir,
+			 const char * fn) {
   int size;
 
   size = sizeof(GNUnetDirectory) + 
@@ -268,8 +276,8 @@ int writeGNUnetDirectory(GNUnetDirectory * dir,
  * 
  * @param fn the filename
  * @return the directory on success, NULL on error
- **/
-GNUnetDirectory * readGNUnetDirectory(char * fn) {
+ */
+GNUnetDirectory * readGNUnetDirectory(const char * fn) {
   unsigned int size;
   GNUnetDirectory * result;
   
@@ -300,17 +308,12 @@ GNUnetDirectory * readGNUnetDirectory(char * fn) {
  *
  * @param dn the directory name (string)
  * @return the converted name on success, caller must free
- **/
-char * expandDirectoryName(char * dn) {
+ */
+char * expandDirectoryName(const char * dn) {
   char * newName;
   unsigned int len;
  
-  if (dn == NULL) {
-    LOG(LOG_FAILURE, 
-        "FAILURE: expandDirectoryName called with dir=NULL\n");
-    return NULL;
-  }
-
+  GNUNET_ASSERT(dn != NULL);
   len = strlen(dn);
   newName = MALLOC(len+strlen(GNUNET_DIRECTORY_EXT)+4);
   strcpy(newName, dn);

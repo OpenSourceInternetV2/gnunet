@@ -24,7 +24,7 @@
  *
  * @author Christian Grothoff
  * @file applications/chat/chat.c
- **/
+ */
 
 #include "chat.h"
 #include "platform.h"
@@ -48,8 +48,8 @@ static void markSeen(HashCode160 * hc) {
 	 sizeof(HashCode160));
 }
 
-static int handleChatMSG(HostIdentity * sender,
-			 p2p_HEADER * message) {
+static int handleChatMSG(const HostIdentity * sender,
+			 const p2p_HEADER * message) {
   int i;
   int j;
   CHAT_CS_MESSAGE * cmsg;
@@ -58,7 +58,7 @@ static int handleChatMSG(HostIdentity * sender,
 
   if (ntohs(message->size) != sizeof(CHAT_p2p_MESSAGE)) {
     LOG(LOG_WARNING,
-	"WARNING: message received from peer is invalid.\n");
+	" message received from peer is invalid.\n");
     return SYSERR;
   }
   pmsg = (CHAT_p2p_MESSAGE*)message;
@@ -85,7 +85,7 @@ static int handleChatMSG(HostIdentity * sender,
     pmsg->message[CHAT_MSG_LENGTH-1] = '\0';
     /*
     LOG(LOG_DEBUG,
-	"DEBUG: CHAT: received new message from %s: %s\n",
+	" CHAT: received new message from %s: %s\n",
 	&pmsg->nick[0],
 	&pmsg->message[0]);
     */
@@ -95,7 +95,7 @@ static int handleChatMSG(HostIdentity * sender,
 }
 
 static void csHandleChatRequest(ClientHandle client,
-				CS_HEADER * message) {
+				const CS_HEADER * message) {
   int i;
   int j;
   CHAT_CS_MESSAGE * cmsg;
@@ -104,7 +104,7 @@ static void csHandleChatRequest(ClientHandle client,
 
   if (ntohs(message->size) != sizeof(CHAT_CS_MESSAGE)) {
     LOG(LOG_WARNING,
-	"WARNING: message received from client is invalid\n");
+	" message received from client is invalid\n");
     return; /* invalid message */
   }
   pmsg = (CHAT_p2p_MESSAGE*)message;
@@ -126,11 +126,11 @@ static void csHandleChatRequest(ClientHandle client,
   if (j == -1) {
     if (clientCount == MAX_CLIENTS)
       LOG(LOG_WARNING,
-	  "WARNING: maximum number of chat clients reached\n");
+	  " maximum number of chat clients reached\n");
     else {
       clients[clientCount++] = client;
       LOG(LOG_DEBUG,
-	  "DEBUG: now %d of %d chat clients at this node\n",
+	  " now %d of %d chat clients at this node\n",
 	  clientCount, MAX_CLIENTS);
     }
   }
@@ -145,7 +145,7 @@ static void chatClientExitHandler(ClientHandle client) {
   for (i=0;i<clientCount;i++)
     if (clients[i] == client) {
       LOG(LOG_DEBUG,
-	  "DEBUG: Chat client exits.\n");
+	  " Chat client exits.\n");
       clients[i] = clients[--clientCount];
       break;
     }
@@ -156,7 +156,7 @@ static void chatClientExitHandler(ClientHandle client) {
  * Initialize the AFS module. This method name must match
  * the library name (libgnunet_XXX => initialize_XXX).
  * @return SYSERR on errors
- **/
+ */
 int initialize_chat_protocol(CoreAPIForApplication * capi) {
   int ok = OK;
 
@@ -171,7 +171,7 @@ int initialize_chat_protocol(CoreAPIForApplication * capi) {
   clientCount = 0;
   coreAPI = capi;
   LOG(LOG_DEBUG,
-      "DEBUG: CHAT registering handlers %d and %d\n",
+      " CHAT registering handlers %d and %d\n",
       CHAT_p2p_PROTO_MSG,
       CHAT_CS_PROTO_MSG);
 

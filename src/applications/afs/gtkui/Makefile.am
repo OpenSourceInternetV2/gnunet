@@ -1,39 +1,26 @@
 INCLUDES = -I$(top_srcdir)/src/include
 
+
+
 LDADD = \
   $(top_builddir)/src/applications/afs/esed2/libgnunet_afs_esed2.la \
   $(top_builddir)/src/util/libgnunetutil.la
 
-if CYGWIN
- CYGFLAGS = -I/usr/include/gtk-2.0/ -I/usr/lib/gtk-2.0/include \
-  -I/usr/include/glib-2.0/ -I/usr/lib/glib-2.0/include/ \
-  -I/usr/include/pango-1.0 -I/usr/include/atk-1.0
-endif
-
-if MINGW
- MINGWFLAGS = -I/mingw/include -I/mingw/lib/gtk+/include \
-  -I/mingw/include/glib-2.0/ -I/mingw/lib/glib-2.0/include/ \
-  -I/mingw/include/pango-1.0 -I/mingw/include/atk-1.0 \
-  -mms-bitfields
-endif
-
-AM_CFLAGS = $(CYGFLAGS) $(MINGWFLAGS) $(GTK_CFLAGS)
+AM_CFLAGS = $(GTK_CFLAGS)
 
 bin_PROGRAMS = \
   gnunet-gtk
 
-if CYGWIN
- CYGLDADD = \
-   -lgtk-win32-2.0 -lgdk-win32-2.0 -lglib-2.0 -lgobject-2.0 -lgthread-2.0 
-endif
+pkgdata_DATA = \
+  gnunet_logo.png
 
-if MINGW
- MINGWLDADD = \
-  -lgtk-0 -lgdk-0 -lglib-2.0 -lcomdlg32 \
-  @EXT_LIB_PATH@ $(LDADD) @EXT_LIBS@
-endif
+DEFS = -DDATADIR=\"$(pkgdatadir)\" @DEFS@
 
-gnunet_gtk_LDADD = $(CYGLDADD) $(MINGWLDADD) $(GTK_LIBS) $(GLIB_LIBS) @EXT_LIB_PATH@ $(LDADD) @EXT_LIBS@
+EXTRA_DIST = \
+  gnunet_logo.png
+
+gnunet_gtk_LDADD = \
+  $(GTK_LIBS) @EXT_LIB_PATH@ $(LDADD) @EXT_LIBS@ -lgthread-2.0
 
 gnunet_gtk_SOURCES = \
   main.c \
@@ -41,6 +28,8 @@ gnunet_gtk_SOURCES = \
   saveas.c  \
   download.c \
   directory.c \
+  gtk26about.c \
+  gtk26about.h \
   pseudonyms.c \
   namespace.c \
   helper.c \

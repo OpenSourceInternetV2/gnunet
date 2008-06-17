@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -25,32 +25,32 @@
  * @file server/pingpong.h
  * @brief Pings a host and triggers an action if a reply is received.
  * @author Christian Grothoff
- **/
+ */
 
 /**
  * Initialize the pingpong module.
- **/
+ */
 void initPingPong();
 
 /**
  * Shutdown the pingpong module.
- **/
+ */
 void donePingPong();
 
 /**
  * We received a PING message, send the PONG reply and notify the
  * connection module that the session is still life.
- **/	
-int plaintextPingReceived(HostIdentity * sender,
+ */	
+int plaintextPingReceived(const HostIdentity * sender,
 			  TSession * tsession,
-			  p2p_HEADER * msg);
+			  const p2p_HEADER * msg);
 
 /**
  * Handler for a pong.
- **/ 	
-int plaintextPongReceived(HostIdentity * sender,
+ */ 	
+int plaintextPongReceived(const HostIdentity * sender,
 			  TSession * tsession,
-			  p2p_HEADER * msg);
+			  const p2p_HEADER * msg);
 
 /**
  * Ping a host an call a method if a reply comes back.
@@ -60,8 +60,8 @@ int plaintextPongReceived(HostIdentity * sender,
  * @param pmsg the ping-message, pingAction just fills it in,
  *        the caller is responsbile for sending it!
  * @returns OK on success, SYSERR on error
- **/
-int pingAction(HostIdentity * receiver,
+ */
+int pingAction(const HostIdentity * receiver,
 	       CronJob method,
 	       void * data,
 	       PINGPONG_Message * pmsg);

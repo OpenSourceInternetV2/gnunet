@@ -21,20 +21,20 @@
  * @file applications/afs/esed2/pseudonym.c
  * @brief functions for handling pseudonyms
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_afs_esed2.h"
 #include "platform.h"
 
 #define PSEUDODIR "data/pseudonyms/"
 
-static char * getPseudonymFileName(char * name) {
+static char * getPseudonymFileName(const char * name) {
   char * gnHome;
   char * fileName;
   
   gnHome = getFileName("",
                        "GNUNET_HOME",
-                       "Configuration file must specify a directory for GNUnet to store per-peer data under %s%s\n");
+                       _("Configuration file must specify a directory for GNUnet to store per-peer data under %s%s.\n"));
   fileName = MALLOC(strlen(gnHome) + strlen(PSEUDODIR) + strlen(name) + 2);
   strcpy(fileName, gnHome);
   FREE(gnHome);
@@ -51,9 +51,9 @@ static char * getPseudonymFileName(char * name) {
  * @param name the name of the pseudonym
  * @param password passphrase to encrypt the pseudonym on disk (may be NULL)
  * @return NULL on error (e.g. pseudonym exists), otherwise the secret key
- **/
-Hostkey createPseudonym(char * name,
-			char * password) {
+ */
+Hostkey createPseudonym(const char * name,
+			const char * password) {
   char * fileName;
   char tmp;
   Hostkey hk;
@@ -64,7 +64,7 @@ Hostkey createPseudonym(char * name,
   fileName = getPseudonymFileName(name);
   if (1 == readFile(fileName, 1, &tmp)) {
     LOG(LOG_WARNING,
-	"WARNING: can not create pseudonym %s, file %s exists.\n",
+	_("Cannot create pseudonym '%s', file '%s' exists.\n"),
 	name,
 	fileName);
     FREE(fileName);
@@ -115,16 +115,13 @@ Hostkey createPseudonym(char * name,
  * 
  * @param name the name of the pseudonym
  * @return OK on success, SYSERR on error
- **/
-int deletePseudonym(char * name) {
+ */
+int deletePseudonym(const char * name) {
   char * fileName;
 
   fileName = getPseudonymFileName(name);
   if (0 != UNLINK(fileName)) {
-    LOG(LOG_WARNING,
-	"WARNING: could not unlink %s: %s\n",
-	fileName,
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_WARNING, "unlink", fileName);
     FREE(fileName);
     return SYSERR;
   } else {
@@ -139,9 +136,9 @@ int deletePseudonym(char * name) {
  * @param name the name of the pseudonym
  * @param password passphrase to encrypt the pseudonym on disk (may be NULL)
  * @return NULL on error (e.g. password invalid, pseudonym does not exist), otherwise the secret key
- **/
-Hostkey readPseudonym(char * name,
-		      char * password) {
+ */
+Hostkey readPseudonym(const char * name,
+		      const char * password) {
   char * fileName;
   Hostkey hk;
   HostKeyEncoded * hke;
@@ -152,7 +149,7 @@ Hostkey readPseudonym(char * name,
   len = getFileSize(fileName);
   if (len < 2) {
     LOG(LOG_WARNING,
-	"WARNING: file %s does not contain pseudonym.\n",
+	_("File '%s' does not contain a pseudonym.\n"),
 	fileName);
     FREE(fileName);
     return NULL;
@@ -181,7 +178,7 @@ Hostkey readPseudonym(char * name,
 			    hke)) {
       FREE(dst);
       LOG(LOG_WARNING,
-	  "WARNING: decrypting pseudonym failed\n");
+	  _("Decrypting pseudonym failed.\n"));
       return NULL;
     }
     FREE(dst);
@@ -190,8 +187,8 @@ Hostkey readPseudonym(char * name,
   if ( ntohs(hke->len) != len ) {
     /* wrong PW happens A LOT, thus don't always
        print this warning! */
-    LOG(LOG_EVERYTHING,
-	"EVERYTHING: pseudonym format for %s invalid. Wrong password?\n",
+    LOG(LOG_INFO,
+	_("Format of pseudonym '%s' is invalid. Wrong password?\n"),
 	name);
     FREE(hke);
     return NULL;
@@ -200,6 +197,7 @@ Hostkey readPseudonym(char * name,
   FREE(hke);
   return hk;
 }
+
 
 typedef struct {
   int pos;
@@ -218,71 +216,11 @@ static void addFile_(char * filename,
   theList->list[theList->pos++] = STRDUP(filename);
 }
 
-#define NS_HANDLE "known_namespaces"
-
-/**
- * Build a list of all known namespaces.
- *
- * @param list where to store the names of the namespaces
- * @return SYSERR on error, otherwise the number of known namespaces
- */
-int listNamespaces(HashCode160 ** list) {
-  int ret;
-
-  ret = stateReadContent(NS_HANDLE,
-			 (void**)list);
-  if (ret <= 0)
-    return SYSERR;
-  if ( (ret % sizeof(HashCode160)) != 0) {
-    FREE(list);
-    stateUnlinkFromDB(NS_HANDLE);
-    return SYSERR;
-  }
-  return ret / sizeof(HashCode160);
-}
-
-/**
- * Add a namespace to the set of known namespaces.
- * 
- * @param ns the namespace identifier
- */
-void addNamespace(HashCode160 * ns) {
-  HashCode160 * list;
-  int ret;
-  unsigned int i;
-
-  list = NULL;
-  ret = stateReadContent(NS_HANDLE,
-			 (void**)&list);
-  if (ret > 0) {
-    if ( (ret % sizeof(HashCode160)) != 0) {
-      FREE(list);
-      LOG(LOG_WARNING,
-	  "WARNING: state DB %s corrupt, deleting contents.\n",
-	  NS_HANDLE);
-      stateUnlinkFromDB(NS_HANDLE);
-    } else {
-      for (i=0;i<ret/sizeof(HashCode160);i++) {
-	if (equalsHashCode160(ns,
-			      &list[i])) {
-	  FREE(list);
-	  return; /* seen before */
-	}
-      }
-      FREE(list);
-    }
-  }
-
-  stateAppendContent(NS_HANDLE,
-		     sizeof(HashCode160),
-		     ns);
-}
-
 /**
  * Test if we have any pseudonyms.
  *
  * @return YES if we do have pseudonyms, otherwise NO.
- **/
+ */
 int havePseudonyms() {
   int ret;
   char * dirName;
@@ -303,7 +241,7 @@ int havePseudonyms() {
  *
  * @param list where to store the pseudonyms (is allocated, caller frees)
  * @return SYSERR on error, otherwise the number of pseudonyms in list
- **/
+ */
 int listPseudonyms(char *** list) {
   int cnt;
   PList_ myList;

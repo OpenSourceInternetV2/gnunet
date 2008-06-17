@@ -24,9 +24,10 @@
  * @author Ioana Patrascu
  * 
  * Encryption and decryption of blocks for deniability.
- **/
+ */
 
 #include "gnunet_afs_esed2.h"
+#include "platform.h"
 
 /**
  * Encrypts a given data block
@@ -36,20 +37,14 @@
  *        value used in the alg
  * @param result where to store the result (encrypted block)
  * @returns OK on success, SYSERR on error
- **/
-int encryptContent(CONTENT_Block * data,
-		   HashCode160 * hashcode,
+ */
+int encryptContent(const CONTENT_Block * data,
+		   const HashCode160 * hashcode,
 		   CONTENT_Block * result){
   SESSIONKEY skey;
   unsigned char iv[BLOWFISH_BLOCK_LENGTH];  /* initial value */
 
-  if ( (data == NULL) || 
-       (hashcode == NULL) || 
-       (result == NULL) ) {
-    LOG(LOG_WARNING, 
-	"WARNING: Aborting encryptContent: NULL in arguments.\n");
-    return SYSERR;
-  }
+  GNUNET_ASSERT((data!=NULL) && (hashcode != NULL) && (result != NULL));
   /* get key and init value from the hash code */
   hashToKey(hashcode,
 	    &skey,
@@ -69,20 +64,14 @@ int encryptContent(CONTENT_Block * data,
  *        value used in the alg
  * @param result where to store the result (encrypted block)
  * @returns OK on success, SYSERR on error
- **/
-int decryptContent(CONTENT_Block * data,
-		   HashCode160 * hashcode,
+ */
+int decryptContent(const CONTENT_Block * data,
+		   const HashCode160 * hashcode,
 		   CONTENT_Block * result){
   unsigned char iv[BLOWFISH_BLOCK_LENGTH]; /* initial value */
   SESSIONKEY skey;
 
-  if ( (data == NULL) || 
-       (hashcode == NULL) || 
-       (result == NULL) ) {
-    LOG(LOG_WARNING, 
-	"WARNING: Aborting decrypt content: NULL in arguments.\n");
-    return SYSERR;
-  }
+  GNUNET_ASSERT((data!=NULL) && (hashcode != NULL) && (result != NULL));
   /* get key and init value from the hash code */
   hashToKey(hashcode,
 	    &skey,

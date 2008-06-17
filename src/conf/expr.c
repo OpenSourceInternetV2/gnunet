@@ -8,7 +8,7 @@
  * @file conf/expr.c 
  * @author Roman Zippel
  * @author Nils Durner
- **/
+ */
 
 #include <stdio.h>
 #include <stdlib.h>

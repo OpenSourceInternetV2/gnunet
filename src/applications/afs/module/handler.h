@@ -22,7 +22,7 @@
  * @file applications/afs/module/handler.h
  * @brief Handlers for AFS related messages (CS and p2p).
  * @author Christian Grothoff
- **/
+ */
 #ifndef AFS_HANDLER_H
 #define AFS_HANDLER_H
 
@@ -33,15 +33,15 @@
  * with the statistics module.
  *
  * @return OK on success, SYSERR on failure
- **/
+ */
 int initAFSHandler();
 
 /**
  * Handle query for content. Depending on how we like
  * the sender, lookup or even forward.
- **/
-int handleQUERY(HostIdentity * sender, 
-		 p2p_HEADER * msg);
+ */
+int handleQUERY(const HostIdentity * sender, 
+		const p2p_HEADER * msg);
 
 /**
  * Receive content, do something with it!  There are 3 basic
@@ -50,9 +50,9 @@ int handleQUERY(HostIdentity * sender,
  * another node and we forwarded the request (and thus we now have to
  * fwd the reply) or 3rd somebody just send us some content we did NOT
  * ask for - and we can choose to store it or just discard it.  <p>
- **/
-int handle3HASH_CONTENT(HostIdentity * sender,
-			p2p_HEADER * msg);
+ */
+int handle3HASH_CONTENT(const HostIdentity * sender,
+			const p2p_HEADER * msg);
 
 /**
  * Receive CHK content, do something with it!  There are 3 basic
@@ -61,107 +61,107 @@ int handle3HASH_CONTENT(HostIdentity * sender,
  * another node and we forwarded the request (and thus we now have to
  * fwd the reply) or 3rd somebody just send us some content we did NOT
  * ask for - and we can choose to store it or just discard it.
- **/
-int handleCHK_CONTENT(HostIdentity * sender,
-		      p2p_HEADER * msg);
+ */
+int handleCHK_CONTENT(const HostIdentity * sender,
+		      const p2p_HEADER * msg);
 
 /**
  * Process a query from the client. Forwards to the network.
  * @return SYSERR if the TCP connection should be closed, otherwise OK
- **/ 
-int csHandleRequestQuery(GNUNET_TCP_SOCKET * sock,
-			 AFS_CS_QUERY * queryRequest);
+ */ 
+int csHandleRequestQuery(ClientHandle sock,
+			 const AFS_CS_QUERY * queryRequest);
 
 /**
  * Process a request to insert content from the client.
  * @return SYSERR if the TCP connection should be closed, otherwise OK
- **/
-int csHandleRequestInsertCHK(GNUNET_TCP_SOCKET * sock,
-			     AFS_CS_INSERT_CHK * insertRequest);
+ */
+int csHandleRequestInsertCHK(ClientHandle sock,
+			     const AFS_CS_INSERT_CHK * insertRequest);
 
 /**
  * Process a request to insert content from the client.
  * @return SYSERR if the TCP connection should be closed, otherwise OK
- **/
-int csHandleRequestInsert3HASH(GNUNET_TCP_SOCKET * sock,
-			       AFS_CS_INSERT_3HASH * insertRequest);
+ */
+int csHandleRequestInsert3HASH(ClientHandle sock,
+			       const AFS_CS_INSERT_3HASH * insertRequest);
 
 /**
  * Process a request to index content from the client.
  * @return SYSERR if the TCP connection should be closed, otherwise OK
- **/
-int csHandleRequestIndexBlock(GNUNET_TCP_SOCKET * sock,
-			      AFS_CS_INDEX_BLOCK * indexingRequest);
+ */
+int csHandleRequestIndexBlock(ClientHandle sock,
+			      const AFS_CS_INDEX_BLOCK * indexingRequest);
 /**
  * Process a query to list a file as on-demand encoded from the client.
  * @return SYSERR if the TCP connection should be closed, otherwise OK
- **/
-int csHandleRequestIndexFile(GNUNET_TCP_SOCKET * sock,
-			     AFS_CS_INDEX_FILE * listFileRequest);
+ */
+int csHandleRequestIndexFile(ClientHandle sock,
+			     const AFS_CS_INDEX_FILE * listFileRequest);
 
 /**
  * Process a client request to extend our super-query bloom
  * filter.
- **/
-int csHandleRequestIndexSuper(GNUNET_TCP_SOCKET * sock,
-			      AFS_CS_INDEX_SUPER * superIndexRequest);
+ */
+int csHandleRequestIndexSuper(ClientHandle sock,
+			      const AFS_CS_INDEX_SUPER * superIndexRequest);
 
 /**
  * Process a request to insert content from the client.
  * @return SYSERR if the TCP connection should be closed, otherwise OK
- **/
-int csHandleRequestDeleteCHK(GNUNET_TCP_SOCKET * sock,
-			     AFS_CS_INSERT_CHK * insertRequest);
+ */
+int csHandleRequestDeleteCHK(ClientHandle sock,
+			     const AFS_CS_INSERT_CHK * insertRequest);
 
 /**
  * Process a request to insert content from the client.
  * @return SYSERR if the TCP connection should be closed, otherwise OK
- **/
-int csHandleRequestDelete3HASH(GNUNET_TCP_SOCKET * sock,
-			       AFS_CS_INSERT_3HASH * insertRequest);
+ */
+int csHandleRequestDelete3HASH(ClientHandle sock,
+			       const AFS_CS_INSERT_3HASH * insertRequest);
 
 /**
  * Process a request to index content from the client.
  * @return SYSERR if the TCP connection should be closed, otherwise OK
- **/
-int csHandleRequestUnindexBlock(GNUNET_TCP_SOCKET * sock,
-				AFS_CS_INDEX_BLOCK * indexingRequest);
+ */
+int csHandleRequestUnindexBlock(ClientHandle sock,
+				const AFS_CS_INDEX_BLOCK * indexingRequest);
 /**
  * Process a query to list a file as on-demand encoded from the client.
  * @return SYSERR if the TCP connection should be closed, otherwise OK
- **/
-int csHandleRequestUnindexFile(GNUNET_TCP_SOCKET * sock,
-			       AFS_CS_INDEX_FILE * listFileRequest);
+ */
+int csHandleRequestUnindexFile(ClientHandle sock,
+			       const AFS_CS_INDEX_FILE * listFileRequest);
 
 /**
  * Process a client request to extend our super-query bloom
  * filter.
- **/
-int csHandleRequestUnindexSuper(GNUNET_TCP_SOCKET * sock,
-				AFS_CS_INDEX_SUPER * superIndexRequest);
+ */
+int csHandleRequestUnindexSuper(ClientHandle sock,
+				const AFS_CS_INDEX_SUPER * superIndexRequest);
 
 /**
  * Process a client request to upload a file (indexing).
- **/
-int csHandleRequestUploadFile(GNUNET_TCP_SOCKET * sock,
-			      AFS_CS_UPLOAD_FILE * uploadRequest);
+ */
+int csHandleRequestUploadFile(ClientHandle sock,
+			      const AFS_CS_UPLOAD_FILE * uploadRequest);
 
 /* ************* namespace specific handlers ******** */
 
-int csHandleRequestInsertSBlock(GNUNET_TCP_SOCKET * sock,
-				AFS_CS_INSERT_SBLOCK * insertRequest);
+int csHandleRequestInsertSBlock(ClientHandle sock,
+				const AFS_CS_INSERT_SBLOCK * insertRequest);
 
-int csHandleRequestNSQuery(GNUNET_TCP_SOCKET * sock,
-			   AFS_CS_NSQUERY * queryRequest);
+int csHandleRequestNSQuery(ClientHandle sock,
+			   const AFS_CS_NSQUERY * queryRequest);
 
 int csHandleRequestLinkFile(ClientHandle sock,
-			    AFS_CS_LINK_FILE * linkFileRequest);
+			    const AFS_CS_LINK_FILE * linkFileRequest);
 
-int handleNSQUERY(HostIdentity * sender,
-		  p2p_HEADER * msg);
+int handleNSQUERY(const HostIdentity * sender,
+		  const p2p_HEADER * msg);
 
-int handleSBLOCK_CONTENT(HostIdentity * sender, 
-			 p2p_HEADER * msg);
+int handleSBLOCK_CONTENT(const HostIdentity * sender, 
+			 const p2p_HEADER * msg);
 
 
 #endif

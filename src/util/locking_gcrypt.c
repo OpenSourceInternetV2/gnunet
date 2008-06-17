@@ -22,7 +22,7 @@
  * @file util/locking_gcrypt.c
  * @brief locking for gcrypt
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_util.h"
 

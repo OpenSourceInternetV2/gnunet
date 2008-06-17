@@ -21,7 +21,7 @@
  * @file server/core.c
  * @brief implementation of the GNUnet core API for applications
  * @author Christian Grothoff
- **/
+ */
 #include "gnunet_util.h"
 
 #include "handler.h"
@@ -31,17 +31,51 @@
 #include "traffic.h"
 #include "core.h"
 
+#define DEBUG_CORE NO
+
+/**
+ * Linked list of loaded protocols (for clean shutdown).
+ */
 typedef struct ShutdownList {
+  /**
+   * Pointer to the library (as returned by dlopen).
+   */
   void * library;  
+  /**
+   * Textual name of the library ("libgnunet_afs_protocol").
+   */
   char * dsoName;
+  /**
+   * YES or NO: is the application initialized at this point?
+   */
+  int applicationInitialized;
+  /**
+   * Current number of users of the service API.
+   */
+  unsigned int serviceCount;
+  /**
+   * Pointer to the service API (or NULL if service not in use).
+   */
+  void * servicePTR;
+  /**
+   * This is a linked list.
+   */
   struct ShutdownList * next;
 } ShutdownList;
 
-typedef void (*ApplicationDoneMethod)();
-
-/** globals for the major APIs **/
+/**
+ * Global for the transport API.
+ */
 static CoreAPIForTransport transportCore;
+
+/**
+ * Global for the core API.
+ */
 static CoreAPIForApplication applicationCore;
+
+/**
+ * List of loaded modules and their status.
+ */
 static ShutdownList * shutdownList = NULL;
 
 #define DSO_PREFIX "libgnunet"
@@ -52,7 +86,7 @@ static ShutdownList * shutdownList = NULL;
  * @param size the size of the message
  * @param sig the signature
  * @return OK on success, SYSERR on error (verification failed)
- **/
+ */
 static int verifySigHelper(const HostIdentity * signer,
 			   void * message,
 			   int size,
@@ -77,12 +111,12 @@ static int verifySigHelper(const HostIdentity * signer,
 /**
  * How many incoming packages do we have in the buffer
  * (max.). Must be >= THREAD_COUNT to make sense.
- **/
+ */
 #define QUEUE_LENGTH 16
 
 /**
  * How many threads do we start? 
- **/
+ */
 #define THREAD_COUNT 2
 
 
@@ -101,7 +135,7 @@ static PTHREAD_T threads_[THREAD_COUNT];
  * This is the main loop of each thread.  It loops *forever* waiting
  * for incomming packets in the packet queue. Then it calls "handle"
  * (defined in handler.c) on the packet.
- **/
+ */
 static void * threadMain(int id) {
   MessagePack * mp;
   
@@ -141,8 +175,8 @@ static void * threadMain(int id) {
 /**
  * Processing of a message from the transport layer
  * (receive implementation).
- **/
-static void receive(MessagePack * mp) {
+ */
+void core_receive(MessagePack * mp) {
   if (SYSERR == SEMAPHORE_DOWN_NONBLOCKING(bufferQueueWrite_)) {
     /* discard message, buffer is full! */
     FREE(mp->msg);
@@ -165,10 +199,10 @@ static void receive(MessagePack * mp) {
  * Load the application module named "pos".
  * @return OK on success, SYSERR on error
  */ 
-static int loadApplicationModule(char * pos) {
+static int loadApplicationModule(const char * pos) {
   int ok;
   ShutdownList * nxt;
-  ApplicationMainMethod mptr;
+  ApplicationInitMethod mptr;
   CoreAPIForApplication * capi;
   void * library;
   char * name;
@@ -176,6 +210,36 @@ static int loadApplicationModule(char * pos) {
   name = MALLOC(strlen(pos) + strlen("_protocol") + 1);
   strcpy(name, pos);
   strcat(name, "_protocol");
+
+  nxt = shutdownList;
+  while (nxt != NULL) {
+    if (0 == strcmp(name, 
+		    nxt->dsoName)) {
+      if (nxt->applicationInitialized == YES) {
+	LOG(LOG_WARNING,
+	    _("Application %s already initialized!\n"),
+	    name);
+	FREE(name);
+	return SYSERR;
+      } else {
+	mptr = bindDynamicMethod(nxt->library,
+				 "initialize_",
+				 name);
+	if (mptr == NULL) {
+	  FREE(name);
+	  return SYSERR;
+	}
+	capi = getCoreAPIForApplication();  
+	ok = mptr(capi);
+	if (ok == OK)
+	  nxt->applicationInitialized = YES;
+	FREE(name);
+	return ok;
+      }      
+    }
+    nxt = nxt->next;
+  }
+
   library = loadDynamicLibrary(DSO_PREFIX,
 			       name);
   if (library == NULL) {
@@ -186,66 +250,300 @@ static int loadApplicationModule(char * pos) {
 			   "initialize_",
 			   name);
   if (mptr == NULL) {
+#if DEBUG_CORE     
+    LOG(LOG_DEBUG,
+	"Unloading library %s at %s:%d.\n", 
+	name, __FILE__, __LINE__);
+#endif
     unloadDynamicLibrary(library);
     FREE(name);
     return SYSERR;
   }
+  nxt = MALLOC(sizeof(ShutdownList));
+  nxt->next = shutdownList;
+  nxt->dsoName = name;
+  nxt->library = library;
+  nxt->applicationInitialized = YES;
+  nxt->serviceCount = 0;
+  nxt->servicePTR = NULL;
+  shutdownList = nxt;
   capi = getCoreAPIForApplication();  
   ok = mptr(capi);
-  if (OK == ok) {
-    nxt = MALLOC(sizeof(ShutdownList));
-    nxt->next = shutdownList;
-    nxt->dsoName = name;
-    nxt->library = library;
-    shutdownList = nxt;
-  }
+  if (OK != ok) 
+    nxt->applicationInitialized = NO;
   return ok;
 }
 
-static int unloadApplicationModule(char * name) {
+static int unloadApplicationModule(const char * name) {
   ShutdownList * pos;
   ShutdownList * prev;
   ApplicationDoneMethod mptr;
 
   prev = NULL;
   pos = shutdownList;
-  while (pos != NULL) {
-    if (0 == strcmp(name,
-		    pos->dsoName) ) {
-      mptr = bindDynamicMethod(pos->library,
-			       "done_",
-			       pos->dsoName);
-      if (mptr == NULL) 
-	return SYSERR;      
-      mptr();
-      if (0 == getConfigurationInt("GNUNETD",
-				   "VALGRIND"))
-	/* do not unload plugins if we're using
-	   valgrind */
-	unloadDynamicLibrary(pos->library);
-      
-      if (prev == NULL)
-	shutdownList = pos->next;
-      else
-	prev->next = pos->next;
-      FREE(pos->dsoName);
-      FREE(pos);
-      return OK;
-    } else {
-      prev = pos;
-      pos = pos->next;
-    }
+  while ( (pos != NULL) &&
+	  (0 != strcmp(name,
+		       pos->dsoName) ) )
+    pos = pos->next;
+
+  if (pos == NULL) {
+    LOG(LOG_ERROR,
+	_("Could not shutdown '%s': application not loaded\n"),
+	name);
+    return SYSERR;
   }
-  LOG(LOG_ERROR,
-      "ERROR: could not unload %s: module not loaded\n",
-      name);
-  return SYSERR;
+  
+  if (pos->applicationInitialized != YES) {
+    LOG(LOG_WARNING,
+	_("Could not shutdown application '%s': not initialized\n"),
+	name);
+    return SYSERR;
+  }      
+  mptr = bindDynamicMethod(pos->library,
+			   "done_",
+			   pos->dsoName);
+  if (mptr == NULL) {
+    LOG(LOG_ERROR,
+	_("Could not find '%s%s' method in library '%s'.\n"),
+	"done_",
+	pos->dsoName,
+	pos->dsoName);
+    return SYSERR;
+  }
+
+  mptr();
+  pos->applicationInitialized = NO;
+  if (pos->serviceCount > 0) {
+#if DEBUG_CORE
+    LOG(LOG_DEBUG,
+	"Application shutdown, but service '%s' is still in use.\n",
+	pos->dsoName);
+#endif	
+    return OK;
+  }
+
+  /* compute prev! */
+  if (pos == shutdownList) {
+    prev = NULL; 
+  } else {
+    prev = shutdownList;
+    while (prev->next != pos)
+      prev = prev->next;
+  }
+ 
+  if (0 == getConfigurationInt("GNUNETD",
+			       "VALGRIND")) {
+    /* do not unload plugins if we're using
+       valgrind */
+#if DEBUG_CORE     
+    LOG(LOG_DEBUG,
+	"Unloading application plugin '%s' at %s:%d.\n", 
+	pos->dsoName, __FILE__, __LINE__);
+#endif
+    unloadDynamicLibrary(pos->library);
+  }    
+  if (prev == NULL)
+    shutdownList = pos->next;
+  else
+    prev->next = pos->next;
+  FREE(pos->dsoName);
+  FREE(pos);
+  return OK;
+}
+
+static void * requestService(const char * pos) {
+  ShutdownList * nxt;
+  ServiceInitMethod mptr;
+  CoreAPIForApplication * capi;
+  void * library;
+  char * name;
+  void * api;
+
+  name = MALLOC(strlen(pos) + strlen("_protocol") + 1);
+  strcpy(name, pos);
+  strcat(name, "_protocol");
+
+  nxt = shutdownList;
+  while (nxt != NULL) {
+    if (0 == strcmp(name, 
+		    nxt->dsoName)) {
+      if (nxt->serviceCount > 0) {
+	if (nxt->servicePTR != NULL)
+	  nxt->serviceCount++;
+	FREE(name);
+#if DEBUG_CORE
+	LOG(LOG_DEBUG,
+	    "Already have service '%s' as %p.\n",
+	    pos,
+	    nxt->servicePTR);
+#endif
+	return nxt->servicePTR;
+      } else {
+	mptr = bindDynamicMethod(nxt->library,
+				 "provide_",
+				 name);
+	if (mptr == NULL) {
+	  FREE(name);
+	  return NULL;
+	}
+	capi = getCoreAPIForApplication();  
+	nxt->servicePTR = mptr(capi);
+	if (nxt->servicePTR != NULL) 
+	  nxt->serviceCount++;
+	FREE(name);
+#if DEBUG_CORE
+	LOG(LOG_DEBUG,
+	    "Initialized service '%s' as %p.\n",
+	    pos,
+	    nxt->servicePTR);
+#endif
+	return nxt->servicePTR;
+      }      
+    }
+    nxt = nxt->next;
+  }
+
+  library = loadDynamicLibrary(DSO_PREFIX,
+			       name);
+  if (library == NULL) {
+    FREE(name);
+    return NULL;
+  }
+  mptr = bindDynamicMethod(library,
+			   "provide_",
+			   name);
+  if (mptr == NULL) {
+#if DEBUG_CORE     
+	LOG(LOG_DEBUG,
+	    "Unloading library '%s' at %s:%d.\n", 
+	    name, __FILE__, __LINE__);
+#endif
+    unloadDynamicLibrary(library);
+    FREE(name);
+    return NULL;
+  }
+  capi = getCoreAPIForApplication();  
+  nxt = MALLOC(sizeof(ShutdownList));
+  nxt->next = shutdownList;
+  nxt->dsoName = name;
+  nxt->library = library;
+  nxt->applicationInitialized = NO;
+  nxt->serviceCount = 1;
+  nxt->servicePTR = NULL;
+  shutdownList = nxt;
+  api = mptr(capi);
+  if (api != NULL) 
+    nxt->servicePTR = api;    
+  else
+    nxt->serviceCount = 0;
+  LOG(LOG_DEBUG,
+      "Loaded service %s as %p\n",
+      pos,
+      api);
+
+  return api;
+}
+
+static int releaseService(void * service) {
+  ShutdownList * pos;
+  ShutdownList * prev;
+  ApplicationDoneMethod mptr;
+
+  prev = NULL;
+  pos = shutdownList;
+  while ( (pos != NULL) &&
+	  (pos->servicePTR != service) )
+    pos = pos->next;
+
+  if (pos == NULL) {
+    LOG(LOG_ERROR,
+	_("Could not release %p: service not loaded\n"),
+	service);
+    return SYSERR; 
+  }
+#if DEBUG_CORE
+  LOG(LOG_DEBUG,
+      "Unloading %p, found service %s.\n", 
+      service,
+      pos->dsoName);
+#endif
+    
+  mptr = bindDynamicMethod(pos->library,
+			   "release_",
+			   pos->dsoName);
+  if (mptr == NULL) {
+    LOG(LOG_ERROR,
+	_("Could not find '%s%s' method in library '%s'.\n"),
+	"release_",
+	pos->dsoName,
+	pos->dsoName);
+    return SYSERR;
+  }
+  if (pos->serviceCount > 1) {
+#if DEBUG_CORE
+    LOG(LOG_DEBUG,
+	"Service %s still in use, not unloaded.\n",
+	pos->dsoName);
+#endif
+    pos->serviceCount--;
+    return OK; /* service still in use elsewhere! */
+  }
+  
+#if DEBUG_CORE
+  LOG(LOG_DEBUG,
+      "Calling 'release_%s'.\n",
+      pos->dsoName);
+#endif
+  mptr();
+  pos->serviceCount--;
+  pos->servicePTR = NULL;
+
+  if (pos->applicationInitialized == YES) {
+#if DEBUG_CORE
+    LOG(LOG_DEBUG,
+	"Protocol '%s' still in use, not unloaded.\n",
+	pos->dsoName);
+#endif
+    return OK; /* protocol still in use! */
+  }
+
+  /* compute prev */
+  if (pos == shutdownList) {
+    prev = NULL;
+  } else {
+    prev = shutdownList;
+    while (prev->next != pos)
+      prev = prev->next;
+  }
+  if (prev == NULL)
+    shutdownList = pos->next;
+  else
+    prev->next = pos->next;
+
+  if (0 == getConfigurationInt("GNUNETD",
+			       "VALGRIND")) {
+    /* do not unload plugins if we're using valgrind */
+#if DEBUG_CORE     
+    LOG(LOG_DEBUG,
+	"Unloading library '%s' at %s:%d.\n", 
+	pos->dsoName, __FILE__, __LINE__);
+#endif
+    unloadDynamicLibrary(pos->library);
+  }
+#if DEBUG_CORE     
+  LOG(LOG_DEBUG,
+      "Unloaded '%s' plugin.\n", 
+      pos->dsoName);
+#endif
+  FREE(pos->dsoName);
+  FREE(pos);    
+  return OK;
 }
 
 
 /**
  * Initialize the CORE's globals.
- **/
+ */
 void initCore() {
   int i;
 
@@ -269,7 +567,7 @@ void initCore() {
 
   transportCore.version = 0;
   transportCore.myIdentity = &myIdentity; /* keyservice.c */
-  transportCore.receive = &receive; /* core.c */
+  transportCore.receive = &core_receive; /* core.c */
 
   applicationCore.version = 0;
   applicationCore.myIdentity = &myIdentity; /* keyservice.c */
@@ -308,6 +606,9 @@ void initCore() {
   applicationCore.unloadApplicationModule = &unloadApplicationModule; /* core.c */
   applicationCore.setPercentRandomInboundDrop = &setPercentRandomInboundDrop; /* handler.c */
   applicationCore.setPercentRandomOutboundDrop = &setPercentRandomInboundDrop; /* transport.c */  
+  applicationCore.requestService = &requestService;
+  applicationCore.releaseService = &releaseService;  
+  applicationCore.terminateClientConnection = &terminateClientConnection;  /* tcpserver.c */
 }
 
 CoreAPIForTransport * getCoreAPIForTransport() {
@@ -325,41 +626,43 @@ void loadApplicationModules() {
   
   dso = getConfigurationString("GNUNETD",
 			       "APPLICATIONS");
-  if (dso != NULL) {
-    LOG(LOG_DEBUG,
-	"DEBUG: loading applications %s\n",
-	dso);
-    next = dso;
-    do {
-      pos = next;
-      while ( (*next != '\0') &&
-	      (*next != ' ') )
-	next++;
-      if (*next == '\0') {
-	next = NULL; /* terminate! */
-      } else {
-	*next = '\0'; /* add 0-termination for pos */
-	next++;
-      }
-      if (OK != loadApplicationModule(pos))
-	LOG(LOG_ERROR,
-	    "ERROR: could not initialize module %s\n",
-	    pos);
-    } while (next != NULL);
-    FREE(dso);
-  } else {
+  if (dso == NULL) {
     LOG(LOG_WARNING,
-	"WARNING: No application (DSO) defined in configuration!\n");
+	_("No applications defined in configuration!\n"));
+    return;
   }
+  LOG(LOG_DEBUG,
+      "loading applications %s\n",
+      dso);
+  next = dso;
+  do {
+    pos = next;
+    while ( (*next != '\0') &&
+	    (*next != ' ') )
+      next++;
+    if (*next == '\0') {
+      next = NULL; /* terminate! */
+    } else {
+      *next = '\0'; /* add 0-termination for pos */
+      next++;
+    }
+    if (OK != loadApplicationModule(pos))
+      LOG(LOG_ERROR,
+	  _("Could not initialize application '%s'\n"),
+	  pos);
+  } while (next != NULL);
+  FREE(dso);
 }
 
 /**
- * Shutdown the CORE modules (also shuts down all
- * application modules).
- **/
+ * Shutdown the CORE modules (shuts down all application modules).
+ */
 void doneCore() {
   int i;
   void * unused;
+  ShutdownList * pos;
+  ShutdownList * prev;
+  ShutdownList * nxt;
 
   /* send HANGUPs for connected hosts */
   shutdownConnections();
@@ -376,16 +679,51 @@ void doneCore() {
   for (i=0;i<THREAD_COUNT;i++) 
     PTHREAD_JOIN(&threads_[i], &unused);
 
-  /* unload transport modules */
-  while (shutdownList != NULL) {
-    if (OK != unloadApplicationModule(shutdownList->dsoName)) {
+  /* shutdown application modules */
+  pos = shutdownList;
+  while (pos != NULL) {
+    nxt = pos->next;
+    if ( (pos->applicationInitialized == YES) &&
+	 (OK != unloadApplicationModule(pos->dsoName)) )
       LOG(LOG_ERROR,
-	  "ERROR: could not properly unload application module %s.\n"
-	  "Going down hard.\n",
-	  shutdownList->dsoName);
-      break;
-    }     
+	  _("Could not properly shutdown application '%s'.\n"),
+	  pos->dsoName);    
+    pos = nxt;
+  }   
+
+  /* unload modules */
+  pos = shutdownList;
+  prev = NULL;
+  while (pos != NULL) {
+    if ( (pos->applicationInitialized == NO) &&
+	 (pos->serviceCount == 0) ) {
+      if (0 == getConfigurationInt("GNUNETD",
+				   "VALGRIND")) {
+	/* do not unload plugins if we're using valgrind */
+#if DEBUG_CORE     
+	LOG(LOG_DEBUG,
+	    "Unloading library '%s' at %s:%d.\n", 
+	    pos->dsoName, __FILE__, __LINE__);
+#endif	
+	unloadDynamicLibrary(pos->library);
+      }
+
+      nxt = pos->next;
+      if (prev == NULL)
+	shutdownList = nxt;
+      else
+	prev->next = nxt;
+      FREE(pos->dsoName);
+      FREE(pos);
+      pos = nxt;
+    } else {
+      LOG(LOG_ERROR,
+	  _("Could not properly unload application '%s'.\n"),
+	  pos->dsoName);
+      pos = pos->next;
+    }         
   }
+  
 
   /* free datastructures */
   MUTEX_DESTROY(&globalLock_);

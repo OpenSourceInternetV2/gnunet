@@ -26,7 +26,7 @@
  * This module is responsible for storing the names 
  * of indexed files. The index for a file is always
  * >0, since 0 is reserved for "not indexed".
- **/
+ */
 
 #include "fileindex.h"
 
@@ -34,37 +34,37 @@
 
 /**
  * Maximum length of the name of an indexed file (with path).
- **/ 
+ */ 
 #define MAX_LINE_SIZE 1024
 
 /**
  * names of indexed files 
- **/
+ */
 static char ** indexed_files = NULL;
 
 /**
  * Size of the indexed_files list.
- **/
+ */
 static unsigned short indexed_files_size;
 
 /**
  * number of files that are indexed
- **/
+ */
 static unsigned short indexed_files_count;
 
 /**
  * Mutex for synced access to indexed_files
- **/ 
+ */ 
 static Mutex lock;
 
 /**
  * stat handle for indexed_files_count
- **/
+ */
 static int stat_indexed_files_count;
 
 /**
  * stat handle for total size of indexed files
- **/
+ */
 static int stat_indexed_files_size;
 
 static char * shared_file_list;
@@ -74,16 +74,16 @@ static char * shared_file_list;
 /**
  * Get the name of the file where we store the
  * list of indexed files.
- **/
+ */
 static char * getSharedFileList() {
   char * afsdir;
   char * res;
 
   afsdir = getFileName("AFS",
 		       "AFSDIR",
-		       "Configuration file must specify filename for"\
-		       " storing AFS data in section"\
-		       " %s under %s.\n");
+		       _("Configuration file must specify filename for"
+			 " storing AFS data in section"
+			 " '%s' under '%s'.\n"));
   res = MALLOC(strlen(afsdir)+
 	       strlen(DATABASELIST)+2);
   strcpy(res, afsdir);
@@ -98,7 +98,7 @@ static char * getSharedFileList() {
  * Scan the list of on-demand shared files to initialize indexed_files
  *
  * @return OK on success, SYSERR on error
- **/
+ */
 static int scanDatabaseList() {
   char * fil;
   FILE * handle;
@@ -125,10 +125,7 @@ static int scanDatabaseList() {
   fil = shared_file_list;
   handle = FOPEN(fil, "a+");
   if (handle == NULL) {
-    LOG(LOG_WARNING, 
-	"WARNING: could not open %s (%s)!\n",
-	fil,
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_WARNING, "fopen", fil);
     MUTEX_UNLOCK(&lock);
     return SYSERR;
   }
@@ -181,22 +178,23 @@ static int scanDatabaseList() {
 
 /**
  * Initialize the fileindex module.
- **/
+ */
 void initFileIndex() {
   shared_file_list 
     = getSharedFileList();
   stat_indexed_files_count
-    = statHandle("# indexed files");
+    = statHandle(_("# indexed files"));
   stat_indexed_files_size
-    = statHandle("# size of indexed files");
+    = statHandle(_("# size of indexed files"));
   MUTEX_CREATE(&lock);
   if (SYSERR == scanDatabaseList())
-    errexit("Could not initialize fileIndex module\n");
+    errexit(_("Could not initialize %s module.\n"),
+	    __FILE__);
 }
 
 /**
  * Shutdown the fileindex module.
- **/
+ */
 void doneFileIndex() {
   if (indexed_files != NULL) {
     int i;
@@ -213,15 +211,13 @@ void doneFileIndex() {
  *
  * @param index the index of the file
  * @return the filename (caller frees)
- **/
+ */
 char * getIndexedFileName(unsigned short index) {
   char * res;
 
   if ( (index == 0) ||
        (index > indexed_files_size) ) {
-    LOG(LOG_WARNING,
-	"WARNING: getIndexedFileName called with index out of bounds (%u)\n",
-	index);
+    BREAK();
     return NULL;
   }
   MUTEX_LOCK(&lock);
@@ -243,7 +239,7 @@ char * getIndexedFileName(unsigned short index) {
  * @param data the last argument to method
  * @return the number of shared files (after changes
  *         caused by this call)
- **/
+ */
 int forEachIndexedFile(IndexedFileNameCallback method,
 		       void * data) {
   int i;
@@ -275,7 +271,7 @@ int forEachIndexedFile(IndexedFileNameCallback method,
     handle = FOPEN(fil, "w+");
     if (handle == NULL) {
       LOG(LOG_WARNING, 
-	  "WARNING: List %s of directly shared filenames not available!\n",
+	  _("List '%s' of directly shared filenames not available!\n"),
 	  fil);
       MUTEX_UNLOCK(&lock);
       return SYSERR;
@@ -299,8 +295,9 @@ int forEachIndexedFile(IndexedFileNameCallback method,
  * @param filename the name of the file to add
  * @returns the index of filename in the index, -1 on error
  *          NEVER returns 0.
- **/
-int appendFilename(char * filename) {
+ */
+int appendFilename(const char * fn) {
+  char * filename;
   char * fil;
   FILE * handle;
   int result;
@@ -308,17 +305,14 @@ int appendFilename(char * filename) {
   char * scanf;
   int pos;
 
-  if (filename == NULL) 
-    errexit("appendFilename called with filename == NULL\n");
+  GNUNET_ASSERT(fn != NULL);
   MUTEX_LOCK(&lock);
   fil = shared_file_list;
   handle = FOPEN(fil, "r+");
   if (handle == NULL) 
-    errexit("LOOKUP: List %s of directly shared filenames not available!\n",
-	    fil);
-  filename = expandFileName(filename);   
-  if (filename == NULL)
-    errexit("appendFilename - filename expand failed (returned NULL)\n");
+    DIE_FILE_STRERROR("fopen", fil);
+  filename = expandFileName(fn);   
+  GNUNET_ASSERT(filename != NULL);
   if (strlen(filename) >= MAX_LINE_SIZE) {
     MUTEX_UNLOCK(&lock);
     fclose(handle);
@@ -347,7 +341,7 @@ int appendFilename(char * filename) {
     MUTEX_UNLOCK(&lock);
 #if DEBUG_FILEINDEX
     LOG(LOG_DEBUG,
-	"DEBUG: file already in index: %d\n",
+	"File already in index: %d\n",
 	result);
 #endif
     return result; /* already there! */
@@ -357,7 +351,7 @@ int appendFilename(char * filename) {
     FREE(filename);
     MUTEX_UNLOCK(&lock);
     LOG(LOG_WARNING,
-	"WARNING: too many files indexed (limit is 65535).\n");
+	_("Too many files indexed (limit is 65535).\n"));
     return -1;
   }
   /* not there, append */
@@ -370,7 +364,7 @@ int appendFilename(char * filename) {
   scanDatabaseList();
 #if DEBUG_FILEINDEX
   LOG(LOG_DEBUG,
-      "DEBUG: added file to index at position %d\n",
+      "Added file to index at position %d.\n",
       pos);
 #endif
   return pos; /* return index */

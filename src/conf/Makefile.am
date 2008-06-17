@@ -54,12 +54,12 @@ gnunet_setup_SOURCES = \
 
 gnunet_setup_LDFLAGS = \
  $(curses_lib)
- 
+
 gnunet_setup_LDADD = \
  $(top_builddir)/src/util/libgnunetutil.la
 
 gnunet_win_tool_SOURCE = \
  gnunet-win-tool.c
- 
+
 gnunet_win_tool_LDADD = \
   $(top_builddir)/src/util/libgnunetutil.la

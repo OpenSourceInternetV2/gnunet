@@ -38,7 +38,7 @@
  * overcomes problems with the crude database implementations that we
  * would have to use otherwise (and that would be really bad for
  * performance without this).
- **/
+ */
 
 
 #ifndef LARGE_FILE_SUPPORT_H
@@ -48,7 +48,7 @@
 
 /**
  * Handle for a lfs-level database.
- **/
+ */
 typedef struct {
   char * dir;
   Mutex lock;
@@ -60,17 +60,17 @@ typedef lfs_struct * LFS;
  * Initialize the storage module.
  * @param dir the name of the directory/file
  *        containing the content database
- **/
+ */
 LFS lfsInit(char * dir);
 
 /**
  * Remove the lfs database.
- **/
+ */
 void lfsDelete(LFS handle);
 
 /**
  * Clean shutdown of the storage module.
- **/
+ */
 void lfsDone(LFS handle);
 
 /**
@@ -79,9 +79,9 @@ void lfsDone(LFS handle);
  * @param result the buffer to write the result to 
  *        (*result should be NULL, sufficient space is allocated)
  * @return the number of blocks read on success, SYSERR on failure
- **/ 
+ */ 
 int lfsRead(LFS handle,
-	    HashCode160 * query,
+	    const HashCode160 * query,
 	    CONTENT_Block ** result);
 
 /**
@@ -89,9 +89,9 @@ int lfsRead(LFS handle,
  *
  * @param result the buffer to write the result to
  * @return number of blocks read on success, SYSERR on failure
- **/ 
+ */ 
 int lfsReadRandom(LFS handle,
-		  HashCode160 * query,
+		  const HashCode160 * query,
 		  CONTENT_Block ** result,
 		  unsigned int prio);
 
@@ -101,19 +101,19 @@ int lfsReadRandom(LFS handle,
  * @param query the key for the entry
  * @param data what to append
  * @return SYSERR on error, OK if ok.
- **/
+ */
 int lfsAppend(LFS handle,
-	      HashCode160 * query,
-	      CONTENT_Block * data);
+	      const HashCode160 * query,
+	      const CONTENT_Block * data);
 
 /**
  * Remove an entry.
  *
  * @param query the key for the entry
  * @return SYSERR on error, OK if ok.
- **/
+ */
 int lfsRemove(LFS handle,
-	      HashCode160 * query);
+	      const HashCode160 * query);
 
 #endif
 

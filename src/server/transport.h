@@ -21,7 +21,7 @@
  * The APIs for GNUnet transport layer implementations.
  * @file server/transport.h
  * @author Christian Grothoff
- **/
+ */
 
 #ifndef TRANSPORT_H
 #define TRANSPORT_H
@@ -31,46 +31,46 @@
 
 /**
  * Initialize the transport layer.
- **/
+ */
 void initTransports();
 
 /**
  * Actually start the transport services and begin
  * receiving messages.
- **/
+ */
 void startTransports();
 
 /**
  * Stop the transport services, stop receiving messages.
- **/
+ */
 void stopTransports();
 
 /**
  * Shutdown the transport layer.
- **/
+ */
 void doneTransports();
 
 /**
  * Convert HELO to string.
- **/
-char * heloToString(HELO_Message * helo);
+ */
+char * heloToString(const HELO_Message * helo);
 
 void setPercentRandomOutboundDrop(int value);
 
 /**
  * Is this transport mechanism available (for sending)?
  * @return YES or NO
- **/
+ */
 int isTransportAvailable(unsigned short ttype);
 
 /**
  * Add an implementation of a transport protocol.
- **/
+ */
 int addTransport(TransportAPI * tapi);
 
 /**
  * Type of the per-transport callback method.
- **/ 
+ */ 
 typedef void (*TransportCallback)(TransportAPI * tapi, 
 				  void * data);
 
@@ -78,7 +78,7 @@ typedef void (*TransportCallback)(TransportAPI * tapi,
  * Iterate over all available transport mechanisms.
  * @param callback the method to call on each transport API implementation
  * @param data second argument to callback
- **/
+ */
 void forEachTransport(TransportCallback callback,
 		      void * data);
 
@@ -88,10 +88,11 @@ void forEachTransport(TransportCallback callback,
  * transport mechanism is not available.
  *
  * @param helo the HELO of the target node. The
- *        callee is responsible for freeing the HELO (!)
+ *        callee is responsible for freeing the HELO (!),
+ *        except if SYSERR is returned!
  * @param tsession the transport session to create
  * @return OK on success, SYSERR on error
- **/
+ */
 int transportConnect(HELO_Message * helo,
 		     TSession ** tsession);
 
@@ -108,18 +109,18 @@ int transportConnect(HELO_Message * helo,
  *   layer
  * @return OK if the session could be associated,
  *         SYSERR if not.
- **/
+ */
 int transportAssociate(TSession * tsession);
 
 /**
  * Get the cost of a message in for the given transport mechanism.
- **/
+ */
 unsigned int transportGetCost(int ttype);
 
 /**
  * Create signed HELO for this transport and put it into
  * the cache tapi->helo.
- **/
+ */
 void createSignedHELO(TransportAPI * tapi);
 
 /**
@@ -131,9 +132,9 @@ void createSignedHELO(TransportAPI * tapi);
  * @param isEncrypted YES if the message is encrypted
  * @param crc the CRC of the (plaintext) message
  * @return OK on success, SYSERR on error
- **/
+ */
 int transportSend(TSession * session,
-		  void * msg,
+		  const void * msg,
 		  const unsigned int size,
 		  int isEncrypted,
 		  const int crc);
@@ -148,9 +149,9 @@ int transportSend(TSession * session,
  * @param isEncrypted YES if the message is encrypted
  * @param crc the CRC of the (plaintext) message
  * @return OK on success, SYSERR on error
- **/
+ */
 int transportSendReliable(TSession * session,
-			  void * msg,
+			  const void * msg,
 			  const unsigned int size,
 			  int isEncrypted,
 			  const int crc);
@@ -160,7 +161,7 @@ int transportSendReliable(TSession * session,
  * either connected or associated sessions.
  *
  * @return OK on success, SYSERR on error
- **/ 
+ */ 
 int transportDisconnect(TSession * session);
 
 /**
@@ -168,18 +169,18 @@ int transportDisconnect(TSession * session);
  * if the verification was successful.
  * @return OK if the attempt to verify is on the way,
  *        SYSERR if the transport mechanism is not supported
- **/
-int transportVerifyHelo(HELO_Message * helo);
+ */
+int transportVerifyHelo(const HELO_Message * helo);
 
 /**
  * Get the MTU for a given transport type.
- **/
+ */
 int transportGetMTU(unsigned short ttype);
 
 /**
  * Create a HELO advertisement for the given
  * transport type for this node.
- **/
+ */
 int transportCreateHELO(unsigned short ttype,
 			HELO_Message ** helo);
 
@@ -195,7 +196,7 @@ int transportCreateHELO(unsigned short ttype,
  * @param maxLen the maximum size of the HELO message collection in bytes
  * @param buff where to write the HELO messages
  * @return the number of bytes written to buff, -1 on error
- **/
+ */
 int getAdvertisedHELOs(int maxLen,
 		       char * buff);
 		       

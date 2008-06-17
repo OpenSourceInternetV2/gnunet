@@ -22,7 +22,7 @@
  * @file conf/gnunet-setup.c
  * @brief GNUnet Setup
  * @author Nils Durner
- **/
+ */
 
 #include <stdio.h>
 #include <string.h>

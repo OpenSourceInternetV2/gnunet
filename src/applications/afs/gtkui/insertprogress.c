@@ -22,7 +22,7 @@
  * @brief handles file insertions in the GTK GUI
  * @author Igor Wronsky
  * @author Christian Grothoff (refactoring, added bugs)
- **/
+ */
 
 #include "gnunet_afs_esed2.h"
 #include "platform.h"
@@ -75,7 +75,7 @@ static gint updateAdjustment(SaveCall * call) {
  *
  * @param stats Statistics related to insert progression
  * @param ilm Data related to the insertion
- **/
+ */
 static void insertModelCallback(ProgressStats * stats,
 				InsertModel * ilm) {
   SetStat stat;
@@ -91,7 +91,7 @@ static void insertModelCallback(ProgressStats * stats,
  *
  * @param stats Statistics related to insert progression
  * @param ilm Data related to the insertion
- **/
+ */
 static void insertDirectoryModelCallback(ProgressStats * stats,
 					 InsertDirectoryModel * ilm) {
   SetStat stat;
@@ -152,7 +152,7 @@ void insertFileGtkThread(InsertModel * ilm) {
 		     ilm->fileNameRoot,
 		     ilm->mimetype,
 		     ilm->num_keywords,
-		     ilm->keywords,
+		     (const char**)ilm->keywords,
 		     NULL);
   } else {
     res = SYSERR;
@@ -171,20 +171,20 @@ void insertFileGtkThread(InsertModel * ilm) {
       fid.file_length = htonl(fs);
     }
     
-    fstring = fileIdentifierToString(&fid);
+    fstring = createFileURI(&fid);
     
     infoMessage(NO,
-		"Successfully processed %s\n  => %s\n", 
+		_("Successfully processed file '%s'.\n\tURI is '%s'\n"), 
 		ilm->fileName,
 		fstring);
     LOG(LOG_DEBUG,
-        "DEBUG: Successfully processed %s\n  => %s\n",
+        _("Successfully processed file '%s'. URI is '%s'.\n"),
         ilm->fileName,
         fstring);
     FREE(fstring);
   } else {
-    guiMessage("Insertion of %s FAILED!\n", 
-                ilm->fileName);
+    guiMessage(_("Insertion of file '%s' failed!\n"), 
+	       ilm->fileName);
   }
   if(top != NULL)
     top->vtbl->done(top, NULL);
@@ -206,12 +206,13 @@ void insertFileGtkThread(InsertModel * ilm) {
 
 /**
  * Callback for handling "delete_event": keep the window OPEN.
- **/
+ */
 static gint refuseDeleteEvent(GtkWidget * widget,
 			      GdkEvent * event,
 			      gpointer data) {
   LOG(LOG_DEBUG, 
-      "DEBUG: refuseDeleteEvent\n");
+      "In '%s'.\n",
+      __FUNCTION__);
   return TRUE;
 }
 
@@ -238,9 +239,10 @@ void createInsertProgressBar(InsertModel * ilm) {
   gtk_container_set_border_width(GTK_CONTAINER(window), 
 				 10);
 
-  sprintf(format, 
-  	  "%%v bytes %s",
-  	  ilm->opDescription);
+  SNPRINTF(format, 
+	   128,
+	   "%%v bytes %s",
+	   ilm->opDescription);
  
   /* create the actual progressbar */
   fileLength = getFileSize(ilm->fileName);
@@ -291,9 +293,10 @@ void createInsertDirectoryProgressBar(InsertDirectoryModel * ilm) {
   gtk_container_set_border_width(GTK_CONTAINER(window), 
 				 10);
 
-  sprintf(format, 
-  	  "%%v bytes %s",
-  	  ilm->opDescription);
+  SNPRINTF(format, 
+	   128,
+	   _("%%v bytes %s"), /* translations MUST keep the %%v! */
+	   ilm->opDescription);
  
   /* create the actual progressbar */
   fileLength = getFileSize(ilm->fileName);
@@ -353,7 +356,7 @@ void createInsertDirectoryProgressBar(InsertDirectoryModel * ilm) {
  * @param filename the name of the file to insert
  * @param fid resulting file identifier for the node
  * @returns OK on success, SYSERR on error
- **/
+ */
 static int gtkInsertDirectoryWrapper(GNUNET_TCP_SOCKET * sock,
 				     char * filename,
 				     FileIdentifier * fid,
@@ -471,7 +474,7 @@ void insertDirectoryGtkThread(InsertDirectoryModel * ilm) {
   top = insertRecursively(sock,
 			  ilm->fileName,
 			  &fid,
-			  ilm->gkeywords,
+			  (const char**) ilm->gkeywords,
 			  ilm->num_gkeywords,	
 #if USE_LIBEXTRACTOR
 			  extractors,
@@ -510,20 +513,19 @@ void insertDirectoryGtkThread(InsertDirectoryModel * ilm) {
   if (res == OK) {
     char * fstring;
 
-    fstring = fileIdentifierToString(&top->header.fileIdentifier);
-    
+    fstring = createFileURI(&top->header.fileIdentifier);    
     infoMessage(NO,
-		"Successfully processed %s\n  => %s\n", 
+		_("Successfully processed file '%s'.\n\tURI is '%s'\n"), 
 		ilm->fileName,
 		fstring);
     LOG(LOG_DEBUG,
-        "DEBUG: Successfully processed %s\n  => %s\n",
+        "Successfully processed file '%s'. URI is '%s'.\n",
         ilm->fileName,
         fstring);
     FREE(fstring);
   } else {
-    guiMessage("Insertion of %s FAILED!\n", 
-                ilm->fileName);
+    guiMessage(_("Insertion of file '%s' failed!\n"), 
+	       ilm->fileName);
   }
   FREENONNULL(top);
   releaseClientSocket(sock);

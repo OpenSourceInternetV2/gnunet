@@ -17,45 +17,36 @@ OpenBSD/NetBSD:
 - unknown
 
 Linux (Ultra Sparc):
-- gcry RSA key generation does not work (hangs)
-  workarounds: 
-   use OpenSSL [confirmed]
-   use libgcrypt [untested]
+- RSA key generation may not work (libgcrypt bug) 
+  workarounds: use OpenSSL
 
 Linux (Alpha):
-- gcry RSA key generation does not work (hangs or even crashes)
-  workarounds:
-   use OpenSSL [confirmed]
-   use libgcrypt [untested]
+- RSA key generation may not work (libgcrypt bug)
+  workaround: use OpenSSL 
 
 Solaris 8 (SunOS 5.8, Sparc SunFire 880):
-- gcry test takes forever (bug?)
-  workarounds: 
-   use OpenSSL [confirmed]
-   use libgcrypt [untested]
-- IPC semaphore test fails (hmm, used to pass)
+- RSA key generation may not work (libgcrypt bug)
+  workaround: use OpenSSL
+- IPC semaphore test fails (hmm, used to pass, not critical)
 
 OS X (10.3, PowerPC):
 - ar fails to build (bug in Apple-AR)
-- gcry test takes forever (bug?)
-  workarounds: 
-   use OpenSSL [confirmed]
-   use libgcrypt [untested]
+- RSA key generation may not work (libgcrypt bug)
+  workaround: use OpenSSL
 - plugins are not found (FATAL)
 - CRC errors at the end of downloads (?)
 
 Cygwin (x86):
-- plugins can not be loaded (FATAL)
+- plugins cannot be loaded (FATAL)
 - difficult to compile (autotools trouble)
-- gcry doesn't link
 - RSA_private_decrypt (OpenSSL) often fails
 - gnunet-transport-check fails
-- TCP transport doesn't work ("Transport endpoint is not connected")
+- TCP transport does not work ("Transport endpoint is not connected")
 - CTRL-C has no effect
 
 MinGW (x86):
-- gcry is not available
-  workaround:
-   use OpenSSL
+- gettext may make problems, use --disable-nls
+- libgcrypt may not be available
+  workaround: use OpenSSL
 - SMTP transport is not available
 - gnunet-testbed is not available

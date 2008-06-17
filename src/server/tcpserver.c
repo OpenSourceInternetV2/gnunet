@@ -22,7 +22,7 @@
  * @file server/tcpserver.c
  * @brief TCP server (gnunetd-client communication using util/tcpio.c).
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_util.h"
 #include "tcpserver.h"
@@ -32,23 +32,23 @@
 
 /**
  * Array of the message handlers.
- **/
+ */
 static CSHandler * handlers = NULL;
 
 /**
  * Number of handlers in the array (max, there
  * may be NULL pointers in it!)
- **/
+ */
 static int max_registeredType = 0;
 
 /**
  * Mutex to guard access to the handler array.
- **/
+ */
 static Mutex handlerlock;
 
 /**
  * Mutex to guard access to the client list.
- **/
+ */
 static Mutex clientlock;
 
 #if VERBOSE_STATS
@@ -58,7 +58,7 @@ static int octets_total_tcp_out;
 
 /**
  * The thread that waits for new connections.
- **/
+ */
 static PTHREAD_T TCPLISTENER_listener_;
 
 /**
@@ -68,7 +68,7 @@ static int signalingPipe[2];
 
 /**
  * Handlers to call if client exits.
- **/
+ */
 static ClientExitHandler * exitHandlers = NULL;
 
 /**
@@ -78,7 +78,7 @@ static int exitHandlerCount = 0;
 
 /**
  * Signals for control-thread to server-thread communication
- **/
+ */
 static Semaphore * serverSignal = NULL;
 
 /**
@@ -121,17 +121,14 @@ static void signalSelect() {
 
 #if DEBUG_TCPHANDLER
   LOG(LOG_DEBUG,
-      "DEBUG: signaling select.\n");
+      "signaling select.\n");
 #endif
   ret = WRITE(signalingPipe[1], 
 	      &i, 
 	      sizeof(char));
-  if (ret != sizeof(char)) {
+  if (ret != sizeof(char)) 
     if (errno != EAGAIN)
-      LOG(LOG_ERROR,
-	  "ERROR: write to tcp-server pipe (signalSelect) failed: %s\n",
-	  STRERROR(errno));
-  }
+      LOG_STRERROR(LOG_ERROR, "write");  
 }
 
 int registerClientExitHandler(ClientExitHandler callback) {
@@ -148,14 +145,14 @@ int registerClientExitHandler(ClientExitHandler callback) {
  * The client identified by 'session' has disconnected.  Close the
  * socket, free the buffers, unlink session from the linked list.
  */
-static void destroySession(ClientHandle session) {
+void terminateClientConnection(ClientHandle session) {
   ClientHandle prev;
   ClientHandle pos;
   int i;
 
 #if DEBUG_TCPHANDLER
   LOG(LOG_DEBUG,
-      "DEBUG: destroying session %d\n",
+      "Destroying session %p.\n",
       session);
 #endif
   /* avoid deadlock: give up the lock while
@@ -171,8 +168,7 @@ static void destroySession(ClientHandle session) {
   prev = NULL;
   pos = clientList;
   while (pos != session) {
-    if (pos == NULL)
-      errexit("FATAL: assertion violated: pos == NULL\n");
+    GNUNET_ASSERT(pos != NULL);
     prev = pos;
     pos = pos->next;
   }
@@ -221,12 +217,12 @@ int unregisterClientExitHandler(ClientExitHandler callback) {
  * transfer happens asynchronously.
  */
 int sendToClient(ClientHandle handle,
-		 CS_HEADER * message) {
+		 const CS_HEADER * message) {
   CS_HEADER * cpy;
 
 #if DEBUG_TCPHANDLER
   LOG(LOG_DEBUG,
-      "DEBUG: sending message to client %d\n",
+      "Sending message to client %p.\n",
       handle);
 #endif
   cpy = MALLOC(ntohs(message->size));
@@ -246,7 +242,7 @@ int sendToClient(ClientHandle handle,
  * Checks the CRC and if that's ok, processes the
  * message by calling the registered handler for
  * each message part.
- **/
+ */
 static int processHelper(CS_HEADER * msg,
 			 ClientHandle sender) {
   unsigned short ptyp;
@@ -254,24 +250,26 @@ static int processHelper(CS_HEADER * msg,
 
 #if DEBUG_TCPHANDLER
   LOG(LOG_DEBUG,
-      "DEBUG: processing message from %d\n",
+      "Processing message from %p.\n",
       sender);
 #endif
   ptyp = htons(msg->tcpType);
   MUTEX_LOCK(&handlerlock);
   if (ptyp >= max_registeredType) {
     LOG(LOG_INFO, 
-	"INFO: processHelper: Message not understood: %d (no handler registered, max is %d)\n",
+	"%s: Message of type %d not understood: no handler registered\n",
+	__FUNCTION__,
 	ptyp, 
 	max_registeredType);
     MUTEX_UNLOCK(&handlerlock);
-    destroySession(sender);
+    terminateClientConnection(sender);
     return SYSERR;
   }
   callback = handlers[ptyp];
   if (callback == NULL) {
     LOG(LOG_INFO, 
-	"INFO: processHelper: Message not understood: %d (no handler registered)!\n",
+	"%s: Message of type %d not understood: no handler registered\n",
+	__FUNCTION__,
 	ptyp);
     MUTEX_UNLOCK(&handlerlock);
     return SYSERR;
@@ -288,14 +286,14 @@ static int processHelper(CS_HEADER * msg,
  * method (@see writeBack) and then demultiplexes all TCP traffic
  * received to the appropriate handlers.  
  * @param sockDescriptor the socket that we are listening to (fresh)
- **/
+ */
 static int readAndProcess(ClientHandle handle) {
   unsigned int len;
   int ret;
 
 #if DEBUG_TCPHANDLER
   LOG(LOG_DEBUG,
-      "DEBUG: reading from client %d\n",
+      "Reading from client %p.\n",
       handle);
 #endif
   ret = READ(handle->sock,
@@ -304,7 +302,7 @@ static int readAndProcess(ClientHandle handle) {
   if (ret == 0) {
 #if DEBUG_TCPHANDLER
     LOG(LOG_DEBUG,
-	"DEBUG: read 0 bytes from client %d (socket %d). Closing.\n",
+	"Read 0 bytes from client %p (socket %d). Closing.\n",
 	handle,
 	handle->sock);
 #endif
@@ -313,10 +311,8 @@ static int readAndProcess(ClientHandle handle) {
   if (ret < 0) {
     if ( (errno == EINTR) ||
 	 (errno == EAGAIN) ) 
-      return OK;        
-    LOG(LOG_WARNING,
-	"WARNING: error reading from client: %s\n",
-	STRERROR(errno));
+      return OK;
+    LOG_STRERROR(LOG_WARNING, "read");
     return SYSERR;
   }
 #if VERBOSE_STATS
@@ -347,13 +343,13 @@ static int readAndProcess(ClientHandle handle) {
 	 handle->readBufferPos - len);
   handle->readBufferPos -= len;	   
   if (ret == SYSERR)
-    destroySession(handle);
+    terminateClientConnection(handle);
   return OK;
 }
 
 /**
  * Initialize the TCP port and listen for incoming connections.
- **/
+ */
 static void * tcpListenMain() {
   int max;
   int ret;
@@ -375,9 +371,7 @@ static void * tcpListenMain() {
   while ( (listenerFD = SOCKET(PF_INET,
 			       SOCK_STREAM,
 			       0)) < 0) {
-    LOG(LOG_ERROR, 
-	"ERROR opening socket (%s). No client service started. Trying again in 30 seconds.\n",
-	STRERROR(errno));
+    LOG_STRERROR(LOG_ERROR, "socket");
     sleep(30);
   }
   
@@ -396,16 +390,17 @@ static void * tcpListenMain() {
 		  SOL_SOCKET, 
 		  SO_REUSEADDR, 
 		  &on, sizeof(on)) < 0 )
-    perror("setsockopt");
+    LOG_STRERROR(LOG_ERROR, "setsockopt");
 
   /* bind the socket */
   if (BIND(listenerFD, 
 	   (struct sockaddr *) &serverAddr,
-	   sizeof(serverAddr)) < 0) {
+	   sizeof(serverAddr)) < 0) {    
     LOG(LOG_ERROR, 
-	"ERROR (%s) binding the TCP listener to port %d. No proxy service started.\nTrying again in %d seconds...\n",
-	STRERROR(errno),
+	_("'%s' failed for port %d: %s. Will try again in %d seconds.\n"),
+	"bind",
 	listenerPort, 
+	STRERROR(errno),
 	secs);
     sleep(secs);
     secs += 5; /* slow progression... */
@@ -426,14 +421,12 @@ static void * tcpListenMain() {
     if (-1 != FSTAT(listenerFD, &buf)) {
       FD_SET(listenerFD, &readSet);
     } else {
-      errexit("ERROR: tcp-server socket invalid: %s\n",
-	      STRERROR(errno));
+      DIE_STRERROR("fstat");
     }
     if (-1 != FSTAT(signalingPipe[0], &buf)) {
       FD_SET(signalingPipe[0], &readSet);
     } else {
-      errexit("ERROR: signalingPipe invalid: %s\n",
-	      STRERROR(errno));
+      DIE_STRERROR("fstat");
     }
     max = signalingPipe[0];
     if (listenerFD > max)
@@ -452,12 +445,10 @@ static void * tcpListenMain() {
 	  max = sock;
       } else {
 	ClientHandle ch;
-	LOG(LOG_ERROR,
-	    "ERROR: sock %d invalid: %s -- closing.\n",
-	    sock, 
-	    STRERROR(errno));
+
+	LOG_STRERROR(LOG_ERROR, "fstat");
 	ch = pos->next;
-	destroySession(pos);
+	terminateClientConnection(pos);
 	pos = ch;
 	continue;
       }
@@ -475,12 +466,9 @@ static void * tcpListenMain() {
       continue;    
     if (ret == -1) {
       if (errno == EBADF) {
-	LOG(LOG_ERROR,
-	    "ERROR: %s in tcpserver select.\n",
-	    STRERROR(errno));
+	LOG_STRERROR(LOG_ERROR, "select");
       } else {
-	errexit("FATAL: unexpected error in tcpserver select: %s (that's the end)\n",
-		STRERROR(errno));
+	DIE_STRERROR("select");
       }
     }
     if (FD_ISSET(listenerFD, &readSet)) {
@@ -496,16 +484,14 @@ static void * tcpListenMain() {
 	   otherwise we just close and reject the communication! */  
 
 	IPaddr ipaddr;
-	if (sizeof(struct in_addr) != sizeof(IPaddr))
-	  errexit("FATAL: assertion failed at %s:%d\n",
-		  __FILE__, __LINE__);
+	GNUNET_ASSERT(sizeof(struct in_addr) == sizeof(IPaddr));
 	memcpy(&ipaddr,
 	       &clientAddr.sin_addr,
 	       sizeof(struct in_addr));
 
 	if (NO == isWhitelisted(ipaddr)) {
 	  LOG(LOG_WARNING,
-	      "WARNING: Rejected unauthorized connection from %d.%d.%d.%d.\n",
+	      _("Rejected unauthorized connection from %d.%d.%d.%d.\n"),
 	      PRIP(ntohl(*(int*)&clientAddr.sin_addr)));
 	  CLOSE(sock);
 	} else {
@@ -513,7 +499,7 @@ static void * tcpListenMain() {
 	    = MALLOC(sizeof(ClientThreadHandle));
 #if DEBUG_TCPHANDLER
 	  LOG(LOG_DEBUG,
-	      "DEBUG: accepting connection from %d.%d.%d.%d (socket: %d).\n",
+	      "Accepting connection from %d.%d.%d.%d (socket: %d).\n",
 	      PRIP(ntohl(*(int*)&clientAddr.sin_addr)),
 	      sock);
 #endif
@@ -529,9 +515,7 @@ static void * tcpListenMain() {
 	  clientList = ch;
 	}
       } else {
-	LOG(LOG_INFO,
-	    "INFO: CS TCP server accept failed: %s\n",
-	    STRERROR(errno));
+	LOG_STRERROR(LOG_INFO, "accept");
       }
     }
     
@@ -543,17 +527,14 @@ static void * tcpListenMain() {
       char buf[MAXSIG_BUF];
 
 #if DEBUG_TCPHANDLER
-	  LOG(LOG_DEBUG,
-	      "DEBUG: tcpserver eats signal\n");
+      LOG(LOG_DEBUG,
+	  "tcpserver eats signal.\n");
 #endif
       /* just a signal to refresh sets, eat and continue */
       if (0 >= READ(signalingPipe[0], 
 		    &buf[0], 
-		    MAXSIG_BUF)) {
-	LOG(LOG_WARNING,
-	    "WARNING: reading signal on TCP pipe failed (%s)\n",
-	    STRERROR(errno));
-      }
+		    MAXSIG_BUF)) 
+	LOG_STRERROR(LOG_WARNING, "read");      
     }
 
     pos = clientList;
@@ -562,14 +543,14 @@ static void * tcpListenMain() {
       if (FD_ISSET(sock, &readSet)) {
 #if DEBUG_TCPHANDLER
 	LOG(LOG_DEBUG,
-	    "DEBUG: tcpserver reads from %d (socket %d)\n",
+	    "tcpserver reads from %p (socket %d)\n",
 	    pos,
 	    sock);
 #endif
 	if (SYSERR == readAndProcess(pos)) {
 	  ClientHandle ch
 	    = pos->next;
-	  destroySession(pos); 
+	  terminateClientConnection(pos); 
 	  pos = ch;
 	  continue;
 	}
@@ -578,9 +559,9 @@ static void * tcpListenMain() {
 	int ret;
 	
 #if DEBUG_TCPHANDLER
-	  LOG(LOG_DEBUG,
-	      "DEBUG: tcpserver writes to %d\n",
-	      pos);
+	LOG(LOG_DEBUG,
+	    "tcpserver writes to %p.\n",
+	    pos);
 #endif
 	if (pos->writeBufferSize == 0) {
 	  if (pos->writeQueueSize > 0) {
@@ -594,8 +575,7 @@ static void * tcpListenMain() {
 		 pos->writeQueueSize,
 		 pos->writeQueueSize-1);
 	  } else {
-	    LOG(LOG_WARNING,
-		"WARNING: assertion failed: entry in write set but no messages pending!\n");
+	    BREAK(); /* entry in write set but no messages pending! */
 	  }
 	}
 	ret = SEND_NONBLOCKING(sock,
@@ -604,11 +584,8 @@ static void * tcpListenMain() {
 	if (ret == SYSERR) {
 	  ClientHandle ch
 	    = pos->next;
-	  LOG(LOG_WARNING,
-	      "WARNING: send failed on socket %d (%s), closing session.\n",
-	      sock, 
-	      STRERROR(errno));
-	  destroySession(pos);
+	  LOG_STRERROR(LOG_WARNING, "send");
+	  terminateClientConnection(pos);
 	  pos = ch;
 	  continue;
 	}
@@ -617,7 +594,7 @@ static void * tcpListenMain() {
 	    = pos->next;
           /* send only returns 0 on error (other side closed connection),
 	     so close the session */
-	  destroySession(pos); 
+	  terminateClientConnection(pos); 
 	  pos = ch;
 	  continue;
 	}
@@ -639,17 +616,16 @@ static void * tcpListenMain() {
 
       if (FD_ISSET(sock, &errorSet)) {
 #if DEBUG_TCPHANDLER
-	  LOG(LOG_DEBUG,
-	      "DEBUG: tcpserver error on connection %d\n",
-	      pos);
+	LOG(LOG_DEBUG,
+	    "tcpserver error on connection %p.\n",
+	    pos);
 #endif
 	ClientHandle ch
 	  = pos->next;
-	destroySession(pos); 
+	terminateClientConnection(pos); 
 	pos = ch;
 	continue;
       }
-
       pos = pos->next;
     }
   } /* while tcpserver_keep_running */
@@ -659,7 +635,7 @@ static void * tcpListenMain() {
 
   /* close all sessions */
   while (clientList != NULL) 
-    destroySession(clientList); 
+    terminateClientConnection(clientList); 
 
   MUTEX_UNLOCK(&clientlock);
   SEMAPHORE_UP(serverSignal);  /* signal shutdown */
@@ -670,16 +646,15 @@ static void * tcpListenMain() {
 /**
  * Handle a request to see if a particular client server message 
  * is supported.
- **/
+ */
 static int handleCSMessageSupported(ClientHandle sock,
-				    CS_HEADER * message) {
+				    const CS_HEADER * message) {
   unsigned short type;
   int supported;
   STATS_CS_GET_MESSAGE_SUPPORTED * cmsg;
 
   if (ntohs(message->size) != sizeof(STATS_CS_GET_MESSAGE_SUPPORTED)) {
-    LOG(LOG_WARNING,
-	"WARNING: message received from client is invalid.\n");
+    BREAK();
     return SYSERR;
   }
   cmsg = (STATS_CS_GET_MESSAGE_SUPPORTED *) message;
@@ -691,14 +666,14 @@ static int handleCSMessageSupported(ClientHandle sock,
 }
 
 static int sendStatistics_(ClientHandle sock,
-			   CS_HEADER * message) {
+			   const CS_HEADER * message) {
   return sendStatistics(sock,
 			message,
 			&sendToClient);
 }
 
 static int handleGetOption(ClientHandle sock,
-			   CS_HEADER * message) {
+			   const CS_HEADER * message) {
   CS_GET_OPTION_REQUEST * req;
   CS_GET_OPTION_REPLY * rep;
   char * val;
@@ -715,9 +690,10 @@ static int handleGetOption(ClientHandle sock,
     int ival = getConfigurationInt(req->section,
 				   req->option);
     val = MALLOC(12);
-    sprintf(val,
-	    "%d",
-	    ival);
+    SNPRINTF(val,
+	     12,
+	     "%d",
+	     ival);
   }
   rep = MALLOC(sizeof(CS_HEADER) + strlen(val) + 1);
   rep->header.size = htons(sizeof(CS_HEADER) + strlen(val) + 1);
@@ -734,11 +710,10 @@ static int handleGetOption(ClientHandle sock,
 
 /**
  * Initialize the TCP port and listen for incoming client connections.
- **/
+ */
 int initTCPServer() {
   if (tcpserver_keep_running == YES) {
-    LOG(LOG_FATAL,
-	"FATAL: initTCPServer called, but TCPserver is already running\n");
+    BREAK();
     return SYSERR;
   }
   PIPE(signalingPipe);
@@ -748,9 +723,9 @@ int initTCPServer() {
 
 #if VERBOSE_STATS
   octets_total_tcp_in 
-    = statHandle("# bytes received from clients");
+    = statHandle(_("# bytes received from clients"));
   octets_total_tcp_out
-    = statHandle("# bytes sent to clients");
+    = statHandle(_("# bytes sent to clients"));
 #endif
   MUTEX_CREATE_RECURSIVE(&handlerlock);
   MUTEX_CREATE_RECURSIVE(&clientlock);
@@ -762,8 +737,7 @@ int initTCPServer() {
 			  64*1024)) {
     SEMAPHORE_DOWN(serverSignal);
   } else {
-    LOG(LOG_FAILURE, 
-	"FAILURE: could not start TCP server (pthread error!?)\n");
+    LOG_STRERROR(LOG_FAILURE, "pthread_create");
     SEMAPHORE_FREE(serverSignal);
     serverSignal = NULL;
     tcpserver_keep_running = NO;
@@ -785,7 +759,7 @@ int initTCPServer() {
 
 /**
  * Shutdown the module.
- **/ 
+ */ 
 int stopTCPServer() {
   void * unused;
 
@@ -793,7 +767,7 @@ int stopTCPServer() {
        ( serverSignal != NULL) ) {
 #if DEBUG_TCPHANDLER
     LOG(LOG_DEBUG,
-	"DEBUG: stopping TCP server\n");
+	"stopping TCP server\n");
 #endif
     /* stop server thread */
     tcpserver_keep_running = NO;
@@ -810,7 +784,7 @@ int stopTCPServer() {
 int doneTCPServer() {
 #if DEBUG_TCPHANDLER
   LOG(LOG_DEBUG,
-      "DEBUG: entering doneTCPServer\n");
+      "entering %s\n", __FUNCTION__);
 #endif
   CLOSE(signalingPipe[0]);
   CLOSE(signalingPipe[1]);
@@ -836,7 +810,7 @@ int doneTCPServer() {
  *        afterwards (all other parts are ignored)
  * @return OK on success, SYSERR if there is already a
  *         handler for that type
- **/
+ */
 int registerCSHandler(const unsigned short type,
 		      CSHandler callback) {
   MUTEX_LOCK(&handlerlock);
@@ -844,7 +818,8 @@ int registerCSHandler(const unsigned short type,
     if (handlers[type] != NULL) {
       MUTEX_UNLOCK(&handlerlock);
       LOG(LOG_WARNING,
-	  "WARNING: registerCSHandler failed, slot %d used\n",
+	  _("%s failed, message type %d already in use.\n"),
+	  __FUNCTION__,
 	  type);
       return SYSERR;
     } 
@@ -864,16 +839,14 @@ int registerCSHandler(const unsigned short type,
  * @param type the message type
  * @return YES if there is a handler for the type,
  * 	NO if there isn't
- **/
+ */
 int isCSHandlerRegistered(const unsigned short type) {
-    int registered = NO;
-
-    if ((type < max_registeredType) &&
-    	(handlers[type] != NULL)) {
-        registered = YES;
-    }
-
-    return registered;
+  int registered = NO;
+  if ((type < max_registeredType) &&
+      (handlers[type] != NULL)) {
+    registered = YES;
+  }
+  return registered;
 }
 
   
@@ -888,7 +861,7 @@ int isCSHandlerRegistered(const unsigned short type) {
  *        afterwards (all other parts are ignored)
  * @return OK on success, SYSERR if there is no or another
  *         handler for that type
- **/
+ */
 int unregisterCSHandler(const unsigned short type,
 			CSHandler callback) {
   MUTEX_LOCK(&handlerlock);
@@ -914,7 +887,7 @@ int unregisterCSHandler(const unsigned short type,
  * @param ret the return value to send via TCP
  * @return SYSERR on error, OK if the return value was
  *         send successfully
- **/
+ */
 int sendTCPResultToClient(ClientHandle sock,
 			  int ret) {
   CS_RETURN_VALUE rv;

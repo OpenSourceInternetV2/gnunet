@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -22,14 +22,13 @@
  * @file util/hashing.c
  * @brief RIPE160MD hash related functions
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_util.h"
 #include "platform.h"
 
 #if ! (USE_OPENSSL || USE_GCRYPT)
-#define USE_GCRY 1
-#include "gcry/rmd.h"
+#error Must use OpenSSL or libgcrypt
 #endif
 
 #if USE_OPENSSL
@@ -48,23 +47,18 @@
  * @param block the data to hash, length is given as a second argument
  * @param size the length of the data to hash
  * @param ret pointer to where to write the hashcode
- **/
-void hash(void * block,
+ */
+void hash(const void * block,
 	  int size,
 	  HashCode160 * ret) {
 #if USE_OPENSSL
   RIPEMD160(block, size, (unsigned char*) ret);
-#else
+#endif
 #if USE_GCRYPT
   gcry_md_hash_buffer(GCRY_MD_RMD160,
 		      (char*) ret,
 		      block,
 		      size);
-#else
-  gcry_rmd160_hash_buffer((char*)ret,
-			  block,
-			  size);
-#endif
 #endif
 }
 
@@ -75,7 +69,7 @@ void hash(void * block,
  *
  * @return OK on success, SYSERR on error
  */
-int getFileHash(char * filename,
+int getFileHash(const char * filename,
 		HashCode160 * ret) {
   char * buf;
   unsigned int len;
@@ -90,10 +84,6 @@ int getFileHash(char * filename,
 			GCRY_MD_RMD160,
 			0))
     return SYSERR;
-#endif
-#if USE_GCRY
-  RMD160_CONTEXT hd;
-  _gcry_rmd160_init(&hd);
 #endif
 #if USE_OPENSSL
   RIPEMD160_CTX hd;  
@@ -137,11 +127,6 @@ int getFileHash(char * filename,
 		  buf,
 		  delta);
 #endif
-#if USE_GCRY
-    rmd160_write(&hd,
-		 buf,
-		 delta);
-#endif
 #if USE_OPENSSL
     RIPEMD160_Update(&hd,
 		     buf,
@@ -157,12 +142,6 @@ int getFileHash(char * filename,
 	 sizeof(HashCode160));
   gcry_md_close(hd);
 #endif
-#if USE_GCRY
-  rmd160_final(&hd);
-  memcpy(ret,
-	 hd.buf,
-	 sizeof(HashCode160));
-#endif
 #if USE_OPENSSL
   RIPEMD160_Final((unsigned char*)ret,
 		  &hd);
@@ -171,24 +150,172 @@ int getFileHash(char * filename,
   return OK;
 }
 
+/* ***************** binary-ASCII encoding *************** */
 
+/**
+ * 32 characters for encoding (hash => 32 characters)
+ */
+static unsigned char * encTable__ = "0123456789ABCDEFGHIJKLMNOPQRSTUV";
+
+static unsigned int getValue__(unsigned char a) {
+  if ( (a >= '0') && (a <= '9') ) 
+    return a - '0';
+  if ( (a >= 'A') && (a <= 'V') )
+    return (a - 'A' + 10);
+  return -1;
+}
+
+/**
+ * Convert hash to ASCII encoding.  The ASCII encoding is rather
+ * GNUnet specific.  It was chosen such that it only uses characters
+ * in [0-9A-Z], can be produced without complex arithmetics and
+ * uses a small number of characters.  The theoretical limit is 28
+ * characters, the GNUnet encoding uses 32 and is thus pretty close.
+ *
+ * @param block the hash code
+ * @param result where to store the encoding (EncName can be
+ *  safely cast to char*, a '\0' termination is set).
+ */
+void hash2enc(const HashCode160 * block,
+	      EncName * result) {
+  unsigned long long v1;
+  unsigned long long v2;
+  unsigned long long v3;
+
+  GNUNET_ASSERT(sizeof(EncName) == 33);
+  GNUNET_ASSERT(strlen(encTable__) == 32);
+  v1 = (((unsigned long long) (unsigned int) block->a) << 32) + 
+        (unsigned long long) (unsigned int) block->b;
+  result->encoding[0] = encTable__[v1 & 31]; v1 >>= 5;
+  result->encoding[1] = encTable__[v1 & 31]; v1 >>= 5;
+  result->encoding[2] = encTable__[v1 & 31]; v1 >>= 5;
+  result->encoding[3] = encTable__[v1 & 31]; v1 >>= 5;
+  result->encoding[4] = encTable__[v1 & 31]; v1 >>= 5;
+  result->encoding[5] = encTable__[v1 & 31]; v1 >>= 5;
+  result->encoding[6] = encTable__[v1 & 31]; v1 >>= 5;
+  result->encoding[7] = encTable__[v1 & 31]; v1 >>= 5;
+  result->encoding[8] = encTable__[v1 & 31]; v1 >>= 5;
+  result->encoding[9] = encTable__[v1 & 31]; v1 >>= 5; 
+  result->encoding[10] = encTable__[v1 & 31]; v1 >>= 5; 
+  result->encoding[11] = encTable__[v1 & 31]; v1 >>= 5; 
+  v2 = (((unsigned long long) (unsigned int) block->c) << 32) + 
+         (unsigned long long) (unsigned int) block->d;
+  result->encoding[13] = encTable__[v2 & 31]; v2 >>= 5;
+  result->encoding[14] = encTable__[v2 & 31]; v2 >>= 5;
+  result->encoding[15] = encTable__[v2 & 31]; v2 >>= 5;
+  result->encoding[16] = encTable__[v2 & 31]; v2 >>= 5;
+  result->encoding[17] = encTable__[v2 & 31]; v2 >>= 5;
+  result->encoding[18] = encTable__[v2 & 31]; v2 >>= 5;
+  result->encoding[19] = encTable__[v2 & 31]; v2 >>= 5; 
+  result->encoding[20] = encTable__[v2 & 31]; v2 >>= 5;
+  result->encoding[21] = encTable__[v2 & 31]; v2 >>= 5;
+  result->encoding[22] = encTable__[v2 & 31]; v2 >>= 5;
+  result->encoding[23] = encTable__[v2 & 31]; v2 >>= 5;
+  result->encoding[24] = encTable__[v2 & 31]; v2 >>= 5;
+
+  v3 = (unsigned long long) (unsigned int) block->e; 
+  result->encoding[26] = encTable__[v3 & 31]; v3 >>= 5;
+  result->encoding[27] = encTable__[v3 & 31]; v3 >>= 5;
+  result->encoding[28] = encTable__[v3 & 31]; v3 >>= 5;
+  result->encoding[29] = encTable__[v3 & 31]; v3 >>= 5; 
+  result->encoding[30] = encTable__[v3 & 31]; v3 >>= 5;
+  result->encoding[31] = encTable__[v3 & 31]; v3 >>= 5;
+
+  v1 |= (v3 & 1) << 4; /* use highest bit in v1 */
+  v2 |= (v3 & 2) << 3; /* use highest bit in v2 */
+  result->encoding[12] = encTable__[v1 & 31]; 
+  result->encoding[25] = encTable__[v2 & 31]; 
+  result->encoding[32] = '\0';
+}
+
+
+/**
+ * Convert ASCII encoding back to hash
+ * @param enc the encoding
+ * @param result where to store the hash code 
+ * @return OK on success, SYSERR if result has the wrong encoding
+ */
+int enc2hash(const char * enc,
+	     HashCode160 * result) {
+  unsigned long long v;
+  int pos;
+ 
+  GNUNET_ASSERT(sizeof(EncName) == 33);
+  if (strlen(enc) != sizeof(EncName)-1)
+    return SYSERR;
+  for (pos=strlen(enc)-1;pos>=0;pos--) {
+    if (-1 == getValue__(enc[pos]))
+      return SYSERR;
+#if EXPENSIVE_CHECKS
+    GNUNET_ASSERT((encTable__[getValue__(enc[pos])] == enc[pos]));
+#endif
+  }
+
+  v = getValue__(enc[12]);
+  v <<= 5; v+= getValue__(enc[11]);
+  v <<= 5; v+= getValue__(enc[10]);
+  v <<= 5; v+= getValue__(enc[9]);
+  v <<= 5; v+= getValue__(enc[8]);
+  v <<= 5; v+= getValue__(enc[7]);
+  v <<= 5; v+= getValue__(enc[6]);
+  v <<= 5; v+= getValue__(enc[5]);
+  v <<= 5; v+= getValue__(enc[4]);
+  v <<= 5; v+= getValue__(enc[3]);
+  v <<= 5; v+= getValue__(enc[2]);
+  v <<= 5; v+= getValue__(enc[1]);
+  v <<= 5; v+= getValue__(enc[0]);
+  result->a = (unsigned int)(v >> 32);
+  result->b = (unsigned int) v;
+
+  v = getValue__(enc[25]);
+  v <<= 5; v+= getValue__(enc[24]);
+  v <<= 5; v+= getValue__(enc[23]);
+  v <<= 5; v+= getValue__(enc[22]);
+  v <<= 5; v+= getValue__(enc[21]);
+  v <<= 5; v+= getValue__(enc[20]);
+  v <<= 5; v+= getValue__(enc[19]);
+  v <<= 5; v+= getValue__(enc[18]);
+  v <<= 5; v+= getValue__(enc[17]);
+  v <<= 5; v+= getValue__(enc[16]);
+  v <<= 5; v+= getValue__(enc[15]);
+  v <<= 5; v+= getValue__(enc[14]);
+  v <<= 5; v+= getValue__(enc[13]);
+  result->c = (unsigned int)(v >> 32);
+  result->d = (unsigned int) v;
+
+  /* get lowest two bits from 12 and 25 */
+  v = ((getValue__(enc[25]) >> 4) << 1) | (getValue__(enc[12]) >> 4);
+  v <<= 5; v+= getValue__(enc[31]);
+  v <<= 5; v+= getValue__(enc[30]);
+  v <<= 5; v+= getValue__(enc[29]);
+  v <<= 5; v+= getValue__(enc[28]);
+  v <<= 5; v+= getValue__(enc[27]);
+  v <<= 5; v+= getValue__(enc[26]);
+  result->e = (unsigned int) v;
+  return OK;
+}
+
+
+
+
+/**
+ * 16-characters for hex encoding (hash => 20 characters)
+ */
 static unsigned char * encoding__ = "0123456789ABCDEF";
 
 /**
  * Convert (hash) block to hex (= filename)
  * @param block the sequence to convert
  * @param result where to store thestring (0-terminated), hex-encoding
- **/
+ */
 void hash2hex(const HashCode160 * block,
 	      HexName * result) {
   unsigned int i;
   unsigned int j;
   unsigned char c;
   unsigned char clow;
-
-  if ((block == NULL) || (result == NULL)) 
-    errexit("hash2hex called with block or result NULL!\n");
-
+  
+  GNUNET_ASSERT((block != NULL) && (result != NULL));
   result->data[sizeof(HashCode160)*2]=0;
   j=0;
   for (i=0;i<sizeof(HashCode160);i++) {
@@ -204,8 +331,8 @@ void hash2hex(const HashCode160 * block,
  * Convert hex (filename) to the hostIdentity
  * @param hex the filename
  * @param hash is set to the correspoinding host identity
- **/
-void hex2hash(HexName * hex,
+ */
+void hex2hash(const HexName * hex,
 	      HashCode160 * hash) {
   unsigned int i;
   unsigned int j;
@@ -213,12 +340,8 @@ void hex2hash(HexName * hex,
   unsigned char clow;
   unsigned char chigh;
 
-  if ((hex == NULL) || (hash == NULL)) 
-    errexit("hex2hash called with hex or hash NULL!");  
-  if (strlen((char*)hex) != sizeof(HashCode160)*2) 
-    errexit("assertion failed: strlen(hex) is not %d\n",
-	    sizeof(HashCode160)*2);
-  
+  GNUNET_ASSERT((hex!=NULL) && (hash != NULL));
+  GNUNET_ASSERT((strlen((char*)hex) == sizeof(HashCode160)*2));
   j=0;
   i=0;
   while (i<sizeof(HashCode160)*2) {
@@ -228,14 +351,14 @@ void hex2hash(HexName * hex,
     else if ( (clow >= '0') && (clow <= '9') )
       clow = clow - '0';
     else
-      errexit("hex2hash called with hex not consisting of characters [A-Z][0-9]\n");
+      GNUNET_ASSERT(0); /* hex2hash called with hex not consisting of characters [A-Z][0-9] */
     chigh = hex->data[i++];    
     if ( (chigh >= 'A') && (chigh <= 'Z') )
       chigh = chigh - 'A' + 10;
     else if ( (chigh >= '0') && (chigh <= '9') )
       chigh = chigh - '0';
     else
-      errexit("hex2hash called with hex not consisting of characters [A-Z][0-9]\n");
+      GNUNET_ASSERT(0); /* hex2hash called with hex not consisting of characters [A-Z][0-9] */
     c = clow + (chigh << 4);
     ((unsigned char *)hash)[j++] = c;
   }  
@@ -247,7 +370,7 @@ void hex2hash(HexName * hex,
  * random Id is generated.  Otherwise, the hash of the string "ch" is
  * used.
  */
-void tryhex2hashOrHashString(char * ch,
+void tryhex2hashOrHashString(const char * ch,
 			     HashCode160 * hc) {
   if ( (ch == NULL) || (ch[0] == '\0') ) {
     makeRandomId(hc);
@@ -262,8 +385,8 @@ void tryhex2hashOrHashString(char * ch,
  * @param ch the hex sequence
  * @param hash the resulting hash code
  * @return OK on success, SYSERR on error
- **/
-int tryhex2hash(char * ch,
+ */
+int tryhex2hash(const char * ch,
 		HashCode160 * hash) {
   unsigned int i;
   unsigned int j;
@@ -271,14 +394,9 @@ int tryhex2hash(char * ch,
   unsigned char clow;
   unsigned char chigh;
 
-  if ((ch == NULL) || (hash == NULL)) 
-    errexit("tryhex2hash called with hex or hash NULL!");  
-  if (strlen(ch) != sizeof(HashCode160)*2) {
-    LOG(LOG_EVERYTHING,
-	"EVERYTHING: string has wrong length (%u) for tryhex2hash.\n",
-	strlen(ch));
-    return SYSERR;
-  }
+  GNUNET_ASSERT((ch != NULL) && (hash != NULL));
+  if (strlen(ch) != sizeof(HashCode160)*2) 
+    return SYSERR; 
   
   j=0;
   i=0;
@@ -288,23 +406,15 @@ int tryhex2hash(char * ch,
       clow = clow - 'A' + 10;
     else if ( (clow >= '0') && (clow <= '9') )
       clow = clow - '0';
-    else {
-      LOG(LOG_EVERYTHING,
-	  "EVERYTHING: string has unexpected character (%d) for tryhex2hash.\n",
-	  ch[i-1]);
-      return SYSERR;
-    }
+    else 
+      return SYSERR;    
     chigh = ch[i++];    
     if ( (chigh >= 'A') && (chigh <= 'Z') )
       chigh = chigh - 'A' + 10;
     else if ( (chigh >= '0') && (chigh <= '9') )
       chigh = chigh - '0';
-    else {
-      LOG(LOG_EVERYTHING,
-	  "EVERYTHING: string has unexpected character (%d) for tryhex2hash.\n",
-	  ch[i-1]);
-      return SYSERR;
-    }
+    else 
+      return SYSERR;    
     c = clow + (chigh << 4);
     ((unsigned char *)hash)[j++] = c;
   }  
@@ -320,9 +430,9 @@ int tryhex2hash(char * ch,
  *
  * @returns a positive number which is a measure for 
  *  hashcode proximity.
- **/
-int distanceHashCode160(HashCode160 * a, 
-			HashCode160 * b) {
+ */
+int distanceHashCode160(const HashCode160 * a, 
+			const HashCode160 * b) {
   int x = (a->b - b->b)>>16;
   return ((x*x)>>16);
 }
@@ -330,7 +440,7 @@ int distanceHashCode160(HashCode160 * a,
 /**
  * Compare two hashcodes.
  * @return 1 if they are equal, 0 if not.
- **/
+ */
 int equalsHashCode160(const HashCode160 * a, 
 		      const HashCode160 * b) {
   return (0 == memcmp(a,b,sizeof(HashCode160)));
@@ -344,8 +454,8 @@ void makeRandomId(HashCode160 * result) {
   result->e = rand();
 }
 
-void deltaId(HashCode160 * a,
-	     HashCode160 * b,
+void deltaId(const HashCode160 * a,
+	     const HashCode160 * b,
 	     HashCode160 * result) {
   result->a = b->a - a->a;
   result->b = b->b - a->b;
@@ -354,8 +464,8 @@ void deltaId(HashCode160 * a,
   result->e = b->e - a->e;
 }
 
-void addHashCodes(HashCode160 * a,
-		  HashCode160 * delta,
+void addHashCodes(const HashCode160 * a,
+		  const HashCode160 * delta,
 		  HashCode160 * result) {
   result->a = delta->a + a->a;
   result->b = delta->b + a->b;
@@ -364,8 +474,8 @@ void addHashCodes(HashCode160 * a,
   result->e = delta->e + a->e;
 }
 
-void xorHashCodes(HashCode160 * a,
-		  HashCode160 * b,
+void xorHashCodes(const HashCode160 * a,
+		  const HashCode160 * b,
 		  HashCode160 * result) {
   result->a = b->a ^ a->a;
   result->b = b->b ^ a->b;
@@ -375,9 +485,22 @@ void xorHashCodes(HashCode160 * a,
 }
 
 /**
+ * Check if two hosts are the same.
+ * @return YES if they are equal, otherwise NO
+ */
+int hostIdentityEquals(const HostIdentity * first, 
+		       const HostIdentity * second) {
+  if ( (first == NULL) || 
+       (second == NULL) )
+    return NO;
+  return equalsHashCode160(&first->hashPubKey,
+			   &second->hashPubKey);
+}
+
+/**
  * Convert a hashcode into a key.
- **/
-void hashToKey(HashCode160 * hc,
+ */
+void hashToKey(const HashCode160 * hc,
 	       SESSIONKEY * skey,
 	       unsigned char * iv) {
   memcpy(skey,
@@ -392,6 +515,80 @@ void hashToKey(HashCode160 * hc,
 }
 
 
+/**
+ * Obtain a bit from a hashcode.
+ * @param code the hash to index bit-wise
+ * @param bit index into the hashcode, [0...159]
+ * @return Bit \a bit from hashcode \a code, -1 for invalid index
+ */
+int getHashCodeBit(const HashCode160 * code,
+		   unsigned int bit) {
+  if (bit >= 8 * sizeof(HashCode160)) {
+    BREAK();
+    return -1; /* error */
+  }
+  return (((unsigned char*)code)[bit >> 3] & (1 << bit & 7)) > 0;
+}
 
+/**
+ * Compare function for HashCodes, producing a total ordering
+ * of all hashcodes.
+ * @return 1 if h1 > h2, -1 if h1 < h2 and 0 if h1 == h2.
+ */
+int hashCodeCompare(const HashCode160 * h1,
+		    const HashCode160 * h2) {
+  int i;
+  int diff;
+  /* FIXME: we can do this much more efficiently... */
+  for (i = sizeof(HashCode160)*8 - 1; i >= 0; --i) {
+    diff = getHashCodeBit(h2, i) - getHashCodeBit(h1, i);
+    if (diff < 0) 
+      return -1;
+    else if (diff > 0)
+      return 1;
+  }
+  return 0;
+}
+
+/**
+ * Find out which of the two hash codes is closer to target
+ * in the XOR metric (Kademlia).
+ * @return -1 if h1 is closer, 1 if h2 is closer and 0 if h1==h2.
+ */
+int hashCodeCompareDistance(const HashCode160 * h1,
+			    const HashCode160 * h2,
+			    const HashCode160 * target) {
+  int i;
+#if 0
+  int diff;
+  int b1, b2, bt;
+#endif
+  unsigned int d1;
+  unsigned int d2;
+
+  for (i=sizeof(HashCode160)/sizeof(unsigned int)-1;i>=0;i--) {
+    d1 = ((unsigned int*)h1)[i] ^ ((unsigned int*)target)[i];
+    d2 = ((unsigned int*)h2)[i] ^ ((unsigned int*)target)[i];
+    if (d1 > d2)
+      return 1;
+    else if (d1 < d2)
+      return -1;
+  }
+#if 0
+  /* Old code: */
+  for (i = sizeof(HashCode160) * 8 - 1; i >= 0; --i) {
+    b1 = getHashCodeBit(h1, i);
+    b2 = getHashCodeBit(h2, i);
+    bt = getHashCodeBit(target, i);
+    /* Check XOR distance. */
+    diff = (b2 ^ bt) - (b1 ^ bt);
+    if (diff < 0) 
+      return -1;
+    else if (diff > 0)
+      return 1;
+  }
+#endif
+  return 0;
+}
 
 /* end of hashing.c */

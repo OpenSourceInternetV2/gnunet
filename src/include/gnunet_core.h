@@ -21,7 +21,7 @@
  * @file include/gnunet_core.h
  * @brief The APIs to the GNUnet core. See also core.c.
  * @author Christian Grothoff
- **/
+ */
 
 #ifndef COREAPI_H
 #define COREAPI_H
@@ -39,20 +39,20 @@
  * something changes in the core API.  It follows
  * roughly the main GNUnet version scheme, but is
  * more a compatibility ID.
- **/
+ */
 #define GNUNET_CORE_VERSION 0x00060105
 
 
 /**
  * Priority for special administrative messages that
  * for example overrules drop-rules.
- **/
+ */
 #define EXTREME_PRIORITY 0xFFFFFF
 
 /**
  * Opaque handle for a session representation on the transport
  * layer side 
- **/
+ */
 typedef struct {
   unsigned short ttype;
   void * internal;
@@ -62,31 +62,31 @@ typedef struct {
  * A session is a token provided by the transport
  * API to refer to a connection of the transport
  * layer.
- **/
+ */
 typedef struct {
   /**
    * To whom are we connected with this session?
-   **/
+   */
   HostIdentity sender;
   
   /**
    * The transport type for this session.
-   **/
+   */
   unsigned short ttype;
 
   /**
    * The MTU for this session.
-   **/
+   */
   unsigned short mtu;
 
   /**
    * Is this session encrypted (send only)?
-   **/
+   */
   int isEncrypted;
 
   /** 
    * The session handle specific for the transport service.
-   **/
+   */
   TSession * tsession;
 
 } Session;
@@ -103,34 +103,34 @@ typedef struct {
  * the HostIdentity and includes the senderAddress.
  * Since the senderAddress may be long, what is 
  * actually signed is the hash of these bytes.
- **/
+ */
 typedef struct {
   p2p_HEADER header;
 
   /**
    * The signature 
-   **/
+   */
   Signature signature;
 
   /**
    * The public key 
-   **/
+   */
   PublicKey publicKey; 
 
   /**
    * Whose identity follows? No, this is NOT a duplicate
    * as a node may send us the identity of ANOTHER node! 
-   **/
+   */
   HostIdentity senderIdentity; 
 
   /**
    * time this address expires  (network byte order) 
-   **/ 
+   */ 
   TIME_T expirationTime;
 
   /**
    * size of the sender address 
-   **/
+   */
   unsigned short senderAddressSize;
 
   /**
@@ -138,13 +138,13 @@ typedef struct {
    * can be advertised by the same HELO) 
    * Examples are UDP, TCP, etc. This field is
    * in network byte order 
-   **/
+   */
   unsigned short protocol;
 
   /**
    * advertised MTU for sending (replies can have a different
    * MTU!) 
-   **/
+   */
   unsigned int MTU;
 
 } HELO_Message;
@@ -154,7 +154,7 @@ typedef struct {
 
   /**
    * address of the node in a protocol specific format 
-   **/ 
+   */ 
   char senderAddress[1]; 
   
 } HELO_Message_GENERIC;  
@@ -163,49 +163,53 @@ typedef struct {
 
 /**
  * Type of a handler for messages from clients.
- **/
+ */
 typedef int (*CSHandler)(ClientHandle client,
-			 CS_HEADER * message);
+			 const CS_HEADER * message);
 
 /**
  * Type of a struct passed to receive.
- **/
+ */
 typedef struct {
   /**
    * The session associated with the message
    * on the transport layer side. Maybe passed to "associate"
    * in order to send replies on a bi-directional pipe (if
    * possible).
-   **/
+   */
   TSession * tsession;
 
   /**
    * The identity of the sender node
-   **/
+   */
   HostIdentity sender;
 
   /**
    * The message itself. The GNUnet core will call 'xfree' once
    * processing of msg is complete. Note that msg can point to
    * multiple p2p_headers.
-   **/
+   */
   p2p_HEADER * msg;
 
   /**
    * The size of the message
-   **/
+   */
   unsigned int size;
   
   /**
    * YES if the message was encrypted, NO otherwise
-   **/
+   * (LOOPBACK is a special value for messages that are
+   * to be treated as encrypted except that they are in plaintext)
+   */
   int isEncrypted;
 
   /**
    * The checksum of the message (over size bytes from msg)
-   **/
+   */
   int crc;
 } MessagePack;
+
+#define LOOPBACK 3
 
 /**
  * This header file contains a draft for the gnunetd
@@ -214,17 +218,17 @@ typedef struct {
  * 
  * A pointer to an instance of this struct is passed
  * to the init method of each Transport API.
- **/
+ */
 typedef struct {
 
   /**
    * The version of the CORE API. For now, always "0".
-   **/
+   */
   unsigned int version;
 
   /**
    * The identity of the local node.
-   **/
+   */
   HostIdentity * myIdentity;
 
   /**
@@ -232,7 +236,7 @@ typedef struct {
    * the core process it.
    *
    * @param mp the message, freed by the callee once processed!
-   **/
+   */
   void (*receive)(MessagePack * mp);
 
 } CoreAPIForTransport;
@@ -241,15 +245,15 @@ typedef void (*ClientExitHandler)(ClientHandle client);
 
 /**
  * Type of a handler for some message type.
- **/
-typedef int (*MessagePartHandler)(HostIdentity * sender,
-				  p2p_HEADER * message);
+ */
+typedef int (*MessagePartHandler)(const HostIdentity * sender,
+				  const p2p_HEADER * message);
 
 /**
  * Type of a handler for some message type.
  * @param identity the id of the node
- **/
-typedef void (*PerNodeCallback)(HostIdentity * identity,
+ */
+typedef void (*PerNodeCallback)(const HostIdentity * identity,
 				void * data);
 
 /**
@@ -261,8 +265,8 @@ typedef void (*PerNodeCallback)(HostIdentity * identity,
  * @param padding is the number of bytes left in that buffer.
  * @return the number of bytes written to
  *   that buffer (must be a positive number).
- **/
-typedef int (*BufferFillCallback)(HostIdentity * receiver,
+ */
+typedef int (*BufferFillCallback)(const HostIdentity * receiver,
 				  void * position,
 				  int padding);
 
@@ -275,7 +279,7 @@ typedef int (*BufferFillCallback)(HostIdentity * receiver,
  * @param closure context argument that was given when the callback was installed
  * @param len the expected number of bytes to write to buf 
  * @return OK on success, SYSERR on error
- **/
+ */
 typedef int (*BuildMessageCallback)(void * buf,
 				    void * closure,
 				    unsigned short len);
@@ -296,7 +300,7 @@ typedef int (*BuildMessageCallback)(void * buf,
  * The challenge prevents an inept adversary from sending
  * us a HELO and then an arbitrary PONG reply (adversary
  * must at least be able to sniff our outbound traffic).
- **/
+ */
 typedef struct {
   p2p_HEADER header;
 
@@ -304,7 +308,7 @@ typedef struct {
    * Which peer is the target of the ping? This is important since for
    * plaintext-pings, we need to catch faulty advertisements that
    * advertise a correct address but with the wrong public key.
-   **/
+   */
   HostIdentity receiver;
 
   /**
@@ -312,24 +316,24 @@ typedef struct {
    * wants to fake a pong message would have to guess. Since even if
    * the number is guessed, the security impact is at most some wasted
    * resources, 32 bit are more than enough.
-   **/
+   */
   int challenge;
 } PINGPONG_Message;
 
 /**
- * GNUnet CORE API for applications that are implemented on top of
- * the GNUnet core.
- **/
+ * GNUnet CORE API for applications and services that are implemented
+ * on top of the GNUnet core.
+ */
 typedef struct {
 
   /**
    * The version of the CORE API. For now, always "0".
-   **/
+   */
   unsigned int version;
 
   /**
    * The identity of the local node.
-   **/
+   */
   HostIdentity * myIdentity;
 
 
@@ -341,8 +345,8 @@ typedef struct {
    * @param pmsg the ping-message, pingAction just fills it in,
    *        the caller is responsbile for sending it!
    * @returns OK on success, SYSERR on error
-   **/
-  int (*pingAction)(HostIdentity * receiver,
+   */
+  int (*pingAction)(const HostIdentity * receiver,
 		    CronJob method,
 		    void * data,
 		    PINGPONG_Message * pmsg);
@@ -354,7 +358,7 @@ typedef struct {
    * @param sig where to store the signature
    * @return OK on success, SYSERR on error 
    *  (typically size negative or to large)
-   **/
+   */
   int (*sign)(void * message,
 	      unsigned short size,
 	      Signature * sig);
@@ -365,7 +369,7 @@ typedef struct {
    * @param size the size of the message
    * @param sig the signature
    * @return OK on success, SYSERR on error (verification failed)
-   **/
+   */
   int (*verifySig)(const HostIdentity * signer,
 		   void * message,
 		   int size,
@@ -375,7 +379,7 @@ typedef struct {
    * Increase the preference for traffic from some other peer.
    * @param node the identity of the other peer
    * @param preference how much should the traffic preference be increased?
-   **/
+   */
   void (*preferTrafficFrom)(const HostIdentity * node,
 			    double preference);
 
@@ -392,13 +396,13 @@ typedef struct {
    * @return the actual change in trust (trust can not go negative,
    *  so if the existing trust was 6 and delta was -10, then
    *  changeTrust will return -6.
-   **/
+   */
   unsigned int (*changeTrust)(const HostIdentity * node,
 			      int delta);
 
   /**
    * Get the amount of trust that we have in a node.
-   **/
+   */
   unsigned int (*getTrust)(const HostIdentity * node);
 
   /**
@@ -407,9 +411,9 @@ typedef struct {
    * @param msg the message to send
    * @param importance how important is the message?
    * @param maxdelay how long can the message be delayed?
-   **/
+   */
   void (*sendToNode)(const HostIdentity * receiver,
-		     p2p_HEADER * msg,
+		     const p2p_HEADER * msg,
 		     unsigned int importance,
 		     unsigned int maxdelay);
   
@@ -440,7 +444,7 @@ typedef struct {
    * @param len how long is the message going to be?
    * @param importance how important is the message?
    * @param maxdelay how long can the message wait?
-   **/
+   */
   void (*unicast)(const HostIdentity * receiver,
 		  BuildMessageCallback callback,
 		  void * closure,
@@ -453,10 +457,10 @@ typedef struct {
    * The BufferEntry structure is passed to the method.
    * No synchronization or other checks are performed.
    *
-   * @param method the method to invoke (NULL for couting only)
+   * @param method the method to invoke (NULL for counting only)
    * @param arg the second argument to the method
    * @return the number of connected hosts
-   **/ 
+   */ 
   int (*forAllConnectedNodes)(PerNodeCallback method,
 			      void * arg);
 
@@ -466,8 +470,8 @@ typedef struct {
    * @param msg the message to send
    * @param importance how important is the message?
    * @param maxdelay how long can we wait (max), in seconds
-   **/
-  void (*broadcastToConnected)(p2p_HEADER * msg,
+   */
+  void (*broadcastToConnected)(const p2p_HEADER * msg,
 			       unsigned int importance,
 			       unsigned int maxdelay);
 
@@ -490,14 +494,14 @@ typedef struct {
    *   The callback method must return the number of bytes written to
    *   that buffer (must be a positive number).
    * @return OK if the handler was registered, SYSERR on error
-   **/
+   */
   int (*registerSendCallback)(const unsigned int minimumPadding,
 			      BufferFillCallback callback);
   
   /**
    * Unregister a handler that was registered with registerSendCallback.
    * @return OK if the handler was removed, SYSERR on error
-   **/
+   */
   int (*unregisterSendCallback)(const unsigned int minimumPadding,
 				BufferFillCallback callback);
 
@@ -509,7 +513,7 @@ typedef struct {
    *        that type is received
    * @return OK on success, SYSERR if there is already a
    *         handler for that type
-   **/
+   */
   int (*registerClientHandler)(const unsigned short type,
 			       CSHandler callback);
 
@@ -519,7 +523,7 @@ typedef struct {
    * @param the message type
    * @return YES if there is a handler for the type,
    * 	NO if there isn't
-   **/
+   */
   int (*isClientHandlerRegistered)(const unsigned short type);
 
   /**
@@ -530,7 +534,7 @@ typedef struct {
    *        that type is received
    * @return OK on success, SYSERR if there is a different
    *         handler for that type
-   **/
+   */
   int (*unregisterClientHandler)(const unsigned short type,
 				 CSHandler callback);
 
@@ -539,7 +543,7 @@ typedef struct {
    * @param callback a method to call with the socket
    *   of every client that disconnected.
    * @return OK on success, SYSERR on error
-   **/
+   */
   int (*registerClientExitHandler)(ClientExitHandler callback);
   
   /**
@@ -547,7 +551,7 @@ typedef struct {
    * @param callback a method to call with the socket
    *   of every client that disconnected.
    * @return OK on success, SYSERR on error
-   **/
+   */
   int (*unregisterClientExitHandler)(ClientExitHandler callback);
   
   /**
@@ -558,7 +562,7 @@ typedef struct {
    *        that type is received
    * @return OK on success, SYSERR if there is already a
    *         handler for that type
-   **/
+   */
   int (*registerHandler)(const unsigned short type,
 			 MessagePartHandler callback);
   
@@ -569,7 +573,7 @@ typedef struct {
    * @param the message type
    * @return YES if there is a handler for the type,
    * 	NO if there isn't
-   **/
+   */
   int (*isHandlerRegistered)(const unsigned short type);
 
   /**
@@ -580,26 +584,26 @@ typedef struct {
    *        that type is received
    * @return OK on success, SYSERR if there is a different
    *         handler for that type
-   **/
+   */
   int (*unregisterHandler)(const unsigned short type,
 			   MessagePartHandler callback);
   
   /**
    * Return the estimated size of the network in
    * the number of nodes running at the moment.
-   **/
+   */
   int (*estimateNetworkSize)();
 
   /**
    * Compute the index (small, positive, pseudo-unique identification
    * number) of a hostId.
-   **/
+   */
   unsigned int (*computeIndex)(const HostIdentity * hostId);
 
   /**
    * The the lock of the connection module. A module that registers
    * callbacks may need this.
-   **/
+   */
   Mutex * (*getConnectionModuleLock)();
 
   /**
@@ -616,7 +620,7 @@ typedef struct {
    * @param timeDistribution bit-vector giving times of interactions,
    *        highest bit is current time-unit, bit 1 is 32 time-units ago (set)
    * @return OK on success, SYSERR on error
-   **/
+   */
   int (*getTrafficStats)(const unsigned short messageType,
 			 const int sendReceive,
 			 const unsigned int timePeriod,
@@ -636,7 +640,7 @@ typedef struct {
    * @param tryTemporaryList is it ok to check the unverified HELOs?
    * @param result where to store the result
    * @returns SYSERR on failure, OK on success
-   **/
+   */
   int (*identity2Helo)(const HostIdentity *  hostId,
 		       const unsigned short protocol,
 		       int tryTemporaryList,
@@ -645,7 +649,7 @@ typedef struct {
   /**
    * Bind a host addres (helo) to a hostId.
    * @param msg the verified (!) HELO message
-   **/
+   */
   void (*bindAddress)(HELO_Message * msg);
 
   /**
@@ -653,47 +657,108 @@ typedef struct {
    * and mark the sessionkey as dead.
    *
    * @param peer  the peer to disconnect
-   **/
-  void (*disconnectFromPeer)(HostIdentity *peer);
+   */
+  void (*disconnectFromPeer)(const HostIdentity *peer);
 
   /**
    * Disconnect all current connected peers. Send HANGUP messages to the other peers
    * and mark the sessionkeys as dead.
    *
-   **/
+   */
   void (*disconnectPeers)();
 
   /**
-   * Load an application module.
+   * Load an application module.  This function must be called
+   * while cron is suspended.  Note that the initialization and
+   * shutdown function of modules are always run while cron is
+   * disabled, so suspending cron is not necesary if modules
+   * are loaded or unloaded inside the module initialization or
+   * shutdown code.
+   *
    * @return OK on success, SYSERR on error
    */
-  int (*loadApplicationModule)(char * name);
+  int (*loadApplicationModule)(const char * name);
 
   /**
-   * Unload an application module.
+   * Unload an application module.  This function must be called
+   * while cron is suspended.  Note that the initialization and
+   * shutdown function of modules are always run while cron is
+   * disabled, so suspending cron is not necesary if modules
+   * are loaded or unloaded inside the module initialization or
+   * shutdown code.
+   *
    * @return OK on success, SYSERR on error
    */
-  int (*unloadApplicationModule)(char * name);
+  int (*unloadApplicationModule)(const char * name);
 
   /**
-   * Which percentage of inbound messages should
-   * gnunetd drop at random (to simulate network
-   * unreliability or congestion).
+   * Which percentage of inbound messages should gnunetd drop at
+   * random (to simulate network unreliability or congestion).
    */
   void (*setPercentRandomInboundDrop)(int value);
 
   /**
-   * Which percentage of outbound messages should
-   * gnunetd drop at random (to simulate network
-   * unreliability or congestion).
+   * Which percentage of outbound messages should gnunetd drop at
+   * random (to simulate network unreliability or congestion).
    */
   void (*setPercentRandomOutboundDrop)(int value);
+
+  /**
+   * Load a service module of the given name. This function must be
+   * called while cron is suspended.  Note that the initialization and
+   * shutdown function of modules are always run while cron is
+   * disabled, so suspending cron is not necesary if modules are
+   * loaded or unloaded inside the module initialization or shutdown
+   * code.
+   */
+  void * (*requestService)(const char * name);
+
+  /**
+   * Notification that the given service is no longer required. This
+   * function must be called while cron is suspended.  Note that the
+   * initialization and shutdown function of modules are always run
+   * while cron is disabled, so suspending cron is not necesary if
+   * modules are loaded or unloaded inside the module initialization
+   * or shutdown code.
+   *
+   * @return OK if service was successfully released, SYSERR on error
+   */
+  int (*releaseService)(void * service);
+
+  /**
+   * Terminate the connection with the given client (asynchronous
+   * detection of a protocol violation).
+   */
+  void (*terminateClientConnection)(ClientHandle handle);
 
 } CoreAPIForApplication;
 
 /**
- * Type of the callback method implemented by GNUnet applications.
- **/
-typedef int (*ApplicationMainMethod) (CoreAPIForApplication *);
+ * Type of the initialization method implemented by GNUnet protocol
+ * plugins.
+ *
+ * @param capi the core API 
+ */
+typedef int (*ApplicationInitMethod) (CoreAPIForApplication * capi);
+
+/**
+ * Type of the shutdown method implemented by GNUnet protocol
+ * plugins.
+ */
+typedef void (*ApplicationDoneMethod)();
+
+/**
+ * Type of the initialization method implemented by GNUnet service
+ * plugins.
+ *
+ * @param capi the core API 
+ */
+typedef void * (*ServiceInitMethod)(CoreAPIForApplication * capi);
+
+/**
+ * Type of the shutdown method implemented by GNUnet service
+ * plugins.
+ */
+typedef void (*ServiceDoneMethod)();
 
 #endif

@@ -23,106 +23,104 @@
  * @author Igor Wronsky
  *
  * This file contains the about dialog.
- **/
+ */
 
+#include "platform.h"
 #include "gnunet_afs_esed2.h"
+#include "gdk-pixbuf/gdk-pixbuf.h"
+#include "gtk26about.h"
 
 #include "helper.h"
 #include "about.h"
 
-#define ABOUT_STRING "\nGNUnet "\
-  VERSION\
-  ", gnunet-gtk "\
-  AFS_VERSION\
-  "\n\n\n"\
-  "GNUnet is free software, released under GNU General Public License version 2."\
-  "\n\n\n"\
-  "For more information, visit the GNUnet homepage at \n\n"\
-  "http://www.ovmj.org/GNUnet/\n"
-
-
 /**
  * This displays an about window
- **/
+ *
+ * Todo: the GTK demo can do links.
+ */
 void about(GtkWidget *dummy,
 	   gpointer data) {
-  GtkWidget * window;
-  GtkWidget * box1;
-  GtkWidget * table;
-  GtkWidget * text;
-  GtkWidget * button;
+  const gchar * authors[] = {
+    "Juergen Appel <jappel@linux01.gwdg.de>",
+    "Krista Bennett <kbennett@cerias.purdue.edu>",
+    "James Blackwell <jblack@linuxguru.net>",
+    "Ludovic Courtes <ludo@chbouib.org>",
+    "Nils Durner <N.Durner@t-online.de>",
+    "Renaldo Ferreira <rf@cs.purdue.edu>",
+    "Christian Grothoff <christian@grothoff.org>",
+    "Eric Haumant",
+    "Tzvetan Horozov <horozov@motorola.com>",
+    "Gerd Knorr <kraxel@bytesex.org>",
+    "Werner Koch <libgcrypt@g10code.com>",
+    "Uli Luckas <luckas@musoft.de>",
+    "Blake Matheny <bmatheny@purdue.edu>",
+    "Glenn McGrath <bug1@iinet.net.au>",
+    "Hendrik Pagenhardt <Hendrik.Pagenhardt@gmx.net>",
+    "Ioana Patrascu <ioanapatrascu@yahoo.com>",
+    "Marko Raeihae",
+    "Paul Ruth <ruth@cs.purdue.edu>",
+    "Risto Saarelma",
+    "Antti Salonen",
+    "Tiberius Stef <tstef@cs.purdue.edu>",
+    "Tuomas Toivonen",
+    "Tomi Tukiainen",
+    "Kevin Vandersloot <kfv101@psu.edu>",
+    "Simo Viitanen",
+    "Larry Waldo", 
+    "Igor Wronsky <iwronsky@users.sourceforge.net>",
+    "<january@hushmail.com>",
+    NULL,
+  };
+  const gchar * artists[] = {
+    "Christian Muellner <chris@flop.de>",
+    "Alex Jones <alexrjones@ntlworld.com>",
+    NULL,
+  };
+  const char * trans = _("translator-credits");
+  const char * license = "GNUnet is free software; you can redistribute it and/or modify\n"
+			 "it under the terms of the GNU General Public License as published\n"
+			 "by the Free Software Foundation; either version 2, or (at your\n"
+			 "option) any later version.\n\n"
+			 "GNUnet is distributed in the hope that it will be useful, but\n"
+			 "WITHOUT ANY WARRANTY; without even the implied warranty of\n"
+			 "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n"
+                         "See the GNU General Public License for more details.\n\n"
+			 "You should have received a copy of the GNU General Public License\n"
+			 "along with GNUnet; see the file COPYING.  If not, write to the\n"
+			 "Free Software Foundation, Inc., 59 Temple Place - Suite 330,\n"
+                         "Boston, MA 02111-1307, USA.\n";
 
-  window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-  gtk_signal_connect(GTK_OBJECT(window), 
-                     "delete_event",
-                     GTK_SIGNAL_FUNC(deleteEvent), 
-		     NULL);
- 
-  gtk_window_set_title(GTK_WINDOW(window), 
-		       "About gnunet-gtk");
-  gtk_widget_set_usize(GTK_WIDGET(window), 
-		       600, 
-		       300);
+  GdkPixbuf * logo;
+  GError * error;
 
-  box1 = gtk_vbox_new(FALSE, 0);
-  gtk_container_add(GTK_CONTAINER (window), 
-		    box1);
-  gtk_widget_show(box1);
-
-  table = gtk_table_new(2, 2, FALSE);
-  gtk_table_set_row_spacing(GTK_TABLE (table), 
-			    0,
-			    2);
-  gtk_table_set_col_spacing(GTK_TABLE (table), 
-			    0, 
-			    2);
-  gtk_box_pack_start(GTK_BOX (box1), 
-		     table, 
-		     TRUE,
-		     TRUE,
-		     0);
-  gtk_widget_show(table);
-
-  /* create a text widget */
-  text = gtk_text_new(NULL, NULL);
-  gtk_text_set_editable(GTK_TEXT (text), 
-			FALSE);
-  gtk_table_attach(GTK_TABLE (table), 
-		   text,
-		   0, 
-		   1, 
-		   0, 
-		   1,
-		   GTK_EXPAND | GTK_SHRINK | GTK_FILL,
-		   GTK_EXPAND | GTK_SHRINK | GTK_FILL,
-		   0, 0);
-  gtk_widget_show(text);
-  gtk_widget_realize(text);
-
-  /* write some about text */
-  gtk_text_freeze(GTK_TEXT (text));
-
-  gtk_text_insert(GTK_TEXT(text), 
-		  NULL, 
-		  &text->style->black, 
-		  NULL,
-		  ABOUT_STRING, -1); 
-  
-  gtk_text_thaw(GTK_TEXT(text));
-
-  /* finish with a close button */
-  button = gtk_button_new_with_label("Right");
-  gtk_box_pack_start(GTK_BOX (box1), 
-		     button, 
-		     FALSE, 
-		     FALSE, 
-		     0);
-  gtk_signal_connect(GTK_OBJECT(button), 
-		     "clicked",
-		     GTK_SIGNAL_FUNC(destroyWidget), 
-		     window);
-  gtk_widget_show(button);
-  gtk_widget_show(window);
+  error = NULL;
+  logo = gdk_pixbuf_new_from_file(DATADIR"/gnunet_logo.png",
+				  &error);
+  if (logo != NULL) {
+    gtk_show_about_dialog(NULL, 
+			  "logo", logo,
+			  "name", "gnunet-gtk",
+			  "version", VERSION,
+			  "copyright" , "(C) 2001-2004 Christian Grothoff (and other contributing authors)",
+			  "website", "http://www.gnu.org/software/gnunet/",
+			  "license", license,		  
+			  "authors", authors,
+			  "artists", artists,
+			  (0 == strcmp(trans,"translator-credits")) ? NULL : "translator_credits", trans,
+			  NULL);
+    g_object_unref(G_OBJECT(logo));
+  } else {
+    gtk_show_about_dialog(NULL, 
+			  "name", "gnunet-gtk",
+			  "version", VERSION,
+			  "copyright" , "(C) 2001-2004 Christian Grothoff (and other contributing authors)",
+			  "website", "http://www.gnu.org/software/gnunet/",
+			  "license", license,		  
+			  "authors", authors,
+			  "artists", artists,
+			  (0 == strcmp(trans,"translator-credits")) ? NULL : "translator_credits", trans,
+			  NULL);
+  }
 }
 
 /* end of about.c */

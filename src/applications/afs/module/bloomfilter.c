@@ -23,14 +23,14 @@
  *
  * @author Christian Grothoff
  * @file applications/afs/module/bloomfilter.c
- **/
+ */
 
 #include "bloomfilter.h"
 #include "manager.h"
 
 /**
  * Filters.
- **/
+ */
 Bloomfilter * superBloomFilter;
 Bloomfilter * singleBloomFilter;
 
@@ -48,8 +48,8 @@ void initBloomfilters() {
 
   fn = getFileName("AFS",
                    "AFSDIR",
-                   "Configuration must specify directory for "
-                   "AFS data in section %s under %s.\n");
+                   _("Configuration must specify directory for "
+		     "AFS data in section '%s' under '%s'.\n"));
   mkdirp(fn);
 
   /* read existing quota, check if it changed */
@@ -66,7 +66,7 @@ void initBloomfilters() {
 		      &quota);
   } else {
     if (*qt != quota)
-      errexit("FATAL: AFS-Quota changed, run gnunet-convert!\n");
+      errexit(_("AFS-Quota changed, run gnunet-convert!\n"));
     FREENONNULL(qt);
     qt = NULL;
   }
@@ -104,8 +104,8 @@ void doneBloomfilters() {
   freeBloomfilter(superBloomFilter);
 }
 
-void bf_deleteEntryCallback(HashCode160 * key,
-			    ContentIndex * ce,
+void bf_deleteEntryCallback(const HashCode160 * key,
+			    const ContentIndex * ce,
 			    void * data,
 			    unsigned int datalen,
 			    void * closure) {
@@ -124,10 +124,12 @@ void bf_deleteEntryCallback(HashCode160 * key,
     break;
   default:
     LOG(LOG_WARNING,
-	"WARNING: bloom filter notified of deleteion of"
-	" unexpected type of content entry: %d\n",
-	ntohs(ce->type));
+	_("Bloom filter notified of deletion of"
+	  " unexpected type %d of content at %s:%d.\n"),
+	ntohs(ce->type),
+	__FILE__, __LINE__);
   }
+  FREENONNULL(data);
 }
 
 

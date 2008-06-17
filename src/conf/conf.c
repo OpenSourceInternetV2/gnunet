@@ -8,7 +8,7 @@
  * @brief GNUnet Setup
  * @author Roman Zippel
  * @author Nils Durner
- **/
+ */
 
 #define LKC_DIRECT_LINK
 #include "lkc.h"

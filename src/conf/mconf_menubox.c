@@ -61,7 +61,7 @@
  * @file conf/mconf_menubox.c 
  * @author Savio Lam
  * @author Nils Durner
- **/
+ */
 
 #include "mconf_dialog.h"
 

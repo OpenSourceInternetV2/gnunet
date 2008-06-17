@@ -60,14 +60,14 @@ LOGLEVEL        = WARNING
 # nothing, logs are written to stderr (and note that if gnunetd runs
 # in the background, stderr is closed and all logs are discarded).
 # Default: LOGFILE         = $GNUNETD_HOME/logs
-LOGFILE         = /var/log/gnunetd.log
+LOGFILE         = $GNUNETD_HOME/logs
 
 # In which file should gnunetd write the process-id of the server?  If
 # you run gnunetd as root, you may want to choose
 # /var/run/gnunetd.pid. It's not the default since gnunetd may not
 # have write rights at that location.
 # Default: PIDFILE         = $GNUNETD_HOME/gnunetd.pid
-PIDFILE         = /var/run/gnunetd.pid
+PIDFILE         = $GNUNETD_HOME/gnunetd.pid
 
 # This directory should be made available periodically --- it contains
 # information how to join GNUnet that is in no way private to the
@@ -79,7 +79,7 @@ PIDFILE         = /var/run/gnunetd.pid
 # If you specify a HOSTLISTURL, the directory will be automatically
 # populated by gnunetd with an initial set of nodes.
 # Default: HOSTS   	= $GNUNETD_HOME/data/hosts/
-HOSTS   	= /var/lib/GNUnet/data/hosts/
+HOSTS   	= $GNUNETD_HOME/data/hosts/
 
 # GNUnet can automatically update the hostlist from the web. While
 # GNUnet internally communicates which hosts are online, it is
@@ -97,8 +97,8 @@ HOSTS   	= /var/lib/GNUnet/data/hosts/
 #
 # If you do not specify a HOSTLISTURL, you must copy valid hostkeys to
 # data/hosts manually.
-# Default: HOSTLISTURL = "http://www.ovmj.org/GNUnet/download/hostlist http://gnunet.cryss.net/hostlist http://www.woodtick.co.uk/hostlist"
-HOSTLISTURL = "http://www.ovmj.org/GNUnet/download/hostlist http://gnunet.cryss.net/hostlist http://www.woodtick.co.uk/hostlist"
+# Default: HOSTLISTURL = "http://www.ovmj.org/GNUnet/download/hostlist http://www.woodtick.co.uk/hostlist"
+HOSTLISTURL = "http://www.ovmj.org/GNUnet/download/hostlist http://www.woodtick.co.uk/hostlist"
 
 # If you have to use a proxy for outbound HTTP connections,
 # specify the proxy configuration here.  Default is no proxy.
@@ -132,7 +132,7 @@ APPLICATIONS = "afs tbench tracekit"
 # tcp6, udp6 and the special 'nat' service.
 #
 # Loading the 'nat' and 'tcp' modules is required for peers behind NAT
-# boxes that can not directly be reached from the outside.  Peers that
+# boxes that cannot directly be reached from the outside.  Peers that
 # are NOT behind a NAT box and that want to *allow* peers that ARE
 # behind a NAT box to connect must ALSO load the 'nat' module.  Note
 # that the actual transfer will always be via tcp initiated by the peer
@@ -351,7 +351,7 @@ MTU = 1460
 # cannot contact you directly via TCP or UDP.
 # If you set this to YES, you should also set the
 # TCP port to '0' and disable UDP to indicate that you
-# can not accept inbound connections.
+# cannot accept inbound connections.
 #
 # Default: NO
 LIMITED = NO
@@ -616,3 +616,21 @@ UPLOAD-DIR = $GNUNETD_HOME/testbed
 # will try to make a direct TCP connection to the
 # application port (default: 2087).
 # LOGIN = 
+
+
+########################################
+# DHT (experimental)
+########################################
+
+[DHT]
+
+# Number of buckets to use (determines memory requirements)
+# Default (and maximum) is 160.
+BUCKETCOUNT = 160
+
+# Amount of memory (in bytes) to use for the master table
+# (table that caches table-to-peer mappings).
+# Default is 65536.
+MASTER-TABLE-SIZE = 65536
+
+

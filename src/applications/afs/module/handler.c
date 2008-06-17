@@ -22,7 +22,7 @@
  * @file applications/afs/module/handler.c
  * @brief Handlers for incoming AFS requests (p2p and CS).
  * @author Christian Grothoff
- **/
+ */
 
 #include "afs.h"
 #include "bloomfilter.h"
@@ -66,64 +66,64 @@ static int stat_p2p_sblock_replies;
  * with the statistics module.
  *
  * @return OK on success, SYSERR on failure
- **/
+ */
 int initAFSHandler() {
   stat_p2p_query_count 
-    = statHandle("# p2p queries received");
+    = statHandle(_("# p2p queries received"));
   stat_p2p_superquery_count
-    = statHandle("# p2p super queries received");
+    = statHandle(_("# p2p super queries received"));
   stat_p2p_chk_replies 
-    = statHandle("# p2p CHK content received (kb)");
+    = statHandle(_("# p2p CHK content received (kb)"));
   stat_p2p_3hash_replies 
-    = statHandle("# p2p search results received (kb)");
+    = statHandle(_("# p2p search results received (kb)"));
 #if VERBOSE_STATS
   stat_cs_query_count 
-    = statHandle("# client queries received");
+    = statHandle(_("# client queries received"));
   stat_cs_insert_chk_count 
-    = statHandle("# client CHK content inserted (kb)");
+    = statHandle(_("# client CHK content inserted (kb)"));
   stat_cs_insert_3hash_count 
-    = statHandle("# client 3HASH search results inserted (kb)");
+    = statHandle(_("# client 3HASH search results inserted (kb)"));
   stat_cs_index_block_count 
-    = statHandle("# client file index requests received");
+    = statHandle(_("# client file index requests received"));
   stat_cs_index_file_count 
-    = statHandle("# file index requests received");
+    = statHandle(_("# file index requests received"));
   stat_cs_index_super_count 
-    = statHandle("# super query index requests received");
+    = statHandle(_("# super query index requests received"));
   stat_cs_delete_chk_count 
-    = statHandle("# client CHK content deleted (kb)");
+    = statHandle(_("# client CHK content deleted (kb)"));
   stat_cs_delete_3hash_count 
-    = statHandle("# client 3HASH search results deleted (kb)");
+    = statHandle(_("# client 3HASH search results deleted (kb)"));
   stat_cs_unindex_block_count 
-    = statHandle("# client file unindex requests received");
+    = statHandle(_("# client file unindex requests received"));
   stat_cs_unindex_file_count 
-    = statHandle("# file unindex requests received");
+    = statHandle(_("# file unindex requests received"));
   stat_cs_unindex_super_count 
-    = statHandle("# super query unindex requests received");
+    = statHandle(_("# super query unindex requests received"));
   stat_cs_insert_sblock_count
-    = statHandle("# client SBlock insert requests received");
+    = statHandle(_("# client SBlock insert requests received"));
   stat_cs_nsquery_count
-    = statHandle("# client namespace queries received");
+    = statHandle(_("# client namespace queries received"));
   stat_cs_upload_file_count
-    = statHandle("# client file upload requests");
+    = statHandle(_("# client file upload requests"));
 #endif
   stat_p2p_nsquery_count
-    = statHandle("# p2p namespace queries received");
+    = statHandle(_("# p2p namespace queries received"));
   stat_p2p_sblock_replies
-    = statHandle("# p2p SBlocks received");
+    = statHandle(_("# p2p SBlocks received"));
   return OK;
 }
 
 /**
  * Handle query for content. Depending on how we like the sender,
  * lookup, forward or even indirect.
- **/
-int handleQUERY(HostIdentity * sender,
-		p2p_HEADER * msg) {
+ */
+int handleQUERY(const HostIdentity * sender,
+		const p2p_HEADER * msg) {
   QUERY_POLICY qp;
   AFS_p2p_QUERY * qmsg;
 #if DEBUG_HANDLER
-  HexName hex;
-  HexName hex2;
+  EncName enc;
+  EncName enc2;
 #endif
   int queries;
   int ttl;
@@ -135,7 +135,7 @@ int handleQUERY(HostIdentity * sender,
   if ( (queries <= 0) || 
        (ntohs(msg->size) != sizeof(AFS_p2p_QUERY) + queries * sizeof(HashCode160)) ) {
     LOG(LOG_WARNING,
-	"WARNING: query received was malformed\n");
+	"Query received was malformed\n");
     return SYSERR;
   }
   if (queries>1)
@@ -145,26 +145,26 @@ int handleQUERY(HostIdentity * sender,
 
 #if DEBUG_HANDLER
   IFLOG(LOG_DEBUG,
-	hash2hex(&((AFS_p2p_QUERY_GENERIC*)qmsg)->queries[0],
-		 &hex));
+	hash2enc(&((AFS_p2p_QUERY_GENERIC*)qmsg)->queries[0],
+		 &enc));
   IFLOG(LOG_EVERYTHING,
-	hash2hex(&sender->hashPubKey,
-		 &hex2));
+	hash2enc(&sender->hashPubKey,
+		 &enc2));
   LOG(LOG_EVERYTHING,
-      "EVERYTHING: received query %s (%d) TTL %d PR %u from %s\n",
-      &hex,
+      "Received query '%s' (%d) TTL %d PR %u from peer '%s'.\n",
+      &enc,
       queries,
       ntohl(qmsg->ttl),
       ntohl(qmsg->priority),
-      &hex2);
+      &enc2);
 #endif
 
   /* decrement ttl (always) */
   ttl = ntohl(qmsg->ttl);
 #if DEBUG_HANDLER
   LOG(LOG_DEBUG,
-      "DEBUG: received query for %s with ttl %d\n",
-      &hex,
+      "Received query for '%s' with ttl %d.\n",
+      &enc,
       ttl);
 #endif
   if (ttl < 0) {
@@ -209,9 +209,9 @@ int handleQUERY(HostIdentity * sender,
  * another node and we forwarded the request (and thus we now have to
  * fwd the reply) or 3rd somebody just send us some content we did NOT
  * ask for - and we can choose to store it or just discard it.
- **/
-int handleCHK_CONTENT(HostIdentity * sender, 
-		      p2p_HEADER * msg) {
+ */
+int handleCHK_CONTENT(const HostIdentity * sender, 
+		      const p2p_HEADER * msg) {
   int prio;
   HashCode160 queryHash;
   ContentIndex ce;
@@ -221,8 +221,13 @@ int handleCHK_CONTENT(HostIdentity * sender,
   double preference;
 
   if (ntohs(msg->size) != sizeof(AFS_p2p_CHK_RESULT)) {
+    EncName enc;
+
+    hash2enc(&sender->hashPubKey, &enc);
     LOG(LOG_WARNING,
-	"WARNING: CHK content message received was malformed\n");
+	_("'%s' message received from peer '%s' was malformed.\n"),
+	"CHK content",
+	&enc);
     return SYSERR;
   }
   statChange(stat_p2p_chk_replies, 1);
@@ -272,23 +277,24 @@ int handleCHK_CONTENT(HostIdentity * sender,
  * another node and we forwarded the request (and thus we now have to
  * fwd the reply) or 3rd somebody just send us some content we did NOT
  * ask for - and we can choose to store it or just discard it.
- **/
-int handle3HASH_CONTENT(HostIdentity * sender, 
-			p2p_HEADER * msg) {
+ */
+int handle3HASH_CONTENT(const HostIdentity * sender, 
+			const p2p_HEADER * msg) {
   int prio;
   AFS_p2p_3HASH_RESULT * cmsg;
   HashCode160 tripleHash;
   ContentIndex ce;
-#if DEBUG_HANDLER
-  HexName hex;
-#endif
+  EncName enc;
   int ret;
   int dupe;
   double preference;
 
   if (ntohs(msg->size) != sizeof(AFS_p2p_3HASH_RESULT)) {
+    hash2enc(&sender->hashPubKey, &enc);
     LOG(LOG_WARNING,
-	"WARNING: content message received was malformed\n");
+	_("'%s' message received from peer '%s' was malformed.\n"),
+	"3HASH content",
+	&enc);
     return SYSERR;
   }
   statChange(stat_p2p_3hash_replies, 1);
@@ -298,11 +304,11 @@ int handle3HASH_CONTENT(HostIdentity * sender,
        &tripleHash);
 #if DEBUG_HANDLER
   IFLOG(LOG_DEBUG,
-	hash2hex(&tripleHash,
-		 &hex));
+	hash2enc(&tripleHash,
+		 &enc));
   LOG(LOG_DEBUG,
-      "DEBUG: received 3HASH search result for %s from peer\n",
-      &hex);
+      "Received 3HASH search result for %s from peer\n",
+      &enc);
 #endif
   prio = useContent(sender,
 		    &tripleHash,
@@ -311,14 +317,14 @@ int handle3HASH_CONTENT(HostIdentity * sender,
 			   from the local node */
 #if DEBUG_HANDLER
     LOG(LOG_DEBUG,
-	"DEBUG: content migration not needed, content is local\n");
+	"Content migration not needed, content is local\n");
 #endif
     return OK;  
   }
   preference = (double) prio;
 #if DEBUG_HANDLER
   LOG(LOG_DEBUG,
-      "DEBUG: content migration with preference %d\n",
+      "Content migration with preference %d\n",
       prio);
 #endif
   prio = evaluateContent(&tripleHash,
@@ -334,14 +340,14 @@ int handle3HASH_CONTENT(HostIdentity * sender,
   if (prio == SYSERR) {
 #if DEBUG_HANDLER
     LOG(LOG_DEBUG,
-	"DEBUG: content not important enough, not replicated\n");
+	"Content not important enough, not replicated\n");
 #endif
     return OK; /* straight drop */
   } 
 #if DEBUG_HANDLER
   else
     LOG(LOG_DEBUG,
-	"DEBUG: content replicated with total preference %d\n",
+	"Content replicated with total preference %d\n",
 	prio);
 #endif
   ce.hash          = cmsg->hash;
@@ -367,13 +373,13 @@ int handle3HASH_CONTENT(HostIdentity * sender,
 /**
  * Process a query from the client. Forwards to the network.
  * @return SYSERR if the TCP connection should be closed, otherwise OK
- **/ 
+ */ 
 int csHandleRequestQuery(ClientHandle sock,
-			 AFS_CS_QUERY * queryRequest) {
+			 const AFS_CS_QUERY * queryRequest) {
   QUERY_POLICY qp = QUERY_ANSWER|QUERY_FORWARD|QUERY_INDIRECT|QUERY_PRIORITY_BITMASK; 
   AFS_p2p_QUERY * msg;
 #if DEBUG_HANDLER
-  HexName hex;
+  EncName enc;
 #endif
   int queries;
   int ttl;
@@ -384,7 +390,8 @@ int csHandleRequestQuery(ClientHandle sock,
        (ntohs(queryRequest->header.size) != 
 	sizeof(AFS_CS_QUERY) + queries * sizeof(HashCode160)) ) {
     LOG(LOG_WARNING,
-	"WARNING: received malformed query from client\n");
+	_("Received malformed '%s' request from client.\n"),
+	"query");
     return SYSERR;
   }
 #if VERBOSE_STATS
@@ -392,12 +399,12 @@ int csHandleRequestQuery(ClientHandle sock,
 #endif
 #if DEBUG_HANDLER
   IFLOG(LOG_DEBUG,
-	hash2hex(&((AFS_CS_QUERY_GENERIC*)queryRequest)->queries[0], 
-		 &hex));
+	hash2enc(&((AFS_CS_QUERY_GENERIC*)queryRequest)->queries[0], 
+		 &enc));
   LOG(LOG_DEBUG, 
-      "DEBUG: received %d queries (%s) with ttl %d and priority %u.\n",
+      "Received %d queries '%s' with ttl %d and priority %u.\n",
       queries,
-      &hex,
+      &enc,
       ntohl(queryRequest->ttl),
       ntohl(queryRequest->priority));
 #endif
@@ -421,7 +428,7 @@ int csHandleRequestQuery(ClientHandle sock,
   ret = execQuery(qp, msg, sock);   
 #if DEBUG_HANDLER
   LOG(LOG_DEBUG, 
-      "DEBUG: executed %d queries with result %d.\n",
+      "Executed %d queries with result %d.\n",
       queries,
       ret);
 #endif
@@ -432,12 +439,12 @@ int csHandleRequestQuery(ClientHandle sock,
 /**
  * Process a request to insert content from the client.
  * @return SYSERR if the TCP connection should be closed, otherwise OK
- **/
+ */
 int csHandleRequestInsertCHK(ClientHandle sock,
-			     AFS_CS_INSERT_CHK * insertRequest) {
+			     const AFS_CS_INSERT_CHK * insertRequest) {
   ContentIndex entry;
 #if DEBUG_HANDLER
-  HexName hex;
+  EncName enc;
 #endif
   int ret;
   int dupe;
@@ -445,7 +452,8 @@ int csHandleRequestInsertCHK(ClientHandle sock,
   if (ntohs(insertRequest->header.size) != 
       sizeof(AFS_CS_INSERT_CHK)) {
     LOG(LOG_WARNING,
-	"WARNING: received malformed CHK insert request from client\n");
+	_("Received malformed '%s' request from client\n"),
+	"CHK insert");
     return SYSERR;
   } 
 #if VERBOSE_STATS
@@ -456,11 +464,11 @@ int csHandleRequestInsertCHK(ClientHandle sock,
        &entry.hash);
 #if DEBUG_HANDLER
   IFLOG(LOG_DEBUG,
-	hash2hex(&entry.hash,
-		 &hex));
+	hash2enc(&entry.hash,
+		 &enc));
   LOG(LOG_DEBUG,
-      "DEBUG: received CHK insert request for block %s\n",
-      &hex);
+      "Received CHK insert request for block %s\n",
+      &enc);
 #endif
   entry.type
     = htons(LOOKUP_TYPE_CHK);
@@ -486,13 +494,13 @@ int csHandleRequestInsertCHK(ClientHandle sock,
 /**
  * Process a request to insert content from the client.
  * @return SYSERR if the TCP connection should be closed, otherwise OK
- **/
+ */
 int csHandleRequestInsert3HASH(ClientHandle sock,
-			       AFS_CS_INSERT_3HASH * insertRequest) {
+			       const AFS_CS_INSERT_3HASH * insertRequest) {
   ContentIndex entry;
   HashCode160 tripleHash;
 #if DEBUG_HANDLER
-  HexName hex;
+  EncName enc;
 #endif
   int dupe;
   int ret;
@@ -500,7 +508,8 @@ int csHandleRequestInsert3HASH(ClientHandle sock,
   if (ntohs(insertRequest->header.size) != 
       sizeof(AFS_CS_INSERT_3HASH)) {
     LOG(LOG_WARNING,
-	"WARNING: received malformed 3HASH insert request from client\n");
+	_("Received malformed '%s' request from client.\n"),
+	"3HASH insert");
     return SYSERR;
   }
 #if VERBOSE_STATS
@@ -512,11 +521,11 @@ int csHandleRequestInsert3HASH(ClientHandle sock,
        &tripleHash);
 #if DEBUG_HANDLER
   IFLOG(LOG_DEBUG,
-	hash2hex(&tripleHash,
-		 &hex));
+	hash2enc(&tripleHash,
+		 &enc));
   LOG(LOG_DEBUG,
-      "DEBUG: received 3HASH insert request for %s from client\n",
-      &hex);
+      "Received 3HASH insert request for '%s' from client.\n",
+      &enc);
 #endif
   entry.type
     = htons(LOOKUP_TYPE_3HASH);
@@ -541,27 +550,30 @@ int csHandleRequestInsert3HASH(ClientHandle sock,
 /**
  * Process a request to index content from the client.
  * @return SYSERR if the TCP connection should be closed, otherwise OK
- **/
+ */
 int csHandleRequestIndexBlock(ClientHandle sock,
-			      AFS_CS_INDEX_BLOCK * indexingRequest) {
+			      const AFS_CS_INDEX_BLOCK * indexingRequest) {
   int dupe;
 #if DEBUG_HANDLER
-  HexName hex;
+  EncName enc;
 #endif
+  ContentIndex ce;
 
   if (ntohs(indexingRequest->header.size) != 
       sizeof(AFS_CS_INDEX_BLOCK)) {
     LOG(LOG_WARNING, 
-	"WARNING: block indexing request from client was malformed!\n");
+	_("Received malformed '%s' request from client.\n"),
+	"block indexing");
     return SYSERR;
   }
+  ce = indexingRequest->contentIndex;
 #if DEBUG_HANDLER
-  hash2hex(&indexingRequest->contentIndex.hash,
-	   &hex);
+  hash2enc(&ce.hash,
+	   &enc);
   LOG(LOG_DEBUG,
-      "DEBUG: indexing content %s at offset %u\n",
-      (char*)&hex,
-      ntohl(indexingRequest->contentIndex.fileOffset));
+      "Indexing content %s at offset %u\n",
+      (char*)&enc,
+      ntohl(ce.fileOffset));
 #endif  
   
 
@@ -570,7 +582,7 @@ int csHandleRequestIndexBlock(ClientHandle sock,
 #endif
   return coreAPI->sendTCPResultToClient
     (sock,
-     insertContent(&indexingRequest->contentIndex,
+     insertContent(&ce,
 		   0, 
 		   NULL, 
 		   NULL, 
@@ -581,10 +593,10 @@ int csHandleRequestIndexBlock(ClientHandle sock,
  * Process a query to list a file as on-demand encoded from the client.
  *
  * @return SYSERR if the TCP connection should be closed, otherwise OK
- **/
+ */
 int csHandleRequestIndexFile(ClientHandle sock,
-			     AFS_CS_INDEX_FILE * listFileRequest) {
-  HexName hex;
+			     const AFS_CS_INDEX_FILE * listFileRequest) {
+  EncName enc;
   char * filename;
   char * prefix;
   int ret;
@@ -594,19 +606,22 @@ int csHandleRequestIndexFile(ClientHandle sock,
   if (ntohs(listFileRequest->header.size) != 
       sizeof(AFS_CS_INDEX_FILE)) {
     LOG(LOG_WARNING, 
-	"WARNING: file indexing request from client was malformed!\n");
+	_("Received malformed '%s' request from client.\n"),
+	"file indexing");
     return SYSERR;
   }
 #if VERBOSE_STATS
   statChange(stat_cs_index_file_count, 1);
 #endif
-  hash2hex(&listFileRequest->hash,
-	   &hex);
+  hash2enc(&listFileRequest->hash,
+	   &enc);
   filename = getConfigurationString("AFS",
 				    "INDEX-DIRECTORY");
   if (filename == NULL) {
     LOG(LOG_WARNING,
-	"WARNING: rejecting content-unindex request, INDEX-DIRECTORY option not set!\n");
+	_("Rejecting '%s' request, '%s' option not set!\n"),
+	"content-unindex"
+	"INDEX-DIRECTORY");
     return coreAPI->sendTCPResultToClient(sock, 
 					  -1);
   }
@@ -615,12 +630,9 @@ int csHandleRequestIndexFile(ClientHandle sock,
 			      "INDEX-QUOTA") * 1024 * 1024;
   if (quota != 0) {
     usage = getFileSizeWithoutSymlinks(prefix);
-    /* FIXME: check that getFileSize does not count
-       linked files; otherwise change the code here
-       to make sure links don't count! */
     if (usage + ntohl(listFileRequest->filesize) > quota) {
       LOG(LOG_WARNING,
-	  "WARNING: rejecting file index request, quota exeeded: %d of %d (MB)\n",
+	  _("Rejecting file index request, quota exeeded: %d of %d (MB)\n"),
 	  usage / 1024 / 1024,
 	  quota / 1024 / 1024);
       FREE(filename);
@@ -634,7 +646,7 @@ int csHandleRequestIndexFile(ClientHandle sock,
   strcpy(filename, prefix);
   FREE(prefix);
   strcat(filename, "/");
-  strcat(filename, (char*) &hex);
+  strcat(filename, (char*) &enc);
   ret = appendFilename(filename);
   if (ret == 0)
     ret = -1;
@@ -645,10 +657,10 @@ int csHandleRequestIndexFile(ClientHandle sock,
 
 /**
  * Process a client request to upload a file (indexing).
- **/
+ */
 int csHandleRequestUploadFile(ClientHandle sock,
-			      AFS_CS_UPLOAD_FILE * uploadRequest) {
-  HexName hex;
+			      const AFS_CS_UPLOAD_FILE * uploadRequest) {
+  EncName enc;
   char * filename;
   char * prefix;
   int ret;
@@ -657,19 +669,22 @@ int csHandleRequestUploadFile(ClientHandle sock,
   if (ntohs(uploadRequest->header.size) <
       sizeof(AFS_CS_UPLOAD_FILE)) {
     LOG(LOG_WARNING, 
-	"WARNING: file upload request from client was malformed!\n");
+	_("Received malformed '%s' request from client.\n"),
+	"file upload");
     return SYSERR;
   }
 #if VERBOSE_STATS
   statChange(stat_cs_upload_file_count, 1);
 #endif
-  hash2hex(&uploadRequest->hash,
-	   &hex);
+  hash2enc(&uploadRequest->hash,
+	   &enc);
   filename = getConfigurationString("AFS",
 				    "INDEX-DIRECTORY");
   if (filename == NULL) {
     LOG(LOG_WARNING,
-	"WARNING: rejecting content-upload request, INDEX-DIRECTORY option not set!\n");
+	_("Rejecting '%s' request, '%s' option not set!\n"),
+	"content-upload"
+	"INDEX-DIRECTORY");
     return coreAPI->sendTCPResultToClient(sock, 
 					  SYSERR);
   }
@@ -681,15 +696,12 @@ int csHandleRequestUploadFile(ClientHandle sock,
   strcpy(filename, prefix);
   FREE(prefix);
   strcat(filename, "/");
-  strcat(filename, (char*) &hex);
+  strcat(filename, (char*) &enc);
   fd = OPEN(filename, 
 	    O_CREAT|O_WRONLY,
 	    S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH); /* 644 */
   if(fd == -1) {
-    LOG(LOG_ERROR,
-	"ERROR: OPEN() failed on %s, error %s\n",
-	filename,
-	strerror(errno));
+    LOG_FILE_STRERROR(LOG_ERROR, "open", filename);
     return coreAPI->sendTCPResultToClient(sock, 
 					  SYSERR);
   }
@@ -714,16 +726,15 @@ int csHandleRequestUploadFile(ClientHandle sock,
 /**
  * Process a client request to extend our super-query bloom
  * filter.
- **/
+ */
 int csHandleRequestIndexSuper(ClientHandle sock,
-			      AFS_CS_INDEX_SUPER * superIndexRequest) {
+			      const AFS_CS_INDEX_SUPER * superIndexRequest) {
   ContentIndex entry;
   int dupe;
 
   if (ntohs(superIndexRequest->header.size) != 
       sizeof(AFS_CS_INDEX_SUPER)) {
-    LOG(LOG_WARNING, 
-	"WARNING: super-hash indexing request from client was malformed!\n");
+    BREAK();
     return SYSERR;
   }
 #if VERBOSE_STATS
@@ -742,29 +753,28 @@ int csHandleRequestIndexSuper(ClientHandle sock,
   entry.hash 
     = superIndexRequest->superHash;
   return coreAPI->sendTCPResultToClient(sock, 
-		       insertContent(&entry,
-				     0, 
-				     NULL, 
-				     NULL, 
-				     &dupe));
+					insertContent(&entry,
+						      0, 
+						      NULL, 
+						      NULL, 
+						      &dupe));
 }
 
 /**
  * Process a request from the client to delete content.
  * @return SYSERR if the TCP connection should be closed, otherwise OK
- **/
+ */
 int csHandleRequestDeleteCHK(ClientHandle sock,
-			     AFS_CS_INSERT_CHK * insertRequest) {
+			     const AFS_CS_INSERT_CHK * insertRequest) {
   HashCode160 hc;
 #if DEBUG_HANDLER
-  HexName hex;
+  EncName enc;
 #endif
   int ret;
 
   if (ntohs(insertRequest->header.size) != 
       sizeof(AFS_CS_INSERT_CHK)) {
-    LOG(LOG_WARNING,
-	"WARNING: received malformed CHK remove request from client\n");
+    BREAK();
     return SYSERR;
   } 
 #if VERBOSE_STATS
@@ -775,11 +785,11 @@ int csHandleRequestDeleteCHK(ClientHandle sock,
        &hc);
 #if DEBUG_HANDLER
   IFLOG(LOG_DEBUG,
-	hash2hex(&hc,
-		 &hex));
+	hash2enc(&hc,
+		 &enc));
   LOG(LOG_DEBUG,
-      "DEBUG: received CHK remove request for block %s\n",
-      &hex);
+      "Received CHK remove request for block %s\n",
+      &enc);
 #endif
   ret = removeContent(&hc,
                       -1);
@@ -794,19 +804,18 @@ int csHandleRequestDeleteCHK(ClientHandle sock,
 /**
  * Process a request from the client to delete content.
  * @return SYSERR if the TCP connection should be closed, otherwise OK
- **/
+ */
 int csHandleRequestDelete3HASH(ClientHandle sock,
-			       AFS_CS_INSERT_3HASH * insertRequest) {
+			       const AFS_CS_INSERT_3HASH * insertRequest) {
   HashCode160 tripleHash;
 #if DEBUG_HANDLER
-  HexName hex;
+  EncName enc;
 #endif
   int ret;
 
   if (ntohs(insertRequest->header.size) != 
       sizeof(AFS_CS_INSERT_3HASH)) {
-    LOG(LOG_WARNING,
-	"WARNING: received malformed 3HASH delete request from client\n");
+    BREAK();
     return SYSERR;
   }
 #if VERBOSE_STATS
@@ -817,11 +826,11 @@ int csHandleRequestDelete3HASH(ClientHandle sock,
        &tripleHash);
 #if DEBUG_HANDLER
   IFLOG(LOG_DEBUG,
-	hash2hex(&tripleHash,
-		 &hex));
+	hash2enc(&tripleHash,
+		 &enc));
   LOG(LOG_DEBUG,
-      "DEBUG: received 3HASH delete request for %s from client\n",
-      &hex);
+      " received 3HASH delete request for %s from client\n",
+      &enc);
 #endif
   ret = removeContent(&tripleHash,
                       -1);
@@ -835,13 +844,12 @@ int csHandleRequestDelete3HASH(ClientHandle sock,
 /**
  * Process a request from the client to unindex content.
  * @return SYSERR if the TCP connection should be closed, otherwise OK
- **/
+ */
 int csHandleRequestUnindexBlock(ClientHandle sock,
-				AFS_CS_INDEX_BLOCK * indexingRequest) {
+				const AFS_CS_INDEX_BLOCK * indexingRequest) {
   if (ntohs(indexingRequest->header.size) != 
       sizeof(AFS_CS_INDEX_BLOCK)) {
-    LOG(LOG_WARNING, 
-	"WARNING: block unindexing request from client was malformed!\n");
+    BREAK();
     return SYSERR;
   }
 #if VERBOSE_STATS
@@ -855,10 +863,10 @@ int csHandleRequestUnindexBlock(ClientHandle sock,
 /**
  * Callback used to select the file in the fileindex
  * that is to be removed.
- **/
-static int removeMatch(char * fn,
+ */
+static int removeMatch(const char * fn,
 		       int i,
-		       char * search) {
+		       const char * search) {
   if (strcmp(fn, search) == 0)
     return SYSERR;
   else
@@ -876,30 +884,31 @@ static int removeMatch(char * fn,
  * This unnecessarily bloats the database.list by one empty line.
  *
  * @return SYSERR if the TCP connection should be closed, otherwise OK
- **/
+ */
 int csHandleRequestUnindexFile(ClientHandle sock,
-			       AFS_CS_INDEX_FILE * listFileRequest) {
+			       const AFS_CS_INDEX_FILE * listFileRequest) {
   int idx;
-  HexName hex;
+  EncName enc;
   char * filename;
   char * prefix;
 
   if (ntohs(listFileRequest->header.size) != 
       sizeof(AFS_CS_INDEX_FILE)) {
-    LOG(LOG_WARNING, 
-	"WARNING: file unindexing request from client was malformed!\n");
+    BREAK();
     return SYSERR;
   }
 #if VERBOSE_STATS
   statChange(stat_cs_unindex_file_count, 1);
 #endif
-  hash2hex(&listFileRequest->hash,
-	  &hex);
+  hash2enc(&listFileRequest->hash,
+	  &enc);
   filename = getConfigurationString("AFS",
 				    "INDEX-DIRECTORY");
   if (filename == NULL) {
     LOG(LOG_WARNING,
-	"WARNING: rejecting content-unindex request, INDEX-DIRECTORY option not set!\n");
+	_("Rejecting '%s' request, '%s' option not set!\n"),
+	"unindex-file"
+	"INDEX-DIRECTORY");
     return coreAPI->sendTCPResultToClient(sock, 
 					  -1);  
   }
@@ -909,23 +918,18 @@ int csHandleRequestUnindexFile(ClientHandle sock,
   strcpy(filename, prefix);
   FREE(prefix);
   strcat(filename, "/");
-  strcat(filename, (char*) &hex);
+  strcat(filename, (char*) &enc);
   idx = appendFilename(filename);
   if (idx == -1) {
     FREE(filename);
     return coreAPI->sendTCPResultToClient(sock, 
 					  -1);  
   }  
-  if (idx == 0) 
-    errexit("FATAL: Assertion failed at %s:%d.\n",
-	    __FILE__, __LINE__);
-  
+  GNUNET_ASSERT(idx != 0);
   forEachIndexedFile((IndexedFileNameCallback)&removeMatch,
 		     filename);
   if (0 != UNLINK(filename)) {
-    LOG(LOG_WARNING,
-	"WARNING: could not remove indexed file %s\n",
-	strerror(errno));
+    LOG_FILE_STRERROR(LOG_WARNING, "unlink", filename);
     idx = -1; /* remove failed!? */
   }
   FREE(filename);
@@ -935,10 +939,10 @@ int csHandleRequestUnindexFile(ClientHandle sock,
 
 /**
  * @return SYSERR if the TCP connection should be closed, otherwise OK
- **/
+ */
 int csHandleRequestLinkFile(ClientHandle sock,
-			    AFS_CS_LINK_FILE * linkFileRequest) {
-  HexName hex;
+			    const AFS_CS_LINK_FILE * linkFileRequest) {
+  EncName enc;
   char * filename;
   char * tname;
   char * prefix;
@@ -946,8 +950,7 @@ int csHandleRequestLinkFile(ClientHandle sock,
 
   if (ntohs(linkFileRequest->header.size) <=
       sizeof(AFS_CS_LINK_FILE)) {
-    LOG(LOG_WARNING, 
-	"WARNING: file link request from client was malformed!\n");
+    BREAK();
     return SYSERR;
   }
 #if VERBOSE_STATS
@@ -961,21 +964,23 @@ int csHandleRequestLinkFile(ClientHandle sock,
 			      &hc)) ||
        (0 != memcmp(&hc,
 		    &linkFileRequest->hash,
-		    sizeof(HashCode160))) ) {
+		    sizeof(HashCode160))) ) {   
     LOG(LOG_WARNING, 
-	"WARNING: file link request (%s) from client pointed to file with the wrong data!\n",
+	_("File link request '%s' from client pointed to file with the wrong data!\n"),
 	tname);
     FREE(tname);
     return coreAPI->sendTCPResultToClient(sock, 
 					  SYSERR);    
   }
-  hash2hex(&linkFileRequest->hash,
-	   &hex);
+  hash2enc(&linkFileRequest->hash,
+	   &enc);
   filename = getConfigurationString("AFS",
 				    "INDEX-DIRECTORY");
   if (filename == NULL) {
     LOG(LOG_WARNING,
-	"WARNING: rejecting content-unindex request, INDEX-DIRECTORY option not set!\n");
+	_("Rejecting '%s' request, '%s' option not set!\n"),
+	"link-file"
+	"INDEX-DIRECTORY");
     return coreAPI->sendTCPResultToClient(sock, 
 					  SYSERR);  
   }
@@ -986,7 +991,7 @@ int csHandleRequestLinkFile(ClientHandle sock,
   FREE(prefix);
   mkdirp(filename);
   strcat(filename, DIR_SEPARATOR_STR);
-  strcat(filename, (char*) &hex);
+  strcat(filename, (char*) &enc);
  
   /* trash any previous entry so that SYMLINK() 
    * on existing won't cause retry attempts to fail */
@@ -1000,10 +1005,10 @@ int csHandleRequestLinkFile(ClientHandle sock,
 					  OK);  
   } else {
     LOG(LOG_WARNING,
-	"WARNING: could not create link from %s to %s: %s\n",
+	_("Could not create symlink from '%s' to '%s': %s\n"),
 	tname,
 	filename,
-	strerror(errno));
+	STRERROR(errno));
     FREE(filename);
     FREE(tname);
     return coreAPI->sendTCPResultToClient(sock, 
@@ -1014,13 +1019,12 @@ int csHandleRequestLinkFile(ClientHandle sock,
 /**
  * Process a client request to limit our super-query bloom
  * filter.
- **/
+ */
 int csHandleRequestUnindexSuper(ClientHandle sock,
-				AFS_CS_INDEX_SUPER * superIndexRequest) {
+				const AFS_CS_INDEX_SUPER * superIndexRequest) {
   if (ntohs(superIndexRequest->header.size) != 
       sizeof(AFS_CS_INDEX_SUPER)) {
-    LOG(LOG_WARNING, 
-	"WARNING: super-hash unindexing request from client was malformed!\n");
+    BREAK();
     return SYSERR;
   }
 #if VERBOSE_STATS
@@ -1036,11 +1040,11 @@ int csHandleRequestUnindexSuper(ClientHandle sock,
 /* *************************** SBlock stuff ***************************** */
 
 int csHandleRequestInsertSBlock(ClientHandle sock,
-				AFS_CS_INSERT_SBLOCK * insertRequest) {
+				const AFS_CS_INSERT_SBLOCK * insertRequest) {
   ContentIndex entry;
 #if DEBUG_HANDLER
-  HexName hex1;
-  HexName hex2;
+  EncName enc1;
+  EncName enc2;
   HashCode160 ns;
 #endif
   int dupe;
@@ -1048,8 +1052,7 @@ int csHandleRequestInsertSBlock(ClientHandle sock,
 
   if (ntohs(insertRequest->header.size) != 
       sizeof(AFS_CS_INSERT_SBLOCK)) {
-    LOG(LOG_WARNING,
-	"WARNING: received malformed SBLOCK insert request from client\n");
+    BREAK();
     return SYSERR;
   }
 #if VERBOSE_STATS
@@ -1057,17 +1060,17 @@ int csHandleRequestInsertSBlock(ClientHandle sock,
 #endif
 #if DEBUG_HANDLER
   IFLOG(LOG_DEBUG,
-	hash2hex(&insertRequest->content.identifier,
-		 &hex1);
+	hash2enc(&insertRequest->content.identifier,
+		 &enc1);
 	hash(&insertRequest->content.subspace,
 	     sizeof(PublicKey),
 	     &ns);
-	hash2hex(&ns,
-		 &hex2));
+	hash2enc(&ns,
+		 &enc2));
   LOG(LOG_DEBUG,
-      "DEBUG: received SBlock for namespace %s with routing ID %s.\n",
-      &hex2,
-      &hex1);
+      "Received SBlock for namespace %s with routing ID %s.\n",
+      &enc2,
+      &enc1);
 #endif
   entry.type
     = htons(LOOKUP_TYPE_SBLOCK);
@@ -1087,7 +1090,7 @@ int csHandleRequestInsertSBlock(ClientHandle sock,
 		      &dupe);
 #if DEBUG_HANDLER
   LOG(LOG_DEBUG,
-      "DEBUG: received SBlock insert is dupe: %s (insert %s)\n",
+      "Received SBlock insert is dupe: %s (insert %s)\n",
       dupe == NO ? "NO" : "YES",
       ret == SYSERR ? "SYSERR" : "OK");
 #endif
@@ -1099,18 +1102,17 @@ int csHandleRequestInsertSBlock(ClientHandle sock,
 }
 
 int csHandleRequestNSQuery(ClientHandle sock,
-			   AFS_CS_NSQUERY * queryRequest) {
+			   const AFS_CS_NSQUERY * queryRequest) {
   QUERY_POLICY qp = QUERY_ANSWER|QUERY_FORWARD|QUERY_INDIRECT|QUERY_PRIORITY_BITMASK; 
   AFS_p2p_NSQUERY * msg;
 #if DEBUG_HANDLER
-  HexName hex1;
-  HexName hex2;
+  EncName enc1;
+  EncName enc2;
 #endif
 
   if (ntohs(queryRequest->header.size) != 
       sizeof(AFS_CS_NSQUERY)) {
-    LOG(LOG_WARNING,
-	"WARNING: received malformed NS query from client\n");
+    BREAK();
     return SYSERR;
   }
 #if VERBOSE_STATS
@@ -1118,15 +1120,15 @@ int csHandleRequestNSQuery(ClientHandle sock,
 #endif
 #if DEBUG_HANDLER
   IFLOG(LOG_DEBUG,
-	hash2hex(&queryRequest->identifier, 
-		 &hex1));
+	hash2enc(&queryRequest->identifier, 
+		 &enc1));
   IFLOG(LOG_DEBUG,
-	hash2hex(&queryRequest->namespace, 
-		 &hex2));
+	hash2enc(&queryRequest->namespace, 
+		 &enc2));
   LOG(LOG_DEBUG, 
-      "DEBUG: received NS query (%s/%s) with ttl %d and priority %u.\n",
-      &hex2,
-      &hex1,
+      "Received NS query (%s/%s) with ttl %d and priority %u.\n",
+      &enc2,
+      &enc1,
       ntohl(queryRequest->ttl),
       ntohl(queryRequest->priority));
 #endif
@@ -1150,20 +1152,19 @@ int csHandleRequestNSQuery(ClientHandle sock,
   return OK;
 }
 
-int handleNSQUERY(HostIdentity * sender,
-		  p2p_HEADER * msg) {
+int handleNSQUERY(const HostIdentity * sender,
+		  const p2p_HEADER * msg) {
   QUERY_POLICY qp;
   AFS_p2p_NSQUERY * qmsg;
 #if DEBUG_HANDLER
-  HexName hex;
+  EncName enc;
 #endif
   int ttl;
   unsigned int prio;
   double preference;
   
   if (ntohs(msg->size) != sizeof(AFS_p2p_NSQUERY)) {
-    LOG(LOG_WARNING,
-	"WARNING: nsquery received was malformed\n");
+    BREAK();
     return SYSERR;
   }
   statChange(stat_p2p_nsquery_count, 1);
@@ -1172,11 +1173,11 @@ int handleNSQUERY(HostIdentity * sender,
   ttl = ntohl(qmsg->hdr.ttl);
 #if DEBUG_HANDLER
   IFLOG(LOG_DEBUG,
-	hash2hex(&qmsg->identifier,
-		 &hex));
+	hash2enc(&qmsg->identifier,
+		 &enc));
   LOG(LOG_DEBUG,
-      "DEBUG: received NS query for %s with ttl %d\n",
-      &hex,
+      "Received NS query for %s with ttl %d\n",
+      &enc,
       ttl);
 #endif
   if (ttl < 0) {
@@ -1214,36 +1215,36 @@ int handleNSQUERY(HostIdentity * sender,
 }
 
 
-int handleSBLOCK_CONTENT(HostIdentity * sender, 
-			 p2p_HEADER * msg) {
+int handleSBLOCK_CONTENT(const HostIdentity * sender, 
+			 const p2p_HEADER * msg) {
   int prio;
   AFS_p2p_SBLOCK_RESULT * cmsg;
   ContentIndex ce;
 #if DEBUG_HANDLER
-  HexName hex;
+  EncName enc;
 #endif
   int ret;
   int dupe;
   double preference;
 
   if (ntohs(msg->size) != sizeof(AFS_p2p_SBLOCK_RESULT)) {
-    LOG(LOG_WARNING,
-	"WARNING: signed content message received was malformed\n");
+    BREAK();
     return SYSERR;
   }
   statChange(stat_p2p_sblock_replies, 1);
   cmsg = (AFS_p2p_SBLOCK_RESULT*) msg;
 
-  if (OK != verifySBlock(&cmsg->result))
+  if ( (OK != verifySBlock(&cmsg->result)) &&
+       (OK != verifyNBlock((const NBlock *) &cmsg->result)) )
     return SYSERR;
 
 #if DEBUG_HANDLER
   IFLOG(LOG_DEBUG,
-	hash2hex(&cmsg->result.identifier,
-		 &hex));
+	hash2enc(&cmsg->result.identifier,
+		 &enc));
   LOG(LOG_DEBUG,
-      "DEBUG: received SBLOCK search result for %s from peer\n",
-      &hex);
+      "Received SBLOCK search result for '%s' from peer.\n",
+      &enc);
 #endif
   prio = useContent(sender,
 		    &cmsg->result.identifier,
@@ -1252,14 +1253,14 @@ int handleSBLOCK_CONTENT(HostIdentity * sender,
 			   from the local node */
 #if DEBUG_HANDLER
     LOG(LOG_DEBUG,
-	"DEBUG: content migration not needed, content is local\n");
+	"Content migration not needed, content is local.\n");
 #endif
     return OK;  
   }
 #if DEBUG_HANDLER
   else
     LOG(LOG_DEBUG,
-	"DEBUG: content migration with preference %d\n",
+	"Content migration with preference %d.\n",
 	prio);
 #endif
   preference = (double) prio;
@@ -1268,14 +1269,14 @@ int handleSBLOCK_CONTENT(HostIdentity * sender,
   if (prio == SYSERR) {
 #if DEBUG_HANDLER
     LOG(LOG_DEBUG,
-	"DEBUG: content not important enough, not replicated\n");
+	"Content not important enough, not replicated.\n");
 #endif
     return OK; /* straight drop */
   } 
 #if DEBUG_HANDLER
   else
     LOG(LOG_DEBUG,
-	"DEBUG: content replicated with total preference %d\n",
+	"Content replicated with total preference %d.\n",
 	prio);
 #endif
   if (prio != SYSERR)

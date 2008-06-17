@@ -1,6 +1,6 @@
 /*
   This file is part of GNUnet.
-  (C) 2001, 2002 Christian Grothoff (and other contributing authors)
+  (C) 2001, 2002, 2004 Christian Grothoff (and other contributing authors)
 
   GNUnet is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published
@@ -32,7 +32,7 @@
  *
  * When used within gnunetd, the gnunet-stats tool can be used to
  * print the statistical information stored in this module.
- **/
+ */
 
 #include "gnunet_util.h"
 #include "platform.h"
@@ -41,32 +41,32 @@
 
 /**
  * When did the module start? 
- **/
+ */
 static cron_t startTime;
 
 /**
  * How many values do we keep statistics for? 
- **/
+ */
 static unsigned int statCounters = 0;
 
 /**
  * What are these values (value) 
- **/
+ */
 static unsigned long long * values = NULL;
 
 /**
  * A description for each of the values 
- **/
+ */
 static char ** descriptions = NULL;
 
 /**
  * lock for the stat module 
- **/
+ */
 static Mutex statLock;
 
 /**
  * Initialize the statistics module.
- **/
+ */
 void initStatistics() {
   cronTime(&startTime);
   MUTEX_CREATE_RECURSIVE(&statLock);
@@ -74,7 +74,7 @@ void initStatistics() {
 
 /**
  * Shutdown the statistics module.
- **/
+ */
 void doneStatistics() {
   int i;
 
@@ -92,11 +92,10 @@ void doneStatistics() {
  *
  * @param name a description of the entity
  * @return a handle for updating the associated value
- **/
-int statHandle(char * name) {
+ */
+int statHandle(const char * name) {
   int i;
-  if (name == NULL)
-    errexit("statHandle called with name being NULL\n");
+  GNUNET_ASSERT(name != NULL);
   MUTEX_LOCK(&statLock);
   for (i=0;i<statCounters;i++)
     if (0 == strcmp(descriptions[i], name)) {
@@ -122,16 +121,13 @@ int statHandle(char * name) {
  *
  * @param handle the handle for the value to change
  * @param value to what the value should be set
- **/
+ */
 void statSet(const int handle,
 	     const unsigned long long value) {
   MUTEX_LOCK(&statLock);
   if ( (handle < 0) ||
        (handle >= statCounters) ) {
-    LOG(LOG_WARNING,
-	"WARNING: invalid call to statSet, h=%d, statC=%d!\n",
-	handle,
-	statCounters);
+    BREAK();
     MUTEX_UNLOCK(&statLock);
     return;
   }
@@ -145,16 +141,13 @@ void statSet(const int handle,
  *
  * @param handle the handle for the value to change
  * @param delta by how much should the value be changed
- **/
+ */
 void statChange(const int handle,
 		const int delta) {
   MUTEX_LOCK(&statLock);
   if ( (handle < 0) ||
        (handle >= statCounters) ) {
-    LOG(LOG_WARNING,
-	"WARNING: invalid call to statChange, h=%d, statC=%d!\n",
-	handle,
-	statCounters);
+    BREAK();
     MUTEX_UNLOCK(&statLock);
     return;
   }
@@ -163,12 +156,13 @@ void statChange(const int handle,
 }
 
 /**
- * Send statistics to a TCP socket.
- * May send multiple messages if the overall size
- * would be too big otherwise.
- **/
+ * Send statistics to a TCP socket.  May send multiple messages if the
+ * overall size would be too big otherwise.
+ *
+ * @param originalRequestMessage ignored at this point.
+ */
 int sendStatistics(ClientHandle sock,
-		   CS_HEADER * message,
+		   const CS_HEADER * originalRequestMessage,
 		   SendToClientCallback callback) {
   STATS_CS_MESSAGE * statMsg;
   int pos; /* position in the values-descriptions */

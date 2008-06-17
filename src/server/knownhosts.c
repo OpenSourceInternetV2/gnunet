@@ -32,7 +32,7 @@
  * - we may want to cache more HELOs in memory
  *
  * @author Christian Grothoff
- **/ 
+ */ 
 
 #include "gnunet_util.h"
 #include "knownhosts.h"
@@ -41,9 +41,9 @@
 
 typedef struct {
   HostIdentity identity;
-  /** how long is this host blacklisted? **/
+  /** how long is this host blacklisted? */
   cron_t until;
-  /** what would be the next increment for blacklisting? **/
+  /** what would be the next increment for blacklisting? */
   cron_t delta;
   /** for which protocol is this host known? */
   unsigned short protocol;
@@ -53,77 +53,79 @@ typedef struct {
 
 /**
  * The current (allocated) size of knownHosts
- **/
+ */
 static int max_ = 0;
 
 /**
  * The number of actual entries in knownHosts
- **/
+ */
 static int count_;
 
 /**
  * A lock for accessing knownHosts
- **/
+ */
 static Mutex lock_;
 
 /**
  * The list of known hosts.
- **/
+ */
 static HostEntry * hosts_ = NULL;
 
 /**
  * Directory where the HELOs are stored in (data/hosts)
- **/
+ */
 static char * networkIdDirectory;
 
 #define MAX_TEMP_HOSTS 32
 
 /**
  * The list of temporarily known hosts
- **/
+ */
 static HELO_Message * tempHosts[MAX_TEMP_HOSTS];
 
 /**
  * tempHosts is a ringbuffer, this is the current
  * index into it.
- **/
+ */
 static int tempHostsNextSlot;
 
 /**
  * Get the directory in which we store the hostkeys/HELOs.
- **/
+ */
 static char * getHostsDirectory() {
   return getFileName("GNUNETD",
 		     "HOSTS",
-		     "Configuration file must specify directory for "\
-		     "network identities in section %s under %s.\n");		     
+		     _("Configuration file must specify directory for "
+		       "network identities in section %s under %s.\n"));
 }
 
 /**
  * Get the filename under which we would store the HELO_Message
  * for the given host and protocol.
  * @return filename of the form DIRECTORY/HOSTID.PROTOCOL
- **/
+ */
 static char * getHostFileName(const HostIdentity * id,
 			      const unsigned short protocol) {
-  HexName fil;
+  EncName fil;
   char * fn;
+  size_t n;
 
-  hash2hex(&id->hashPubKey,
+  hash2enc(&id->hashPubKey,
 	   &fil);
-  fn = MALLOC(strlen(networkIdDirectory) + 
-	      sizeof(HexName) + 1 + 5 + 1 /* '.' (1) + %u (5) + '\0' (1) */);
-  sprintf(fn,
-	  "%s%s.%u",
-	  networkIdDirectory,
-	  (char*) &fil,
-	  protocol);
+  n = strlen(networkIdDirectory) + sizeof(EncName) + 1 + 5 + 1;
+  fn = MALLOC(n);
+  SNPRINTF(fn,
+	   n,
+	   "%s%s.%u",
+	   networkIdDirectory,
+	   (char*) &fil,
+	   protocol);
   return fn;
 }
 
 /**
  * Initialize this module.
- **/
+ */
 void initKnownhosts() {
   int i;
 
@@ -143,7 +145,7 @@ void initKnownhosts() {
 
 /**
  * Shutdown the knownhosts module.
- **/
+ */
 void doneKnownhosts() {
   int i;
 
@@ -161,30 +163,9 @@ void doneKnownhosts() {
 }
 
 /**
- * Check if 2 hosts are the same.
- * @return YES if they are equal, otherwise NO
- **/
-int hostIdentityEquals(const HostIdentity * first, 
-		       const HostIdentity * second) {
-  if ( (first == NULL) || 
-       (second == NULL) )
-    return NO;
-  return equalsHashCode160(&first->hashPubKey,
-			   &second->hashPubKey);
-}
-
-/**
  * Add a host to the temporary list.
- **/
+ */
 void addTemporaryHost(HELO_Message * tmp) {
-  /* HexName hex;
-  
-  IFLOG(LOG_DEBUG,
-	hash2hex(&tmp->senderIdentity.hashPubKey,
-		 &hex));
-  LOG(LOG_DEBUG,
-      "DEBUG: adding node %s to temporary list\n",
-      &hex); */
   MUTEX_LOCK(&lock_);   
   FREENONNULL(tempHosts[tempHostsNextSlot]);
   tempHosts[tempHostsNextSlot++] = tmp;
@@ -197,7 +178,7 @@ void addTemporaryHost(HELO_Message * tmp) {
  * Add a host to the list.
  * @param identity the identity of the host
  * @param protocol the protocol for the host
- **/
+ */
 static void addHostToKnown(HostIdentity * identity,
 			   unsigned short protocol) {
   int i;
@@ -227,7 +208,7 @@ static void addHostToKnown(HostIdentity * identity,
 
 /**
  * Delete a host from the list.
- **/
+ */
 void delHostFromKnown(const HostIdentity * identity,
 		      const unsigned short protocol) {
   char * fn;
@@ -244,7 +225,8 @@ void delHostFromKnown(const HostIdentity * identity,
       count_--;   
       /* now remove the file */
       fn = getHostFileName(identity, protocol);
-      UNLINK(fn); 
+      if (0 != UNLINK(fn))
+	LOG_FILE_STRERROR(LOG_WARNING, "unlink", fn);
       FREE(fn);
       MUTEX_UNLOCK(&lock_);   
       return; /* deleted */
@@ -255,27 +237,22 @@ void delHostFromKnown(const HostIdentity * identity,
 /**
  * Bind a host address (helo) to a hostId.
  * @param msg the verified (!) HELO message
- **/
+ */
 void bindAddress(HELO_Message * msg) {
   char * fn;
   char * buffer;
   HELO_Message * oldMsg;
   int size;
-  HexName hex;
+  EncName enc;
 
-  if (msg == NULL) {
-    LOG(LOG_FAILURE, 
-	"FAILURE: called bindAddress(NULL)\n");
-    BREAK();
-    return;
-  }
+  GNUNET_ASSERT(msg != NULL);
   IFLOG(LOG_INFO,
-	hash2hex(&msg->senderIdentity.hashPubKey,
-		 &hex));
+	hash2enc(&msg->senderIdentity.hashPubKey,
+		 &enc));
 #if DEBUG_KNOWNHOSTS
   LOG(LOG_INFO,
-      "INFO: binding address of node %s.%d\n",
-      &hex, 
+      "Binding address of node %s.%d\n",
+      &enc, 
       ntohs(msg->protocol));
 #endif
   fn = getHostFileName(&msg->senderIdentity,		       
@@ -303,7 +280,7 @@ void bindAddress(HELO_Message * msg) {
 }
 
 struct TempStorage_ {
-  HexName hex;
+  EncName enc;
   HELO_Message * helo;
   int result;
 };
@@ -311,21 +288,23 @@ struct TempStorage_ {
 /**
  * Check if the filename matches the identity that we are searching
  * for. If yes, fill it in.
- **/
-static void identity2HeloHelper(char * fn,
-				char * dirName,
+ */
+static void identity2HeloHelper(const char * fn,
+				const char * dirName,
 				struct TempStorage_ * res) {
-  if (strstr(fn, (char*)&res->hex.data[0]) != NULL) {
+  if (strstr(fn, (char*)&res->enc) != NULL) {
     char * fileName;
     HELO_Message buffer;
     int size;
+    size_t n;
         
-    fileName = MALLOC(strlen(networkIdDirectory) + 
-		      strlen(fn) + 1);
-    sprintf(fileName,
-	    "%s%s",
-	    networkIdDirectory, 
-	    fn);
+    n = strlen(networkIdDirectory) + strlen(fn) + 1;
+    fileName = MALLOC(n);
+    SNPRINTF(fileName,
+	     n,
+	     "%s%s",
+	     networkIdDirectory, 
+	     fn);
     size = readFile(fileName, 
 		    sizeof(HELO_Message), 
 		    &buffer);
@@ -336,10 +315,12 @@ static void identity2HeloHelper(char * fn,
 		      HELO_Message_size(&buffer),
 		      tmp);
       if ((unsigned int)size != HELO_Message_size(&buffer)) {
-	LOG(LOG_WARNING, 
-	    "WARNING: Removed invalid HELO file %s (filesize %d, expected %d)\n",
-	    fileName, size, HELO_Message_size(&buffer));	
-	UNLINK(fileName);      
+	if (0 == UNLINK(fileName))	  
+	  LOG(LOG_WARNING, 
+	      _("Removed file '%s' containing invalid peer advertisement.\n"),
+	      fileName);
+	else
+	  LOG_FILE_STRERROR(LOG_ERROR, "unlink", fileName);
 	FREE(tmp);
       } else {
 	if (NO == isTransportAvailable(ntohs(buffer.protocol)) ) {
@@ -362,11 +343,13 @@ static void identity2HeloHelper(char * fn,
 	}
       }
     } else {
-      LOG(LOG_WARNING,
-	  "WARNING File %s not large enough: only %d < %d bytes (removed)\n",
-	  fileName,
-	  size, sizeof(HELO_Message));
-      UNLINK(fileName);      
+      if (0 == UNLINK(fileName)) {
+	LOG(LOG_WARNING,
+	    _("Removed file '%s' containing invalid peer advertisement.\n"),
+	    fileName);
+      } else {
+	LOG_FILE_STRERROR(LOG_ERROR, "unlink", fileName);
+      }
     }
     FREE(fileName);
   }
@@ -383,7 +366,7 @@ static void identity2HeloHelper(char * fn,
  * @param tryTemporaryList is it ok to check the unverified HELOs?
  * @param result where to store the result
  * @returns SYSERR on failure, OK on success
- **/
+ */
 int identity2Helo(const HostIdentity *  hostId,
 		  const unsigned short protocol,
 		  int tryTemporaryList,
@@ -405,10 +388,12 @@ int identity2Helo(const HostIdentity *  hostId,
 		    HELO_Message_size(&buffer),
 		    *result);
     if ((unsigned int)size != HELO_Message_size(&buffer)) {
-      LOG(LOG_WARNING, 
-	  "WARNING: Removed invalid HELO file %s\n",
-	  fn);
-      UNLINK(fn);      
+      if (0 == UNLINK(fn))
+	LOG(LOG_WARNING, 
+	    _("Removed file '%s' containing invalid HELO data.\n"),
+	    fn);
+      else 
+	LOG_FILE_STRERROR(LOG_ERROR, "unlink", fn);
       FREE(fn);
       FREE(*result);
       *result = NULL;
@@ -422,10 +407,12 @@ int identity2Helo(const HostIdentity *  hostId,
       *result = NULL;
     }
   } else if (size != -1) {
-    LOG(LOG_WARNING, 
-	"WARNING: Removed invalid HELO file %s\n",
-	fn);
-    UNLINK(fn);      
+    if (0 == UNLINK(fn))
+      LOG(LOG_WARNING, 
+	  _("Removed invalid HELO file '%s'\n"),
+	  fn);
+    else
+      LOG_FILE_STRERROR(LOG_ERROR, "unlink", fn);
   }
   FREE(fn);
 
@@ -452,15 +439,17 @@ int identity2Helo(const HostIdentity *  hostId,
   if (protocol != ANY_PROTOCOL_NUMBER) 
     return SYSERR; /* nothing found */
   /* ok, last chance, scan directory! */
-  hash2hex(&hostId->hashPubKey,
-	   &tempStorage.hex);
+  hash2enc(&hostId->hashPubKey,
+	   &tempStorage.enc);
 
   tempStorage.result = SYSERR;
   tempStorage.helo = NULL;
-  /*LOG(LOG_DEBUG,
-      "DEBUG: scanning directory %s for peer identity, proto %d\n",
+#if DEBUG_KNOWNHOSTS
+  LOG(LOG_DEBUG,
+      "scanning directory %s for peer identity, proto %d\n",
       networkIdDirectory,
-      protocol);*/
+      protocol);
+#endif
   scanDirectory(networkIdDirectory,
 		(DirectoryEntryCallback)&identity2HeloHelper,
 		&tempStorage);
@@ -476,12 +465,12 @@ int identity2Helo(const HostIdentity *  hostId,
  * @param desperation how desperate are we to connect? [0,MAXHOSTS]
  * @param strict should we reject incoming connection attempts as well?
  * @return OK on success SYSERR on error
- **/
-int blacklistHost(HostIdentity * identity,
+ */
+int blacklistHost(const HostIdentity * identity,
 		  int desperation,
 		  int strict) {
   int i;
-  HexName hn;
+  EncName hn;
 
   if (desperation < 0)
     desperation = 0;
@@ -503,13 +492,15 @@ int blacklistHost(HostIdentity * identity,
       cronTime(&hosts_[i].until);      
       hosts_[i].until += hosts_[i].delta;
       hosts_[i].strict = strict;
-      hash2hex(&identity->hashPubKey,
+      hash2enc(&identity->hashPubKey,
 	       &hn);
-      /* LOG(LOG_DEBUG, 
-	  "DEBUG: Blacklisting host %s for %d seconds (strict=%d).\n",
+#if DEBUG_KNOWNHOSTS
+      LOG(LOG_DEBUG, 
+	  "Blacklisting host %s for %d seconds (strict=%d).\n",
 	  (char*)&hn, 
 	  hosts_[i].delta / cronSECONDS,
-	  strict); */
+	  strict);
+#endif
       MUTEX_UNLOCK(&lock_);   
      return OK;
     }
@@ -522,8 +513,8 @@ int blacklistHost(HostIdentity * identity,
  * 
  * @param identity host to check
  * @return YES if true, else NO
- **/
-int isBlacklistedStrict(HostIdentity * identity) {
+ */
+int isBlacklistedStrict(const HostIdentity * identity) {
   int i;
   cron_t now;
   
@@ -550,8 +541,8 @@ int isBlacklistedStrict(HostIdentity * identity) {
  * successfully established a connection. It typically
  * resets the exponential backoff to the smallest value.
  * @return OK on success SYSERR on error
- **/
-int whitelistHost(HostIdentity * identity) {
+ */
+int whitelistHost(const HostIdentity * identity) {
   int i;
 
   MUTEX_LOCK(&lock_);   
@@ -577,7 +568,7 @@ int whitelistHost(HostIdentity * identity) {
  *        to go through all hosts.
  * @param data an argument to pass to the method
  * @return the number of hosts matching
- **/
+ */
 int forEachHost(HostIterator callback,
 		cron_t now,
 		void * data) {
@@ -612,68 +603,72 @@ int forEachHost(HostIterator callback,
   return count;
 }
 
-static void cronHelper(char * filename, 
-		       char * dirname,
+static void cronHelper(const char * filename, 
+		       const char * dirname,
 		       void * unused) {
   HostIdentity identity;
-  HexName id;
+  EncName id;
   unsigned int protoNumber;
+  char * fullname;
 
+  GNUNET_ASSERT(sizeof(EncName) == 33);
   if (2 == sscanf(filename,
-		  "%40c.%u",
+		  "%32c.%u",
 		  (char*)&id,
 		  &protoNumber)) {
-    ((char*)&id)[40] = '\0';
-    hex2hash(&id, 
-	     &identity.hashPubKey);
-    addHostToKnown(&identity,
-		   (unsigned short) protoNumber);
-  } else {
-    char * fullname;
-
+    id.encoding[sizeof(EncName)-1] = '\0';
+    if (OK == enc2hash((char*)&id, 
+		       &identity.hashPubKey)) {
+      addHostToKnown(&identity,
+		     (unsigned short) protoNumber);
+      return;
+    }
+  } 
+  
+  fullname = MALLOC(strlen(filename) + strlen(networkIdDirectory) + 1);
+  fullname[0] = '\0';
+  strcat(fullname, networkIdDirectory);
+  strcat(fullname, filename);
+  if (0 == UNLINK(fullname)) 
     LOG(LOG_WARNING,
-	"WARNING: File in %s does not match naming convention: %s (removed)\n",
-	networkIdDirectory, 
-	filename);
-
-    fullname = MALLOC(strlen(filename) + strlen(networkIdDirectory) + 1);
-    fullname[0] = '\0';
-    strcat(fullname, networkIdDirectory);
-    strcat(fullname, filename);
-    UNLINK(fullname);
-    FREE(fullname);
-  }
+	_("File '%s' in directory '%s' does not match naming convention. Removed.\n"),
+	filename,
+	networkIdDirectory);
+  else
+    LOG_FILE_STRERROR(LOG_ERROR, "unlink", fullname);
+  FREE(fullname);
 }
 
 /**
  * Get an estimate of the network size.
  * @return the estimated number of nodes, SYSERR on error
- **/
+ */
 int estimateNetworkSize() {
   return count_;
 }
  
 /**
  * Call this method periodically to scan data/hosts for new hosts.
- **/
+ */
 void cronScanDirectoryDataHosts(void * unused) {
   int count;
 
 #if DEBUG_KNOWNHOSTS
   LOG(LOG_CRON,
-      "CRON: enter cronScanDirectoryDataHosts\n");
+      "enter cronScanDirectoryDataHosts\n");
 #endif
   count = scanDirectory(networkIdDirectory,
 			&cronHelper,
 			NULL);
   if (count <= 0) {
     LOG(LOG_WARNING, 
-	"WARNING: scanDirectory %s returned no known hosts!\n",
+	_("%s '%s' returned no known hosts!\n"),
+	"scanDirectory",
 	networkIdDirectory);
   }
 #if DEBUG_KNOWNHOSTS
   LOG(LOG_CRON, 
-      "CRON: exit cronScanDirectoryDataHosts\n");
+      "exit cronScanDirectoryDataHosts\n");
 #endif
 }
 

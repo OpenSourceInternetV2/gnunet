@@ -63,7 +63,7 @@ typedef struct {
  * @param dlm some information about what to download 
  * (will be freed by caller, must copy!)
  **/
-void startDownload(gchar * filename,
+void startDownload(const gchar * filename,
 		   RootNode * root);
 
 void fetchURI(GtkWidget * widget,

@@ -22,7 +22,7 @@
  * @file applications/afs/module/high_simple_helper.c
  * @brief Directory based implementation of priority indexed keys
  * @author Christian Grothoff
- **/
+ */
 
 #include "high_simple_helper.h"
 #include "platform.h"
@@ -38,18 +38,20 @@
  * @param dir the directory where content is 
  *  configured to be stored (e.g. ~/.gnunet/data/content).
  * @return the full path to the DB file
- **/
+ */
 static char * getDirectory(char * dir) {
   char * result;
   char * tmp;
+  size_t n;
 
 #if PIDX_DEBUG
   LOG(LOG_INFO, 
       "Database (Directory): %s\n", 
       dir);
 #endif
-  tmp = MALLOC(strlen(dir) + strlen(DIR_EXT) + 5);
-  sprintf(tmp, "%s%s", dir, DIR_EXT);
+  n = strlen(dir) + strlen(DIR_EXT) + 5;
+  tmp = MALLOC(n);
+  SNPRINTF(tmp, n, "%s%s", dir, DIR_EXT);
   result = expandFileName(tmp);
   FREE(tmp);
   return result;
@@ -59,15 +61,14 @@ static char * getDirectory(char * dir) {
  * @param dir the directory where content is 
  *  configured to be stored (e.g. ~/.gnunet/data/content).
  * @return handle to the database
- **/
+ */
 PIDX pidxInitContentDatabase(char * dir) {
   PIDX idx;
 
   idx = MALLOC(sizeof(pidx_struct));
   idx->dir = getDirectory(dir);  
   if (idx->dir == NULL) 
-    errexit("FATAL: could not open directory %s!\n",
-	    idx->dir);
+    DIE_FILE_STRERROR("getDirectory", idx->dir);
   mkdirp(idx->dir);
   MUTEX_CREATE_RECURSIVE(&idx->lock);
   return idx;
@@ -77,13 +78,10 @@ PIDX pidxInitContentDatabase(char * dir) {
  * Remove the pidx database.
  *
  * @param handle handle to the databaes
- **/
+ */
 void pidxDeleteContentDatabase(PIDX handle) {
   if (OK != rm_minus_rf(handle->dir))
-    LOG(LOG_ERROR,
-	"ERROR: pidx: could not remove %s: %s\n",
-	handle->dir,
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_ERROR, "rm -rf", handle->dir);
   FREE(handle->dir);
   MUTEX_DESTROY(&handle->lock);
   FREE(handle);
@@ -93,7 +91,7 @@ void pidxDeleteContentDatabase(PIDX handle) {
  * Clean shutdown of the storage module (not used at the moment)
  *
  * @param handle handle to the databaes
- **/
+ */
 void pidxDoneContentDatabase(PIDX handle) {
   FREE(handle->dir);
   MUTEX_DESTROY(&handle->lock);
@@ -108,7 +106,7 @@ void pidxDoneContentDatabase(PIDX handle) {
  * @param result the buffer to write the result to 
  *        (*result should be NULL, sufficient space is allocated)
  * @return the number of HashCodes read on success, -1 on failure
- **/ 
+ */ 
 int pidxReadContent(PIDX dbh,
 		    unsigned int name,
 		    HashCode160 ** result) {
@@ -117,14 +115,17 @@ int pidxReadContent(PIDX dbh,
   int size;
   char * fil;
   size_t fsize;
+  size_t n;
 
   if (result == NULL)
     return -1;
-  fil = MALLOC(strlen(dbh->dir) + 20);
-  sprintf(fil, 
-	  "%s/%u", 
-	  dbh->dir, 
-	  name);
+  n = strlen(dbh->dir) + 20;
+  fil = MALLOC(n);
+  SNPRINTF(fil, 
+	   n,
+	   "%s/%u", 
+	   dbh->dir, 
+	   name);
   MUTEX_LOCK(&dbh->lock);
   fd = OPEN(fil, 
 	    O_RDONLY,
@@ -143,7 +144,7 @@ int pidxReadContent(PIDX dbh,
   }
   if ( (fsize / sizeof(HashCode160)) * sizeof(HashCode160) != fsize) {
     LOG(LOG_WARNING,
-	"WARNING: pidx database corrupt (file has bad length), trying to fix.\n");
+	_("pidx database corrupt (file has bad length), trying to fix.\n"));
     fsize = (fsize / sizeof(HashCode160)) * sizeof(HashCode160);
     ftruncate(fd, 
 	      fsize);
@@ -170,7 +171,7 @@ int pidxReadContent(PIDX dbh,
  * @param name the priority of the entry
  * @param result the buffer to write the result to 
  * @return OK on success, SYSERR on failure
- **/ 
+ */ 
 int pidxReadRandomContent(PIDX dbh,
 			  unsigned int name,
 			  HashCode160 * result) {
@@ -179,14 +180,17 @@ int pidxReadRandomContent(PIDX dbh,
   int size;
   char * fil;
   size_t fsize;
+  size_t n;
 
   if (result == NULL)
     return -1;
-  fil = MALLOC(strlen(dbh->dir) + 20);
-  sprintf(fil, 
-	  "%s/%u", 
-	  dbh->dir, 
-	  name);
+  n = strlen(dbh->dir) + 20;
+  fil = MALLOC(n);
+  SNPRINTF(fil, 
+	   n,
+	   "%s/%u", 
+	   dbh->dir, 
+	   name);
   MUTEX_LOCK(&dbh->lock);
   fd = OPEN(fil, 
 	    O_RDONLY,
@@ -200,7 +204,7 @@ int pidxReadRandomContent(PIDX dbh,
   FREE(fil);
   if ( (fsize / sizeof(HashCode160)) * sizeof(HashCode160) != fsize) {
     LOG(LOG_WARNING,
-	"WARNING: pidx database corrupt (file has bad length), trying to fix.\n");
+	_("pidx database corrupt (file has bad length), trying to fix.\n"));
     fsize = (fsize / sizeof(HashCode160)) * sizeof(HashCode160);
     ftruncate(fd, 
 	      fsize);
@@ -235,58 +239,56 @@ int pidxReadRandomContent(PIDX dbh,
  * @param len the number of blopcks
  * @param blocks the data to store
  * @return SYSERR on error, OK if ok.
- **/
+ */
 int pidxAppendContent(PIDX handle,
 		      unsigned int name,
 		      unsigned int len,
-		      HashCode160 * blocks) {
+		      const HashCode160 * blocks) {
   char * fil;
   int fd;
   off_t offlen;
+  size_t n;
 
-  fil = MALLOC(strlen(handle->dir) + 20);
-  sprintf(fil,
-	  "%s/%u", 
-	  handle->dir, 
-	  name);
+  n = strlen(handle->dir) + 20;
+  fil = MALLOC(n);
+  SNPRINTF(fil,
+	   n,
+	   "%s/%u", 
+	   handle->dir, 
+	   name);
   MUTEX_LOCK(&handle->lock);
   fd = OPEN(fil,
 	    O_RDWR|O_CREAT,
 	    S_IRUSR|S_IWUSR);
   if (fd == -1) {
-    LOG(LOG_WARNING,
-	"WARNING: Failed to open file %s (%s)\n", 
-	fil,
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_WARNING, "open", fil);
     MUTEX_UNLOCK(&handle->lock);
     FREE(fil);
     return SYSERR; /* failed! */
   }
-  FREE(fil);
   offlen = lseek(fd, 
 		 0, 
 		 SEEK_END);
   if (offlen == (off_t)-1) {
-    LOG(LOG_FAILURE,
-	"FAILURE: lseek failed (%s)\n",
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_FAILURE, "lseek", fil);
+    FREE(fil);
     CLOSE(fd);
     MUTEX_UNLOCK(&handle->lock);
     return SYSERR;
   }
   if ( (off_t)((offlen / sizeof(HashCode160)) * sizeof(HashCode160)) != offlen) {
     LOG(LOG_WARNING,
-	"WARNING: pidx database corrupt (file has bad length), trying to fix.\n");
+	_("pidx database corrupt (file has bad length), trying to fix.\n"));
     offlen = (offlen / sizeof(HashCode160)) * sizeof(HashCode160);
     lseek(fd, 
 	  offlen, 
 	  SEEK_SET);
     if (0 != ftruncate(fd, 
 		       offlen))
-      LOG(LOG_FAILURE,
-	  "FAILURE: could not truncate file (%s)\n",
-	  STRERROR(errno));
+      LOG_FILE_STRERROR(LOG_FAILURE, "ftruncate", fil);
   }
+  FREE(fil);
+  
   WRITE(fd, 
 	blocks, 
 	len*sizeof(HashCode160));
@@ -302,29 +304,29 @@ int pidxAppendContent(PIDX handle,
  * @param name the priority of the entry
  * @param len the number of blocks to keep
  * @return SYSERR on error, OK if ok.
- **/
+ */
 int pidxTruncateAt(PIDX handle,
 		   unsigned int name,
 		   unsigned int len) {
   char * fil;
   int fd;
   int ret;
+  size_t n;
 
-  fil = MALLOC(strlen(handle->dir) + 20);
-  sprintf(fil,
-	  "%s/%u", 
-	  handle->dir, 
-	  name);
+  n = strlen(handle->dir) + 20;
+  fil = MALLOC(n);
+  SNPRINTF(fil,
+	   n,
+	   "%s/%u", 
+	   handle->dir, 
+	   name);
   MUTEX_LOCK(&handle->lock);
   fd = OPEN(fil,
 	    O_RDWR|O_CREAT,
 	    S_IRUSR|S_IWUSR);
   if (fd == -1) {
     MUTEX_UNLOCK(&handle->lock);
-    LOG(LOG_WARNING,
-	"WARNING: Failed to open file %s (%s)\n", 
-	fil,
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_WARNING, "open", fil);
     FREE(fil);
     return SYSERR; /* failed! */
   }
@@ -332,12 +334,12 @@ int pidxTruncateAt(PIDX handle,
 		  len*sizeof(HashCode160));
   CLOSE(fd);
   MUTEX_UNLOCK(&handle->lock);
-  if (ret == 0)
+  if (ret == 0) {
+    FREE(fil);
     return OK;
-  else {
-    LOG(LOG_ERROR,
-	"ERROR: truncate failed (%s)\n",
-	STRERROR(errno));
+  } else {
+    LOG_FILE_STRERROR(LOG_ERROR, "ftruncate", fil);
+    FREE(fil);
     return SYSERR;
   }
 }
@@ -350,7 +352,7 @@ int pidxTruncateAt(PIDX handle,
  * @param len the number of blopcks
  * @param blocks the data to store
  * @return SYSERR on error, OK if ok.
- **/
+ */
 int pidxWriteContent(PIDX handle,
 		     unsigned int name,
 		     unsigned int len,
@@ -358,12 +360,15 @@ int pidxWriteContent(PIDX handle,
   char * fil;
   int fd;
   int ret;
+  size_t n;
 
-  fil = MALLOC(strlen(handle->dir) + 20);
-  sprintf(fil,
-	  "%s/%u", 
-	  handle->dir, 
-	  name);
+  n = strlen(handle->dir) + 20;
+  fil = MALLOC(n);
+  SNPRINTF(fil,
+	   n,
+	   "%s/%u", 
+	   handle->dir, 
+	   name);
   MUTEX_LOCK(&handle->lock);
   truncate(fil, 0);
   fd = OPEN(fil,
@@ -371,10 +376,7 @@ int pidxWriteContent(PIDX handle,
 	    S_IRUSR|S_IWUSR);
   if (fd == -1) {
     MUTEX_UNLOCK(&handle->lock);
-    LOG(LOG_WARNING,
-	"WARNING: Failed to open file %s (%s)\n", 
-	fil,
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_WARNING, "open", fil);
     FREE(fil);
     return SYSERR; /* failed! */
   }
@@ -383,13 +385,7 @@ int pidxWriteContent(PIDX handle,
 	      len * sizeof(HashCode160));
   if ((unsigned int)ret != len * sizeof(HashCode160)) {
     MUTEX_UNLOCK(&handle->lock);
-    LOG(LOG_FAILURE,
-	"FAILURE: could not write full block: "
-	"%d of %d written to file %s, truncated. (%s)\n",
-	ret,
-	len * sizeof(HashCode160),
-	fil,
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_FAILURE, "write", fil);
     CLOSE(fd);
     truncate(fil, 0);
     FREE(fil);
@@ -407,16 +403,19 @@ int pidxWriteContent(PIDX handle,
  * @param handle handle to the database
  * @param priority the priority of the entry
  * @return OK on success, SYSERR on error
- **/
+ */
 int pidxUnlinkFromDB(PIDX handle,
 		     unsigned int priority) {
   char * fil;
+  size_t n;
 
-  fil = MALLOC(strlen(handle->dir) + 20);
-  sprintf(fil, 
-	  "%s/%u",
-	  handle->dir, 
-	  priority);
+  n = strlen(handle->dir) + 20;
+  fil = MALLOC(n);
+  SNPRINTF(fil, 
+	   n,
+	   "%s/%u",
+	   handle->dir, 
+	   priority);
   MUTEX_LOCK(&handle->lock);
   UNLINK(fil);
   MUTEX_UNLOCK(&handle->lock);

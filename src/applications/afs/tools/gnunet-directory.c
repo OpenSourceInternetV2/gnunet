@@ -24,7 +24,7 @@
  *        to delete all of these entries and to display the contents of
  *        directories.
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_afs_esed2.h"
 #include "platform.h"
@@ -35,7 +35,7 @@ static char ** filenames;
 static int filenamescnt;
 
 
-static void printNode(RootNode * root,
+static void printNode(const RootNode * root,
 		      void * unused) {
   char * string;
 
@@ -49,11 +49,11 @@ static void printDirectory(char * filename) {
   unsigned int i;
 
   filename = expandFileName(filename);
-  printf("==> Directory '%s':\n",
+  printf(_("==> Directory '%s':\n"),
 	 filename);
   dir = readGNUnetDirectory(filename);
   if (dir == NULL) { 
-    printf("ERROR: no such file or invalid format for GNUnet directory.\n");
+    printf(_("No such file or invalid format for GNUnet directory.\n"));
     return;
   }
   dir->description[MAX_DESC_LEN-1] = '\0';
@@ -70,43 +70,43 @@ static void printDirectory(char * filename) {
 
 /**
  * Print a list of the options we offer.
- **/
+ */
 static void printhelp() {
   static Help help[] = {
     { 'a', "list-all", NULL,
-      "list all entries from the directory database" },
+      gettext_noop("list all entries from the directory database") },
     { 'A', "kill-all", NULL,
-      "remove all entries from the directory database" },    
+      gettext_noop("remove all entries from the directory database") },    
     HELP_CONFIG,
     HELP_HELP,
     { 'i', "list-insert", NULL,
-      "list all insert entries from the directory database" },
+      gettext_noop("list all insert entries from the directory database") },
     { 'I', "kill-insert", NULL,
-      "delete all insert entries from the directory database" },
+      gettext_noop("delete all insert entries from the directory database") },
     HELP_LOGLEVEL,
     { 'n', "list-namespace", NULL,
-      "list all namespace entries from the directory database" },
+      gettext_noop("list all namespace entries from the directory database") },
     { 'N', "kill-namespace", NULL,
-      "delete all namespace entries from the directory database" },
+      gettext_noop("delete all namespace entries from the directory database") },
     { 's', "list-search", NULL,
-      "list all search result entries from the directory database" },
+      gettext_noop("list all search result entries from the directory database") },
     { 'S', "kill-search", NULL,
-      "delete all search result entries from the directory database" },
+      gettext_noop("delete all search result entries from the directory database") },
     HELP_VERSION,
     { 'x', "list-directory", NULL,
-      "list all directory entries from the directory database" },
+      gettext_noop("list all directory entries from the directory database") },
     { 'X', "kill-directory", NULL,
-      "remove all directory entries from the directory database" },
+      gettext_noop("remove all directory entries from the directory database") },
     HELP_END,
   };
   formatHelp("gnunet-directory [OPTIONS] [FILENAMES]",
-	     "Perform directory related operations.",
+	     _("Perform directory related operations."),
 	     help);
 }
 
 /**
  * Perform option parsing from the command line. 
- **/
+ */
 static int parseCommandLine(int argc, 
 			    char * argv[]) {
   int c;
@@ -177,9 +177,7 @@ static int parseCommandLine(int argc,
       printhelp(); 
       return SYSERR;
     default:
-      printf("Unknown option %c. Aborting.\n"
-	     "Use --help to get a list of options.\n",
-	     c);
+      printf(_("Use --help to get a list of options.\n"));
       return SYSERR;
     } /* end of parsing commandline */
   }
@@ -195,7 +193,7 @@ int main(int argc,
     return 0;
 
   if (listMask != 0)
-    printf("Listed %d matching entries.\n",
+    printf(_("Listed %d matching entries.\n"),
 	   iterateDirectoryDatabase(listMask,
 				    &printNode,
 				    NULL));

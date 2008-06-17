@@ -1,6 +1,7 @@
 man_MANS = \
 gnunet-directory.1 \
 gnunet-download.1 \
+gnunet-update.1 \
 gnunet-gtk.1 \
 gnunet-insert.1 \
 gnunet-delete.1 \

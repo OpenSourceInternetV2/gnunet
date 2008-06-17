@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet
-     (C) 2003 Christian Grothoff (and other contributing authors)
+     (C) 2003, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -23,7 +23,7 @@
  *        backend (gdbm, tdb, mysql, etc.) must provide.
  * @author Igor Wronsky
  * @author Christian Grothoff
- **/
+ */
 #ifndef DATABASE_LIBRARY_H
 #define DATABASE_LIBRARY_H
 
@@ -32,7 +32,7 @@
 
 /**
  * Handle for a high-level database (mysql, simple)
- **/
+ */
 typedef void * HighDBHandle;
 
 /**
@@ -44,9 +44,9 @@ typedef void * HighDBHandle;
  *
  * Note that the callback function may not perform additional
  * read, write or delete operations on the database!
- **/ 
-typedef void (*EntryCallback)(HashCode160 * key,
-			      ContentIndex * ce,
+ */ 
+typedef void (*EntryCallback)(const HashCode160 * key,
+			      const ContentIndex * ce,
 			      void * data,
 			      unsigned int dataLen,
 			      void * closure);
@@ -59,13 +59,13 @@ typedef void (*EntryCallback)(HashCode160 * key,
  * @param n parameter for naming the database configuration (e.g. quota)
  *
  * @return the database handle
- **/
+ */
 HighDBHandle initContentDatabase(unsigned int i,
 				 unsigned int n);
 
 /**
  * Close the database.
- **/ 
+ */ 
 void doneContentDatabase(HighDBHandle handle);
 
 /**
@@ -75,7 +75,7 @@ void doneContentDatabase(HighDBHandle handle);
  * @param callback the callback method
  * @param data second argument to all callback calls
  * @return the number of items stored in the content database
- **/
+ */
 int forEachEntryInDatabase(HighDBHandle handle,
                            EntryCallback callback,
                            void * data);
@@ -83,7 +83,7 @@ int forEachEntryInDatabase(HighDBHandle handle,
 /**
  * Get the number of entries in the database.
  * @return SYSERR on error, otherwise the number of entries
- **/
+ */
 int countContentEntries(HighDBHandle handle);
 
 /**
@@ -97,9 +97,9 @@ int countContentEntries(HighDBHandle handle);
  *         if the content is on-demand encoded, *result==NULL on return)
  * @param prio the amount to change priority of the entry if its found
  * @return the number of bytes read on success, -1 on failure
- **/
+ */
 int readContent(HighDBHandle handle,
-		HashCode160 * query,
+		const HashCode160 * query,
                 ContentIndex * ce,
                 void ** result,
 		int prio);
@@ -119,20 +119,20 @@ int readContent(HighDBHandle handle,
  * @param len the size of the block
  * @param block the data to store
  * @return SYSERR on error, OK on success
- **/
+ */
 int writeContent(HighDBHandle handle,
-                 ContentIndex * ce,
+                 const ContentIndex * ce,
                  unsigned int len,
-                 void * block);
+                 const void * block);
 
 /**
  * Free space in the database by removing an entry.
  *
  * @param name the query of the entry to remove
  * @return SYSERR on error, OK if ok.
- **/
+ */
 int unlinkFromDB(HighDBHandle handle,
-                 HashCode160 * query);
+                 const HashCode160 * query);
 
 /**
  * Return a random key from the database (just the key, not the
@@ -140,7 +140,7 @@ int unlinkFromDB(HighDBHandle handle,
  *
  * @param ce output information about the key
  * @return SYSERR on error, OK if ok.
- **/
+ */
 int getRandomContent(HighDBHandle handle,
                      ContentIndex * ce);
 
@@ -149,7 +149,7 @@ int getRandomContent(HighDBHandle handle,
  *
  * @param count the number of 1kb blocks to free
  * @param callback method to call on each deleted item
- **/
+ */
 int deleteContent(HighDBHandle handle,
                   unsigned int count,
 		  EntryCallback callback,
@@ -157,7 +157,7 @@ int deleteContent(HighDBHandle handle,
 
 /**
  * Get the lowest priority of content in the store.
- **/
+ */
 unsigned int getMinimumPriority(HighDBHandle handle);
 
 /**
@@ -165,7 +165,7 @@ unsigned int getMinimumPriority(HighDBHandle handle);
  * before the quota is reached.
  *
  * @quota the number of kb available for the DB
- **/ 
+ */ 
 int estimateAvailableBlocks(HighDBHandle handle,
 			    unsigned int quota);
 
@@ -173,7 +173,7 @@ int estimateAvailableBlocks(HighDBHandle handle,
 /**
  * Remove the database (entirely!). Also implicitly
  * calls "doneContentDatabase".
- **/
+ */
 void deleteDatabase(HighDBHandle handle);
 
 

@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -25,7 +25,7 @@
  *
  * This file contains basic logging mechanisms, with log-levels,
  * logging to file or stderr and with or without time-prefixing.
- **/
+ */
 
 #include "gnunet_util.h"
 #include "platform.h"
@@ -35,56 +35,63 @@ static int loglevel__ = LOG_WARNING;
 static Mutex logMutex;
 static int bInited = 0;
 static TLogProc customLog = NULL;
+static int maxLogLevel = LOG_EVERYTHING;
+
+static char * loglevels[] = {
+  "NOTHING",
+  "FATAL",
+  "ERROR",
+  "FAILURE",
+  "WARNING",
+  "MESSAGE",
+  "INFO",
+  "DEBUG",
+  "CRON",
+  "EVERYTHING",
+  NULL,
+};
 
 /**
  * Return the current logging level
- **/
+ */
 int getLogLevel() {
   return loglevel__;
 }
 
 /**
  * Return the logfile
- **/
+ */
 void *getLogfile() {
   return logfile;
 }
  
 /**
  * Convert a textual description of a loglevel into an int.
- **/
+ */
 static int getLoglevel(char * log) {
+  int i;
+  char * caplog;
+
   if (log == NULL)
     errexit("LOGLEVEL specified is NULL, that's not ok.\n");
-  if (0 == strcmp(log, "NOTHING"))
-    return LOG_NOTHING;
-  if (0 == strcmp(log, "FATAL"))
-    return LOG_FATAL;
-  if (0 == strcmp(log, "ERROR"))
-    return LOG_ERROR;
-  if (0 == strcmp(log, "FAILURE"))
-    return LOG_FAILURE;
-  if (0 == strcmp(log, "WARNING"))
-    return LOG_WARNING;
-  if (0 == strcmp(log, "MESSAGE"))
-    return LOG_MESSAGE;
-  if (0 == strcmp(log, "INFO"))
-    return LOG_INFO;
-  if (0 == strcmp(log, "DEBUG"))
-    return LOG_DEBUG;
-  if (0 == strcmp(log, "CRON"))
-    return LOG_CRON;
-  if (0 == strcmp(log, "EVERYTHING"))
-    return LOG_EVERYTHING;
-  errexit("invalid loglevel specified: %s (did you use all-caps?)\n",
-	  log);
-  return 42; /* can not happen */
+  caplog = strdup(log);
+  for (i=strlen(caplog)-1;i>=0;i--)
+    caplog[i] = toupper(caplog[i]);    
+  i = 0;
+  while ( (loglevels[i] != NULL) &&
+	  (0 != strcmp(caplog, loglevels[i])) )
+    i++;
+  free(caplog);
+  if (loglevels[i] == NULL)
+    errexit("invalid loglevel specified: %s\n",
+	    log);
+  return i;
 }
 
 /**
  * Re-read the loggig configuration.
  * Call on SIGHUP if the configuration file has changed.
- **/
+ */
 static void resetLogging() {
   char * loglevelname;
   char * logfilename;
@@ -124,6 +131,8 @@ static void resetLogging() {
 
     fn = expandFileName(logfilename);
     logfile = FOPEN(fn, "a+");
+    if (logfile == NULL)
+      logfile = stderr;
     FREE(fn);
     FREE(logfilename);
   } else
@@ -133,7 +142,7 @@ static void resetLogging() {
 
 /**
  * Initialize the logging module.
- **/
+ */
 void initLogging() {
   MUTEX_CREATE_RECURSIVE(&logMutex);
  
@@ -144,7 +153,7 @@ void initLogging() {
 
 /**
  * Shutdown the logging module.
- **/
+ */
 void doneLogging() {
   unregisterConfigurationUpdateCallback(&resetLogging);
   if ( (logfile != NULL) &&
@@ -159,7 +168,7 @@ void doneLogging() {
 
 /**
  * Print the current time to logfile without linefeed
- **/
+ */
 static void printTime() {
   if (logfile !=NULL) {
     char timebuf[64];
@@ -183,17 +192,19 @@ static void printTime() {
  *
  * @param filename where in the code did the problem occur
  * @param linenumber where in the code did the problem occur
- **/ 
+ */ 
 void breakpoint_(const char * filename,
                  const int linenumber) {
   if (logfile != NULL) {
     printTime();
-    fprintf(logfile, "__BREAK__ at %s:%d\n",
+    fprintf(logfile, 
+	    _("Failure at %s:%d.\n"),
     	    filename, 
 	    linenumber);
     fflush(logfile);
   } else
-    fprintf(stderr, "__BREAK__ at %s:%d\n",
+    fprintf(stderr, 
+	    _("Failure at at %s:%d.\n"),
     	    filename,
 	    linenumber);
 }
@@ -203,7 +214,7 @@ void breakpoint_(const char * filename,
  * called whenever GNUnet LOG()s something
  *
  * @param proc the function to register
- **/
+ */
 void setCustomLogProc(TLogProc proc) {
   if (bInited)
     MUTEX_LOCK(&logMutex);
@@ -219,28 +230,39 @@ void setCustomLogProc(TLogProc proc) {
  *
  * @param minLogLevel minimum level at which this message should be logged
  * @param format the string describing the error message
- **/
+ */
 void LOG(int minLogLevel,
 	 const char *format, ...) {
   va_list	args;  
-  int           len = 0;
+  size_t len;
 
   if (loglevel__ < minLogLevel)
     return;
+  if (minLogLevel > maxLogLevel)
+    minLogLevel = maxLogLevel;
 
   if (bInited)
     MUTEX_LOCK(&logMutex);
   va_start(args, format);
   if (logfile != NULL) {
     printTime();
+    if (format[0] == ' ')
+      fprintf(logfile, "%s:", loglevels[minLogLevel]);
+    else
+      fprintf(logfile, "%s: ", loglevels[minLogLevel]);
     len = vfprintf(logfile, format, args);
     fflush(logfile);
   } else
     len = vfprintf(stderr, format, args);
+  va_end(args);
+  va_start(args, format);
   if (customLog) {
-    char *txt = (char *) MALLOC(len > 0 ? len : 251);
-    vsnprintf(txt, 250, format, args);
-    txt[250] = 0;
+    char * txt;
+    
+    txt = MALLOC(len + 1);
+    if (len != vsnprintf(txt, len, format, args))
+      errexit("Assertion failed at %s:%d\n",
+	      __FILE__, __LINE__);
     customLog(txt);
     FREE(txt);
   }
@@ -254,7 +276,7 @@ void LOG(int minLogLevel,
  * errexit - log an error message and exit.
  *
  * @param format the string describing the error message
- **/
+ */
 void errexit(const char *format, ...) {
   va_list args;
 
@@ -263,12 +285,14 @@ void errexit(const char *format, ...) {
   va_start(args, format);
   if (logfile != NULL) {
     printTime();
+    fprintf(logfile, " ");
     vfprintf(logfile, format, args);
     fflush(logfile);
   } else {
 #ifdef MINGW
     AllocConsole();
 #endif
+    fprintf(stderr, " ");
     vfprintf(stderr, format, args);
   }
   va_end(args);
@@ -276,5 +300,25 @@ void errexit(const char *format, ...) {
   abort();
   exit(-1); /* just in case... */
 }
+
+int SNPRINTF(char * buf,
+	     size_t size,
+	     const char * format,
+	     ...) {
+  int ret;
+  va_list args;
+
+  va_start(args, format);
+  ret = vsnprintf(buf,
+		  size,
+		  format,
+		  args);
+  va_end(args);
+  if (ret > size)
+    errexit("SNPRINTF out of bounds!\n");
+  return ret;
+}
+
+
 
 /* end of logging.c */

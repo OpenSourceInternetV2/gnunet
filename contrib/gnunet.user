@@ -76,7 +76,7 @@ DOWNLOADDIR     = /tmp/gnunet-downloads/
 # file-identifiers for building directories.  Note that you can
 # build directories of files that you insert without collecting
 # file-identifiers by using the option "-b" of gnunet-insert.
-# You can not add entries from namespaces to directories without
+# You cannot add entries from namespaces to directories without
 # at least temporarily collecting file-identifiers.
 # Default is NO
 COLLECT-FILE-IDENTIFIERS = NO

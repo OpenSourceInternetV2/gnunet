@@ -24,7 +24,7 @@
  * @author Ronaldo Alves Ferreira
  * @author Christian Grothoff
  * @author Murali Krishan Ramanathan
- **/
+ */
 
 #include "platform.h"
 #include "socket.h"
@@ -49,7 +49,7 @@ static void writeAll(int fd,
       pos += ret;
     else
       LOG(LOG_WARNING,
-	  "WARNING: write to socket failed: %s\n",
+	  " write to socket failed: %s\n",
 	  STRERROR(errno));
   }
 }
@@ -112,7 +112,7 @@ unsigned int readSocket(char ** rbuf,
     if (ret >= 0) 
       pos += ret;
     else
-      errexit("FATAL: socket protocol error (%s)\n", STRERROR(errno));
+      errexit(" socket protocol error (%s)\n", STRERROR(errno));
   }
   mlen = ntohl(mlen);
   
@@ -122,7 +122,7 @@ unsigned int readSocket(char ** rbuf,
     if (ret >= 0) 
       pos += ret;
     else
-      errexit("FATAL: socket protocol error (%s)\n", STRERROR(errno));
+      errexit(" socket protocol error (%s)\n", STRERROR(errno));
   }
   
 #if DEBUG

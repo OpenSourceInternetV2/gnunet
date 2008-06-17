@@ -23,31 +23,33 @@
  *
  * @author Christian Grothoff
  * @file applications/afs/tools/gnunet-delete.c 
- **/
+ */
 
 #include "gnunet_afs_esed2.h"
 #include "platform.h"
 
 /**
  * Print progess message.
- **/
+ */
 static void printstatus(ProgressStats * stats,
 			void * verboselevel) {
-  if (*(int*)verboselevel == YES)
-    printf("%8u of %8u bytes deleted\r",
+  if (*(int*)verboselevel == YES) {
+    printf(_("%8u of %8u bytes deleted."),
 	   (unsigned int) stats->progress,
 	   (unsigned int) stats->filesize);  
+    printf("\r");
+  }
 }
 
 /**
  * Prints the usage information for this command if the user errs.
  * Aborts the program.
- **/
+ */
 static void printhelp() {
   static Help help[] = {
     HELP_CONFIG,
     { 'f', "file", "NAME",
-      "specify the file to delete from GNUnet (obligatory, file must exist)"} ,
+      gettext_noop("specify the file to delete from GNUnet (obligatory, file must exist)") } ,
     HELP_HELP,
     HELP_HOSTNAME,
     HELP_LOGLEVEL,
@@ -56,8 +58,8 @@ static void printhelp() {
     HELP_END,
   };
   formatHelp("gnunet-delete [OPTIONS] -f FILENAME",
-	     "Remove file from GNUnet.  The specified file is not removed\n"
-	     "from the filesystem but just from the local GNUnet datastore.",
+	     _("Remove file from GNUnet.  The specified file is not removed\n"
+	       "from the filesystem but just from the local GNUnet datastore."),
 	     help);
 }
 
@@ -106,9 +108,7 @@ static int parseOptions(int argc,
       return SYSERR;
     default: 
       LOG(LOG_FAILURE,
-	  "FAILURE: Unknown option %c. Aborting.\n"\
-	  "Use --help to get a list of options.\n",
-	  c);
+	  _("Use --help to get a list of options.\n"));
       return SYSERR;
     } /* end of parsing commandline */
   } /* while (1) */
@@ -121,7 +121,7 @@ static int parseOptions(int argc,
  * @param argc number of arguments from the command line
  * @param argv command line arguments
  * @return return 0 for ok, -1 on error
- **/   
+ */   
 int main(int argc, char ** argv) {
   int beVerbose;
   GNUNET_TCP_SOCKET * sock;
@@ -136,19 +136,20 @@ int main(int argc, char ** argv) {
 
   filename = getFileName("GNUNET-DELETE",
 			 "FILENAME",
-			 "ERROR: you must specify a filename (option -f)\n");
+			 _("You must specify a filename (option -f)\n"));
   sock = getClientSocket();
   if (sock == NULL)
-    errexit("FATAL: could not connect to gnunetd.\n");
+    errexit(_("Could not connect to gnunetd.\n"));
   ok = deleteFile(sock,
 		  filename,
 		  &printstatus,
 		  &beVerbose);
   if (ok != OK) {
     LOG(LOG_DEBUG,
-	"DEBUG: error in deleteFile\n");
-    printf("Error deleting file %s.\n"
-	   "Probably a few blocks were already missing from the database.\n",
+	"Error deleting file '%s'.\n",
+	filename);
+    printf(_("Error deleting file %s.\n"
+	     "Probably a few blocks were already missing from the database.\n"),
 	   filename);
   }
   releaseClientSocket(sock); 

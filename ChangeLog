@@ -1,3 +1,41 @@
+Sun Aug 29 15:11:28 IST 2004
+	Releasing GNUnet 0.6.4.
+
+Tue Aug 24 20:59:14 IST 2004
+	Significant enhancements to namespaces.  A namespace can
+	now be annotated with meta-data at the time that it is
+	created.
+	
+Sat Aug 21 01:00:06 IST 2004
+	Adding GNU gettext support to configure.
+	
+Thu Aug 19 01:26:55 IST 2004
+	Migrating gnunet-gtk to GTK 2.0 (tested with 2.4).
+
+Mon Aug 16 00:30:59 IST 2004
+	Removed gcry.  Added dependency on GNU MP library (libgmp)
+	for kblocks.
+
+Tue Aug  3 17:57:43 IST 2004
+	Fixed bugs in gnunet-update.  Fixed segfault in AFS startup.
+	Fixed warnings in gnunet-peer-info/gnunetd.  Fixed packaging
+	error (not all of util/gcry included in distribution).
+	Releasing GNUnet 0.6.3a.
+
+Mon Aug  2 20:06:07 IST 2004
+	Releasing GNUnet 0.6.3.
+
+Sun Aug  1 01:31:19 IST 2004
+	Changed most places from HexName to the new, shorter EncName.
+	Pushed URIs for namespaces and keyword searches into more
+	widespread use.  Replaced all occurences of sprintf with
+	SNPRINTF (to obtain extra bounds check).
+	
+Sun Jul 11 13:54:01 IST 2004
+	Moved testcases for libgnunet_util to util/ directory.
+	Made DB testcases in afs/module/ run for each available
+	database and not just the one configured in /etc/gnunet.conf.
+
 Fri Jun 25 21:05:59 IST 2004
 	Releasing GNUnet 0.6.2b (resolves various minor bugs).
 

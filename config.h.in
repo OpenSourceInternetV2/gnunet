@@ -2,9 +2,6 @@
 
 #define _GNU_SOURCE  1
 
-/* Defined if the host has big endian byte ordering */
-#undef BIG_ENDIAN_HOST
-
 /* Define to 1 if the `closedir' function returns void instead of `int'. */
 #undef CLOSEDIR_VOID
 
@@ -13,6 +10,10 @@
 
 /* This is a Cygwin system */
 #undef CYGWIN
+
+/* Define to 1 if translation of program messages to the user's native
+   language is requested. */
+#undef ENABLE_NLS
 
 /* This is a FreeBSD system */
 #undef FREEBSD
@@ -47,14 +48,11 @@
 /* Define to 1 if you have the `bcopy' function. */
 #undef HAVE_BCOPY
 
-/* Defined if a `byte' is typedef'd */
-#undef HAVE_BYTE_TYPEDEF
+/* Define if you have the shared Berkeley DB library. */
+#undef HAVE_BDB_DLL
 
 /* Define to 1 if you have the `clock_gettime' function. */
 #undef HAVE_CLOCK_GETTIME
-
-/* Define to 1 if you have the `closedir' function. */
-#undef HAVE_CLOSEDIR
 
 /* Define to 1 if you have the <ctype.h> header file. */
 #undef HAVE_CTYPE_H
@@ -64,6 +62,18 @@
 
 /* Define to 1 if you have the <db.h> header file. */
 #undef HAVE_DB_H
+
+/* Define if the GNU dcgettext() function is already present or preinstalled.
+   */
+#undef HAVE_DCGETTEXT
+
+/* Define to 1 if you have the declaration of `GDBM_CENTFREE', and to 0 if you
+   don't. */
+#undef HAVE_DECL_GDBM_CENTFREE
+
+/* Define to 1 if you have the declaration of `GDBM_COALESCEBLKS', and to 0 if
+   you don't. */
+#undef HAVE_DECL_GDBM_COALESCEBLKS
 
 /* Define to 1 if you have the <dirent.h> header file, and it defines `DIR'.
    */
@@ -89,9 +99,6 @@
 
 /* Define to 1 if you have the `dup2' function. */
 #undef HAVE_DUP2
-
-/* Define if you have the _dyld_func_lookup function. */
-#undef HAVE_DYLD
 
 /* Define to 1 if you have the <errno.h> header file. */
 #undef HAVE_ERRNO_H
@@ -120,6 +127,9 @@
 /* Define to 1 if you have the <gdbm.h> header file. */
 #undef HAVE_GDBM_H
 
+/* Define to 1 if you have the `getcwd' function. */
+#undef HAVE_GETCWD
+
 /* Define to 1 if you have the `gethostbyname' function. */
 #undef HAVE_GETHOSTBYNAME
 
@@ -132,8 +142,17 @@
 /* Define to 1 if you have the `getrusage' function. */
 #undef HAVE_GETRUSAGE
 
+/* Define if the GNU gettext() function is already present or preinstalled. */
+#undef HAVE_GETTEXT
+
 /* Define to 1 if you have the `gettimeofday' function. */
 #undef HAVE_GETTIMEOFDAY
+
+/* Define to 1 if you have the <gmp.h> header file. */
+#undef HAVE_GMP_H
+
+/* Define if you have the iconv() function. */
+#undef HAVE_ICONV
 
 /* Define to 1 if you have the `index' function. */
 #undef HAVE_INDEX
@@ -150,26 +169,8 @@
 /* Define if you have the libdl library or equivalent. */
 #undef HAVE_LIBDL
 
-/* Define to 1 if you have the `gdk' library (-lgdk). */
-#undef HAVE_LIBGDK
-
-/* Define to 1 if you have the `gettextlib' library (-lgettextlib). */
-#undef HAVE_LIBGETTEXTLIB
-
-/* Define to 1 if you have the `glib-2.0' library (-lglib-2.0). */
-#undef HAVE_LIBGLIB_2_0
-
-/* Define to 1 if you have the `gobject-2.0' library (-lgobject-2.0). */
-#undef HAVE_LIBGOBJECT_2_0
-
-/* Define to 1 if you have the `gthread-2.0' library (-lgthread-2.0). */
-#undef HAVE_LIBGTHREAD_2_0
-
-/* Define to 1 if you have the `gtk' library (-lgtk). */
-#undef HAVE_LIBGTK
-
-/* Define to 1 if you have the `iconv' library (-liconv). */
-#undef HAVE_LIBICONV
+/* Define to 1 if you have the `gmp' library (-lgmp). */
+#undef HAVE_LIBGMP
 
 /* Define to 1 if you have the `intl' library (-lintl). */
 #undef HAVE_LIBINTL
@@ -201,11 +202,14 @@
 /* Define to 1 if you have the `socket' library (-lsocket). */
 #undef HAVE_LIBSOCKET
 
+/* Define to 1 if you have the `z' library (-lz). */
+#undef HAVE_LIBZ
+
 /* Define to 1 if you have the <limits.h> header file. */
 #undef HAVE_LIMITS_H
 
-/* Define to 1 if you have the <mach-o/dyld.h> header file. */
-#undef HAVE_MACH_O_DYLD_H
+/* Define to 1 if you have the <locale.h> header file. */
+#undef HAVE_LOCALE_H
 
 /* Define to 1 if you have the <malloc.h> header file. */
 #undef HAVE_MALLOC_H
@@ -228,6 +232,9 @@
 /* Define to 1 if you have the `mkfifo' function. */
 #undef HAVE_MKFIFO
 
+/* Define to 1 if you have the `mktime' function. */
+#undef HAVE_MKTIME
+
 /* Define to 1 if you have the <mysql/mysql.h> header file. */
 #undef HAVE_MYSQL_MYSQL_H
 
@@ -239,9 +246,6 @@
 
 /* Define to 1 if you have the <netinet/in.h> header file. */
 #undef HAVE_NETINET_IN_H
-
-/* Define to 1 if you have the `opendir' function. */
-#undef HAVE_OPENDIR
 
 /* Define to 1 if you have the <openssl/blowfish.h> header file. */
 #undef HAVE_OPENSSL_BLOWFISH_H
@@ -255,9 +259,6 @@
 /* Define to 1 if you have the `rand' function. */
 #undef HAVE_RAND
 
-/* Define to 1 if you have the `readdir' function. */
-#undef HAVE_READDIR
-
 /* Define to 1 if you have the `rindex' function. */
 #undef HAVE_RINDEX
 
@@ -266,6 +267,9 @@
 
 /* Define to 1 if you have the `select' function. */
 #undef HAVE_SELECT
+
+/* Define to 1 if you have the `setlocale' function. */
+#undef HAVE_SETLOCALE
 
 /* Define if you have the shl_load function. */
 #undef HAVE_SHL_LOAD
@@ -329,6 +333,9 @@
 /* Define to 1 if you have the <sys/dl.h> header file. */
 #undef HAVE_SYS_DL_H
 
+/* Define to 1 if you have the <sys/file.h> header file. */
+#undef HAVE_SYS_FILE_H
+
 /* Define to 1 if you have the <sys/ioctl.h> header file. */
 #undef HAVE_SYS_IOCTL_H
 
@@ -372,23 +379,11 @@
 /* Define to 1 if you have the <tdb.h> header file. */
 #undef HAVE_TDB_H
 
-/* Defined if a `u16' is typedef'd */
-#undef HAVE_U16_TYPEDEF
-
-/* Defined if a `u32' is typedef'd */
-#undef HAVE_U32_TYPEDEF
-
-/* Defined if a `ulong' is typedef'd */
-#undef HAVE_ULONG_TYPEDEF
-
 /* Define to 1 if you have the `uname' function. */
 #undef HAVE_UNAME
 
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
-
-/* Defined if a `ushort' is typedef'd */
-#undef HAVE_USHORT_TYPEDEF
 
 /* Define to 1 if you have the `vfork' function. */
 #undef HAVE_VFORK
@@ -399,10 +394,6 @@
 /* Define to 1 if you have the `vprintf' function. */
 #undef HAVE_VPRINTF
 
-/* Define to 1 if you have the `wait3' system call. Deprecated, you should no
-   longer depend upon `wait3'. */
-#undef HAVE_WAIT3
-
 /* Define to 1 if `fork' works. */
 #undef HAVE_WORKING_FORK
 
@@ -411,9 +402,6 @@
 
 /* This is a Linux system */
 #undef LINUX
-
-/* Defined if the host has little endian byte ordering */
-#undef LITTLE_ENDIAN_HOST
 
 /* Define to 1 if `lstat' dereferences a symlink specified with a trailing
    slash. */
@@ -438,12 +426,6 @@
 
 /* This is a MinGW system */
 #undef MINGW
-
-/* defined to the name of the strong random device */
-#undef NAME_OF_DEV_RANDOM
-
-/* defined to the name of the weaker random device */
-#undef NAME_OF_DEV_URANDOM
 
 /* Define if dlsym() requires a leading underscore in symbol names. */
 #undef NEED_USCORE
@@ -526,18 +508,6 @@
 /* openssl available */
 #undef USE_OPENSSL
 
-/* Defined if the EGD based RNG should be used. */
-#undef USE_RNDEGD
-
-/* Defined if the /dev/random based RNG should be used. */
-#undef USE_RNDLINUX
-
-/* Defined if the default Unix RNG should be used. */
-#undef USE_RNDUNIX
-
-/* Defined if the Windows specific RNG should be used. */
-#undef USE_RNDW32
-
 /* Version number of package */
 #undef VERSION
 
@@ -550,7 +520,7 @@
 /* Define to empty if `const' does not conform to ANSI C. */
 #undef const
 
-/* Define to a type to use for `error_t' if it is not otherwise available. */
+/* Define to a type to use for \`error_t' if it is not otherwise available. */
 #undef error_t
 
 /* Define to `int' if <sys/types.h> doesn't define. */

@@ -22,7 +22,7 @@
  * @file util/ipcheck.c
  * @brief test if an IP matches a given subnet
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_util.h"
 #include "platform.h"
@@ -37,8 +37,8 @@
  * <p>
  * @param routeList a string specifying the forbidden networks
  * @return the converted list, NULL if the synatx is flawed
- **/
-CIDRNetwork * parseRoutes(char * routeList) {
+ */
+CIDRNetwork * parseRoutes(const char * routeList) {
   unsigned int count;
   unsigned int i;
   unsigned int j;
@@ -80,7 +80,7 @@ CIDRNetwork * parseRoutes(char * routeList) {
       for (j=0;j<8;j++)
 	if (temps[j] > 0xFF) {
 	  LOG(LOG_ERROR,
-	      "ERROR: wrong format for IP: %s\n",
+	      _("Invalid format for IP: '%s'\n"),
 	      &routeList[pos]);
 	  FREE(result);
 	  return NULL;
@@ -107,7 +107,7 @@ CIDRNetwork * parseRoutes(char * routeList) {
       for (j=0;j<4;j++)
 	if (temps[j] > 0xFF) {
 	  LOG(LOG_ERROR,
-	      "ERROR: wrong format for IP: %s\n",
+	      "wrong format for IP: %s\n",
 	      &routeList[pos]);
 	  FREE(result);
 	  return NULL;
@@ -130,22 +130,22 @@ CIDRNetwork * parseRoutes(char * routeList) {
 	continue;       
       } else {
 	LOG(LOG_ERROR,
-	    "ERROR: invalid network notation (/%d is not legal in IPv4 CIDR!)",
+	    _("Invalid network notation ('/%d' is not legal in IPv4 CIDR)."),
 	    slash);
 	FREE(result);
 	return NULL; /* error */
       }
     } 
     LOG(LOG_ERROR,
-	"ERROR: invalid network notation: >>%s<<",
+	"invalid network notation: >>%s<<",
 	&routeList[pos]);
     FREE(result);
     return NULL; /* error */
   }
   if (pos < strlen(routeList)) {
     LOG(LOG_ERROR,
-	"ERROR: invalid network notation (additional characters: %s)",
-	  &routeList[pos]);
+	_("Invalid network notation (additional characters: '%s')."),
+	&routeList[pos]);
     FREE(result);
     return NULL; /* oops */
   }
@@ -160,8 +160,8 @@ CIDRNetwork * parseRoutes(char * routeList) {
  * @param list a list of networks
  * @param ip the IP to check (in network byte order)
  * @return NO if the IP is not in the list, YES if it it is
- **/
-int checkIPListed(CIDRNetwork * list,
+ */
+int checkIPListed(const CIDRNetwork * list,
 		  IPaddr ip) {
   int i;
   IPaddr add;
@@ -173,15 +173,9 @@ int checkIPListed(CIDRNetwork * list,
   
   while ( (list[i].network.addr != 0) ||
 	  (list[i].netmask.addr != 0) ) {
-    /*    print("Checking %x in %x/%x\n",
-	   add.addr,
-	   list[i].network.addr,
-	   list[i].netmask.addr); */
     if ( (add.addr & list[i].netmask.addr) == 
-	 (list[i].network.addr & list[i].netmask.addr) ) {
-      /*      print("returning YES\n");*/
-      return YES;
-    }
+	 (list[i].network.addr & list[i].netmask.addr) ) 
+      return YES;    
     i++;
   }
   return NO;
@@ -198,7 +192,7 @@ int checkIPListed(CIDRNetwork * list,
  * <p>
  * @param routeList a string specifying the forbidden networks
  * @return the converted list, NULL if the synatx is flawed
- **/
+ */
 CIDR6Network * parseRoutes6(char * routeList) {
   unsigned int count;
   unsigned int i;
@@ -221,7 +215,7 @@ CIDR6Network * parseRoutes6(char * routeList) {
       count++;
   if (routeList[len-1] != ';') {
     LOG(LOG_ERROR,
-	"ERROR: invalid network notation (does not end with ';': >>%s<<)\n",
+	_("Invalid network notation (does not end with ';': '%s')\n"),
 	routeList);
     FREE(routeList);
     return NULL;
@@ -253,7 +247,7 @@ CIDR6Network * parseRoutes6(char * routeList) {
 		      &result[i].netmask);
       if (ret <= 0) {
 	LOG(LOG_ERROR,
-	    "ERROR: wrong format for netmask: %s (%s)\n",
+	    _("Wrong format '%s' for netmask: %s\n"),
 	    &routeList[slash+1],
 	    STRERROR(errno));
 	FREE(result);
@@ -267,7 +261,7 @@ CIDR6Network * parseRoutes6(char * routeList) {
 		    &result[i].network);
     if (ret <= 0) {
       LOG(LOG_ERROR,
-	  "ERROR: wrong format for network: %s (%s)\n",
+	  _("Wrong format '%s' for network: %s\n"),
 	  &routeList[slash+1],
 	  STRERROR(errno));
       FREE(result);
@@ -286,7 +280,7 @@ CIDR6Network * parseRoutes6(char * routeList) {
  * @param list a list of networks
  * @param ip the IP to check (in network byte order)
  * @return NO if the IP is not in the list, YES if it it is
- **/
+ */
 int checkIP6Listed(CIDR6Network * list,
 		   IP6addr * ip) {
   unsigned int i;

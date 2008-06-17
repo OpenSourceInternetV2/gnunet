@@ -30,7 +30,7 @@
 #include "directorydisplay.h"
 #include "download.h"
 
-void displayDirectory(char * filename,
+void displayDirectory(const char * filename,
 		      RootNode * rn);
  
 #endif

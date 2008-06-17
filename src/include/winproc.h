@@ -424,6 +424,7 @@ SOCKET _win_socket(int af, int type, int protocol);
 struct hostent *_win_gethostbyaddr(const char *addr, int len, int type);
 struct hostent *_win_gethostbyname(const char *name);
 char *_win_strerror(int errnum);
+int IsWinNT();
 
 #ifdef __cplusplus
 }

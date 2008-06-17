@@ -25,21 +25,21 @@
  *
  * Helper code for writing proper termination code when an application
  * receives a SIGTERM/SIGHUP etc.
- **/
+ */
 
 #include "gnunet_util.h"
 #include "platform.h"
 
 /**
  * Semaphore used to signal "shutdown"
- **/
+ */
 static Semaphore * shutdown_signal = NULL;
 static int shutdown_active;
 
 /**
  * Stop the application.
  * @param signum is ignored
- **/
+ */
 void run_shutdown(int signum) {
   if (shutdown_signal != NULL) {
     shutdown_active = YES;
@@ -50,7 +50,7 @@ void run_shutdown(int signum) {
 /**
  * Stop the application under Windows.
  * @param signum is ignored
- **/
+ */
 #ifdef MINGW
 BOOL WINAPI run_shutdown_win(DWORD dwCtrlType)
 {
@@ -71,14 +71,14 @@ BOOL WINAPI run_shutdown_win(DWORD dwCtrlType)
 /**
  * Test if the shutdown has been initiated.
  * @return YES if we are shutting down, NO otherwise
- **/
+ */
 int testShutdown() {
   return shutdown_active;
 }
 
 /**
  * Initialize the signal handlers, etc.
- **/
+ */
 void initializeShutdownHandlers() {
 #ifndef MINGW
   struct sigaction sig;
@@ -86,7 +86,7 @@ void initializeShutdownHandlers() {
 #endif
 
   if (shutdown_signal != NULL)
-    errexit("FATAL: initializeShutdownHandlers called twice!\n");
+    errexit(" initializeShutdownHandlers called twice!\n");
   shutdown_signal = SEMAPHORE_NEW(0); 
   shutdown_active = NO;
 #ifndef MINGW
@@ -107,7 +107,7 @@ void initializeShutdownHandlers() {
 
 /**
  * Wait until the shutdown has been initiated.
- **/
+ */
 void wait_for_shutdown() {
   SEMAPHORE_DOWN(shutdown_signal);
 }

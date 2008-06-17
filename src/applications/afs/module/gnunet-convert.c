@@ -24,7 +24,7 @@
  *        Use if you change the database manager type or the bucket count.
  * @author Igor Wronsky
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_util.h"
 #include "gnunet_afs_esed2.h"
@@ -45,8 +45,8 @@ static int progressDot = 0;
 static int be_verbose = NO;
 static int be_quiet = NO;
 
-static void addToDestination(HashCode160 * key,
-			     ContentIndex *ce,
+static void addToDestination(const HashCode160 * key,
+			     const ContentIndex *ce,
 			     void * data,
 			     unsigned int dataLen,
 			     void * unused) {
@@ -85,7 +85,7 @@ static void addToDestination(HashCode160 * key,
     break;
   default:
     LOG(LOG_WARNING,
-	"WARNING: encountered unexpected type %d\n",
+	_("Encountered unexpected type %d.\n"),
 	ntohs(ce->type));
   }
  
@@ -103,27 +103,27 @@ static void addToDestination(HashCode160 * key,
 
 /**
  * Print a list of the options we offer.
- **/
+ */
 static void printhelp() {
   static Help help[] = {
     HELP_CONFIG,
     HELP_HELP,
     HELP_LOGLEVEL,
     { 'q', "quiet", NULL,
-      "be quiet" },
+      gettext_noop("be quiet") },
     HELP_VERSION,
     HELP_VERBOSE,
     HELP_END,
   };
   formatHelp("gnunet-convert [OPTIONS]",
-	     "Convert GNUnet AFS database to different QUOTA or database type.\n"
-	     "Never run gnunet-convert while gnunetd is running!",
+	     _("Convert GNUnet AFS database to different QUOTA or database type.\n"
+	       "Never run gnunet-convert while gnunetd is running!"),
 	     help);
 }
 
 /**
  * Perform option parsing from the command line. 
- **/
+ */
 static int parseCommandLine(int argc, 
 			    char * argv[]) {
   int c;
@@ -170,17 +170,15 @@ static int parseCommandLine(int argc,
       return SYSERR;
       break;
     default:
-      printf("Unknown option %c. Aborting.\n"
-	     "Use --help to get a list of options.\n",
-	     c);
+      printf(_("Use --help to get a list of options.\n"));
       return SYSERR;
     } /* end of parsing commandline */
   }
   if (GNoptind < argc) {
-    printf("Invalid arguments: ");
+    printf(_("Invalid arguments: "));
     while (GNoptind < argc)
       printf("%s ", argv[GNoptind++]);
-    printf("\nExiting.\n");
+    printf(_("\nExiting.\n"));
     return SYSERR;
   }
   return OK;
@@ -205,25 +203,27 @@ int main(int argc,
   newQuota = getConfigurationInt("AFS",
 				 "DISKQUOTA");
   if (newQuota == 0)
-    errexit("FATAL: you must specify available diskspace"
-	    " in section AFS under DISKQUOTA\n"); 
+    errexit(_("You must specify available diskspace"
+	      " in the configuration under '%s' in section '%s'\n"),
+	      "DISKQUOTA", "AFS"); 
   oldQuota = NULL;
   ret = stateReadContent("AFS-DISKQUOTA",
 			 (void**)&oldQuota);
   if (ret != sizeof(unsigned int))
-    errexit("FATAL: no conversion possible, no old database known.\n");
+    errexit(_("No conversion possible, no old database known.\n"));
   tmp = NULL;
   ret = stateReadContent("AFS-DATABASETYPE",
 			 (void**)&tmp);
   dstDb = getConfigurationString("AFS",
 				 "DATABASETYPE");  
   if (dstDb == NULL)
-    errexit("FATAL: you must specify a database type in section AFS.\n");
+    errexit(_("You must specify the option '%s' in the configuration in section '%s'.\n"),
+	    "DATABASETYPE", "AFS");
   if ( (ret == -1) ||
        ( (strncmp(tmp, dstDb, ret) == 0) &&
 	 (newQuota == *oldQuota) ) )
-    errexit("FATAL: you need to specify a different DB type "
-	    "(or quota) in gnunet.conf to run gnunet-convert.\n");
+    errexit(_("You need to specify a different database type or quota"
+	      " in the configuration in order to run gnunet-convert.\n"));
   srcDb = MALLOC(ret+1);
   memcpy(srcDb, tmp, ret);
   FREENONNULL(tmp);
@@ -237,6 +237,7 @@ int main(int argc,
 				     "DATABASETYPE",
 				     srcDb));
   srcHandle = initializeDatabaseAPI(srcDb);
+  FREE(srcDb);
 
   /* initialize new DB with new config */
   stateWriteContent("AFS-DATABASETYPE",
@@ -273,8 +274,8 @@ int main(int argc,
 						 NULL);
 
   fprintf(stdout,
-	  "\n==> Done processing %d entries in index "
-	  "(%d converted, %d failed).\n",
+	  _("\nCompleted processing %d entries in index "
+	  "(%d converted, %d failed).\n"),
 	  entries,
 	  insertedBlocks,
 	  failedBlocks);

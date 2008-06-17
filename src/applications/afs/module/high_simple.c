@@ -24,7 +24,7 @@
  *        using the low_backend.h database API
  * @author Christian Grothoff
  * @author Igor Wronsky
- **/
+ */
 
 #include "gnunet_util.h"
 #include "high_backend.h"
@@ -36,39 +36,39 @@
 
 /**
  * @brief internal state of a high_simple database.
- **/
+ */
 typedef struct {
 
   /**
    * Low-level database handle for the DB
    * with the actual data (ContentEntry, content)
-   **/
+   */
   LowDBHandle dbfs;
 
   /**
    * Priority index.  Maps priorities to
    * data.
-   **/
+   */
   PIDX pIdx;
 
   /**
    * Smallest known priority in database.
-   **/
+   */
   unsigned int minPriority;
 
   /**
    * DB index.
-   **/
+   */
   int i;
 
   /**
    * Total number of databases.
-   **/
+   */
   int n;
 
   /**
    * Lock used to ensure pIdx and dbfs are consistent.
-   **/
+   */
   Mutex lock;
 
 } DatabaseHandle;
@@ -81,7 +81,7 @@ typedef struct {
  * @param i index of this specific database
  * @param n total number of databases used
  * @return handle to the opened database
- **/
+ */
 HighDBHandle initContentDatabase(unsigned int i,
 				 unsigned int n) {
   DatabaseHandle * result;
@@ -91,14 +91,16 @@ HighDBHandle initContentDatabase(unsigned int i,
   char * dbtype;
   int * lastMinPriority;
   char statename[64];
+  size_t nX;
 
   result = MALLOC(sizeof(DatabaseHandle));
   MUTEX_CREATE_RECURSIVE(&result->lock);
   result->i = i;
   result->n = n;
-  sprintf(statename,
-	  "AFS-MINPRIORITY%d%d",
-	  i, n);
+  SNPRINTF(statename,
+	   64,
+	   "AFS-MINPRIORITY%d%d",
+	   i, n);
   lastMinPriority = NULL;
   if (sizeof(int) == stateReadContent(statename,
 				      (void**) &lastMinPriority))
@@ -108,8 +110,8 @@ HighDBHandle initContentDatabase(unsigned int i,
   FREENONNULL(lastMinPriority);
   afsdir = getFileName("AFS",
 		       "AFSDIR",
-		       "Configuration file must specify directory for storing AFS data"
-		       " in section %s under %s.\n");
+		       _("Configuration file must specify directory for storing AFS data"
+			 " in section '%s' under '%s'.\n"));
   dir = MALLOC(strlen(afsdir)+
 	       strlen(CONTENTDIR)+2);
   strcpy(dir, afsdir);
@@ -119,19 +121,22 @@ HighDBHandle initContentDatabase(unsigned int i,
   mkdirp(dir);
   dbtype = getConfigurationString("AFS",
 				  "DATABASETYPE");
-  bucketname = MALLOC(strlen(dir) + strlen("bucket") + 256 + strlen(dbtype));
-  sprintf(bucketname,
-	  "%s/bucket.%u.%u", 
-	  dir,
-	  n,
-	  i);
+  nX = strlen(dir) + strlen("bucket") + 256 + strlen(dbtype);
+  bucketname = MALLOC(nX);
+  SNPRINTF(bucketname,
+	   nX,
+	   "%s/bucket.%u.%u", 
+	   dir,
+	   n,
+	   i);
   result->dbfs = lowInitContentDatabase(bucketname);  
-  sprintf(bucketname,
-	  "%s/pindex.%s.%u.%u",
-	  dir,
-	  dbtype,
-	  n,
-	  i);
+  SNPRINTF(bucketname,
+	   nX,
+	   "%s/pindex.%s.%u.%u",
+	   dir,
+	   dbtype,
+	   n,
+	   i);
   FREE(dbtype);
   result->pIdx = pidxInitContentDatabase(bucketname);
   FREE(bucketname);
@@ -143,15 +148,16 @@ HighDBHandle initContentDatabase(unsigned int i,
  * Shutdown of the storage module
  * 
  * @param handle handle to the DB that is shutdown
- **/
+ */
 void doneContentDatabase(HighDBHandle handle) {
   DatabaseHandle * dbf = handle;
   char statename[64];
 
-  sprintf(statename,
-	  "AFS-MINPRIORITY%d%d",
-	  dbf->i, 
-	  dbf->n); 
+  SNPRINTF(statename,
+	   64,
+	   "AFS-MINPRIORITY%d%d",
+	   dbf->i, 
+	   dbf->n); 
   stateWriteContent(statename,
 		    sizeof(int),
 		    &dbf->minPriority);
@@ -164,14 +170,14 @@ void doneContentDatabase(HighDBHandle handle) {
 /**
  * Closure used by the high_simple.c implementation of
  * forEachEntryInDatabase
- **/
+ */
 typedef struct {
   void * handle;
   EntryCallback callback;
   void * callback_closure;
 } HighFEEIDClosure;
 
-static void helper_callback(HashCode160 * query,
+static void helper_callback(const HashCode160 * query,
 			    HighFEEIDClosure * cls) {
   void * data;
   int len;
@@ -200,7 +206,7 @@ static void helper_callback(HashCode160 * query,
  * @param callback the callback method
  * @param data second argument to all callback calls
  * @return the number of items stored in the content database
- **/
+ */
 int forEachEntryInDatabase(HighDBHandle handle,
 			   EntryCallback callback,
 			   void * data) {
@@ -220,7 +226,7 @@ int forEachEntryInDatabase(HighDBHandle handle,
  *
  * @param handle the database
  * @return SYSERR on error, otherwise the number of entries
- **/
+ */
 int countContentEntries(HighDBHandle handle) {
   DatabaseHandle * dbf = handle;
   
@@ -233,9 +239,9 @@ int countContentEntries(HighDBHandle handle) {
  * @param priority the priority of the data
  * @param query the search-query for the data
  * @param handle the database
- **/ 
+ */ 
 static void addToPriorityIdx(HighDBHandle handle,
-			     HashCode160 * query,
+			     const HashCode160 * query,
 			     unsigned int priority) {
   DatabaseHandle * dbf = handle;
 
@@ -257,9 +263,9 @@ static void addToPriorityIdx(HighDBHandle handle,
  * @param priority the priority of the data
  * @param query the search-query for the data
  * @param handle the database
- **/
+ */
 static void delFromPriorityIdx(HighDBHandle handle,
-			       HashCode160 * query,
+			       const HashCode160 * query,
 			       unsigned int priority) {
   DatabaseHandle * dbf = handle;
   HashCode160 * keys;
@@ -273,7 +279,7 @@ static void delFromPriorityIdx(HighDBHandle handle,
   if ( (res == -1) || 
        (keys == NULL) ) {
     LOG(LOG_WARNING,
-	"WARNING: pIdx database corrupt (content not indexed) in %s:%d\n",
+	_("pIdx database corrupt (content not indexed) in %s:%d\n"),
 	__FILE__, __LINE__);
   } else {
     for (i=0;i<res;i++)
@@ -282,7 +288,7 @@ static void delFromPriorityIdx(HighDBHandle handle,
 	break;
     if (i == res) {
       LOG(LOG_WARNING,
-	  "WARNING: pIdx database corrupt (content not indexed) in %s:%d\n",
+	  _("pIdx database corrupt (content not indexed) in %s:%d\n"),
 	  __FILE__, __LINE__);
     } else {
       memcpy(&keys[i],
@@ -308,7 +314,7 @@ static void delFromPriorityIdx(HighDBHandle handle,
  *
  * @param handle the database
  * @return the lowest priority of content in the DB
- **/
+ */
 unsigned int getMinimumPriority(HighDBHandle handle) {
   DatabaseHandle * dbf = handle;
 
@@ -327,9 +333,9 @@ unsigned int getMinimumPriority(HighDBHandle handle) {
  *        (*result should be NULL, sufficient space is allocated)
  * @param prio if found, by how much should the priority be changed?
  * @return the number of bytes read on success, -1 on failure
- **/ 
+ */ 
 int readContent(HighDBHandle handle,
-		HashCode160 * query,
+		const HashCode160 * query,
 		ContentIndex * ce,
 		void ** result,
 		int prio) {
@@ -340,7 +346,8 @@ int readContent(HighDBHandle handle,
 
 #if DEBUG_HIGH_SIMPLE
   LOG(LOG_DEBUG,
-      "DEBUG: high_simple readContent called\n");
+      "%s::%s called\n",
+      __FILE__, __FUNCTION__);
 #endif
   ires = NULL;
   len = lowReadContent(dbf->dbfs,
@@ -352,21 +359,14 @@ int readContent(HighDBHandle handle,
 		   &hex));
 #if DEBUG_HIGH_SIMPLE
     LOG(LOG_DEBUG,
-	"DEBUG: low %x did not find response for %s, returning not found\n",
+	"low %p did not find response for %s, returning not found\n",
 	dbf->dbfs,
 	&hex);
 #endif
     return -1;
   }
   if ((unsigned int)len < sizeof(ContentIndex)) {
-    HexName hex;
-    
-    hash2hex(query,
-	     &hex);
-    LOG(LOG_WARNING,
-	"WARNING: low-level database corrupted? (%d len entry for %s, removed)\n",
-	len,
-	&hex);
+    BREAK();
     lowUnlinkFromDB(dbf->dbfs,
 		    query);
     return -1;  
@@ -412,14 +412,12 @@ int readContent(HighDBHandle handle,
     FREE(ires);
 #if DEBUG_HIGH_SIMPLE
     LOG(LOG_DEBUG,
-	"DEBUG: found on-demand encoded content\n");
+	"Found on-demand encoded content.\n");
 #endif
     return 0;
   }
   if (len < 0) {
-    LOG(LOG_ERROR,
-	"ERROR: this should never happen. %s:%d\n",
-	__FILE__, __LINE__);
+    BREAK();
     FREE(ires);
     return -1;
   }
@@ -431,7 +429,7 @@ int readContent(HighDBHandle handle,
   FREE(ires);
 #if DEBUG_HIGH_SIMPLE
   LOG(LOG_DEBUG,
-      "DEBUG: found %d bytes of content\n",
+      "Found %d bytes of content.\n",
       len);
 #endif
   return len;
@@ -446,11 +444,11 @@ int readContent(HighDBHandle handle,
  * @param len the size of the block
  * @param block the data to store
  * @return SYSERR on error, OK if ok.
- **/
+ */
 int writeContent(HighDBHandle handle,
-		 ContentIndex * ce,
+		 const ContentIndex * ce,
 		 unsigned int len,
-		 void * block) {
+		 const void * block) {
   DatabaseHandle * dbf = handle;
   HashCode160 query;
   void * ibl;
@@ -485,7 +483,7 @@ int writeContent(HighDBHandle handle,
 		 &hex));
 #if DEBUG_HIGH_SIMPLE
   LOG(LOG_DEBUG,
-      "DEBUG: low %x wrote content %s: %d\n",
+      "low %p wrote content %s: %d\n",
       dbf->dbfs,
       &hex,
       ok);
@@ -505,9 +503,9 @@ int writeContent(HighDBHandle handle,
  * @param handle the database
  * @param name the key of the entry to remove
  * @return SYSERR on error, OK if ok.
- **/
+ */
 int unlinkFromDB(HighDBHandle handle,
-		 HashCode160 * name) {
+		 const HashCode160 * name) {
   DatabaseHandle * dbf = handle;
   ContentIndex ce;
   void * result;
@@ -543,21 +541,24 @@ int unlinkFromDB(HighDBHandle handle,
  * @param file the filename of the current file
  * @param dir the directory name
  * @param counter total size of the file in blocks (set)
- **/
-static void countFiles(char *file, 
-		       char *dir, 
+ */
+static void countFiles(const char *file, 
+		       const char *dir, 
 		       int * counter) {
   int filenum;
   char * fil;
+  size_t n;
 
   filenum = atoi(file);
   if (filenum < 0)
     return;
-  fil = MALLOC(strlen(dir) + 20);
-  sprintf(fil, 
-	  "%s/%u", 
-	  dir, 
-	  filenum); 
+  n = strlen(dir) + 20;
+  fil = MALLOC(n);
+  SNPRINTF(fil, 
+	   n,
+	   "%s/%u", 
+	   dir, 
+	   filenum); 
   (*counter) += getFileSize(fil) / sizeof(HashCode160);
   FREE(fil);
 }
@@ -570,24 +571,27 @@ static void countFiles(char *file,
  * @param nb two numbers that represents the number of files still to be
  *        passed and the name of the selected file (which is set when 
  *        the first number hits 0)
- **/
-static void getRandomFileName(char *file, 
-			      char *dir, 
+ */
+static void getRandomFileName(const char *file, 
+			      const char *dir, 
 			      int * nb)
 {
   int filenum;
   char * fil;
   int oldnb;
+  size_t n;
 
   filenum = atoi(file);
   if (filenum < 0)
     return;
-
-  fil = MALLOC(strlen(dir) + 20);
-  sprintf(fil, 
-	  "%s/%u", 
-	  dir, 
-	  filenum); 
+  
+  n = strlen(dir) + 20;
+  fil = MALLOC(n);
+  SNPRINTF(fil, 
+	   n,
+	   "%s/%u", 
+	   dir, 
+	   filenum); 
   oldnb = nb[0];
   nb[0] -= getFileSize(fil) / sizeof(HashCode160);
   FREE(fil);
@@ -605,7 +609,7 @@ static void getRandomFileName(char *file,
  * @param handle the database to read from
  * @param ce output information about the key
  * @return SYSERR on error, OK if ok.
- **/
+ */
 int getRandomContent(HighDBHandle handle,
                      ContentIndex * ce) {
   DatabaseHandle * dbf = handle;
@@ -639,8 +643,8 @@ int getRandomContent(HighDBHandle handle,
 		  (DirectoryEntryCallback)&getRandomFileName,
 		  &retrievefile[0]);
     if (retrievefile[1] == -1) {
-      LOG(LOG_WARNING,
-	  "WARNING: concurrent modification of directory (%d, %d), oops.\n",
+      LOG(LOG_DEBUG,
+	  "Concurrent modification of directory (%d, %d), oops.\n",
 	  counter, retrievefile[1]);
       break;
     }
@@ -648,8 +652,8 @@ int getRandomContent(HighDBHandle handle,
 				retrievefile[1], /* filename */
 				&query);
     if (res == SYSERR) {
-      LOG(LOG_WARNING,
-	  "WARNING: concurrent modification of directory or bad file in directory (%d).\n",
+      LOG(LOG_DEBUG,
+	  "Concurrent modification of directory or bad file in directory (%d).\n",
 	  retrievefile[1]);
       break;
     }    
@@ -679,7 +683,7 @@ int getRandomContent(HighDBHandle handle,
  * @param callback method to call on each entry before freeing
  * @param closure extra argument to callback
  * @return OK on success, SYSERR on error
- **/
+ */
 int deleteContent(HighDBHandle handle,
                   unsigned int count,
 		  EntryCallback callback,
@@ -705,7 +709,7 @@ int deleteContent(HighDBHandle handle,
     }
     if (cnt == 0) {
       LOG(LOG_WARNING,
-	  "WARNING: pIdx database corrupt, trying to fix (%d)\n",
+	  _("pIdx database corrupt, trying to fix (%d)\n"),
 	  dbf->minPriority);
       pidxUnlinkFromDB(dbf->pIdx,
 		       dbf->minPriority);
@@ -726,13 +730,14 @@ int deleteContent(HighDBHandle handle,
 			 &data,
 			 0);
       if (dlen >= 0) {
-	if (callback != NULL)
+	if (callback != NULL) {
 	  callback(&result[cnt-1],
 		   &ce,
 		   data,
 		   dlen,
 		   closure);
-	FREENONNULL(data);
+	} else
+	  FREENONNULL(data);
 	res = lowUnlinkFromDB(dbf->dbfs,
 			      &result[cnt]);
       } else {
@@ -741,17 +746,7 @@ int deleteContent(HighDBHandle handle,
       if (res == OK) {
 	count--;
       } else {
-	HexName hex;
-
-	IFLOG(LOG_WARNING,
-	      hash2hex(&result[cnt],
-		       &hex));
-	LOG(LOG_WARNING,
-	    "WARNING: pIdx database corrupt (could not unlink %s from low DB (%d, %d, %d))\n",
-	    &hex,
-	    cnt,
-	    count, 
-	    dbf->minPriority);
+	BREAK();
       }
     }
     if (cnt == 0) {
@@ -779,7 +774,7 @@ int deleteContent(HighDBHandle handle,
  *
  * @param handle the database
  * @param quota the number of kb available for the DB
- **/ 
+ */ 
 int estimateAvailableBlocks(HighDBHandle handle,
 			    unsigned int quota) {
   DatabaseHandle * dbf = handle;
@@ -791,7 +786,7 @@ int estimateAvailableBlocks(HighDBHandle handle,
  * Close and delete the database.
  *
  * @param handle the database
- **/
+ */
 void deleteDatabase(HighDBHandle handle) {
   DatabaseHandle * dbf = handle;
 

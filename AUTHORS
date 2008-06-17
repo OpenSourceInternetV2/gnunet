@@ -7,26 +7,24 @@ Krista Bennett <kbennett@cerias.purdue.edu>
 Nils Durner <N.Durner@t-online.de>
 
 Code contributions also came from:
-Eric Haumant <eric.haumant@msg-software.fr>
+Eric Haumant
 Gerd Knorr <kraxel@bytesex.org>
 Hendrik Pagenhardt <Hendrik.Pagenhardt@gmx.net>
-Ioana Patrascu <patrascu@cs.purdue.edu>
+Ioana Patrascu <ioanapatrascu@yahoo.com>
 <january@hushmail.com>
 James Blackwell <jblack@linuxguru.net>
-James Liang <liangjz@cs.purdue.edu>
-Jan Vitek <jv@cs.purdue.edu>
 Jürgen Appel <jappel@linux01.gwdg.de>
-Larry Waldo <waldo@cs.purdue.edu>
+Larry Waldo
 Ludovic Courtès <ludo@chbouib.org>
 Paul Ruth <ruth@cs.purdue.edu>
 Renaldo Ferreira <rf@cs.purdue.edu>
 Tiberius Stef <tstef@cs.purdue.edu>
-Tzvetan Horozov <horozov@cs.purude.edu>
+Tzvetan Horozov <horozov@motorola.com>
 Uli Luckas <luckas@musoft.de>
 Werner Koch <libgcrypt@g10code.com> [original code of libgcrypt]
 Kevin Vandersloot <kfv101@psu.edu> [original code of gnome-system-monitor]
 
-DHT-module was contributed by:
+Original RPC and DHT-module were contributed by:
 Marko Räihä
 Risto Saarelma
 Antti Salonen
@@ -50,4 +48,4 @@ AFS Face    : Alex Jones <alexrjones@ntlworld.com>
 
 Maintainers:
 FreeBSD Port - Kirill Ponomarew <ponomarew@oberon.net>
-Debian Package - Glenn McGrath <bug1@optushome.com.au>
+Debian Package - Glenn McGrath <bug1@iinet.net.au>

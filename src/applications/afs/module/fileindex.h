@@ -23,7 +23,7 @@
  *
  * @file applications/afs/module/fileindex.h
  * @author Christian Grothoff
- **/
+ */
 
 #ifndef FILEINDEX_H
 #define FILEINDEX_H
@@ -37,19 +37,19 @@
  * @param idx the index of the file
  * @param data opaque context pointer for the callee
  * @return SYSERR if the file should be removed from the list
- **/
-typedef int (*IndexedFileNameCallback)(char * fn,
+ */
+typedef int (*IndexedFileNameCallback)(const char * fn,
 				       unsigned short idx,
 				       void * data);
 
 /**
  * Initialize the fileindex module.
- **/
+ */
 void initFileIndex();
 
 /**
  * Shutdown the fileindex module.
- **/
+ */
 void doneFileIndex();
 
 /**
@@ -57,15 +57,15 @@ void doneFileIndex();
  *
  * @param index the index of the file
  * @return the filename (caller frees)
- **/
+ */
 char * getIndexedFileName(unsigned short index);
 
 /**
  * Add a name to the list of indexed filenames.
  * @param filename the name of the new file
  * @return the index of that file in the list, -1 on error
- **/
-int appendFilename(char * filename);
+ */
+int appendFilename(const char * filename);
 
 /**
  * Invoke a method on each of the filenames of the indexed files. If
@@ -76,7 +76,7 @@ int appendFilename(char * filename);
  * @param data the last argument to method
  * @return the number of shared files (after changes caused
  *          by this call)
- **/
+ */
 int forEachIndexedFile(IndexedFileNameCallback method,
 		       void * data);
 

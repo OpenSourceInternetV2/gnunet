@@ -22,7 +22,7 @@
  * @file server/policy.c
  * @brief bandwidth allocation code for outbound messages
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_util.h"
 #include "policy.h"
@@ -31,18 +31,18 @@
 
 /**
  * Various statistic handles 
- **/
+ */
 static int stat_outgoing_ok;
 static int stat_outgoing_drop;
 
 /**
  * Configuration...
- **/
+ */
 static CIDRNetwork * trustedNetworks_ = NULL;
 
 /**
  * Initialize the policy module.
- **/
+ */
 void initPolicy() {
   char * ch;
 
@@ -53,16 +53,16 @@ void initPolicy() {
   } else {
     trustedNetworks_ = parseRoutes(ch);    
     if (trustedNetworks_ == NULL) 
-      errexit("Malformed entry in the configuration in section %s under %s: %s\n",
+      errexit(_("Malformed network specification in the configuration in section '%s' for entry '%s': %s\n"),
 	      "NETWORK",
 	      "TRUSTED", 
 	      ch); 
     FREE(ch);
   }
   stat_outgoing_ok
-    = statHandle("# times outgoing msg sent (bandwidth ok)");
+    = statHandle(_("# times outgoing msg sent (bandwidth ok)"));
   stat_outgoing_drop
-    = statHandle("# times outgoing msg deferred (bandwidth stressed)");
+    = statHandle(_("# times outgoing msg deferred (bandwidth stressed)"));
   statSet(stat_outgoing_ok, 0);
   statSet(stat_outgoing_drop, 0);
 }
@@ -77,7 +77,7 @@ void donePolicy() {
  * <p>
  * @param priority the highest priority of contents in the packet
  * @return OK if the packet should be handled, SYSERR if the packet should be dropped.
- **/
+ */
 int outgoingCheck(unsigned int priority) {
   int load;
   unsigned int delta;
@@ -111,7 +111,7 @@ int outgoingCheck(unsigned int priority) {
   if (delta * delta * delta > priority ) {
 #if DEBUG_POLICY 
     LOG(LOG_DEBUG, 
-	"DEBUG: network load too high (%d%%, priority is %u, require %d), "
+	"Network load is too high (%d%%, priority is %u, require %d), "
 	"dropping outgoing.\n",
 	load,
 	priority,
@@ -122,7 +122,7 @@ int outgoingCheck(unsigned int priority) {
   } else {
 #if DEBUG_POLICY
     LOG(LOG_DEBUG, 
-	"DEBUG: network load ok (%d%%, priority is %u >= %d), "
+	"Network load is ok (%d%%, priority is %u >= %d), "
 	"sending outgoing.\n",
 	load,
 	priority,
@@ -135,7 +135,7 @@ int outgoingCheck(unsigned int priority) {
 
 /**
  * Is this IP labeled as trusted for CS connections?
- **/
+ */
 int isWhitelisted(IPaddr ip) {
   return checkIPListed(trustedNetworks_,
 		       ip);

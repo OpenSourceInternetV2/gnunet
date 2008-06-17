@@ -78,7 +78,7 @@ void  generate_gnunet_conf (FILE * f) {
  fprintf(f, "%s\n","# file-identifiers for building directories.  Note that you can");
  fprintf(f, "%s\n","# build directories of files that you insert without collecting");
  fprintf(f, "%s\n","# file-identifiers by using the option \"-b\" of gnunet-insert.");
- fprintf(f, "%s\n","# You can not add entries from namespaces to directories without");
+ fprintf(f, "%s\n","# You cannot add entries from namespaces to directories without");
  fprintf(f, "%s\n","# at least temporarily collecting file-identifiers.");
  fprintf(f, "%s\n","# Default is NO");
  fprintf(f, "%s\n","COLLECT-FILE-IDENTIFIERS = NO");

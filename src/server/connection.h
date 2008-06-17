@@ -20,7 +20,7 @@
  * @file server/connection.h
  * @author Tzvetan Horozov
  * @author Christian Grothoff
- **/ 
+ */ 
 
 #ifndef CONNECTION_H
 #define CONNECTION_H
@@ -31,28 +31,28 @@
 
 /**
  * The body of a sessionkey-message.
- **/
+ */
 typedef struct {
   /**
    * time when this key was created  (network byte order) 
-   **/ 
+   */ 
   TIME_T creationTime; 
 
   /**
    * the encrypted session key 
-   **/ 
+   */ 
   RSAEncryptedData key; 
 
   /**
    * Signature of the stuff above 
-   **/
+   */
   Signature signature;
 
 } SKEY_Body;
 
 /**
  * Session key exchange.  The header is followed by an inlined SKS.
- **/
+ */
 typedef struct {
   p2p_HEADER header; 
   SKEY_Body body;
@@ -62,7 +62,7 @@ typedef struct {
  * Format of a timestamp-message.  The rest of the body is only valid
  * if the timestamp is greater than the current time (in seconds after
  * 1970...).  Used against replay attacks!
- **/
+ */
 typedef struct {
   p2p_HEADER header;
   /* timestamp  (network byte order)*/
@@ -75,7 +75,7 @@ typedef struct {
  * will of course break if UDP packets arrive out-of-order, but this
  * is rare and we're best-effort.  This is used to defend against
  * replay-attacks.
- **/
+ */
 typedef struct {
   p2p_HEADER header;
   /* sequence number, in network byte order */
@@ -92,7 +92,7 @@ typedef struct {
  * prevent sending data to connections that were closed on the other
  * side (can happen anyway, so this is just an optimization between
  * well-behaved, non-malicious nodes that like each other).
- **/
+ */
 typedef struct {
   p2p_HEADER header;
   HostIdentity sender;
@@ -100,7 +100,7 @@ typedef struct {
 
 /**
  * Capability specification.
- **/
+ */
 typedef struct {
   unsigned int capabilityType;
   unsigned int value;
@@ -108,7 +108,7 @@ typedef struct {
 
 /**
  * Limit number of bytes send to this peer per minute to "value".
- **/
+ */
 #define CAP_BANDWIDTH_RECV 0
 
 /**
@@ -125,7 +125,7 @@ typedef struct {
  * is to be ignored.  Future capabilities that are currently planned
  * include an advertisment that specifies the set of application
  * services that are (not) supported. 
- **/ 
+ */ 
 typedef struct {
   p2p_HEADER header;
   Capability cap;
@@ -136,22 +136,22 @@ typedef struct {
 
 /**
  * Initialize this module.
- **/
+ */
 void initConnection();
 
 /**
  * Shutdown the connection module.
- **/
+ */
 void doneConnection();
 
 /**
  * Call this method periodically to scan data/hosts for new hosts.
- **/
+ */
 void cronScanDirectoryDataHosts(void * unused);
 
 /**
  * For debugging.
- **/
+ */
 void printConnectionBuffer();
 
 /**
@@ -160,24 +160,24 @@ void printConnectionBuffer();
  *
  * @param hostId the identity of the sender host
  * @param sessionkeySigned the session key that was "negotiated"
- **/
-int acceptSessionKey(HostIdentity * sender,
+ */
+int acceptSessionKey(const HostIdentity * sender,
 		     TSession * tsession,
-		     p2p_HEADER * msg);
+		     const p2p_HEADER * msg);
 
 /**
  * Are we connected to this host?
- **/
+ */
 int isConnected(const HostIdentity * hi);
 
 /**
  * Shutdown all connections (send HANGUPs, too).
- **/
+ */
 void closeAllConnections();
 
 /**
  * How important is it at the moment to establish more connections?
- **/
+ */
 int getConnectPriority();
  
 /**
@@ -191,13 +191,13 @@ unsigned int changeHostCredit(const HostIdentity * hostId,
 
 /**
  * Call method for every connected node.
- **/
+ */
 int forEachConnectedNode(PerNodeCallback method,
 			 void * arg);
 
 /**
  * Obtain the credit record of the host.
- **/
+ */
 unsigned int getHostCredit(const HostIdentity * hostId);
 
 
@@ -205,7 +205,7 @@ unsigned int getHostCredit(const HostIdentity * hostId);
 
 /**
  * Compute the hashtable index of a host id.
- **/
+ */
 unsigned int computeIndex(const HostIdentity * hostId);
 
 
@@ -219,9 +219,9 @@ unsigned int computeIndex(const HostIdentity * hostId);
  *
  * @param tsession the transport session that is for grabs
  * @param sender the identity of the other node
- **/
+ */
 void considerTakeover(TSession * tsession,
-		      HostIdentity * sender);
+		      const HostIdentity * sender);
 
 /**
  * Register a callback method that should be invoked whenever a
@@ -242,14 +242,14 @@ void considerTakeover(TSession * tsession,
  *   The callback method must return the number of bytes written to
  *   that buffer (must be a positive number).
  * @return OK if the handler was registered, SYSERR on error
- **/
+ */
 int registerSendCallback(const unsigned int minimumPadding,
 			 BufferFillCallback callback);
 
 /**
  * Unregister a handler that was registered with registerSendCallback.
  * @return OK if the handler was removed, SYSERR on error
- **/
+ */
 int unregisterSendCallback(const unsigned int minimumPadding,
 			   BufferFillCallback callback);
 
@@ -259,8 +259,8 @@ int unregisterSendCallback(const unsigned int minimumPadding,
  * @param message the message to send
  * @param priority how important is the message? The higher, the more important
  * @param maxdelay how long can we wait (max), in CRON-time (ms)
- **/
-void broadcast(p2p_HEADER * message,
+ */
+void broadcast(const p2p_HEADER * message,
 	       unsigned int priority,
 	       unsigned int maxdelay);
 
@@ -273,9 +273,9 @@ void broadcast(p2p_HEADER * message,
  * @param hostId the identity of the receiver
  * @param priority how important is the message?
  * @param maxdelay how long can we wait (max), in CRON-time (ms)
- **/
+ */
 void sendToNode(const HostIdentity * hostId,
-		p2p_HEADER * message,
+		const p2p_HEADER * message,
 		unsigned int priority,
 		unsigned int maxdelay);
 
@@ -287,7 +287,7 @@ void sendToNode(const HostIdentity * hostId,
  * @param len how long is the message going to be?
  * @param importance how important is the message?
  * @param maxdelay how long can the message wait?
- **/
+ */
 void unicast(const HostIdentity * hostId,
 	     BuildMessageCallback callback,
 	     void * closure,
@@ -297,12 +297,12 @@ void unicast(const HostIdentity * hostId,
 
 /**
  * Return a pointer to the lock of the connection module.
- **/ 
+ */ 
 Mutex * getConnectionModuleLock();
 
 /**
  * Shutdown all connections with other peers.
- **/
+ */
 void shutdownConnections();
 
 /* ************************* encryption service ********************** */
@@ -314,8 +314,8 @@ void shutdownConnections();
  * @param hostId the sender host that encrypted the data 
  * @param result where to store the decrypted data
  * @returns the size of the decrypted data, SYSERR on error
- **/
-int decryptFromHost(void * data,
+ */
+int decryptFromHost(const void * data,
 		    const unsigned short size,
 		    const HostIdentity * hostId,
 		    void * result);  
@@ -324,12 +324,12 @@ int decryptFromHost(void * data,
 
 /**
  * We received a sign of life from this host.
- **/
+ */
 void notifyPING(const HostIdentity * hostId);
 
 /**
  * We received a sign of life from this host.
- **/
+ */
 void notifyPONG(const HostIdentity * hostId);
 
 
@@ -348,7 +348,7 @@ unsigned int getBandwidthAssignedTo(const HostIdentity * hostId);
  *
  * @param hostId the peer that send the message
  * @param size the size of the message
- **/
+ */
 void trafficReceivedFrom(const HostIdentity * hostId,
 			 const unsigned int size);
 
@@ -356,7 +356,7 @@ void trafficReceivedFrom(const HostIdentity * hostId,
  * Increase the preference for traffic from some other peer.
  * @param node the identity of the other peer
  * @param preference how much should the traffic preference be increased?
- **/
+ */
 void updateTrafficPreference(const HostIdentity * node,
 			     double preference);
 
@@ -366,15 +366,14 @@ void updateTrafficPreference(const HostIdentity * node,
  * and mark the sessionkey as dead.
  *
  * @param peer  the peer to disconnect
- **/
-void disconnectFromPeer(HostIdentity *node);
+ */
+void disconnectFromPeer(const HostIdentity *node);
 
 
 /**
  * Disconnect all current connected peers. Send HANGUP messages to 
  * the other peers and mark the sessionkeys as dead.
- *
- **/
+ */
 void disconnectPeers();
 
 

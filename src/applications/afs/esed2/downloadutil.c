@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -21,7 +21,7 @@
  * @file applications/afs/esed2/downloadutil.c
  * @brief Download helper methods (which do the real work).
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_afs_esed2.h"
 #include "platform.h"
@@ -62,9 +62,9 @@ static void pModelWrap(ProgressStats * stats,
  * @param data pointer that is passed to the model method
  * @return a request manager that can be used to abort on 
  *         success, NULL on error
- **/
-RequestManager * downloadFile(FileIdentifier * fi,
-			      char * fileName,
+ */
+RequestManager * downloadFile(const FileIdentifier * fi,
+			      const char * fileName,
 			      ProgressModel model,
 			      void * data) {
   NodeContext * nc;

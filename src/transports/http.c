@@ -51,7 +51,7 @@
  *   connect, and even for the P2P basic protocol, I'm not sure how
  *   close it is to actual HTTP.   
  * - the code is not really pretty
- **/
+ */
 
 #include "gnunet_util.h"
 #include "gnunet_transport.h"
@@ -62,26 +62,26 @@
 /**
  * after how much time of the core not being associated with a http
  * connection anymore do we close it? 
- **/
+ */
 #define HTTP_TIMEOUT 30 * cronSECONDS
 
 /**
  * Host-Address in a HTTP network.
- **/
+ */
 typedef struct {
   /**
    * claimed IP of the sender, network byte order 
-   **/  
+   */  
   IPaddr ip;
 
   /**
    * claimed port of the sender, network byte order 
-   **/
+   */
   unsigned short port; 
 
   /**
    * reserved (set to 0 for signature verification) 
-   **/
+   */
   unsigned short reserved; 
 
 } HostAddress;
@@ -89,12 +89,12 @@ typedef struct {
 /**
  * HTTP Message-Packet header.  Size is transmitted as part of the
  * HTTP protocol.  
- **/
+ */
 typedef struct {
 
   /**
    * CRC checksum of the packet  (network byte order)
-   **/ 
+   */ 
   int checkSum;
   
   int isEncrypted;
@@ -102,7 +102,7 @@ typedef struct {
   /**
    * This struct is followed by MESSAGE_PARTs - until size is reached 
    * There is no "end of message".
-   **/
+   */
   p2p_HEADER parts[0];
 } HTTPMessagePack;
 
@@ -117,78 +117,78 @@ typedef struct {
 /**
  * Initial handshake message.  Note that the beginning
  * must match the CS_HEADER since we are using tcpio.
- **/
+ */
 typedef struct {
   /**
    * size of the handshake message, in nbo, value is 24 
-   **/    
+   */    
   unsigned short size;
 
   /**
    * "message type", HTTP version number, always 0.
-   **/
+   */
   unsigned short version;
 
   /**
    * Identity of the node connecting (HTTP client) 
-   **/
+   */
   HostIdentity clientIdentity;
 } HTTPWelcome;
 
 /**
  * Transport Session handle.
- **/
+ */
 typedef struct {
   /**
    * the http socket 
-   **/
+   */
   int sock;
 
   /**
    * IP & port of the remote host
-   **/
+   */
   unsigned int hostIP;
   unsigned int hostPort;
 
   /**
    * number of users of this session 
-   **/
+   */
   unsigned int users;
 
   /**
    * Last time this connection was used
-   **/
+   */
   cron_t lastUse;
 
   /**
    * mutex for synchronized access to 'users' 
-   **/
+   */
   Mutex lock;
 
   /**
    * To whom are we talking to (set to our identity
    * if we are still waiting for the welcome message)
-   **/
+   */
   HostIdentity sender;
 
   /**
    * Are we still expecting the welcome? (YES/NO)
-   **/
+   */
   int expectingWelcome;
 
   /**
    * Current read position in rbuff.
-   **/
+   */
   unsigned int rpos;  
 
   /**
    * Current size of the read buffer.
-   **/
+   */
   unsigned int size;
 
   /**
    * The read buffer (used only for the actual data).
-   **/
+   */
   char * rbuff;
   
   /**
@@ -196,29 +196,29 @@ typedef struct {
    * Read fills this buffer until we hit the end of
    * the request header (CRLF).  Then we switch
    * to rbuff.
-   **/
+   */
   char * httpReadBuff;
 
   /**
    * Current write-position in httpReadBuff;
-   **/
+   */
   unsigned int httpRPos;
   
   /**
    * Space available in httpReadBuff
-   **/
+   */
   unsigned int httpRSize;
 
   /**
    * Position in the write buffer (how many bytes are still waiting to
    * be transmitted? -- always the first wsize bytes in wbuff are
    * guaranteed to be valid and are pending).
-   **/
+   */
   unsigned int wsize;
 
   /**
    * The write buffer.
-   **/
+   */
   char * wbuff;
 
   /**
@@ -226,12 +226,12 @@ typedef struct {
    * Read fills this buffer until we hit the end of
    * the request header (CRLF).  Then we switch
    * to rbuff.
-   **/
+   */
   char * httpWriteBuff;
 
   /**
    * Total size of httpWriteBuff
-   **/
+   */
   unsigned int httpWSize;
 } HTTPSession;
 
@@ -239,39 +239,39 @@ typedef struct {
 
 /**
  * apis (our advertised API and the core api ) 
- **/
+ */
 static CoreAPIForTransport * coreAPI;
 static TransportAPI httpAPI;
 
 /**
  * one thread for listening for new connections,
  * and for reading on all open sockets 
- **/
+ */
 static PTHREAD_T listenThread;
 
 /**
  * sock is the http socket that we listen on for new inbound
  * connections.
- **/
+ */
 static int http_sock;
 
 /**
  * http_pipe is used to signal the thread that is
  * blocked in a select call that the set of sockets to listen
  * to has changed.
- **/
+ */
 static int http_pipe[2];
 
 /**
  * Array of currently active HTTP sessions. 
- **/
+ */
 static TSession ** tsessions = NULL;
 static int tsessionCount;
 static int tsessionArrayLength;
 
 /**
  * handles for statistics 
- **/
+ */
 static int stat_octets_total_http_in;
 static int stat_octets_total_http_out;
 
@@ -289,27 +289,27 @@ static CIDRNetwork * filteredNetworks_;
  * every access point since adding new elements does not
  * prevent the select thread from operating and removing
  * is done by the only therad that reads from the array.
- **/
+ */
 static Mutex httplock;
 
 /**
  * Semaphore used by the server-thread to signal that
  * the server has been started -- and later again to
  * signal that the server has been stopped.
- **/
+ */
 static Semaphore * serverSignal = NULL;
 static int http_shutdown = YES;
 
 /**
  * The HTTP proxy (optional)
- **/
+ */
 static struct sockaddr_in theProxy;
 
 /* ******************** helper functions *********************** */
 
 /**
  * Check if we are allowed to connect to the given IP.
- **/
+ */
 static int isBlacklisted(IPaddr ip) {
   int ret;
 
@@ -323,7 +323,7 @@ static int isBlacklisted(IPaddr ip) {
 /**
  * Write to the pipe to wake up the select thread (the set of
  * files to watch has changed).
- **/
+ */
 static void signalSelect() {
   char i = 0;
   int ret;
@@ -333,7 +333,7 @@ static void signalSelect() {
 	      sizeof(char));
   if (ret != sizeof(char))
       LOG(LOG_ERROR,
-	  "ERROR: write to http pipe (signalSelect) failed: %s\n",
+	  " write to http pipe (signalSelect) failed: %s\n",
 	  STRERROR(errno));
 }
 
@@ -346,7 +346,7 @@ static void signalSelect() {
  *
  * @param tsession the session that is closed
  * @return OK on success, SYSERR if the operation failed
- **/
+ */
 static int httpDisconnect(TSession * tsession) {
   if (tsession->internal != NULL) {
     HTTPSession * httpsession = tsession->internal;
@@ -381,7 +381,7 @@ static int httpDisconnect(TSession * tsession) {
  * held.
  *
  * @param i index to the session handle
- **/
+ */
 static void destroySession(int i) {  
   HTTPSession * httpSession;
 
@@ -389,7 +389,7 @@ static void destroySession(int i) {
   if (httpSession->sock != -1)
     if (0 != SHUTDOWN(httpSession->sock, SHUT_RDWR))
       LOG(LOG_EVERYTHING,
-	  "EVERYTHING: error shutting down socket %d: %s\n",
+	  " error shutting down socket %d: %s\n",
 	  httpSession->sock,
 	  STRERROR(errno));
   CLOSE(httpSession->sock);
@@ -402,7 +402,7 @@ static void destroySession(int i) {
 /**
  * Get the GNUnet HTTP port from the configuration, or from
  * /etc/services if it is not specified in the config file.
- **/
+ */
 static unsigned short getGNUnetHTTPPort() {
   struct servent * pse;	/* pointer to service information entry	*/
   unsigned short port;
@@ -434,13 +434,12 @@ static unsigned short getGNUnetHTTPPort() {
  *   layer
  * @return OK if the session could be associated,
  *         SYSERR if not.
- **/
+ */
 static int httpAssociate(TSession * tsession) {
   HTTPSession * httpSession;
 
   if (tsession == NULL) {
-    LOG(LOG_FAILURE,
-	"FAILURE: assertFailed: httpAssociate called with tsession NULL\n");
+    BREAK();
     return SYSERR;
   }
   httpSession = (HTTPSession*) tsession->internal;
@@ -453,7 +452,7 @@ static int httpAssociate(TSession * tsession) {
 /**
  * We're done processing a message.  Reset buffers as needed to
  * prepare for receiving the next chunk.
- **/
+ */
 static void messageProcessed(HTTPSession * httpSession) {
   /* deallocate read buffer, we don't really know
      how big the next chunk will be */
@@ -472,7 +471,7 @@ static void messageProcessed(HTTPSession * httpSession) {
  * We have received more header-bytes.  Check if the HTTP header is
  * complete, and if yes allocate rbuff and move the data-portion that
  * was received over to rbuff (and reset the header-reader).
- **/
+ */
 static void checkHeaderComplete(HTTPSession * httpSession) {
   /* we expect 3 possible strings; either
      "HTTP/1.1 200 OK%c%c"
@@ -519,9 +518,7 @@ static void checkHeaderComplete(HTTPSession * httpSession) {
 	httpSession->httpReadBuff[k] = '\r';
 	if (endPtr == &httpSession->httpReadBuff[k]) {	  
 	  if (len >= 65536) {
-	    LOG(LOG_WARNING,
-		"WARNING: size of http fragment too big (%d).\n",
-		len);
+	    BREAK();
 	  } else {	    
 	    GROW(httpSession->rbuff,
 		 httpSession->size,
@@ -546,7 +543,7 @@ static void checkHeaderComplete(HTTPSession * httpSession) {
  * 
  * This function may only be called if the httplock is
  * already held by the caller.
- **/
+ */
 static int readAndProcess(int i) {
   TSession * tsession;
   HTTPSession * httpSession;
@@ -593,7 +590,7 @@ static int readAndProcess(int i) {
     httpDisconnect(tsession);
 #if DEBUG_HTTP
     LOG(LOG_DEBUG,
-	"DEBUG: READ on socket %d returned 0 bytes, closing connection\n",
+	"READ on socket %d returned 0 bytes, closing connection.\n",
 	httpSession->sock);
 #endif
     return SYSERR; /* other side closed connection */
@@ -602,19 +599,13 @@ static int readAndProcess(int i) {
     if ( (errno == EINTR) ||
 	 (errno == EAGAIN) ) { 
 #if DEBUG_HTTP
-      LOG(LOG_DEBUG,
-	  "DEBUG: READ on socket %d returned %s, closing connection\n",
-	  httpSession->sock,
-	  STRERROR(errno));
+      LOG_STRERROR(LOG_DEBUG, "read");
 #endif
       httpDisconnect(tsession);
       return SYSERR;    
     }
 #if DEBUG_HTTP
-    LOG(LOG_INFO,
-	"INFO: read failed on peer http connection (%d), closing (%s).\n",
-	len,
-	STRERROR(errno));
+    LOG_STRERROR(LOG_INFO, "read");
 #endif
     httpDisconnect(tsession);
     return SYSERR;
@@ -624,7 +615,7 @@ static int readAndProcess(int i) {
 	     len);
 #if DEBUG_HTTP
   LOG(LOG_DEBUG,
-      "DEBUG: Read %d bytes on socket %d, now having %d of %d (%d)\n",
+      "Read %d bytes on socket %d, now having %d of %d (%d)\n",
       len,
       httpSession->sock, 
       httpSession->rpos,
@@ -641,16 +632,14 @@ static int readAndProcess(int i) {
   if (YES == httpSession->expectingWelcome) {
     HTTPWelcome * welcome;
 #if DEBUG_HTTP
-    HexName hex;
+    EncName enc;
 #endif
 
     welcome = (HTTPWelcome*) &httpSession->rbuff[0];
     if ( (ntohs(welcome->version) != 0) ||
 	 (ntohs(welcome->size) != sizeof(HTTPWelcome)) ) {
       LOG(LOG_WARNING,
-	  "WARNING: expected welcome on http connection, got garbage (%d, %d). Closing.\n",
-	  ntohs(welcome->version),
-	  ntohs(welcome->size));
+	  _("Expected welcome on http connection, got garbage. Closing connection.\n"));
       httpDisconnect(tsession);
       return SYSERR;
     }
@@ -660,23 +649,24 @@ static int readAndProcess(int i) {
 	   sizeof(HostIdentity));     
 #if DEBUG_HTTP
     IFLOG(LOG_DEBUG,
-	  hash2hex(&httpSession->sender.hashPubKey,
-		   &hex));
+	  hash2enc(&httpSession->sender.hashPubKey,
+		   &enc));
     LOG(LOG_DEBUG,
-	"DEBUG: http welcome message from %s received\n",
-	&hex);
+	"Http welcome message from peer '%s' received.\n",
+	&enc);
 #endif
     httpSession->rpos = 0;
     messageProcessed(httpSession);
     GROW(httpSession->httpWriteBuff,
 	 httpSession->httpWSize,
 	 256);
-    len = sprintf(httpSession->httpWriteBuff,
-		  "HTTP/1.1 200 OK\r\n"
-		  "Server: Apache/1.3.27\r\n"
-		  "Transfer-Encoding: chunked\r\n"
-		  "Content-Type: text/html\r\n"
-		  "\r\n");
+    len = SNPRINTF(httpSession->httpWriteBuff,
+		   httpSession->httpWSize,
+		   "HTTP/1.1 200 OK\r\n"
+		   "Server: Apache/1.3.27\r\n"
+		   "Transfer-Encoding: chunked\r\n"
+		   "Content-Type: text/html\r\n"
+		   "\r\n");
     GROW(httpSession->httpWriteBuff,
 	 httpSession->httpWSize,
 	 len); 
@@ -688,7 +678,7 @@ static int readAndProcess(int i) {
   /* send msg to core! */
   if (httpSession->size <= sizeof(HTTPMessagePack)) {
     LOG(LOG_WARNING,
-	"WARNING: received malformed message from http-peer connection. Closing.\n");
+	_("Received malformed message from http-peer connection. Closing.\n"));
     httpDisconnect(tsession);
     return SYSERR;
   }
@@ -706,7 +696,7 @@ static int readAndProcess(int i) {
   mp->tsession    = tsession;
 #if DEBUG_HTTP
   LOG(LOG_DEBUG,
-      "DEBUG: http transport received %d bytes, forwarding to core\n",
+      "Http transport received %d bytes, forwarding to core.\n",
       mp->size);
 #endif
   coreAPI->receive(mp);
@@ -724,7 +714,7 @@ static int readAndProcess(int i) {
  * with the return value, it must have the lock on httplock before
  * calling.  It is ok to call this function without holding httplock if
  * the return value is ignored.
- **/
+ */
 static int addTSession(TSession * tsession) {
   int i;
 
@@ -743,7 +733,7 @@ static int addTSession(TSession * tsession) {
  * Create a new session for an inbound connection on the given
  * socket. Adds the session to the array of sessions watched
  * by the select thread.
- **/
+ */
 static void createNewSession(int sock) {
   TSession * tsession;
   HTTPSession * httpSession;
@@ -781,7 +771,7 @@ static void createNewSession(int sock) {
  * core. This thread waits for activity on any of the HTTP connections
  * and processes deferred (async) writes and buffers reads until an
  * entire message has been received.
- **/
+ */
 static void * httpListenMain() {
   struct sockaddr_in clientAddr;
   fd_set readSet;
@@ -806,10 +796,7 @@ static void * httpListenMain() {
       if (isSocketValid(http_sock)) {
 	FD_SET(http_sock, &readSet);
       } else {
-	LOG(LOG_ERROR,
-	    "ERROR: http_sock %d invalid: %s\n",
-	    http_sock,
-	    STRERROR(errno));
+	LOG_STRERROR(LOG_ERROR, "isSocketValid");
 	http_sock = -1; /* prevent us from error'ing all the time */
       }
     }
@@ -817,10 +804,7 @@ static void * httpListenMain() {
       if (-1 != FSTAT(http_pipe[0], &buf)) {
 	FD_SET(http_pipe[0], &readSet);
       } else {
-	LOG(LOG_ERROR,
-	    "ERROR: http_pipe %d invalid: %s\n",
-	    http_pipe[0],
-	    STRERROR(errno));
+	LOG_STRERROR(LOG_ERROR, "fstat");
 	http_pipe[0] = -1; /* prevent us from error'ing all the time */	
       }
     }
@@ -839,19 +823,11 @@ static void * httpListenMain() {
 	    FD_SET(sock, &writeSet); /* do we have a pending write request? */
 	  }
 	} else {
-	  LOG(LOG_ERROR,
-	      "ERROR: sock %d of session %d invalid: %s -- closing.\n",	      
-	      sock, 
-	      i,
-	      STRERROR(errno));
+	  LOG_STRERROR(LOG_ERROR, "isSocketValid");
 	  destroySession(i);
 	}
       } else {
-	LOG(LOG_ERROR,
-	    "ERROR: assertion failed: socket in tsessions array %d is -1 (%s:%d) -- closing.\n",
-	    i,
-	    __FILE__, 
-	    __LINE__);
+	BREAK();
 	destroySession(i);
       }
       if (sock > max)
@@ -865,12 +841,9 @@ static void * httpListenMain() {
       continue;    
     if (ret == -1) {
       if (errno == EBADF) {
-	LOG(LOG_ERROR,
-	    "ERROR: %s in select.\n",
-	    STRERROR(errno));
+	LOG_STRERROR(LOG_ERROR, "select");
       } else {
-	errexit("FATAL: unexpected error in select: %s (that's the end)\n",
-		STRERROR(errno));
+	DIE_STRERROR("select");
       }
     }
     if (http_sock != -1) {
@@ -886,9 +859,7 @@ static void * httpListenMain() {
 	     user should be able to specify who is allowed to connect,
 	     otherwise we just close and reject the communication! */  
 	  IPaddr ipaddr;
-	  if (sizeof(struct in_addr) != sizeof(IPaddr))
-	    errexit("FATAL: assertion failed at %s:%d\n",
-		    __FILE__, __LINE__);
+	  GNUNET_ASSERT(sizeof(struct in_addr) == sizeof(IPaddr));
 	  memcpy(&ipaddr,
 		 &clientAddr.sin_addr,
 		 sizeof(struct in_addr));
@@ -896,15 +867,13 @@ static void * httpListenMain() {
 
 	  if (YES == isBlacklisted(ipaddr)) {
 	    LOG(LOG_INFO,
-		"INFO: Rejected blacklisted connection from %d.%d.%d.%d.\n",
+		_("Rejected blacklisted connection from %d.%d.%d.%d.\n"),
 		PRIP(ntohl(*(int*)&clientAddr.sin_addr)));
 	    CLOSE(sock);
 	  } else 
 	    createNewSession(sock);      
 	} else {
-	  LOG(LOG_INFO,
-	      "INFO: P2P HTTP server accept failed: %s\n",
-	      STRERROR(errno));
+	  LOG_STRERROR(LOG_INFO, "accept");
 	}
       }
     }
@@ -918,9 +887,7 @@ static void * httpListenMain() {
       if (0 >= READ(http_pipe[0], 
 		    &buf[0], 
 		    MAXSIG_BUF)) {
-	LOG(LOG_WARNING,
-	    "WARNING: reading signal on HTTP pipe failed (%s)\n",
-	    STRERROR(errno));
+	LOG_STRERROR(LOG_WARNING, "read");
       }
     }
     for (i=0;i<tsessionCount;i++) {
@@ -941,11 +908,7 @@ static void * httpListenMain() {
 				 httpSession->httpWriteBuff,
 				 httpSession->httpWSize);
 	  if (ret == SYSERR) {
-	    LOG(LOG_WARNING,
-		"WARNING: send failed on socket %d (%s), closing session %d.\n",
-		sock, 
-		STRERROR(errno),
-		i);
+	    LOG_STRERROR(LOG_WARNING, "send");
 	    destroySession(i);
 	    i--;
 	    continue;
@@ -969,18 +932,14 @@ static void * httpListenMain() {
 	  }
 	} else { /* httpSession->httpWSize == 0 */
 	  if (httpSession->wsize == 0) 
-	    errexit("FATAL: wsize %d for socket %d\n",
+	    errexit(" wsize %d for socket %d\n",
 		    httpSession->wsize,
 		    sock);
 	  ret = SEND_NONBLOCKING(sock,
 				 httpSession->wbuff,
 				 httpSession->wsize);
 	  if (ret < 0) {
-	    LOG(LOG_WARNING,
-		"WARNING: send failed on socket %d (%s), closing session %d.\n",
-		sock, 
-		STRERROR(errno),
-		i);
+	    LOG_STRERROR(LOG_WARNING, "send");
 	    destroySession(i);
 	    i--;
 	    continue;
@@ -1040,7 +999,7 @@ static void * httpListenMain() {
  * @param ssize the size of the message
  * @return OK if message send or queued, SYSERR if queue is full and
  * message was dropped.
- **/
+ */
 static int httpDirectSend(HTTPSession * httpSession,
 			  int doPost,
 			  void * mp,
@@ -1050,30 +1009,24 @@ static int httpDirectSend(HTTPSession * httpSession,
   if (httpSession->sock == -1) {
 #if DEBUG_HTTP
     LOG(LOG_INFO,
-	"INFO: httpDirectSend called, but socket is closed\n");
+	" httpDirectSend called, but socket is closed\n");
 #endif
     return SYSERR;
   }
   if (ssize > httpAPI.mtu + sizeof(HTTPMessagePack)) {
-    LOG(LOG_ERROR,
-	"ERROR: message passed to httpDirectSend larger than MTU (%u > %u)\n",
-	ssize, 
-	httpAPI.mtu);
+    BREAK();
     return SYSERR;
   }
 
   if (httpSession->wbuff != NULL) {
 #if DEBUG_HTTP
     LOG(LOG_INFO,
-	"INFO: httpTransport has already message "
+	"httpTransport has already message "
 	"pending, will not queue more.\n");
 #endif
     return SYSERR; /* already have msg pending */ 
   }
-  if (httpSession->httpWriteBuff != NULL)
-    errexit("FATAL: HTTP-Transport: httpSession->wbuff"
-	    " is NULL, but httpWriteBuff != NULL??\n");
-  
+  GNUNET_ASSERT(httpSession->httpWriteBuff == NULL);
   if (doPost == YES) {
     IPaddr ip;
 
@@ -1085,25 +1038,27 @@ static int httpDirectSend(HTTPSession * httpSession,
     strcpy(httpSession->httpWriteBuff, "POST ");
     /* In case we're talking to a proxy, we need an absolute URI */
     if (theProxy.sin_addr.s_addr != 0)
-    {
-     len = sprintf(httpSession->httpWriteBuff + 5,
-                   "http://%d.%d.%d.%d:%d",
-		   PRIP(ntohl(httpSession->hostIP)),
-                   ntohs(httpSession->hostPort)) + 5;
+      {
+     len = SNPRINTF(httpSession->httpWriteBuff + 5,
+		    httpSession->httpWSize - 5,
+		    "http://%d.%d.%d.%d:%d",
+		    PRIP(ntohl(httpSession->hostIP)),
+		    ntohs(httpSession->hostPort)) + 5;
     }
     else
     {
      len = 5;
     }
-    len += sprintf(httpSession->httpWriteBuff + len,
-		  "/ HTTP/1.1\r\n"
-		  "Host: %d.%d.%d.%d\r\n"
-		  "Transfer-Encoding: chunked\r\n"
-		  "Content-Type: text/html\r\n"
-		  "\r\n"
-		  "%x\r\n",
-		  PRIP(ntohl(*(int*)&ip)),
-		  ssize);
+    len += SNPRINTF(httpSession->httpWriteBuff + len,
+		    httpSession->httpWSize - len,
+		    "/ HTTP/1.1\r\n"
+		    "Host: %d.%d.%d.%d\r\n"
+		    "Transfer-Encoding: chunked\r\n"
+		    "Content-Type: text/html\r\n"
+		    "\r\n"
+		    "%x\r\n",
+		    PRIP(ntohl(*(int*)&ip)),
+		    ssize);
     GROW(httpSession->httpWriteBuff,
 	 httpSession->httpWSize,
 	 len);
@@ -1111,9 +1066,10 @@ static int httpDirectSend(HTTPSession * httpSession,
     GROW(httpSession->httpWriteBuff,
 	 httpSession->httpWSize,
 	 64);
-    len = sprintf(httpSession->httpWriteBuff,
-		  "\r\n%x\r\n",
-		  ssize);
+    len = SNPRINTF(httpSession->httpWriteBuff,
+		   httpSession->httpWSize,
+		   "\r\n%x\r\n",
+		   ssize);
     GROW(httpSession->httpWriteBuff,
 	 httpSession->httpWSize,
 	 len);
@@ -1140,8 +1096,8 @@ static int httpDirectSend(HTTPSession * httpSession,
  * @param helo the HELO message to verify
  *        (the signature/crc have been verified before)
  * @return OK on success, SYSERR on error
- **/
-static int verifyHelo(HELO_Message * helo) {
+ */
+static int verifyHelo(const HELO_Message * helo) {
   HostAddress * haddr;
 
   haddr = (HostAddress*) &((HELO_Message_GENERIC*)helo)->senderAddress[0];
@@ -1163,7 +1119,7 @@ static int verifyHelo(HELO_Message * helo) {
  * @param helo address where to store the pointer to the HELO
  *        message
  * @return OK on success, SYSERR on error
- **/
+ */
 static int createHELO(HELO_Message ** helo) {
   HELO_Message * msg;
   HostAddress * haddr;
@@ -1172,7 +1128,7 @@ static int createHELO(HELO_Message ** helo) {
   port = getGNUnetHTTPPort();
   if (0 == port) {
     LOG(LOG_DEBUG,
-	"DEBUG: HTTP port is 0, will only send using HTTP\n");
+	"HTTP port is 0, will only send using HTTP.\n");
     return SYSERR; /* HTTP transport is configured SEND-only! */
   }
   msg = (HELO_Message *) MALLOC(sizeof(HELO_Message) + sizeof(HostAddress));
@@ -1181,7 +1137,7 @@ static int createHELO(HELO_Message ** helo) {
   if (SYSERR == getPublicIPAddress(&haddr->ip)) {
     FREE(msg);
     LOG(LOG_WARNING,
-	"WARNING: Could not determine my public IP address.\n");
+	" Could not determine my public IP address.\n");
     return SYSERR;
   }
   haddr->port = htons(port); 
@@ -1199,7 +1155,7 @@ static int createHELO(HELO_Message ** helo) {
  * @param helo the HELO-Message for the target node
  * @param tsessionPtr the session handle that is set
  * @return OK on success, SYSERR if the operation failed
- **/
+ */
 static int httpConnect(HELO_Message * helo,
 		      TSession ** tsessionPtr) {
   int i;
@@ -1215,22 +1171,18 @@ static int httpConnect(HELO_Message * helo,
   haddr = (HostAddress*) &((HELO_Message_GENERIC*)helo)->senderAddress[0];
 #if DEBUG_HTTP
   LOG(LOG_DEBUG,
-      "DEBUG: creating HTTP connection to %d.%d.%d.%d:%d\n",
+      "Creating HTTP connection to %d.%d.%d.%d:%d.\n",
       PRIP(ntohl(*(int*)&haddr->ip.addr)), 
       ntohs(haddr->port));
 #endif
   sock = SOCKET(PF_INET, SOCK_STREAM, 6);/* 6: TCP */
   if (sock == -1) {
-    LOG(LOG_FAILURE,
-	"FAILURE: Can not create socket (%s).\n",
-	STRERROR(errno));
+    LOG_STRERROR(LOG_FAILURE, "socket");
     return SYSERR;
   }
   if (0 != setBlocking(sock, NO)) {
     CLOSE(sock);
-    LOG(LOG_FAILURE,
-	"FAILURE: could not put http socket into non-blocking mode (%s)\n",
-	STRERROR(errno));
+    LOG_STRERROR(LOG_FAILURE, "setBlocking");
     return SYSERR;
   }
   memset(&soaddr,
@@ -1243,9 +1195,7 @@ static int httpConnect(HELO_Message * helo,
     soaddr.sin_addr = theProxy.sin_addr;
     soaddr.sin_port = theProxy.sin_port;
   } else {
-    if (sizeof(struct in_addr) != sizeof(IPaddr))
-      errexit("FATAL: assertion failed at %s:%d\n",
-	      __FILE__, __LINE__);
+    GNUNET_ASSERT(sizeof(struct in_addr) == sizeof(IPaddr));
     memcpy(&soaddr.sin_addr,
 	   &haddr->ip,
 	   sizeof(IPaddr));
@@ -1257,7 +1207,7 @@ static int httpConnect(HELO_Message * helo,
   if ( (i < 0) &&
        (errno != EINPROGRESS) ) {
     LOG(LOG_ERROR,
-	"ERROR: Can not connect to %d.%d.%d.%d:%d (%s)\n",
+	_("Cannot connect to %d.%d.%d.%d:%d (%s)\n"),
 	PRIP(ntohl(*(int*)&haddr->ip)),
 	ntohs(haddr->port),
 	STRERROR(errno));
@@ -1325,7 +1275,7 @@ static int httpConnect(HELO_Message * helo,
  * @param isEncrypted is the message encrypted (YES/NO)
  * @param crc CRC32 of the plaintext
  * @return SYSERR on error, OK on success
- **/
+ */
 static int httpSend(TSession * tsession,
 		   const void * msg,
 		   const unsigned int size,
@@ -1336,15 +1286,15 @@ static int httpSend(TSession * tsession,
   int ssize;
 
   if (http_shutdown == YES) {
-    LOG(LOG_ERROR,
-	"ERROR: http transport service not running, can not send\n");
+    BREAK();
+    return SYSERR;
+  }
+  if (size == 0) {
+    BREAK();
     return SYSERR;
   }
   if (size > httpAPI.mtu) {
-    LOG(LOG_FAILURE,
-	"FAILURE: message larger than allowed by http transport (%d > %d)\n",
-	size, 
-	httpAPI.mtu);
+    BREAK();
     return SYSERR;
   }
   if (((HTTPSession*)tsession->internal)->sock == -1)
@@ -1368,24 +1318,21 @@ static int httpSend(TSession * tsession,
 /**
  * Start the server process to receive inbound traffic.
  * @return OK on success, SYSERR if the operation failed
- **/
+ */
 static int startTransportServer(void) {
   struct sockaddr_in serverAddr;
   const int on = 1;
   unsigned short port;
   
   if (serverSignal != NULL) {
-    LOG(LOG_FAILURE,
-	"FAILURE: can not start HTTP server, already running!?\n");
+    BREAK();
     return SYSERR;
   }
   serverSignal = SEMAPHORE_NEW(0);
   http_shutdown = NO;
     
   if (0 != PIPE(http_pipe)) {
-    LOG(LOG_ERROR,
-	"ERROR: could not create pipe (%s)\n",
-	STRERROR(errno));
+    LOG_STRERROR(LOG_ERROR, "pipe");
     return SYSERR;
   }
   setBlocking(http_pipe[1], NO);
@@ -1395,14 +1342,12 @@ static int startTransportServer(void) {
 		      business! */
     http_sock = SOCKET(PF_INET, SOCK_STREAM, 0);
     if (http_sock < 0) 
-      errexit("ERROR opening http socket (%s).\n",
-	      STRERROR(errno));  
-    if ( SETSOCKOPT(http_sock,
-		    SOL_SOCKET, 
-		    SO_REUSEADDR, 
-		    &on, sizeof(on)) < 0 ) 
-      errexit("ERROR: setsockopt for http socket failed (%s)\n",
-	      STRERROR(errno));  
+      DIE_STRERROR("socket");
+    if (SETSOCKOPT(http_sock,
+		   SOL_SOCKET, 
+		   SO_REUSEADDR, 
+		   &on, sizeof(on)) < 0 ) 
+      DIE_STRERROR("setsockopt");
     memset((char *) &serverAddr, 
 	   0,
 	   sizeof(serverAddr));
@@ -1411,16 +1356,16 @@ static int startTransportServer(void) {
     serverAddr.sin_port        = htons(getGNUnetHTTPPort());
 #if DEBUG_HTTP
     LOG(LOG_INFO,
-	"INFO: starting http peer server on port %d\n",
+	"Starting http peer server on port %d\n",
 	ntohs(serverAddr.sin_port));
 #endif
     if (BIND(http_sock, 
 	     (struct sockaddr *) &serverAddr,
 	     sizeof(serverAddr)) < 0) {
+      LOG_STRERROR(LOG_ERROR, "bind");
       LOG(LOG_ERROR, 
-	  "ERROR (%s) binding the HTTP listener to port %d. "\
-	  "No transport service started.\n",
-	  STRERROR(errno),
+	  _("Could not bind the HTTP listener to port %d. "
+	    "No transport service started.\n"),
 	  getGNUnetHTTPPort());
       CLOSE(http_sock);
       SEMAPHORE_FREE(serverSignal);
@@ -1430,14 +1375,12 @@ static int startTransportServer(void) {
   } else
     http_sock = -1;
   if (0 == PTHREAD_CREATE(&listenThread, 
-			  (void * (*)(void *)) &httpListenMain,
+			  (PThreadMain) &httpListenMain,
 			  NULL,
 			  2048)) {
       SEMAPHORE_DOWN(serverSignal); /* wait for server to be up */
   } else {
-    LOG(LOG_ERROR,
-	"ERROR: could not start http listen thread (%s)\n",
-	STRERROR(errno));
+    LOG_STRERROR(LOG_FATAL, "pthread_create");
     CLOSE(http_sock);
     SEMAPHORE_FREE(serverSignal);
     serverSignal = NULL;
@@ -1449,7 +1392,7 @@ static int startTransportServer(void) {
 /**
  * Shutdown the server process (stop receiving inbound
  * traffic). Maybe restarted later!
- **/
+ */
 static int stopTransportServer() {
   void * unused;
 
@@ -1471,7 +1414,7 @@ static int stopTransportServer() {
 /**
  * Reload the configuration. Should never fail (keep old
  * configuration on error, syslog errors!)
- **/
+ */
 static void reloadConfiguration(void) {
   char * ch;
 
@@ -1490,17 +1433,20 @@ static void reloadConfiguration(void) {
 
 /**
  * Convert HTTP address to a string.
- **/
-static char * addressToString(HELO_Message * helo) {
+ */
+static char * addressToString(const HELO_Message * helo) {
   char * ret;
   HostAddress * haddr;
+  size_t n;
   
   haddr = (HostAddress*) &((HELO_Message_GENERIC*)helo)->senderAddress[0];  
-  ret = MALLOC(4*4+6+6);
-  sprintf(ret,
-	  "%d.%d.%d.%d:%d (HTTP)",
-	  PRIP(ntohl(*(int*)&haddr->ip.addr)), 
-	  ntohs(haddr->port));
+  n = 4*4+6+16;
+  ret = MALLOC(n);
+  SNPRINTF(ret,
+	   n,
+	   "%d.%d.%d.%d:%d (HTTP)",
+	   PRIP(ntohl(*(int*)&haddr->ip.addr)), 
+	   ntohs(haddr->port));
   return ret;
 }
 
@@ -1510,7 +1456,7 @@ static char * addressToString(HELO_Message * helo) {
 /**
  * The exported method. Makes the core api available
  * via a global and returns the udp transport API.
- **/ 
+ */ 
 TransportAPI * inittransport_http(CoreAPIForTransport * core) {
   int mtu;
   struct hostent *ip;
@@ -1523,16 +1469,17 @@ TransportAPI * inittransport_http(CoreAPIForTransport * core) {
   tsessions = MALLOC(sizeof(TSession*) * tsessionArrayLength);
   coreAPI = core;
   stat_octets_total_http_in 
-    = statHandle("# bytes received via http");
+    = statHandle(_("# bytes received via http"));
   stat_octets_total_http_out 
-    = statHandle("# bytes sent via http");
+    = statHandle(_("# bytes sent via http"));
   mtu = getConfigurationInt("HTTP",
 			    "MTU");
   if (mtu == 0)
     mtu = 1400;
   if (mtu < 1200)
     LOG(LOG_ERROR,
-	"ERROR: MTU for HTTP is probably to low (fragmentation not implemented!)\n");
+	_("MTU for %s is probably to low (fragmentation not implemented!)\n"),
+	"HTTP");
  
   proxy = getConfigurationString("GNUNETD", "HTTP-PROXY");
   if (proxy != NULL)
@@ -1540,7 +1487,8 @@ TransportAPI * inittransport_http(CoreAPIForTransport * core) {
    ip = GETHOSTBYNAME(proxy);
    if (ip == NULL)
    {
-    LOG(LOG_ERROR, "Couldn't resolve name of HTTP proxy %s\n",
+    LOG(LOG_ERROR, 
+	_("Could not resolve name of HTTP proxy '%s'.\n"),
         proxy);
     theProxy.sin_addr.s_addr = 0;
    }

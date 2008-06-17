@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -37,7 +37,7 @@
  *
  * @author Igor Wronsky
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_util.h"
 #include "platform.h"
@@ -48,7 +48,7 @@
  * 
  * @param bitArray memory area to set the bit in
  * @param bitIdx which bit to set
- **/
+ */
 static void setBit(char * bitArray, 
 		   unsigned int bitIdx) {
   unsigned int arraySlot;
@@ -65,7 +65,7 @@ static void setBit(char * bitArray,
  *
  * @param bitArray memory area to set the bit in
  * @param bitIdx which bit to unset
- **/
+ */
 static void clearBit(char * bitArray, 
 		     unsigned int bitIdx) {
   unsigned int slot;
@@ -82,7 +82,7 @@ static void clearBit(char * bitArray,
  * @param bitArray memory area to set the bit in
  * @param bitIdx which bit to test
  * @return YES if the bit is set, NO if not.
- **/
+ */
 static int testBit(char * bitArray, 
 		   unsigned int bitIdx) {
   unsigned int slot;
@@ -104,7 +104,7 @@ static int testBit(char * bitArray,
  * @param bitArray memory area to set the bit in
  * @param bitIdx which bit to test
  * @param fd A file to keep the 4 bit address usage counters in
- **/
+ */
 static void incrementBit(char * bitArray, 
 			 unsigned int bitIdx, 
 			 int fd) {
@@ -116,17 +116,12 @@ static void incrementBit(char * bitArray,
 
   setBit(bitArray, bitIdx);
   /* Update the counter file on disk */
-  if (fd == -1) 
-    errexit("FATAL: incrementBit with fd == -1 called!\n");
-
+  GNUNET_ASSERT(fd != -1);
   fileSlot = bitIdx / 2;
   targetLoc = bitIdx % 2;
   
-  /*fprintf(stderr, "bitIdx %d fileSlot %d + %d \n", bitIdx, fileSlot, targetLoc);*/
-  
   if (fileSlot != (unsigned int) lseek(fd, fileSlot, SEEK_SET))
-    errexit("FATAL: lseek failed on bloomfilter (%s)\n", 
-	    STRERROR(errno));
+    DIE_STRERROR("lseek");
   value = 0;
   READ(fd, 
        &value, 
@@ -134,8 +129,6 @@ static void incrementBit(char * bitArray,
   
   low = value & 0xF;
   high = (value & (~0xF)) >> 4;
-  
-  /* fprintf(stderr, "v %d high %d low %d ", value, high, low);*/
   
   if (targetLoc == 0) {
     if (low < 0xF)
@@ -145,13 +138,10 @@ static void incrementBit(char * bitArray,
       high++;
   }
   value = ((high<<4) | low);
-  /*    fprintf(stderr, "nh %d nl %d nv %d\n", high, low, value); */
   if (fileSlot != (unsigned int) lseek(fd, fileSlot, SEEK_SET))
-    errexit("FATAL: lseek failed on bloomfilter (%s)\n", 
-	    STRERROR(errno));
+    DIE_STRERROR("lseek");
   if (1 != WRITE(fd, &value, 1))
-    errexit("FATAL: write to bloomfilter on drive failed (%s)\n",
-	    STRERROR(errno));
+    DIE_STRERROR("write");
 }
 
 /**
@@ -161,7 +151,7 @@ static void incrementBit(char * bitArray,
  * @param bitArray memory area to set the bit in
  * @param bitIdx which bit to test
  * @param fd A file to keep the 4bit address usage counters in
- **/
+ */
 static void decrementBit(char * bitArray, 
 			 unsigned int bitIdx,
 			 int fd) {
@@ -170,9 +160,8 @@ static void decrementBit(char * bitArray,
   unsigned int high;
   unsigned int low;
   unsigned int targetLoc;
-  if (fd == -1) 
-    errexit("FATAL: incrementBit with fd == -1 called!\n");
 
+  GNUNET_ASSERT(fd != -1);
   /* Each char slot in the counter file holds two 4 bit counters */
   fileSlot = bitIdx / 2;
   targetLoc = bitIdx % 2;
@@ -201,8 +190,7 @@ static void decrementBit(char * bitArray,
   value = ((high<<4) | low);
   lseek(fd, fileSlot, SEEK_SET);
   if (1 != WRITE(fd, &value, 1))
-    errexit("FATAL: write to bloomfilter on drive failed (%s)\n",
-	    STRERROR(errno));
+    DIE_STRERROR("write");
 }
 
 #define BUFFSIZE 65536
@@ -235,9 +223,7 @@ static int makeEmptyFile(int fd,
       bytesleft = 0;
     }
     if(res == -1) {
-      LOG(LOG_WARNING, 
-	  "WARNING: Failure clearing Bloomfilter (%s)",
-	  STRERROR(errno));
+      LOG_STRERROR(LOG_WARNING, "write");
       FREE(buffer);
       return SYSERR;
     }
@@ -256,7 +242,7 @@ static int makeEmptyFile(int fd,
  * @param bf the filter to manipulate
  * @param bit the current bit
  * @param additional context specific argument
- **/
+ */
 typedef void (*BitIterator)(Bloomfilter * bf,
 			    unsigned int bit,
 			    void * arg);
@@ -269,11 +255,11 @@ typedef void (*BitIterator)(Bloomfilter * bf,
  * @param callback the method to call
  * @param arg extra argument to callback
  * @param key the key for which we iterate over the BF bits
- **/
+ */
 static void iterateBits(Bloomfilter * bf,
 			BitIterator callback,
 			void * arg,
-			HashCode160 * key) {
+			const HashCode160 * key) {
   HashCode160 tmp[2];
   int bitCount;
   int round;
@@ -310,7 +296,7 @@ static void iterateBits(Bloomfilter * bf,
  * @param bf the filter to manipulate
  * @param bit the bit to increment
  * @param arg not used
- **/
+ */
 static void incrementBitCallback(Bloomfilter * bf,
 				 unsigned int bit,
 				 void * arg) {
@@ -325,7 +311,7 @@ static void incrementBitCallback(Bloomfilter * bf,
  * @param bf the filter to manipulate
  * @param bit the bit to decrement
  * @param arg not used
- **/
+ */
 static void decrementBitCallback(Bloomfilter * bf,
 				 unsigned int bit,
 				 void * arg) {
@@ -340,8 +326,8 @@ static void decrementBitCallback(Bloomfilter * bf,
  * @param bf the filter 
  * @param bit the bit to test
  * @param arg pointer set to NO if bit is not set
- **/
-static void testBitCallback(Bloomfilter * bf,
+ */
+static void testBitCallback(const Bloomfilter * bf,
 			    unsigned int bit,
 			    int * arg) {
   if (NO == testBit(bf->bitArray,
@@ -360,8 +346,8 @@ static void testBitCallback(Bloomfilter * bf,
  * @param k the number of hash-functions to apply per
  *        element (number of bits set per element in the set)
  * @return the bloomfilter
- **/
-Bloomfilter * loadBloomfilter(char * filename,
+ */
+Bloomfilter * loadBloomfilter(const char * filename,
 			      unsigned int size,
 			      unsigned int k) {
   Bloomfilter * bf;
@@ -390,10 +376,7 @@ Bloomfilter * loadBloomfilter(char * filename,
   bf->fd = OPEN(filename, O_WRONLY|O_CREAT, S_IREAD|S_IWRITE);
 #endif
   if (-1 == bf->fd) {
-    LOG(LOG_FAILURE, 
-	"FAILURE: Unable to open %s for writing (%s)\n",
-	filename, 
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_FAILURE, "open", filename);
     FREE(bf);
     return NULL;    
   }
@@ -439,24 +422,28 @@ Bloomfilter * loadBloomfilter(char * filename,
     }
   /* create some statistics handles */
 #if VERBOSE_STATS
-  sprintf(rbuff, 
-	  "# Bloomfilter (%s) hits",
-	  &filename[i]);
+  SNPRINTF(rbuff, 
+	   BUFFSIZE,
+	   _("# Bloomfilter (%s) hits"),
+	   &filename[i]);
   bf->statHandle_hits
     = statHandle(rbuff);
-  sprintf(rbuff, 
-	  "# Bloomfilter (%s) misses", 
-	  &filename[i]);
+  SNPRINTF(rbuff, 
+	   BUFFSIZE,
+	   _("# Bloomfilter (%s) misses"), 
+	   &filename[i]);
   bf->statHandle_misses
     = statHandle(rbuff);
-  sprintf(rbuff, 
-	  "# Bloomfilter (%s) adds", 
-	  &filename[i]);
+  SNPRINTF(rbuff, 
+	   BUFFSIZE,
+	   _("# Bloomfilter (%s) additions"), 
+	   &filename[i]);
   bf->statHandle_adds
     = statHandle(rbuff);
-  sprintf(rbuff,
-	  "# Bloomfilter (%s) dels", 
-	  &filename[i]);
+  SNPRINTF(rbuff,
+	   BUFFSIZE,
+	   _("# Bloomfilter (%s) deletions"), 
+	   &filename[i]);
   bf->statHandle_dels
     = statHandle(rbuff);
   FREE(rbuff);
@@ -470,7 +457,7 @@ Bloomfilter * loadBloomfilter(char * filename,
  * free the space on the drive)
  *
  * @param bf the filter
- **/
+ */
 void freeBloomfilter(Bloomfilter * bf) {
   if (NULL == bf)
     return;
@@ -490,7 +477,7 @@ void freeBloomfilter(Bloomfilter * bf) {
  * Reset a bloom filter to empty. Clears the file on disk.
  *
  * @param bf the filter
- **/
+ */
 void resetBloomfilter(Bloomfilter * bf) {
   if (NULL == bf)
     return;
@@ -517,9 +504,9 @@ void resetBloomfilter(Bloomfilter * bf) {
  * @param e the element
  * @param bf the filter
  * @return YES if the element is in the filter, NO if not
- **/
+ */
 int testBloomfilter(Bloomfilter * bf,
-		    HashCode160 * e) {
+		    const HashCode160 * e) {
   int res;
 
   if (NULL == bf) 
@@ -545,9 +532,9 @@ int testBloomfilter(Bloomfilter * bf,
  *
  * @param bf the filter
  * @param e the element
- **/
+ */
 void addToBloomfilter(Bloomfilter * bf,
-		      HashCode160 * e) {
+		      const HashCode160 * e) {
 
   if (NULL == bf) 
     return;
@@ -567,9 +554,9 @@ void addToBloomfilter(Bloomfilter * bf,
  *
  * @param bf the filter
  * @param e the element to remove
- **/
+ */
 void delFromBloomfilter(Bloomfilter * bf,
-			HashCode160 * e) {
+			const HashCode160 * e) {
   if(NULL == bf) 
     return;
   MUTEX_LOCK(&bf->lock);
@@ -593,7 +580,7 @@ void delFromBloomfilter(Bloomfilter * bf,
  * @param iterator_arg argument to the iterator function
  * @param size the new size for the filter
  * @param k the new number of hash-function to apply per element
- **/
+ */
 void resizeBloomfilter(Bloomfilter * bf,
 		       ElementIterator iterator,
 		       void * iterator_arg,

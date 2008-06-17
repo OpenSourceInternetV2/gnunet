@@ -3,6 +3,7 @@ if HAVE_GUILE
 endif
 
 EXTRA_DIST = \
+ gnunet-download-manager.scm \
  gnunet.user \
  gnunet.root \
  autoinstall \

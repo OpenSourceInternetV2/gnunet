@@ -30,7 +30,7 @@
  * levels are required, the current code would need to be recompiled
  * with different values. I currently do not belive we should make
  * better traffic tracking even an option.
- **/
+ */
 
 #include "gnunet_util.h"
 #include "traffic.h"
@@ -49,7 +49,7 @@ static int stat_traffic_transmitted_by_type[MAX_p2p_PROTO_USED];
 
 /**
  * Macro to access the slot at time "t" in the history.
- **/
+ */
 #define HS_SLOT(a) ((a) % HISTORY_SIZE)
 
 /**
@@ -59,97 +59,97 @@ static int stat_traffic_transmitted_by_type[MAX_p2p_PROTO_USED];
  * number of messages is roughly a dozen, so the memory
  * impact is about 200 bytes * n, or for the default
  * of n=15 it is 3kb.
- **/
+ */
 #define MAX_PEER_IDs 15
 
 /**
  * Information about when a peer was last involved
  * in a message of the given type.
- **/
+ */
 typedef struct {
   
   /**
    * The ".a" member of the Host identity of the peer.
-   **/ 
+   */ 
   int peerIdentity_a;
 
   /**
    * The time of the interaction.
-   **/
+   */
   unsigned int time;
 
 } PeerDate;
 
 /**
  * Numbers for one receive/send/self-send type.
- **/
+ */
 typedef struct {
   
   /**
    * When was this record last updated?
-   **/
+   */
   cron_t lastUpdate;
 
   /**
    * Time slots for processing (shifted bitvector)
-   **/
+   */
   unsigned int slots;
 
   /**
    * "peerCount" identities of the peers that we interacted with
    * most recently (abreviated identities plus timestamps)
-   **/
+   */
   PeerDate peers[MAX_PEER_IDs];
 
   /**
    * How many messages were processed? (rotating buffer)
-   **/ 
+   */ 
   unsigned int count[HISTORY_SIZE];
 
   /**
    * Average sizes (rotating buffer)
-   **/
+   */
   double avgSize[HISTORY_SIZE];
 
 } DirectedTrafficCounter;
 
 /**
  * Type of the internal traffic counters.
- **/
+ */
 typedef struct {
   
   /**
    * Statistics for sending 
-   **/ 
+   */ 
   DirectedTrafficCounter send;
 
   /**
    * Statistics for receiving
-   **/ 
+   */ 
   DirectedTrafficCounter receive;
 
 } TrafficCounter;
 
 /**
  * Lock to synchronize access.
- **/
+ */
 static Mutex lock;
 
 /**
  * Highest message type seen so far.
- **/
+ */
 static unsigned int max_message_type = 0;
 
 /**
  * The actual counters.
- **/
+ */
 static TrafficCounter ** counters = NULL;
 
 /**
  * Update the use table dtc. A message of the given
  * size was processed interacting with a peer with
  * the given peerId.
- **/
+ */
 static void updateUse(DirectedTrafficCounter * dtc,
 		      unsigned short size,
 		      int peerId,
@@ -221,7 +221,7 @@ static void updateUse(DirectedTrafficCounter * dtc,
  * @param countTimeUnits for how long ago should we take
  *    the history into consideration (max is HISTORY_SIZE).
  * @param msgType what is the requestType of the message that the dtc is for?
- **/
+ */
 static void buildSummary(TRAFFIC_COUNTER * res,
 			 DirectedTrafficCounter * dtc,
 			 unsigned int tcType,
@@ -266,7 +266,7 @@ static void buildSummary(TRAFFIC_COUNTER * res,
 
 /**
  * Build a reply message for the client.
- **/ 
+ */ 
 static CS_TRAFFIC_INFO * buildReply(unsigned int countTimeUnits) {
   CS_TRAFFIC_INFO * reply;
   unsigned int count;
@@ -309,7 +309,7 @@ static CS_TRAFFIC_INFO * buildReply(unsigned int countTimeUnits) {
 }
 
 static int trafficQueryHandler(ClientHandle sock,
-			       CS_HEADER * message) {
+			       const CS_HEADER * message) {
   CS_TRAFFIC_REQUEST * msg;
   CS_TRAFFIC_INFO * reply;
   int ret;
@@ -327,7 +327,7 @@ static int trafficQueryHandler(ClientHandle sock,
 
 /**
  * Initialize the traffic module.
- **/
+ */
 void initTraffic() {
 #if KEEP_RECEIVE_STATS || KEEP_TRANSMITTED_STATS
   int i;
@@ -342,17 +342,16 @@ void initTraffic() {
     stat_traffic_received_by_type[i] = 0;
 #endif
 
-  if (counters != NULL)
-    errexit("FATAL: initTraffic called but counters != NULL\n");
+  GNUNET_ASSERT(counters == NULL);
   MUTEX_CREATE(&lock);
   if (SYSERR == registerCSHandler(CS_PROTO_TRAFFIC_QUERY,
 				  &trafficQueryHandler)) 
-    errexit("FATAL: initTraffic failed, registerCSHandler returned SYSERR!\n");
+    GNUNET_ASSERT(0);
 }
 
 /**
  * Shutdown the traffic module.
- **/
+ */
 void doneTraffic() {
   unsigned int i;
   
@@ -363,7 +362,7 @@ void doneTraffic() {
        0);
   if (SYSERR == unregisterCSHandler(CS_PROTO_TRAFFIC_QUERY,
 				    &trafficQueryHandler))
-    errexit("FATAL: doneTraffic failed, unregisterCSHandler returned SYSERR!\n");
+    GNUNET_ASSERT(0);
   MUTEX_DESTROY(&lock);
 }
 
@@ -371,7 +370,7 @@ void doneTraffic() {
  * Ensure that the counters array has the appropriate
  * size and a valid traffic counter allocated for the
  * given port.
- **/
+ */
 static void checkPort(unsigned short port) {
   if (port >= max_message_type) 
     GROW(counters,
@@ -390,9 +389,9 @@ static void checkPort(unsigned short port) {
  *
  * @param header the header of the message
  * @param sender the identity of the sender 
- **/
-void trafficReceive(p2p_HEADER * header,
-		    HostIdentity * sender) {
+ */
+void trafficReceive(const p2p_HEADER * header,
+		    const HostIdentity * sender) {
   unsigned short port;
 
   port = ntohs(header->requestType);
@@ -410,9 +409,9 @@ void trafficReceive(p2p_HEADER * header,
  * 
  * @param header the header of the message
  * @param receiver the identity of the receiver
- **/
-void trafficSend(p2p_HEADER * header,
-		 HostIdentity * receiver) {
+ */
+void trafficSend(const p2p_HEADER * header,
+		 const HostIdentity * receiver) {
   unsigned short port;
 
   port = ntohs(header->requestType);
@@ -440,7 +439,7 @@ void trafficSend(p2p_HEADER * header,
  * @param timeDistribution bit-vector giving times of interactions,
  *        highest bit is current time-unit, bit 1 is 32 time-units ago (set)
  * @return OK on success, SYSERR on error
- **/
+ */
 int getTrafficStats(const unsigned short messageType,
 		    const int sendReceive,
 		    const unsigned int timePeriod,
@@ -505,9 +504,10 @@ void updateTrafficSendCounter(unsigned short ptyp,
   if (0 == stat_traffic_transmitted_by_type[ptyp]) {
     char * s;
     s = MALLOC(256);
-    sprintf(s, 
-	    "# bytes transmitted of type %d",
-	    ptyp);
+    SNPRINTF(s, 
+	     256,
+	     _("# bytes transmitted of type %d"),
+	     ptyp);
     stat_traffic_transmitted_by_type[ptyp]
       = statHandle(s);
     FREE(s);
@@ -523,9 +523,10 @@ void updateTrafficReceiveCounter(unsigned short ptyp,
     if (0 == stat_traffic_received_by_type[ptyp]) {
       char * s;
       s = MALLOC(256);
-      sprintf(s, 
-	      "# bytes received of type %d",
-	      ptyp);
+      SNPRINTF(s, 
+	       256,
+	       _("# bytes received of type %d"),
+	       ptyp);
       stat_traffic_received_by_type[ptyp]
 	= statHandle(s);
       FREE(s);

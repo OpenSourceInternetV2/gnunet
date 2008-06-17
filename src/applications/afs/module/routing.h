@@ -20,7 +20,7 @@
  * Routing interface. This is the interface that does the routing.
  * @author Christian Grothoff
  * @file applications/afs/module/routing.h
- **/
+ */
 
 #ifndef ROUTING_H
 #define ROUTING_H
@@ -30,17 +30,17 @@
 
 /**
  * Initialize routing module.
- **/
+ */
 void initRouting();
 
 /**
  * Shutdown the routing module.
- **/
+ */
 void doneRouting();
 
 /**
  * Print the current routing table.
- **/
+ */
 void printRoutingTable();
 
 /**
@@ -67,7 +67,7 @@ void printRoutingTable();
  * @param msg the query message (with host identity for the reply)
  * @param sock the TCP socket to send the answer to if it is
  *        a query from the local host, otherwise NULL.
- **/
+ */
 int execQuery(QUERY_POLICY qp, 
 	      AFS_p2p_QUERY * msg,
 	      ClientHandle sock);
@@ -83,16 +83,16 @@ int execQuery(QUERY_POLICY qp,
  *        must potentially be turned into the adequate CS message.
  * @return how good this content was (priority of the original 
  *        request)
- **/
+ */
 int useContent(const HostIdentity * sender,
-	       HashCode160 * queryHash,
-	       p2p_HEADER * msg);
+	       const HashCode160 * queryHash,
+	       const p2p_HEADER * msg);
 
 /**
  * Handle query for current average routing priority.
- **/
+ */
 int csHandleRequestAvgPriority(ClientHandle sock,
-			       p2p_HEADER * msg);
+			       const p2p_HEADER * msg);
 
 
 

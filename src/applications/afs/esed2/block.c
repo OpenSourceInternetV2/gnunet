@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet
-     (C) 2001, 2002, 2003 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -26,7 +26,7 @@
  * Note that the current implementation no longer uses the exact
  * scheme from the ESED paper. Extensive documentation is forthcoming,
  * for now see http://www.ovmj.org/GNUnet/encoding.php3
- **/
+ */
 
 #include "gnunet_afs_esed2.h"
 #include "platform.h"
@@ -42,7 +42,7 @@ static Block_VTBL iblock_vtbl;
  * Compute the depth of the tree.
  * @param flen file length for which to compute the depth
  * @return depth of the tree
- **/
+ */
 static unsigned short computeDepth(size_t flen) {
   unsigned short treeDepth;
   unsigned long long fl;
@@ -67,7 +67,7 @@ static unsigned short computeDepth(size_t flen) {
  */
 int createIOContext(IOContext * this,
 		    size_t filesize,
-		    char * filename,
+		    const char * filename,
 		    int rdOnly) {
   int i;
   char * fn;
@@ -82,19 +82,17 @@ int createIOContext(IOContext * this,
     if ( (0 == STAT(filename, &st)) &&
          ((size_t)st.st_size > filesize ) ) { /* if exists and oversized, truncate */
       if (truncate(filename, filesize) != 0) {
-        LOG(LOG_FAILURE,
-            "FAILURE: unable to truncate %s (%s)\n",
-	    filename,
-	    STRERROR(errno));
+	LOG_FILE_STRERROR(LOG_FAILURE, "truncate", filename);
         return SYSERR;
       }
     }
   }
   for (i=0;i<=this->treedepth;i++) 
     this->handles[i] = -1;
-  for (i=0;i<=this->treedepth;i++) {
+  for (i=0;i<=this->treedepth;i++) 
     MUTEX_CREATE(&this->locks[i]);
-    
+
+  for (i=0;i<=this->treedepth;i++) {
     fn = MALLOC(strlen(filename) + 3);
     strcpy(fn, filename);
     if (i > 0) {
@@ -112,7 +110,7 @@ int createIOContext(IOContext * this,
 	 ( (rdOnly == NO) || 
 	   (i==0) ) ) {
       LOG(LOG_FAILURE,
-	  "FAILURE: could not open file %s (%s)\n",
+	  "could not open file %s (%s)\n",
 	  fn, 
 	  STRERROR(errno));
       freeIOC(this, NO);
@@ -133,7 +131,7 @@ int createIOContext(IOContext * this,
  * @param buf where to read from or write to
  * @param len how many bytes to read or write
  * @return number of bytes read, SYSERR on error  
- **/
+ */
 int readFromIOC(IOContext * this,
 		int level,
 		size_t pos,
@@ -165,7 +163,7 @@ int readFromIOC(IOContext * this,
  * @param buf where to write to
  * @param len how many bytes to write
  * @return number of bytes written, SYSERR on error  
- **/
+ */
 int writeToIOC(IOContext * this,
 	       int level,
 	       size_t pos,
@@ -185,8 +183,8 @@ int writeToIOC(IOContext * this,
 	      buf, 
 	      len);
   if (ret != len) {
-    LOG(LOG_DEBUG,
-	"DEBUG: write(%d, %x, %d failed)!\n",
+    LOG(LOG_WARNING,
+	"write(%d, %p, %d failed)!\n",
 	this->handles[level],
 	buf,
 	len);
@@ -205,7 +203,7 @@ int writeToIOC(IOContext * this,
  * @param unlinkTreeFiles if YES, the non-level 0 files
  *     are unlinked (removed), set to NO if the download
  *     is not complete and may be resumed later.
- **/
+ */
 void freeIOC(struct IOContext * this,
 	     int unlinkTreeFiles) {
   int i;
@@ -215,8 +213,8 @@ void freeIOC(struct IOContext * this,
     if (this->handles[i] != -1) {
       CLOSE(this->handles[i]);
       this->handles[i] = -1;
-    }
-    MUTEX_DESTROY(&this->locks[i]);
+    } 
+    MUTEX_DESTROY(&this->locks[i]);    
   }
   if (YES == unlinkTreeFiles) {
     for (i=1;i<= this->treedepth;i++) {
@@ -226,7 +224,7 @@ void freeIOC(struct IOContext * this,
       fn[strlen(fn)-1]+=i;    
       if (0 != UNLINK(fn))
 	LOG(LOG_WARNING,
-	    "WARNING: could not unlink temporary file %s: %s\n",
+	    " could not unlink temporary file %s: %s\n",
 	    fn, STRERROR(errno));
       FREE(fn);
     }
@@ -248,7 +246,7 @@ static void allocateChildren(IBlock * this);
  * @param priority the priority to use
  * @param sock the socket to talk to gnunetd
  * @return OK on success, SYSERR on error
- **/
+ */
 static int insertCHKBlock(GNUNET_TCP_SOCKET * sock,
 			  void * eblock,
 			  int priority) {
@@ -269,18 +267,19 @@ static int insertCHKBlock(GNUNET_TCP_SOCKET * sock,
 	 sizeof(CONTENT_Block));
 
   if (SYSERR == writeToSocket(sock,
-			      &request->header))
+			      &request->header)) {
     LOG(LOG_WARNING, 
-	"WARNING: could not send index information to gnunetd. Is gnunetd running?\n");  
-  if (SYSERR == readTCPResult(sock,
-			      &res)) {
-    LOG(LOG_WARNING, 
-	"WARNING: server did not send confirmation of insertion\n");
+	_("Could not send '%s' request to gnunetd. Is gnunetd running?\n"),
+	"index");  
     res = SYSERR;
-  } else
-    if (res == SYSERR)
+  } else if (SYSERR == readTCPResult(sock,
+				     &res)) {
+    LOG(LOG_WARNING, 
+	_("Server did not send confirmation of insertion.\n"));
+    res = SYSERR;
+  } else if (res == SYSERR)
       LOG(LOG_WARNING, 
-	  "WARNING: server could not perform insertion\n");
+	  _("Server could not perform insertion.\n"));
   FREE(request);
   return res;
 }
@@ -292,7 +291,7 @@ static int insertCHKBlock(GNUNET_TCP_SOCKET * sock,
  * @param priority the priority to use
  * @param sock the socket to talk to gnunetd
  * @return OK on success, SYSERR on error
- **/
+ */
 static int deleteCHKBlock(GNUNET_TCP_SOCKET * sock,
 			  void * eblock,
 			  int priority) {
@@ -313,18 +312,19 @@ static int deleteCHKBlock(GNUNET_TCP_SOCKET * sock,
 	 sizeof(CONTENT_Block));
 
   if (SYSERR == writeToSocket(sock,
-			      &request->header))
+			      &request->header)) {
     LOG(LOG_WARNING, 
-	"WARNING: could not send delete information to gnunetd. Is gnunetd running?\n");  
-  if (SYSERR == readTCPResult(sock,
+	_("Could not send '%s' request to gnunetd. Is gnunetd running?\n"),
+	"delete");  
+    res = SYSERR;
+  } else if (SYSERR == readTCPResult(sock,
 			      &res)) {
     LOG(LOG_WARNING, 
-	"WARNING: server did not send confirmation of deletion\n");
+	_("Server did not send confirmation of deletion.\n"));
     res = SYSERR;
-  } else
-    if (res == SYSERR)
+  } else if (res == SYSERR)
       LOG(LOG_WARNING, 
-	  "WARNING: server could not perform deletion\n");
+	  _("Server could not perform deletion.\n"));
   FREE(request);
   return res;
 }
@@ -332,7 +332,7 @@ static int deleteCHKBlock(GNUNET_TCP_SOCKET * sock,
 /**
  * Encrypt this block and initialize
  * this->chk and return the encrpyted data (edata)
- **/
+ */
 static void * block_encrypt(Block * this) {
   void * edata;
 
@@ -346,7 +346,7 @@ static void * block_encrypt(Block * this) {
   if (SYSERR == encryptContent(this->data,
 			       &this->chk.key,
 			       edata))
-    errexit("FATAL: encryption failed!?");
+    GNUNET_ASSERT(0);
   hash(edata,
        sizeof(CONTENT_Block),
        &this->chk.query);
@@ -363,7 +363,7 @@ static void * block_encrypt(Block * this) {
  * @param nc the context (gives us the priority)
  * @param sock the socket to talk to gnunetd
  * @return OK on success, SYSERR on error
- **/
+ */
 static int block_insert(Block * this,
 			NodeContext * nc,
 			GNUNET_TCP_SOCKET * sock) {
@@ -397,19 +397,19 @@ static int block_insert(Block * this,
 	   &this->chk.query,
 	   sizeof(HashCode160));
     if (SYSERR == writeToSocket(sock,
-				&request.header))
-    LOG(LOG_WARNING, 
-	"WARNING: could not send index information to gnunetd. Is gnunetd running?\n");  
-    if (SYSERR == readTCPResult(sock,
+				&request.header)) {
+      LOG(LOG_WARNING, 
+	  _("Could not send '%s' request to gnunetd. Is gnunetd running?\n"),
+	  "index");  
+      res = SYSERR;
+    } else if (SYSERR == readTCPResult(sock,
 				&res)) {
       LOG(LOG_WARNING, 
-	  "WARNING: server did not send confirmation of insertion\n");
+	  _("Server did not send confirmation for indexing request.\n"));
       res = SYSERR;
-    } else {
-      if (res == SYSERR)
+    } else if (res == SYSERR)
 	LOG(LOG_WARNING, 
-	    "WARNING: server could not perform indexing\n");
-    }
+	    _("Server could not perform indexing\n"));    
     return res;
   } else {
     res = insertCHKBlock(sock,
@@ -427,7 +427,7 @@ static int block_insert(Block * this,
  * @param nc the context 
  * @param sock the socket to talk to gnunetd
  * @return OK on success, SYSERR on error
- **/
+ */
 static int block_delete(Block * this,
 			NodeContext * nc,
 			GNUNET_TCP_SOCKET * sock) {
@@ -461,19 +461,19 @@ static int block_delete(Block * this,
 	   &this->chk.query,
 	   sizeof(HashCode160));
     if (SYSERR == writeToSocket(sock,
-				&request.header))
-    LOG(LOG_WARNING, 
-	"WARNING: could not send unindex information to gnunetd. Is gnunetd running?\n");  
-    if (SYSERR == readTCPResult(sock,
-				&res)) {
+				&request.header)) {
       LOG(LOG_WARNING, 
-	  "WARNING: server did not send confirmation of deletion\n");
+	  _("Could not send '%s' request to gnunetd. Is gnunetd running?\n"),
+	  "unindex");  
       res = SYSERR;
-    } else {
-      if (res == SYSERR)
+    } else if (SYSERR == readTCPResult(sock,
+				       &res)) {
+      LOG(LOG_WARNING, 
+	  _("Server did not send confirmation for unindex request.\n"));
+      res = SYSERR;
+    } else if (res == SYSERR)
 	LOG(LOG_DEBUG, 
-	    "DEBUG: server could not perform unindexing (content already removed?)\n");
-    }
+	    _("Server could not perform unindexing (content already removed?).\n"));    
     return res;
   } else {
     res = deleteCHKBlock(sock,
@@ -497,13 +497,13 @@ static int block_delete(Block * this,
  * @param nc the context (gives us the priority)
  * @param sock the socket to use to talk to the core
  * @return OK on success, SYSERR on error
- **/
+ */
 static int dblock_insert(DBlock * this,
 			 NodeContext * nc,
 			 GNUNET_TCP_SOCKET * sock) {
   int res;
 #if DEBUG_BLOCK
-  HexName hex;
+  EncName enc;
 #endif
    
   if (this->common.data != NULL)
@@ -521,15 +521,13 @@ static int dblock_insert(DBlock * this,
     FREE(this->common.data);
     this->common.data = NULL;
     if (sock != NULL)
-      LOG(LOG_WARNING,
-	  "WARNING: read from file did not return expected size %d, but %d\n",
-	  this->common.len, res);
+      BREAK();
     return SYSERR;
   } 
 #if DEBUG_BLOCK
   else
     LOG(LOG_EVERYTHING,
-	"EVERYTHING: read %d bytes from IOC for insertion\n",
+	"Read %d bytes from IOC for insertion.\n",
 	res);
 #endif
 
@@ -543,13 +541,13 @@ static int dblock_insert(DBlock * this,
 		     sock);
 #if DEBUG_BLOCK
   IFLOG(LOG_DEBUG,
-	hash2hex(&this->common.chk.query,
-		 &hex));
+	hash2enc(&this->common.chk.query,
+		 &enc));
   LOG(LOG_DEBUG,
-      "DEBUG: inserting dblock %u of len %u under query %s\n",
+      "inserting dblock %u of len %u under query %s\n",
       this->common.pos,
       this->common.len, 
-      &hex);
+      &enc);
 #endif
   return res;
 }
@@ -563,13 +561,13 @@ static int dblock_insert(DBlock * this,
  * @param nc the context (gives us the priority)
  * @param sock the socket to use to talk to the core
  * @return OK on success, SYSERR on error
- **/
+ */
 static int dblock_delete(DBlock * this,
 			 NodeContext * nc,
 			 GNUNET_TCP_SOCKET * sock) {
   int res;
 #if DEBUG_BLOCK
-  HexName hex;
+  EncName enc;
 #endif
    
   if (this->common.data != NULL)
@@ -587,15 +585,13 @@ static int dblock_delete(DBlock * this,
     FREE(this->common.data);
     this->common.data = NULL;
     if (sock != NULL)
-      LOG(LOG_WARNING,
-	  "WARNING: read from file did not return expected size %d, but %d\n",
-	  this->common.len, res);
+      BREAK();
     return SYSERR;
   } 
 #if DEBUG_BLOCK
   else
     LOG(LOG_EVERYTHING,
-	"EVERYTHING: read %d bytes from IOC for insertion\n",
+	"read %d bytes from IOC for insertion\n",
 	res);
 #endif
 
@@ -608,13 +604,13 @@ static int dblock_delete(DBlock * this,
 		     sock);
 #if DEBUG_BLOCK
   IFLOG(LOG_DEBUG,
-	hash2hex(&this->common.chk.query,
-		 &hex));
+	hash2enc(&this->common.chk.query,
+		 &enc));
   LOG(LOG_DEBUG,
-      "DEBUG: inserting dblock %u of len %u under query %s\n",
+      "inserting dblock %u of len %u under query %s\n",
       this->common.pos,
       this->common.len, 
-      &hex);
+      &enc);
 #endif
   return res;
 }
@@ -626,7 +622,7 @@ static int dblock_delete(DBlock * this,
  *
  * @param nc the context (gives us the priority)
  * @param rm reference to the RequestManager for requests
- **/
+ */
 static void iblock_do_superrequest(IBlock * this,
 				   NodeContext * nc,
 				   RequestManager * rm);
@@ -638,24 +634,22 @@ static void iblock_do_superrequest(IBlock * this,
  * @param query the query for which reply is the answer
  * @param reply the reply
  * @return OK if the reply was valid, SYSERR on error
- **/
+ */
 static int chk_block_receive(Block * this,
 			     HashCode160 * query,
 			     AFS_CS_RESULT_CHK * reply) {
   HashCode160 hc;
   void * edata;
 
-  if (!equalsHashCode160(query,
-			 &this->chk.query)) 
-    errexit("FAILURE: dblock_download_receive invoked with "\
-	    "reply for a different block. This should not be.\n");
+  GNUNET_ASSERT(equalsHashCode160(query,
+				  &this->chk.query));
   edata = &((AFS_CS_RESULT_CHK*)reply)->result;
   this->data 
     = MALLOC(sizeof(CONTENT_Block));
   if (SYSERR == decryptContent(edata,
 			       &this->chk.key,
 			       this->data)) 
-    errexit("FATAL: decryption failed!?\n");  
+    GNUNET_ASSERT(0);
   hash(this->data,
        this->len,
        &hc);
@@ -663,10 +657,11 @@ static int chk_block_receive(Block * this,
 			 &this->chk.key)) {
     FREE(this->data);
     this->data = NULL;
+    BREAK();
     LOG(LOG_ERROR,
-	    "ERROR: decrypted content does not match key. "\
-	    "This is either a bug or a maliciously inserted "\
-	    "file. Download aborted.\n");
+	_("Decrypted content does not match key. "
+	  "This is either a bug or a maliciously inserted "
+	  "file. Download aborted.\n"));
     return SYSERR;
   } 
   return OK;
@@ -686,7 +681,7 @@ static int chk_block_receive(Block * this,
  * @param nc the context (gives us the priority)
  * @return SYSERR the request manager should abort the download,
  *         OK if everything is fine
- **/
+ */
 static int dblock_download_receive(DBlock * this,
 				   HashCode160 * query,
 				   AFS_CS_RESULT_CHK * reply,
@@ -697,11 +692,11 @@ static int dblock_download_receive(DBlock * this,
 
 #if DEBUG_BLOCK
   LOG(LOG_DEBUG,
-      "DEBUG: dblock_download_receive %x\n",
+      "dblock_download_receive %p\n",
       this);
 #endif
   if (this->common.status != BLOCK_PENDING)
-    errexit("FATAL: dblock_download_receive called, but no request was pending\n");
+    errexit(" dblock_download_receive called, but no request was pending\n");
   if (SYSERR == chk_block_receive(&this->common,
 				  query,
 				  reply)) {
@@ -722,8 +717,8 @@ static int dblock_download_receive(DBlock * this,
     nc->pmodel(&pstats,
 	       nc->data);  
     LOG(LOG_ERROR,
-	"ERROR: writing to file failed (%s)!\n",
-	strerror(errno));
+	" writing to file failed (%s)!\n",
+	STRERROR(errno));
     return SYSERR;
   }
 
@@ -772,14 +767,14 @@ static int dblock_download_receive(DBlock * this,
  * @param this the DBlock that is checked for presence
  * @param nc the context (gives us the priority)
  * @return YES if present, NO if not.
- **/
+ */
 static int dblock_isPresent(DBlock * this,
 			    NodeContext * nc) {
   int res;
 
 #if DEBUG_BLOCK
   LOG(LOG_DEBUG,
-      "DEBUG: dblock_isPresent %x\n",
+      "dblock_isPresent %p\n",
       this);
 #endif
   /* first check if its already present */
@@ -819,7 +814,7 @@ static int dblock_isPresent(DBlock * this,
  * @param receiver the receiver to call on the reply
  * @param nc the context
  * @param query the query to perform
- **/
+ */
 static void issueQuery(RequestManager * rm,
 		       Block * node,
 		       Listener receiver,
@@ -856,13 +851,13 @@ static void issueQuery(RequestManager * rm,
  * @param this the node that should be inserted or indexed
  * @param nc the context (gives us the priority)
  * @param rm the request manager
- **/
+ */
 static void dblock_download(DBlock * this,
 			    NodeContext * nc,
 			    RequestManager * rm) {
 #if DEBUG_BLOCK
   LOG(LOG_DEBUG,
-      "DEBUG: dblock_download %p\n",
+      "dblock_download %p\n",
       this);
 #endif
 
@@ -896,7 +891,7 @@ static void dblock_download(DBlock * this,
  *
  * @param this reference to the Block
  * @param rm reference to the RequestManager for requests
- **/
+ */
 static void block_done(Block * this,
 		       RequestManager * rm) {
   unsigned int i;
@@ -932,12 +927,12 @@ static void block_done(Block * this,
  *
  * @param this reference to the Block
  * @param rm reference to the RequestManager for requests
- **/
+ */
 static void dblock_done(DBlock * this,
 			RequestManager * rm) {
 #if DEBUG_BLOCK
   LOG(LOG_DEBUG,
-      "DEBUG: dblock_done %x\n",
+      "dblock_done %p\n",
       this);
 #endif
   block_done(&this->common, rm);
@@ -945,20 +940,20 @@ static void dblock_done(DBlock * this,
 
 /**
  * Print a block to log.
- **/
+ */
 static void dblock_print(DBlock * this,
 			 int ident) {
-  HexName hex;
+  EncName enc;
 
   IFLOG(LOG_DEBUG,
-	hash2hex(&this->common.chk.query,
-		 &hex));
+	hash2enc(&this->common.chk.query,
+		 &enc));
   LOG(LOG_DEBUG,
       "%*s, DBLOCK (0) %u %s\n",
       ident, 
       "", 
       this->common.pos, 
-      &hex);      
+      &enc);      
 }
 
 /**
@@ -974,7 +969,7 @@ static void dblock_print(DBlock * this,
  * @param nc the context (gives us the priority)
  * @param sock the socket to use to talk to the core
  * @return OK on success, SYSERR on error
- **/
+ */
 static int iblock_insert(IBlock * this,
 			 NodeContext * nc,
 			 GNUNET_TCP_SOCKET * sock) {
@@ -1000,10 +995,7 @@ static int iblock_insert(IBlock * this,
 				      nc, 
 				      sock)) {
       if (sock != NULL)
-	LOG(LOG_WARNING,
-	    "WARNING: child->insert failed on level %d, pos %d, aborting!\n",
-	    this->depth, 
-	    child->pos);   
+	BREAK();
       return SYSERR; /* abort! */
     }
     this->crcs[ui] = crc32N(child->data,
@@ -1032,13 +1024,14 @@ static int iblock_insert(IBlock * this,
       if (i == SYSERR) {
 	ret = SYSERR;
 	LOG(LOG_WARNING, 
-	    "WARNING: server did not send confirmation of insertion\n");
+	    _("Server did not send confirmation of insertion.\n"));
       } else if (ret == SYSERR)
 	LOG(LOG_WARNING, 
-	    "WARNING: server could not perform insertion\n");
+	    _("Server could not perform insertion.\n"));
     } else
       LOG(LOG_WARNING, 
-	  "WARNING: could not send super-index information to gnunetd. Is gnunetd running?\n");  
+	  _("Could not send '%s' request to gnunetd. Is gnunetd running?\n"),
+	  "super-index");  
     if (ret == SYSERR)
       return SYSERR;
   }
@@ -1060,7 +1053,7 @@ static int iblock_insert(IBlock * this,
  * @param nc the context (gives us the priority)
  * @param sock the socket to use to talk to the core
  * @return OK on success, SYSERR on error
- **/
+ */
 static int iblock_delete(IBlock * this,
 			 NodeContext * nc,
 			 GNUNET_TCP_SOCKET * sock) {
@@ -1086,10 +1079,7 @@ static int iblock_delete(IBlock * this,
 				      nc, 
 				      sock)) {
       if (sock != NULL)
-	LOG(LOG_WARNING,
-	    "WARNING: child->delete failed on level %d, pos %d. Will continue.\n",
-	    this->depth, 
-	    child->pos);   
+	BREAK();
     }
     this->crcs[ui] = crc32N(child->data,
 			    child->len);
@@ -1116,12 +1106,13 @@ static int iblock_delete(IBlock * this,
       if (i == SYSERR) {
 	ret = SYSERR;
 	LOG(LOG_WARNING, 
-	    "WARNING: server did not send confirmation of deletion\n");
+	    _("Server did not send confirmation of deletion.\n"));
       } else if (ret == SYSERR)
 	ret = OK; /* super blocks don't matter! */
     } else
       LOG(LOG_WARNING, 
-	  "WARNING: could not send super-unindex information to gnunetd. Is gnunetd running?\n");  
+	  _("Could not send '%s' request to gnunetd. Is gnunetd running?\n"),
+	  "super-unindex");  
     if (ret == SYSERR)
       return SYSERR;
   }
@@ -1147,7 +1138,7 @@ static int iblock_delete(IBlock * this,
  * @param rm the handle for the request manager
  * @param nc the context (gives us the priority)
  * @return SYSERR the request manager should abort the download
- **/
+ */
 static int iblock_download_receive_child(IBlock * this,
 					 HashCode160 * query,
 					 AFS_CS_RESULT_CHK * reply,
@@ -1158,15 +1149,15 @@ static int iblock_download_receive_child(IBlock * this,
 
 #if DEBUG_BLOCK
   LOG(LOG_DEBUG,
-      "DEBUG: iblock_download_receive_child %x\n",
+      "iblock_download_receive_child %p\n",
       this);
 #endif
   if (this->common.status != BLOCK_SUPERQUERY_PENDING)
-    errexit("FATAL: iblock_download_receive_child called, "
+    errexit(" iblock_download_receive_child called, "
 	    "but no superquery is pending\n");
 #if DEBUG_BLOCK
   LOG(LOG_DEBUG,
-      "DEBUG: iblock %x receives message for child\n",
+      "iblock %p receives message for child\n",
       this);
 #endif
   ibd = this->common.data;
@@ -1191,7 +1182,7 @@ static int iblock_download_receive_child(IBlock * this,
 /**
  * Initialize IBlock fields (helper for createTopIBlock
  * and createIBlock)
- **/
+ */
 static void initializeIBlock(IBlock * this);
 
 /**
@@ -1200,7 +1191,7 @@ static void initializeIBlock(IBlock * this);
  * @param this the node that should be inserted or indexed
  * @param nc the context (gives us the priority)
  * @param rm the request manager
- **/
+ */
 static void iblock_download_children(IBlock * this,
 				     NodeContext * nc,
 				     RequestManager * rm) {
@@ -1210,13 +1201,10 @@ static void iblock_download_children(IBlock * this,
 
 #if DEBUG_BLOCK
   LOG(LOG_DEBUG,
-      "DEBUG: iblock_download_children %x\n",
+      "iblock_download_children %p\n",
       this);
 #endif
-  if (this->childcount > CHK_PER_INODE) 
-    errexit("FATAL: iblock %x has %d children!\n",
-	    this, 
-	    this->childcount);  
+  GNUNET_ASSERT(this->childcount <= CHK_PER_INODE);
   ibd = this->common.data;
   allocateChildren(this);
   for (i=0;i<this->childcount;i++) {
@@ -1241,7 +1229,7 @@ static void iblock_download_children(IBlock * this,
  *        super-request
  * @param rm reference to the RequestManager for requests
  * @param nc the context (gives us the priority)
- **/
+ */
 static void iblock_do_superrequest(IBlock * this,
 				   NodeContext * nc,
 				   RequestManager * rm) {
@@ -1252,7 +1240,7 @@ static void iblock_do_superrequest(IBlock * this,
 
 #if DEBUG_BLOCK
   LOG(LOG_DEBUG,
-      "DEBUG: iblock_do_superrequest %x\n",
+      "iblock_do_superrequest %p\n",
       this);
 #endif
   liveChildren = 0;
@@ -1264,7 +1252,7 @@ static void iblock_do_superrequest(IBlock * this,
   if (liveChildren == 0) {
 #if DEBUG_BLOCK
     LOG(LOG_DEBUG,
-	"DEBUG: iblock %x cancels request, all children done (%d)\n",
+	"iblock %p cancels request, all children done (%d)\n",
 	this,
 	this->common.status);
 #endif      
@@ -1304,7 +1292,7 @@ static void iblock_do_superrequest(IBlock * this,
   if (this->common.status == BLOCK_SUPERQUERY_PENDING) {
 #if DEBUG_BLOCK
     LOG(LOG_DEBUG,
-	"DEBUG: iblock %x updates request, %d children pending\n",
+	"iblock %p updates request, %d children pending\n",
 	this, 
 	liveChildren);
 #endif
@@ -1314,7 +1302,7 @@ static void iblock_do_superrequest(IBlock * this,
   } else {
 #if DEBUG_BLOCK
     LOG(LOG_DEBUG,
-	"DEBUG: iblock %x starts request, %d children pending\n",
+	"iblock %p starts request, %d children pending\n",
 	this, 
 	liveChildren);
 #endif
@@ -1338,7 +1326,7 @@ static void iblock_do_superrequest(IBlock * this,
  * @param rm the handle for the request manager
  * @param nc the context (gives us the priority)
  * @return SYSERR the request manager should abort the download
- **/
+ */
 static int iblock_download_receive(IBlock * this,
 				   HashCode160 * query,
 				   AFS_CS_RESULT_CHK * reply,
@@ -1346,21 +1334,18 @@ static int iblock_download_receive(IBlock * this,
 				   NodeContext * nc) {
 #if DEBUG_BLOCK
   LOG(LOG_DEBUG,
-      "DEBUG: iblock_download_receive %x\n",
+      "iblock_download_receive %p\n",
       this);
 #endif
   if (this->common.status != BLOCK_PENDING) {
     /* As far as I can tell, this should never happen */
-    LOG(LOG_WARNING,
-	"WARNING: iblock %x receives reply, but we are already done!\n",
-	this);
     BREAK();
     return OK;
   }
 #if DEBUG_BLOCK
   else
     LOG(LOG_DEBUG,
-	"DEBUG: iblock %x receives reply\n",
+	"iblock %p receives reply\n",
 	this);
 #endif
   if (SYSERR == chk_block_receive(&this->common,
@@ -1381,9 +1366,7 @@ static int iblock_download_receive(IBlock * this,
     memset(&pstats, 0, sizeof(ProgressStats));
     nc->pmodel(&pstats,
 	       nc->data);  
-    LOG(LOG_ERROR,
-	"ERROR: write to temporary IBlock file failed (aborting): %s\n",
-	strerror(errno));
+    LOG_STRERROR(LOG_ERROR, "write");
     return SYSERR;
   }
   this->crc32 = ((IBlockData*) this->common.data)->crc32;
@@ -1418,14 +1401,14 @@ static int iblock_download_receive(IBlock * this,
  * @param this the IBlock that is tested for presence
  * @param nc the context (gives us the priority)
  * @return YES if it is present, NO if not.
- **/
+ */
 static int iblock_isPresent(IBlock * this,
 			    NodeContext * nc) {
   int res;
 
 #if DEBUG_BLOCK
   LOG(LOG_DEBUG,
-      "DEBUG: iblock_isPresent %x\n",
+      "iblock_isPresent %p\n",
       this);
 #endif
   /* first check if its already present */
@@ -1457,7 +1440,7 @@ static int iblock_isPresent(IBlock * this,
  * Very lazy progress model for the insert that is
  * actually just checking if the block that we are trying
  * to download is already present...
- **/
+ */
 static void noModel(ProgressStats * stats,
 		    void * data) {
 }
@@ -1471,7 +1454,7 @@ static void noModel(ProgressStats * stats,
  * @param this the node that should be inserted or indexed
  * @param rm the request manager
  * @param nc the context (gives us the priority)
- **/
+ */
 static void iblock_download(IBlock * this,
 			    NodeContext * nc,
 			    RequestManager * rm) {
@@ -1479,7 +1462,7 @@ static void iblock_download(IBlock * this,
   
 #if DEBUG_BLOCK
   LOG(LOG_DEBUG,
-      "DEBUG: iblock_download %x\n",
+      "iblock_download %p\n",
       this);
 #endif
   isPresent = iblock_isPresent(this, nc);
@@ -1554,18 +1537,18 @@ static void iblock_download(IBlock * this,
 static void iblock_print(IBlock * this,
 			 int ident) {
   unsigned int i;
-  HexName hex;
+  EncName enc;
 
   IFLOG(LOG_DEBUG,
-	hash2hex(&this->common.chk.query,
-		 &hex));
+	hash2enc(&this->common.chk.query,
+		 &enc));
   LOG(LOG_DEBUG,
       "%*s, IBLOCK (%d) %u %s (%d children)\n",
       ident, 
       "", 
       this->depth,
       this->common.pos, 
-      &hex,
+      &enc,
       this->childcount);
   if (this->children != NULL)
     for (i=0;i<this->childcount;i++) 
@@ -1577,7 +1560,7 @@ static void iblock_print(IBlock * this,
 /**
  * Initialize DBlock fields (helper for createTopDBlock
  * and createDBlock).
- **/
+ */
 static void initializeDBlock(DBlock * this) {
   static int once = 1;
   if (once) {
@@ -1607,13 +1590,12 @@ static void initializeDBlock(DBlock * this) {
  *
  * @param filesize the size of the file 
  * @return the DBlock on success, NULL on failure
- **/
+ */
 Block * createTopDBlock(size_t filesize) {
   DBlock * res;
 
   if (filesize > sizeof(CONTENT_Block)) {
-    LOG(LOG_FAILURE,
-	    "FAILURE: createTopDBlock called for file >1k\n");
+    BREAK();
     return NULL; /* invalid! */
   }
   res = MALLOC(sizeof(DBlock));
@@ -1632,14 +1614,14 @@ Block * createTopDBlock(size_t filesize) {
  *
  * @param this reference to the Block
  * @param rm reference to the RequestManager for requests
- **/
+ */
 static void iblock_done(IBlock * this,		       
 			RequestManager * rm) {
   unsigned int i;
 
 #if DEBUG_BLOCK
   LOG(LOG_DEBUG,
-      "DEBUG: iblock_done %x\n",
+      "iblock_done %p\n",
       this);
 #endif
   this->common.status 
@@ -1657,7 +1639,7 @@ static void iblock_done(IBlock * this,
 /**
  * Initialize IBlock fields (helper for createTopIBlock
  * and createIBlock)
- **/
+ */
 static void initializeIBlock(IBlock * this) {
   static int once = 1;
   unsigned int i;
@@ -1732,7 +1714,7 @@ static void allocateChildren(IBlock * this) {
  * @param pos the position of the IBlock in the file
  * @param parent the parent block (may not be NULL)
  * @return the IBlock 
- **/
+ */
 Block * createIBlock(size_t pos,
 		     IBlock * parent) {
   IBlock * res;
@@ -1759,7 +1741,7 @@ Block * createIBlock(size_t pos,
  * @param pos the offset of this block in the file
  * @param parent the parent block
  * @return the DBlock on success, NULL on failure
- **/
+ */
 Block * createDBlock(size_t pos,
 		     IBlock * parent) {
   DBlock * res;
@@ -1776,9 +1758,7 @@ Block * createDBlock(size_t pos,
   res->common.len 
     = MIN(sizeof(CONTENT_Block), 
 	  res->common.filesize - pos);
-  if (res->common.filesize <= pos) 
-    errexit("FATAL: assert failed, dblock created out-of-range (%d>%d)!\n",
-	    pos, res->common.filesize);
+  GNUNET_ASSERT(res->common.filesize > pos);
   return &res->common;
 }
 	
@@ -1787,7 +1767,7 @@ Block * createDBlock(size_t pos,
  * Note that you must set the chk field before calling
  * download. 
  * @param filesize the size of the file
- **/
+ */
 Block * createTopIBlock(size_t filesize) {
   IBlock * res;
   
@@ -1820,7 +1800,7 @@ Block * createTopIBlock(size_t filesize) {
  * @param child the completed child block
  * @param nc the context
  * @param rm the request manager
- **/
+ */
 void childDownloadCompleted(IBlock * parent,
 			    Block * child,
 			    NodeContext * nc,
@@ -1829,20 +1809,15 @@ void childDownloadCompleted(IBlock * parent,
   unsigned int pendingChildren;
 #if DEBUG_BLOCK
   LOG(LOG_DEBUG,
-      "DEBUG: childDownloadCompleted %x %x\n",
+      "childDownloadCompleted %p %p\n",
       parent, 
       child);
 #endif
-  if (parent->children == NULL)
-    errexit("FATAL: assertion violated at %s:%d!\n",
-	    __FILE__, __LINE__);
+  GNUNET_ASSERT(parent->children != NULL);
   for (i=0;i<parent->childcount;i++) 
     if (parent->children[i] == child) 
       break;
-  if (i == parent->childcount) 
-    errexit("FATAL: childDownloadCompleted called on parent "
-	    "node that does not know that child! (%x, %x)\n",
-	    child, parent);        
+  GNUNET_ASSERT(i != parent->childcount);
   parent->crcs[i] = crc32N(child->data, child->len);
 
   pendingChildren = 0;
@@ -1859,13 +1834,7 @@ void childDownloadCompleted(IBlock * parent,
 		 sizeof(int) * parent->childcount)
 	  != parent->crc32) {
 	LOG(LOG_FAILURE,
-	    "FAILURE: file corrupted (or bug), "
-	    "crc mismatch in block %d %d: %x != %x\n",
-	    parent->depth, 
-	    parent->common.pos, 
-	    crc32N(&parent->crcs[0], 
-		   sizeof(int) * parent->childcount),
-	    parent->crc32);
+	    _("File corrupted (or bug)."));
 	BREAK();
       }
       childDownloadCompleted(parent->common.parent,
@@ -1882,19 +1851,8 @@ void childDownloadCompleted(IBlock * parent,
 		   parent->common.len) 
 	    != rm->topCrc32) ) {
 	LOG(LOG_FAILURE,
-	    "FAILURE: file corrupted (or bug), "
-	    "top crc mismatch in block %d %d: "
-	    "%x != %x or %x != %x\n",
-	    parent->depth, 
-	    parent->common.pos, 
-	    crc32N(&parent->crcs[0], 
-		   sizeof(int) * parent->childcount),
-	    ((IBlockData*)parent->common.data)->crc32,
-	    crc32N(parent->common.data,
-		   parent->common.len),
-	    rm->topCrc32);
-	BREAK();
-	errexit("top CRC mismatch!\n");
+	    _("File corrupted (or bug)."));
+	GNUNET_ASSERT(0);
       }
     } /* end if no pending children */
   } /* end if top-block */
@@ -1906,101 +1864,12 @@ void childDownloadCompleted(IBlock * parent,
   }
 }
 
-#define GNUNET_URI_PREFIX_AFS "gnunet://afs/"
-
-/**
- * Converts an AFS uri to a FileIdentifier
- * FIXME: Not much error handling. Doesn't recognize
- * a namespace URL. We'd need something more general,
- * or a mechanism that recognizes uri type and routes
- * it to the right function.
- *
- * @param string the URI of a fileIdentifier
- * @returns the fileidentifier (caller must free)
- **/
-FileIdentifier * stringToFileIdentifier(char * string) {
-  FileIdentifier * fid;
-  unsigned int len;
-  size_t slen;
   
-  if (string == NULL)
-    errexit("stringToFileIdentifier called with a NULL string\n");
-  
-  slen = strlen(string);
-  len = strlen(GNUNET_URI_PREFIX_AFS);
- 
-  if( (slen < len+4*sizeof(HashCode160)+4) || 
-      (strncmp(string, 
-	       GNUNET_URI_PREFIX_AFS,
-	       len) != 0)) { 
-    LOG(LOG_ERROR,
-	"ERROR: Malformed URI to stringToFileIdentifier: %s.\n",
-	string);
-    return NULL;
-  }
-  
-  fid = MALLOC(sizeof(FileIdentifier));
-  
-  string[len+sizeof(HashCode160)*2]   = '\0';
-  string[len+sizeof(HashCode160)*4+1] = '\0';
-  if ( (OK != tryhex2hash(&string[len],
-			  &fid->chk.key)) ||
-       (OK != tryhex2hash(&string[len+2*sizeof(HashCode160)+1],
-			  &fid->chk.query)) ||
-       (2 != sscanf(&string[len+sizeof(HashCode160)*4+2],
-		    "%X.%u",
-		    &fid->crc,
-		    &slen)) ) {
-    LOG(LOG_ERROR, 
-	"ERROR: Malformed URI to stringToFileIdentifier.\n",
-	string);
-    FREE(fid);
-    return NULL;
-  }
-  len += 2*sizeof(HashCode160)+1;
-  fid->crc = htonl(fid->crc);
-  {
-    unsigned int fl = (unsigned int) slen;
-    fid->file_length = htonl(fl);
-  }
-
-  return fid;
-} 
-  
-/**
- * Convert a fileIdentifier to an URI string
- * (to display it to the user).
- *
- * @param fid identifier to convert
- * @returns string containing the url (must be freed by caller)
- **/
-char * fileIdentifierToString(FileIdentifier * fid) {
-  char * ret;
-  HexName keyhash;
-  HexName queryhash;
-    
-  hash2hex(&fid->chk.key,
-           &keyhash);
-  hash2hex(&fid->chk.query,
-           &queryhash);
-  
-  ret = MALLOC(strlen(GNUNET_URI_PREFIX_AFS)+2*sizeof(HexName)+8+16+32);
-  sprintf(ret, 
-	  "%s%s.%s.%08X.%u",
-	  GNUNET_URI_PREFIX_AFS,
-	  (char*)&keyhash,
-	  (char*)&queryhash,
-          (unsigned int) ntohl(fid->crc),
-          (unsigned int) ntohl(fid->file_length));
-	     
-  return ret;
-}
-
 /**
  * Convert a root-node to a string (to display it
  * to the user).
- **/
-char * rootNodeToString(RootNode * root) {
+ */
+char * rootNodeToString(const RootNode * root) {
   char * ret;
   char * fstring;
   char * filename;
@@ -2009,7 +1878,7 @@ char * rootNodeToString(RootNode * root) {
   case ROOT_MAJOR_VERSION:
     ret = MALLOC(1024+32);
    
-    fstring = fileIdentifierToString(&root->header.fileIdentifier);
+    fstring = createFileURI(&root->header.fileIdentifier);
 
     if (0 == strcmp(&root->header.mimetype[0],
     		    GNUNET_DIRECTORY_MIME))
@@ -2017,26 +1886,26 @@ char * rootNodeToString(RootNode * root) {
     else
       filename = STRDUP(&root->header.filename[0]);
 
-    sprintf(ret,
-	    "%s: %s of type '%s' (size %u)\n"
-	    "%s",
-	    filename,
-	    &root->header.description[0],
-	    &root->header.mimetype[0],
-	    (unsigned int) ntohl(root->header.fileIdentifier.file_length),
-            fstring);
+    SNPRINTF(ret,
+	     1024+32,
+	     _("File '%s': %s of mime-type '%s' (size %u)\n%s"),
+	     filename,
+	     &root->header.description[0],
+	     &root->header.mimetype[0],
+	     (unsigned int) ntohl(root->header.fileIdentifier.file_length),
+	     fstring);
     FREE(filename);
     FREE(fstring);
     break;
   case SBLOCK_MAJOR_VERSION: {
-    HexName hex;
+    EncName enc;
     HashCode160 ns;
     SBlock * sb = (SBlock*) root;
 
     hash(&sb->subspace,
 	 sizeof(PublicKey),
 	 &ns);
-    hash2hex(&ns, &hex);
+    hash2enc(&ns, &enc);
     ret = MALLOC(1024+32);
     
     if (0 == strcmp(&sb->mimetype[0],
@@ -2046,26 +1915,81 @@ char * rootNodeToString(RootNode * root) {
       filename = STRDUP(&sb->filename[0]);
 
     /* FIXME: add creation time & update frequency */
-    fstring = fileIdentifierToString(&sb->fileIdentifier);
-    sprintf(ret,
-	    "%s: %s of type '%s' (size %u, namespace %s)\n"
-	    "%s",
-	    filename,
-	    &sb->description[0],
-	    &sb->mimetype[0],	   
-	    (unsigned int) ntohl(sb->fileIdentifier.file_length),
-	    (char*)&hex,
-	    fstring);
+    fstring = createFileURI(&sb->fileIdentifier);
+    SNPRINTF(ret,
+	     1024+32,
+	     _("File '%s': %s of mime-type '%s'\n\tSize is %u bytes, from namespace '%s'\n\t%s"),
+	     filename,
+	     &sb->description[0],
+	     &sb->mimetype[0],	   
+	     (unsigned int) ntohl(sb->fileIdentifier.file_length),
+	     (char*)&enc,
+	     fstring);
     FREE(filename);
     FREE(fstring);
     break;
   }
+  case NBLOCK_MAJOR_VERSION: {
+    EncName enc;
+    EncName r;
+    const NBlock * sb = (const NBlock*) root;
+    HashCode160 zero;
+
+    memset(&zero, 0, sizeof(HashCode160));
+    hash2enc(&sb->namespace, &enc);
+    hash2enc(&sb->rootEntry, &r);
+    ret = MALLOC(2048);
+    
+    if (equalsHashCode160(&zero,
+			  &sb->rootEntry)) {
+      SNPRINTF(ret,
+	       2048,
+	       _("Namespace %s (called '%.*s'):\n"
+		 "\t'%.*s' with files of type '%.*s'\n"
+		 "\t(Contact: '%.*s', URI: '%.*s', owner: '%.*s')"),
+	       (char*) &enc,
+	       MAX_NAME_LEN-8,
+	       sb->nickname,
+	       MAX_DESC_LEN/2,
+	       sb->description,
+	       MAX_MIMETYPE_LEN/2,
+	       sb->mimetype,
+	       MAX_CONTACT_LEN,
+	       sb->contact,
+	       MAX_CONTACT_LEN,
+	       sb->uri,
+	       MAX_NAME_LEN,
+	       sb->realname);
+    } else {
+      SNPRINTF(ret,
+	       2048,
+	       _("Namespace %s (called '%.*s'):\n"
+		 "\t'%.*s' with files of type '%.*s'\n"
+		 "\t(Contact: '%.*s', URI: '%.*s', owner: '%.*s', root: '%s')"),
+	       (char*) &enc,
+	       MAX_NAME_LEN-8,
+	       sb->nickname,
+	       MAX_DESC_LEN/2,
+	       sb->description,
+	       MAX_MIMETYPE_LEN/2,
+	       sb->mimetype,
+	       MAX_CONTACT_LEN,
+	       sb->contact,
+	       MAX_CONTACT_LEN,
+	       sb->uri,
+	       MAX_NAME_LEN,
+	       sb->realname,
+	       (char*) &r);
+    }
+    break;
+  }
   default:
-    ret = MALLOC(strlen("Unknown format: ") + 16);
-    sprintf(ret, 
-	    "Unknown format: %d:%d",
-	    ntohs(root->header.major_formatVersion),
-	    ntohs(root->header.minor_formatVersion));
+    ret = MALLOC(64);
+    SNPRINTF(ret, 
+	     64,
+	     _("Unknown format with ID %d:%d"),
+	     ntohs(root->header.major_formatVersion),
+	     ntohs(root->header.minor_formatVersion));
     break;
   }
   return ret;
@@ -2076,8 +2000,8 @@ char * rootNodeToString(RootNode * root) {
  * 
  * @param root the node with meta-data
  * @return a copy of the description (client must free!)
- **/
-char * getDescriptionFromNode(RootNode * root) {
+ */
+char * getDescriptionFromNode(const RootNode * root) {
   switch (ntohs(root->header.major_formatVersion)) {
   case ROOT_MAJOR_VERSION:
     return STRNDUP(&root->header.description[0],
@@ -2087,8 +2011,13 @@ char * getDescriptionFromNode(RootNode * root) {
     return STRNDUP(&sb->description[0],
 		   MAX_DESC_LEN);
   }
+  case NBLOCK_MAJOR_VERSION: {
+    NBlock * sb = (NBlock*) root;
+    return STRNDUP(&sb->description[0],
+		   MAX_DESC_LEN/2);
+  }
   default:
-    return STRDUP("Unsupported node type.");
+    return STRDUP(_("Unsupported node type."));
   }
 }
 
@@ -2097,8 +2026,8 @@ char * getDescriptionFromNode(RootNode * root) {
  * 
  * @param root the node with meta-data
  * @return a copy of the mime-type (client must free!)
- **/
-char * getMimetypeFromNode(RootNode * root) {
+ */
+char * getMimetypeFromNode(const RootNode * root) {
   switch (ntohs(root->header.major_formatVersion)) {
   case ROOT_MAJOR_VERSION:
     return STRNDUP(&root->header.mimetype[0],
@@ -2108,18 +2037,24 @@ char * getMimetypeFromNode(RootNode * root) {
     return STRNDUP(&sb->mimetype[0],
 		   MAX_MIMETYPE_LEN/2);
   }
+  case NBLOCK_MAJOR_VERSION: {
+    NBlock * sb = (NBlock*) root;
+    return STRNDUP(&sb->mimetype[0],
+		   MAX_MIMETYPE_LEN/2);
+  }
   default:
-    return STRDUP("unknown");
+    return STRDUP(_("unknown"));
   }
 }
-
+ 
 /**
- * Obtain the filename from a RootNode or SBlock.
+ * Obtain the filename from a RootNode or SBlock.  For
+ * NBlocks the nickname of the namespace is returned.
  * 
  * @param root the node with meta-data
  * @return a copy of the filename (client must free!)
- **/
-char * getFilenameFromNode(RootNode * root) {
+ */
+char * getFilenameFromNode(const RootNode * root) {
   switch (ntohs(root->header.major_formatVersion)) {
   case ROOT_MAJOR_VERSION:
     return STRNDUP(&root->header.filename[0],
@@ -2129,8 +2064,13 @@ char * getFilenameFromNode(RootNode * root) {
     return STRNDUP(&sb->filename[0],
 		   MAX_FILENAME_LEN/2);
   }
+  case NBLOCK_MAJOR_VERSION: {
+    NBlock * sb = (NBlock*) root;
+    return STRNDUP(&sb->nickname[0],
+		   MAX_NAME_LEN-8);
+  }
   default:
-    return STRDUP("Unsupported node type.");
+    return STRDUP(_("Unsupported node type."));
   }
 }
 

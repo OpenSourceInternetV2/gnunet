@@ -23,7 +23,7 @@
  * @brief This module is responsible for pushing content out
  * into the network.
  * @author Christian Grothoff
- **/
+ */
 
 #include "migration.h"
 #include "manager.h"
@@ -38,24 +38,24 @@ static int stat_handle_content_pushed;
 /**
  * Semaphore on which the RCB aquire thread waits
  * if the RCB buffer is full.
- **/
+ */
 static Semaphore * aquireMoreSignal;
 
 static Semaphore * doneSignal;
 
 /**
  * Lock for the RCB buffer.
- **/
+ */
 static Mutex lock;
 
 /**
  * Buffer with pre-fetched random content for migration.
- **/
+ */
 static ContentIndex * randomContentBuffer[RCB_SIZE];
 
 /**
  * Highest index in RCB that is valid.
- **/
+ */
 static int rCBPos;
 
 static void * rcbAquire(void * unused) {
@@ -97,7 +97,7 @@ static void * rcbAquire(void * unused) {
  * randomContentBuffer (if the RCB is non-empty) and returns it.
  *
  * @return SYSERR if the RCB is empty
- **/
+ */
 static int selectMigrationContent(HostIdentity * receiver,
 				  ContentIndex * ce) {
   unsigned int dist;
@@ -135,7 +135,7 @@ static int selectMigrationContent(HostIdentity * receiver,
  * Build a CHK reply message for some content
  * selected for migration.
  * @return OK on success, SYSERR on error
- **/
+ */
 static int buildCHKReply(ContentIndex * ce,
 			 AFS_p2p_CHK_RESULT * pmsg) {
   CONTENT_Block * data;
@@ -155,10 +155,7 @@ static int buildCHKReply(ContentIndex * ce,
 		    _should be_ rare but is OK! */
     return SYSERR;
   if (ret != sizeof(CONTENT_Block)) {
-    LOG(LOG_WARNING,
-	"WARNING: buildCHKReply got unsuitable block from db (len=%d,type=%d)\n",
-	ret, 
-	ntohs(ce->type));
+    BREAK();
     FREENONNULL(data);
     return SYSERR;
   }
@@ -187,7 +184,7 @@ static int buildCHKReply(ContentIndex * ce,
  * @param padding is the number of bytes left in that buffer.
  * @return the number of bytes written to
  *   that buffer (must be a positive number).
- **/
+ */
 static int activeMigrationCallback(HostIdentity * receiver,
 				   char * position,
 				   int padding) {
@@ -223,7 +220,7 @@ void initMigration() {
 
 #if VERBOSE_STATS
   stat_handle_content_pushed
-    = statHandle("# kb content pushed out as padding");
+    = statHandle(_("# kb content pushed out as padding"));
 #endif
   memset(&randomContentBuffer,
 	 0, 
@@ -231,14 +228,11 @@ void initMigration() {
   aquireMoreSignal = SEMAPHORE_NEW(RCB_SIZE);
   doneSignal = NULL;
   MUTEX_CREATE(&lock);
-  if (0 == PTHREAD_CREATE(&gather_thread,
+  if (0 != PTHREAD_CREATE(&gather_thread,
 			  (PThreadMain)&rcbAquire,
 			  NULL,
-			  64*1024)) {
-    /* ok */
-  } else 
-    errexit("Could not create migration thread: %s\n",
-	    STRERROR(errno));
+			  64*1024)) 
+    DIE_STRERROR("pthread_create");
   coreAPI->registerSendCallback(sizeof(AFS_p2p_CHK_RESULT),
 				(BufferFillCallback)&activeMigrationCallback);
 }

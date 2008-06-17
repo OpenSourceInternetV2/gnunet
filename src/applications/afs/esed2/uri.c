@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2003 Christian Grothoff (and other contributing authors)
+     (C) 2003, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -21,513 +21,337 @@
 /**
  * @file applications/afs/module/uri.c 
  * @brief Parses and produces uri strings.
- * @author Igor Wronsky
+ * @author Igor Wronsky, Christian Grothoff
  *
- * What spaghetti ...
+ * GNUnet URIs are of the general form "gnunet://MODULE/IDENTIFIER".
+ * The specific structure of "IDENTIFIER" depends on the module and
+ * maybe differenciated into additional subcategories if applicable.
+ * <p>
+ * This module only parses URIs for the AFS module.  The AFS URIs fall
+ * into three categories.  Note that the IDENTIFIER format of the
+ * three categories is sufficiently different to not require an explicit
+ * sub-module structure; nevertheless, an optional explicit qualifier
+ * is supported.  The concrete categories are the following:
  *
- * How it works: first parse all tag/value pairs into a table. Take
- * note of the "action" type. Then call a specific parser to create 
- * the actual data structure.
+ * <ul>
+ * <li>
+ * First, there are URIs that identify a file.
+ * They have the format "gnunet://afs/[file/]HEX1.HEX2.CRC.SIZE".  These URIs
+ * can be used to download or delete files.  URIs do not specify the
+ * specific action that is to be taken, the action always comes from
+ * the specific command that is being executed, such as
+ * "gnunet-delete" or "gnunet-download".  The URI that identifies a
+ * file is also NOT used for insertion, in fact it is the RESULT of an
+ * insertion operation.  Furthermore, the description, filename,
+ * mime-type and other meta-data is NOT part of the file-URI since a
+ * URI uniquely identifies a resource (and the contents of the file
+ * would be the same if it had a different description).</li>
+ * <li>
+ * The second category identifies entries in the namespace.  The
+ * format is "gnunet://afs/[subspace/]NAMESPACE/IDENTIFIER" where the
+ * namespace must be given in HEX and the identifier can be 
+ * either an ASCII sequence or a HEX-encoding.  If the
+ * identifier is in ASCII but the format is ambiguous and
+ * could denote a HEX-string a "/" is appended to indicate
+ * ASCII encoding.  
+ * </li>
+ * <li>
+ * The third category identifies ordinary searches.  The format
+ * is "gnunet://afs/[search/]KEYWORD[+KEYWORD]*".  Using the "+" syntax
+ * it is possible to encode searches with the boolean "AND"
+ * operator.  "+" is used since it both indicates a commutative
+ * operation and helps disambiguate the query from the
+ * namespace-search.
+ * </li>
+ * </ul>
  *
- * Bugs: leaks mem if some tags except keyword or numeric tags
- * are specified more than once.
+ * The encoding for hexadecimal values is defined in the hashing.c
+ * module (EncName) in the gnunet-util library and discussed there.
+ * <p>
  *
- **/
+ */
 
 #include "gnunet_afs_esed2.h"
 #include "platform.h"
 
-#define GOT_FILENAME 	(1L<<0)
-#define GOT_NS          (1L<<1)
-#define GOT_QH          (1L<<2)
-#define GOT_KH          (1L<<3)
-#define GOT_KEYWORD     (1L<<4)
-#define GOT_SIZE        (1L<<5)
-#define GOT_CRC         (1L<<6)
-#define GOT_PSEUDONYM   (1L<<7)
-#define GOT_PASSWORD    (1L<<8)
+#define SEARCH_INFIX "search/"
+#define SUBSPACE_INFIX "subspace/"
+#define FILE_INFIX "file/"
 
-/* internal struct for tag/value pairs */
-typedef struct {
-  char * tag;
-  char * value;
-} tagTable;
-
-/* case-specific helper functions */
-static int parseDownloadURI(tagTable * tags,
-	 	            int tagcount,
- 		            generalURI ** block);
-static int parseSearchURI(tagTable * tags,
-                          int tagcount,
-		          generalURI ** block);
-static int parseInsertURI(tagTable * tags,
-                          int tagcount,
-		          generalURI ** block);
-static int parseDeleteURI(tagTable * tags,
-                          int tagcount,
-		          generalURI ** block);
 
 /**
- * Parses an AFS URI string to internal representation
- *
- * Usage:
- *   generalURI * block;
- *   parseURI(string, &block);
- *   if(block->action == URI_ACTION_DOWNLOAD) {
- *     downloadURI * bl;
- *     bl = (downloadURI *)block;
- *   ...
+ * Do the create functions generate the short URI form by default? 
+ * (otherwise the URI type is included in the URI,
+ * i.e. "gnunet://afs/search/foo").  Assuming that users want
+ * URIs that are as short as possible YES is the right choice.
+ * NO results in more verbose output.
+ */
+#define CREATE_SHORT_URIS YES
+
+
+
+/** 
+ * Parses an AFS search URI.
  *
  * @param uri an uri string
- * @param block output, the parsed values
- * @returns SYSERR on failure
- **/
-int parseURI(char * uri,
-	     generalURI ** block) 
-{
-  char * scratch;
-  char * name;
-  char * uptr;
-  char * sptr;
-  char * nptr;
-  int action;
-  tagTable * tags = NULL;
-  int tagcount = 0;
-  int ret = SYSERR;
-
-  if( uri == NULL || 
-      strlen(uri) < strlen(AFS_URI_PREFIX) ||
-      strncmp(uri, AFS_URI_PREFIX, strlen(AFS_URI_PREFIX)) !=0 )
-    return SYSERR;
-
-  scratch = MALLOC(strlen(uri));
+ * @param keyword will be set to an array with the keywords
+ * @return SYSERR if this is not a search URI, otherwise
+ *  the number of keywords placed in the array
+ */
+int parseKeywordURI(const char * uri,
+		    char *** keywords) {
+  unsigned int pos;
+  int ret;
+  int iret;
+  int i;
+  size_t slen;
+  char * dup;
+  
+  GNUNET_ASSERT(uri != NULL);
+  
+  slen = strlen(uri);
+  pos = strlen(AFS_URI_PREFIX);
  
-  /* parse action */
-  uptr = &uri[strlen(AFS_URI_PREFIX)];
-  sptr = scratch;
-  while(*uptr!='/' && *uptr!=0)
-    *sptr++=*uptr++;
-  *sptr = 0;
-  if(*uptr == 0) {
-     LOG(LOG_ERROR,
-     	 "ERROR: Premature end of URI\n");
-     FREE(scratch);
-     return SYSERR;
-  }
-  uptr++;
+  if (0 != strncmp(uri, 
+		   AFS_URI_PREFIX,
+		   pos)) 
+    return SYSERR;
+  if (0 == strncmp(&uri[pos],
+		   SEARCH_INFIX,
+		   strlen(SEARCH_INFIX)))
+    pos += strlen(SEARCH_INFIX);
+  if ( (slen == pos) || (uri[slen-1] == '+') || (uri[pos] == '+') )
+    return SYSERR; /* no keywords / malformed */
   
-  if(strcmp(scratch,"download") == 0)
-    action = URI_ACTION_DOWNLOAD;
-  else if(strcmp(scratch,"search") == 0)
-    action = URI_ACTION_SEARCH;
-  else if(strcmp(scratch,"insert") == 0)
-    action = URI_ACTION_INSERT;
-  else if(strcmp(scratch,"delete") == 0)
-    action = URI_ACTION_DELETE;
-  else {
-    LOG(LOG_ERROR,
-    	"ERROR: Unknown action in %s\n", scratch);
-    FREE(scratch);
+  ret = 1;
+  for (i=pos;i<slen;i++) {
+    if (uri[i] == '+') {
+      ret++;
+      if (uri[i-1] == '+')
+	return SYSERR; /* ++ not allowed */
+    }
+  }
+  iret = ret;
+  dup = STRDUP(uri);
+  (*keywords) = MALLOC(ret * sizeof(char*));
+  for (i=slen-1;i>=pos;i--) {
+    if (dup[i] == '+') {
+      (*keywords)[--ret] = STRDUP(&dup[i+1]);
+      dup[i] = '\0';
+    }
+  }  
+  (*keywords)[--ret] = STRDUP(&dup[pos]);
+  FREE(dup);
+  return iret;
+}
+
+/** 
+ * Parses an AFS namespace / subspace identifier URI.
+ *
+ * @param uri an uri string
+ * @param namespace set to the namespace ID
+ * @param identifier set to the ID in the namespace
+ * @return OK on success, SYSERR if this is not a namespace URI
+ */
+int parseSubspaceURI(const char * uri,
+		     HashCode160 * namespace,
+		     HashCode160 * identifier) {
+  unsigned int pos;
+  size_t slen;
+  char * up;
+  
+  GNUNET_ASSERT(uri != NULL);
+  
+  slen = strlen(uri);
+  pos = strlen(AFS_URI_PREFIX);
+ 
+  if (0 != strncmp(uri, 
+		   AFS_URI_PREFIX,
+		   pos)) 
+    return SYSERR;
+  if (0 == strncmp(&uri[pos],
+		   SUBSPACE_INFIX,
+		   strlen(SUBSPACE_INFIX)))
+    pos += strlen(SUBSPACE_INFIX);
+  if ( (slen != pos+2*sizeof(EncName)-1) ||
+       (uri[pos+sizeof(EncName)-1] != '/') )
+    return SYSERR;
+
+  up = STRDUP(uri);
+  up[pos+sizeof(EncName)-1] = '\0';
+  if ( (OK != enc2hash(&up[pos],
+		       namespace)) ||
+       (OK != enc2hash(&up[pos+sizeof(EncName)],
+		       identifier)) ) {
+    FREE(up);
     return SYSERR;
   }
+  FREE(up);
+  return OK;
+}
 
-  /* parse all tags to a tagTable */
-  name = MALLOC(strlen(uri));
-  while(*uptr != 0) {
-    nptr = name;
-
-    /* get the tag */
-    while(*uptr != '=' && *uptr != 0)
-      *nptr++=*uptr++;
-    *nptr=0;
-    if(*uptr==0) {
-      FREE(scratch);
-      FREE(name);
-      LOG(LOG_ERROR,
-      	  "ERROR: Premature end of tag/name pair (1)\n");
-      return SYSERR;
-    }
-    uptr++;
-    
-    /* get the value */
-    sptr = scratch;
-    while(*uptr != '?' && *uptr != 0)
-      *sptr++=*uptr++;
-    *sptr=0;
-    if(sptr == scratch) {
-      LOG(LOG_ERROR,
-	  "ERROR: Missing value for tag %s\n", name);
-      FREE(scratch);
-      FREE(name);
-      return SYSERR;
-    }
-
-    GROW(tags,
-         tagcount,
-	 tagcount+1);
-    tags[tagcount-1].tag = STRDUP(name);
-    tags[tagcount-1].value = STRDUP(scratch);
-    
-    if(*uptr==0)
-      break;
-    else
-      uptr++;
-  }
+/** 
+ * Parses an URI that identifies a file
+ *
+ * @param uri an uri string
+ * @param fi the file identifier
+ * @return OK on success, SYSERR if this is not a file URI
+ */
+int parseFileURI(const char * uri,
+		 FileIdentifier * fi) {
+  unsigned int pos;
+  size_t slen;
+  char * dup;
   
-  FREE(name);
-  FREE(scratch);
-
-  switch(action) {
-    case URI_ACTION_DOWNLOAD:
-      ret = parseDownloadURI(tags,tagcount,block);
-      break;
-    case URI_ACTION_SEARCH:
-      ret = parseSearchURI(tags,tagcount,block);
-      break;
-    case URI_ACTION_INSERT:
-      ret = parseInsertURI(tags,tagcount,block);
-      break;
-    case URI_ACTION_DELETE:
-      ret = parseDeleteURI(tags,tagcount,block);
-      break;
-    default:
-      break;
-  }
-
-  FREE(tags);
+  GNUNET_ASSERT(uri != NULL);
   
+  slen = strlen(uri);
+  pos = strlen(AFS_URI_PREFIX);
+ 
+  if (0 != strncmp(uri, 
+		   AFS_URI_PREFIX,
+		   pos)) 
+    return SYSERR;
+  if (0 == strncmp(&uri[pos],
+		   FILE_INFIX,
+		   strlen(FILE_INFIX)))
+    pos += strlen(FILE_INFIX);
+  if ( (slen < pos+2*sizeof(EncName)+2) ||
+       (uri[pos+sizeof(EncName)-1] != '.') ||
+       (uri[pos+sizeof(EncName)*2-1] != '.') ) 
+    return SYSERR;
+
+  dup = STRDUP(uri);
+  dup[pos+sizeof(EncName)-1]   = '\0';
+  dup[pos+sizeof(EncName)*2-1] = '\0';
+  if ( (OK != enc2hash(&dup[pos],
+		       &fi->chk.key)) ||
+       (OK != enc2hash(&dup[pos+sizeof(EncName)],
+		       &fi->chk.query)) ||
+       (2 != sscanf(&dup[pos+sizeof(EncName)*2],
+		    "%X.%u",
+		    &fi->crc,
+		    &fi->file_length)) ) {
+    FREE(dup);
+    return SYSERR;  
+  }
+  FREE(dup);
+  fi->crc = htonl(fi->crc);
+  fi->file_length = htonl(fi->file_length);
+  return OK;
+}
+
+/**
+ * Generate a keyword URI.
+ * @return NULL on error (i.e. keywordCount == 0)
+ */
+char * createKeywordURI(char ** keywords,
+			unsigned int keywordCount) {
+  size_t n;
+  char * ret;
+  unsigned int i;
+
+#if CREATE_SHORT_URIS
+  n = keywordCount + strlen(AFS_URI_PREFIX);
+#else
+  n = keywordCount + strlen(AFS_URI_PREFIX) + strlen(SEARCH_INFIX);
+#endif
+  for (i=0;i<keywordCount;i++)
+    n += strlen(keywords[i]);
+  ret = MALLOC(n);
+  strcpy(ret, AFS_URI_PREFIX);
+#if CREATE_SHORT_URIS
+#else
+  strcat(ret, SEARCH_INFIX);
+#endif
+  for (i=0;i<keywordCount;i++) {
+    strcat(ret, keywords[i]);
+    if (i != keywordCount-1)
+      strcat(ret, "+");
+  }
   return ret;
 }
 
-static int parseDownloadURI(tagTable * tags,
-  		            int tagcount,
-		            generalURI ** block) {
-    int i;
-    int gotmask=0;
-    char * tag;
-    char * value;
-    downloadURI * ret;
+/**
+ * Generate a subspace URI.
+ */ 
+char * createSubspaceURI(const HashCode160 * namespace,
+			 const HashCode160 * identifier) {
+  size_t n;
+  char * ret;
+  EncName ns;
+  EncName id;
 
-    ret = MALLOC(sizeof(downloadURI));
-    ret->action = URI_ACTION_DOWNLOAD;
-
-    for(i=0;i<tagcount;i++) {
-      tag=tags[i].tag;
-      value=tags[i].value;
-
-      if(strcmp(tag, "filename") == 0) {
-        ret->filename = STRDUP(value);
-	gotmask |= GOT_FILENAME;
-      }
-      else if(strcmp(tag, "kh") == 0) {
-        hex2hash((HexName*)value,
-                 &ret->fid.chk.key);
-	gotmask |= GOT_KH;
-      }
-      else if(strcmp(tag, "qh") == 0) {
-        hex2hash((HexName*)value,
-                 &ret->fid.chk.query);
-	gotmask |= GOT_QH;
-      }
-      else if(strcmp(tag, "size") == 0) {
-	unsigned int sval;
-        sscanf(value, 
-	       "%u", 
-	       &sval);
-	ret->fid.file_length = (unsigned int) htonl(sval);
-	gotmask |= GOT_SIZE;
-      }
-      else if(strcmp(tag, "crc") == 0) {
-        sscanf(value, "%X", &ret->fid.crc);
-	ret->fid.crc = htonl(ret->fid.crc);
-	gotmask |= GOT_CRC;
-      }
-      else {
-        LOG(LOG_WARNING,
-      	    "WARNING: Unknown tag %s in download context\n", 
-	    tag);
-      }
-    } 
- 
-    if(! (gotmask & GOT_CRC) ||
-       ! (gotmask & GOT_KH) ||
-       ! (gotmask & GOT_QH) ||
-       ! (gotmask & GOT_SIZE) ) {
-      LOG(LOG_ERROR,
-      	  "ERROR: Insufficient tags for download\n");
-      FREE(ret);
-      return SYSERR;
-    }
-
-    *block = (generalURI *)ret;
-
-    return OK;
-}
-
-static int parseSearchURI(tagTable * tags,
- 	  	          int tagcount,
-		          generalURI ** block) {
-    int i;
-    int gotmask=0;
-    char * tag;
-    char * value;
-    searchURI * ret;
-
-    ret = MALLOC(sizeof(searchURI));
-    ret->action = URI_ACTION_SEARCH;
-
-    for(i=0;i<tagcount;i++) {
-      tag = tags[i].tag;
-      value = tags[i].value;
-
-      if(strcmp(tag, "namespace") == 0) {
-        ret->namespace = MALLOC(sizeof(HashCode160));
-        if (SYSERR == tryhex2hash(value,
-      		  		  ret->namespace)) {
-          LOG(LOG_ERROR,
-              "ERROR: namespace is not in HEX format\n");
-	  return SYSERR;
-        }
-	gotmask |= GOT_NS;
-      }
-      /* namespace keyhash identifier */
-      /* FIXME: either keywords or kh is redundant */
-      else if(strcmp(tag, "kh") == 0) {
-        ret->keyhash = MALLOC(sizeof(HashCode160));
-        if (SYSERR == tryhex2hash(value,
-        		          ret->keyhash)) {
-          LOG(LOG_DEBUG,
-              "DEBUG: namespace ID is not in HEX format, using hash of ASCII text (%s).\n",
-	      value);
-  	  hash(value, strlen(value), ret->keyhash);
-        }
-        gotmask |= GOT_KH;
-      }
-      else if(strcmp(tag, "keyword") == 0) {
-        GROW(ret->keywords,
-      	     ret->keycount,
-	     ret->keycount+1);
-        ret->keywords[ret->keycount-1] = STRDUP(value);
-	gotmask |= GOT_KEYWORD;
-      }
-      else {
-        LOG(LOG_WARNING,
-      	    "WARNING: Unknown tag name %s in search context\n", 
-	    tag);
-      }
-    }
-  
-    if(! (gotmask & GOT_KEYWORD) ) {
-      LOG(LOG_ERROR,
-      	  "ERROR: Insufficient tags for search\n");
-      FREE(ret);
-      return SYSERR;
-    }
-
-    *block = (generalURI *)ret;
-
-    return OK;
-}
-
-static int parseInsertURI(tagTable * tags,
- 	  	          int tagcount,
-		          generalURI ** block) {
-    int i;
-    int gotmask=0;
-    char * tag;
-    char * value;
-    insertURI * ret;
-
-    ret = MALLOC(sizeof(insertURI));
-    ret->action = URI_ACTION_INSERT;
-
-    for(i=0;i<tagcount;i++) {
-      tag = tags[i].tag;
-      value = tags[i].value;
-
-      if(strcmp(tag, "filename") == 0) {
-        ret->filename = STRDUP(value);
- 	gotmask |= GOT_FILENAME;
-      }
-      else if(strcmp(tag, "pseudonym") == 0) {
-        ret->pseudonym = STRDUP(value);
-        gotmask |= GOT_PSEUDONYM;
-      }
-      else if(strcmp(tag, "password") == 0) {
-        ret->password = STRDUP(value);
-        gotmask |= GOT_PASSWORD;
-      } 
-      else {
-        LOG(LOG_WARNING,
-      	    "WARNING: Unknown tag name %s in search context\n", 
-	    tag);
-      }
-    }
-  
-    if(! (gotmask & GOT_FILENAME) ) {
-      LOG(LOG_ERROR,
-     	  "ERROR: Insufficient tags for insert\n");
-      FREE(ret);
-      return SYSERR;
-    }
-
-    *block = (generalURI *)ret;
-
-    return OK;
-}
-
-static int parseDeleteURI(tagTable * tags,
- 	  	          int tagcount,
-		          generalURI ** block) {
-    int i;
-    int gotmask=0;
-    char * tag;
-    char * value;
-    deleteURI * ret;
-
-    ret = MALLOC(sizeof(insertURI));
-    ret->action = URI_ACTION_DELETE;
-
-    for(i=0;i<tagcount;i++) {
-      tag = tags[i].tag;
-      value = tags[i].value;
-
-      if(strcmp(tag, "filename") == 0) {
-        ret->filename=STRDUP(value);
- 	gotmask |= GOT_FILENAME;
-      }
-      else {
-        LOG(LOG_WARNING,
-      	    "WARNING: Unknown tag name %s in search context\n", 
-	    tag);
-      }
-    }
-  
-  if(! (gotmask & GOT_FILENAME) ) {
-    LOG(LOG_ERROR,
-    	"ERROR: Insufficient tags for delete\n");
-    FREE(ret);
-    return SYSERR;
-  }
-
-  *block = (generalURI *)ret;
-
-  return OK;
+#if CREATE_SHORT_URIS
+  n = sizeof(EncName) * 2 + strlen(AFS_URI_PREFIX) + 1; 
+#else
+  n = sizeof(EncName) * 2 + strlen(AFS_URI_PREFIX) + strlen(SUBSPACE_INFIX) + 1;
+#endif
+  ret = MALLOC(n);
+  hash2enc(namespace, &ns);
+  hash2enc(identifier, &id);  
+#if CREATE_SHORT_URIS
+  SNPRINTF(ret, n,
+	   "%s%s/%s",
+	   AFS_URI_PREFIX,
+	   (char*) &ns,
+	   (char*) &id);
+#else
+  SNPRINTF(ret, n,
+	   "%s%s%s/%s",
+	   AFS_URI_PREFIX,
+	   SUBSPACE_INFIX,
+	   (char*) &ns,
+	   (char*) &id);
+#endif
+  return ret;
 }
 
 /**
- * Turns an internal representation into an AFS uri string
- *
- * @param block the values to print
- * @param uri, output
- * @returns SYSERR on failure
- **/
-int produceURI(generalURI * block,
-               char ** uri)
-{
-  HexName hex;
-  char scratch[512];
-  char * resptr;
-  int i;
+ * Generate a file URI.
+ */ 
+char * createFileURI(const FileIdentifier * fi) {
+  char * ret;
+  EncName keyhash;
+  EncName queryhash;  
+  size_t n;
+    
+  hash2enc(&fi->chk.key,
+           &keyhash);
+  hash2enc(&fi->chk.query,
+           &queryhash);
 
-  if(!block) {
-    LOG(LOG_ERROR,
-        "ERROR: NULL block passed to produceURI()");
-    return SYSERR;
-  }
-  
-  *uri = MALLOC(1024);
-  resptr = *uri;
-  *resptr = 0;
-  strcat(resptr, AFS_URI_PREFIX);
-
-  switch(block->action) {
-    case URI_ACTION_DOWNLOAD:
-    {
-      downloadURI * bl;
-      
-      bl = (downloadURI *)block;
-      strcat(resptr, "download/");
-      hash2hex(&bl->fid.chk.key,
-               &hex);
-      sprintf(scratch, "kh=%s?", (char*)&hex);
-      strcat(resptr, scratch);
-      hash2hex(&bl->fid.chk.query,
-      	       &hex);
-      sprintf(scratch, "qh=%s?", (char*)&hex);
-      strcat(resptr, scratch);
-      sprintf(scratch, 
-	      "size=%u?crc=%X?", 
-              (unsigned int) ntohl(bl->fid.file_length),
-              (unsigned int) ntohl(bl->fid.crc));
-      strcat(resptr, scratch);
-      if(bl->filename != NULL) {
-        strcat(resptr,bl->filename);
-        strcat(resptr, "?");
-      }
-    }
-    break;
-    case URI_ACTION_SEARCH:
-    {
-      searchURI * bl;
-      
-      bl = (searchURI *)block;
-      strcat(resptr, "search/");
-      if(bl->namespace != NULL) {
-         hash2hex(bl->namespace, 
-                  &hex);
-         sprintf(scratch, "ns=%s?", (char*)&hex);
-         strcat(resptr, scratch);
-      }
-      if(bl->keyhash != NULL) {
-         hash2hex(bl->keyhash,
-    	          &hex);
-        sprintf(scratch, "kh=%s?", (char*)&hex);
-        strcat(resptr, scratch);
-      }
-      for(i=0;i<bl->keycount;i++) {
-        sprintf(scratch, "keyword=%s?", bl->keywords[i]);
-        strcat(resptr,scratch);
-      }    
-    }
-    break;
-    case URI_ACTION_INSERT:
-    {
-      insertURI * bl;
-      
-      bl = (insertURI *)block;
-      strcat(resptr, "insert/");
-      if(bl->filename != NULL) {
-        strcat(resptr,bl->filename);
-        strcat(resptr, "?");
-      }
-    }
-    break;
-    case URI_ACTION_DELETE:
-    {
-      deleteURI * bl;
-      
-      bl = (deleteURI *)block;
-      strcat(resptr, "delete/");
-      if(bl->filename != NULL) {
-        strcat(resptr,bl->filename);
-        strcat(resptr, "?");
-      }
-    } 
-    break;
-    default:
-      FREE(*uri);
-      LOG(LOG_ERROR,
-      	  "ERROR: Unknown action %d\n", block->action);
-      return SYSERR;
-    break;
-  }
- 
-  if(resptr[strlen(resptr)-1]=='?')
-    resptr[strlen(resptr)-1]=0;
-
-  return OK;
+#if CREATE_SHORT_URIS
+  n = strlen(AFS_URI_PREFIX)+2*sizeof(EncName)+8+16+32;
+#else
+  n = strlen(AFS_URI_PREFIX)+2*sizeof(EncName)+8+16+32+strlen(FILE_INFIX);
+#endif
+  ret = MALLOC(n);
+#if CREATE_SHORT_URIS
+  SNPRINTF(ret, 
+	   n,
+	   "%s%s.%s.%08X.%u",
+	   AFS_URI_PREFIX,
+	   (char*)&keyhash,
+	   (char*)&queryhash,
+	   ntohl(fi->crc),
+	   ntohl(fi->file_length));	     
+#else
+  SNPRINTF(ret, 
+	   n,
+	   "%s%s%s.%s.%08X.%u",
+	   AFS_URI_PREFIX,
+	   FILE_INFIX,
+	   (char*)&keyhash,
+	   (char*)&queryhash,
+	   ntohl(fi->crc),
+	   ntohl(fi->file_length));	     
+#endif
+  return ret;
 }
+
+
+
 
 /* end of uri.c */
 

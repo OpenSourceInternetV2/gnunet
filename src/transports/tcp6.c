@@ -21,7 +21,7 @@
  * @file transports/tcp6.c
  * @brief Implementation of the TCP6 transport service over IPv6
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_util.h"
 #include "gnunet_transport.h"
@@ -32,136 +32,136 @@
 /**
  * after how much time of the core not being associated with a tcp6
  * connection anymore do we close it? 
- **/
+ */
 #define TCP6_TIMEOUT 30 * cronSECONDS
 
 /**
  * @brief Host-Address in a TCP6 network.
- **/
+ */
 typedef struct {
   /**
    * claimed IP of the sender, network byte order 
-   **/  
+   */  
   IP6addr ip;
 
   /**
    * claimed port of the sender, network byte order 
-   **/
+   */
   unsigned short port; 
 
   /**
    * reserved (set to 0 for signature verification) 
-   **/
+   */
   unsigned short reserved; 
 
 } Host6Address;
 
 /**
  * @brief TCP6 Message-Packet header. 
- **/
+ */
 typedef struct {
   /**
    * size of the message, in bytes, including this header; 
    * max 65536-header (network byte order) 
-   **/
+   */
   unsigned short size;
 
   /**
    * reserved, must be 0 (network byte order) 
-   **/
+   */
   unsigned short isEncrypted;
 
   /**
    * CRC checksum of the packet  (network byte order)
-   **/ 
+   */ 
   int checkSum;
   
   /**
    * This struct is followed by MESSAGE_PARTs - until size is reached 
    * There is no "end of message".
-   **/
+   */
   p2p_HEADER parts[0];
 } TCP6MessagePack;
 
 /**
  * Initial handshake message. Note that the beginning
  * must match the CS_HEADER since we are using tcp6io.
- **/
+ */
 typedef struct {
   /**
    * size of the handshake message, in nbo, value is 24 
-   **/    
+   */    
   unsigned short size;
 
   /**
    * "message type", TCP6 version number, always 0.
-   **/
+   */
   unsigned short version;
 
   /**
    * Identity of the node connecting (TCP6 client) 
-   **/
+   */
   HostIdentity clientIdentity;
 } TCP6Welcome;
 
 /**
  * @brief TCP6 Transport Session handle.
- **/
+ */
 typedef struct {
   /**
    * the tcp6 socket 
-   **/
+   */
   int sock;
 
   /**
    * number of users of this session 
-   **/
+   */
   int users;
 
   /**
    * Last time this connection was used
-   **/
+   */
   cron_t lastUse;
 
   /**
    * mutex for synchronized access to 'users' 
-   **/
+   */
   Mutex lock;
 
   /**
    * To whom are we talking to (set to our identity
    * if we are still waiting for the welcome message)
-   **/
+   */
   HostIdentity sender;
 
   /**
    * Are we still expecting the welcome? (YES/NO)
-   **/
+   */
   int expectingWelcome;
 
   /**
    * Current read position in the buffer.
-   **/
+   */
   unsigned int pos;  
 
   /**
    * Current size of the buffer.
-   **/
+   */
   unsigned int size;
 
   /**
    * The read buffer.
-   **/
+   */
   char * rbuff;
 
   /**
    * Position in the write buffer
-   **/
+   */
   unsigned int wpos;
 
   /**
    * The write buffer.
-   **/
+   */
   char * wbuff;
 
 } TCP6Session;
@@ -170,39 +170,39 @@ typedef struct {
 
 /**
  * apis (our advertised API and the core api ) 
- **/
+ */
 static CoreAPIForTransport * coreAPI;
 static TransportAPI tcp6API;
 
 /**
  * one thread for listening for new connections,
  * and for reading on all open sockets 
- **/
+ */
 static PTHREAD_T listenThread;
 
 /**
  * sock is the tcp6 socket that we listen on for new inbound
  * connections.
- **/
+ */
 static int tcp6_sock;
 
 /**
  * tcp6_pipe is used to signal the thread that is
  * blocked in a select call that the set of sockets to listen
  * to has changed.
- **/
+ */
 static int tcp6_pipe[2];
 
 /**
  * Array of currently active TCP6 sessions. 
- **/
+ */
 static TSession ** tsessions = NULL;
 static int tsessionCount;
 static int tsessionArrayLength;
 
 /**
  * handles for statistics 
- **/
+ */
 static int stat_octets_total_tcp6_in;
 static int stat_octets_total_tcp6_out;
 
@@ -220,14 +220,14 @@ static CIDR6Network * filteredNetworks_;
  * every access point since adding new elements does not
  * prevent the select thread from operating and removing
  * is done by the only therad that reads from the array.
- **/
+ */
 static Mutex tcp6lock;
 
 /**
  * Semaphore used by the server-thread to signal that
  * the server has been started -- and later again to
  * signal that the server has been stopped.
- **/
+ */
 static Semaphore * serverSignal = NULL;
 static int tcp6_shutdown = YES;
 
@@ -235,7 +235,7 @@ static int tcp6_shutdown = YES;
 
 /**
  * Check if we are allowed to connect to the given IP.
- **/
+ */
 static int isBlacklisted(IP6addr * ip) {
   int ret;
 
@@ -249,20 +249,18 @@ static int isBlacklisted(IP6addr * ip) {
 /**
  * Write to the pipe to wake up the select thread (the set of
  * files to watch has changed).
- **/
+ */
 static void signalSelect() {
   char i = 0;
   int ret;
 
   LOG(LOG_DEBUG,
-      "DEBUG: signaling select\n");
+      "Signaling select.\n");
   ret = WRITE(tcp6_pipe[1],
 	      &i,
 	      sizeof(char));
   if (ret != sizeof(char))
-      LOG(LOG_ERROR,
-	  "ERROR: write to tcp6 pipe (signalSelect) failed: %s\n",
-	  STRERROR(errno));
+    LOG_STRERROR(LOG_ERROR, "write");
 }
 
 /**
@@ -274,7 +272,7 @@ static void signalSelect() {
  *
  * @param tsession the session that is closed
  * @return OK on success, SYSERR if the operation failed
- **/
+ */
 static int tcp6Disconnect(TSession * tsession) {
   if (tsession->internal != NULL) {
     TCP6Session * tcp6session = tsession->internal;
@@ -307,7 +305,7 @@ static int tcp6Disconnect(TSession * tsession) {
  * held.
  *
  * @param i index to the session handle
- **/
+ */
 static void destroySession(int i) {  
   TCP6Session * tcp6Session;
 
@@ -315,7 +313,7 @@ static void destroySession(int i) {
   if (-1 != tcp6Session->sock)
     if (0 != SHUTDOWN(tcp6Session->sock, SHUT_RDWR))
       LOG(LOG_EVERYTHING,
-	  "EVERYTHING: error shutting down socket %d: %s\n",
+	  "Error shutting down socket %d: %s\n",
 	  tcp6Session->sock,
 	  STRERROR(errno));
   CLOSE(tcp6Session->sock);
@@ -329,7 +327,7 @@ static void destroySession(int i) {
  * Get the GNUnet UDP port from the configuration,
  * or from /etc/services if it is not specified in 
  * the config file.
- **/
+ */
 static unsigned short getGNUnetTCP6Port() {
   struct servent * pse;	/* pointer to service information entry	*/
   unsigned short port;
@@ -361,15 +359,11 @@ static unsigned short getGNUnetTCP6Port() {
  *   layer
  * @return OK if the session could be associated,
  *         SYSERR if not.
- **/
+ */
 static int tcp6Associate(TSession * tsession) {
   TCP6Session * tcp6Session;
 
-  if (tsession == NULL) {
-    LOG(LOG_FAILURE,
-	"FAILURE: assertFailed: tcp6Associate called with tsession NULL\n");
-    return SYSERR;
-  }
+  GNUNET_ASSERT(tsession != NULL);
   tcp6Session = (TCP6Session*) tsession->internal;
   MUTEX_LOCK(&tcp6Session->lock);
   tcp6Session->users++;
@@ -382,7 +376,7 @@ static int tcp6Associate(TSession * tsession) {
  * 
  * This function may only be called if the tcp6lock is
  * already held by the caller.
- **/
+ */
 static int readAndProcess(int i) {
   TSession * tsession;
   TCP6Session * tcp6Session;
@@ -403,7 +397,7 @@ static int readAndProcess(int i) {
     tcp6Disconnect(tsession);
 #if DEBUG_TCP6
     LOG(LOG_DEBUG,
-	"DEBUG: READ on socket %d returned 0 bytes, closing connection\n",
+	"READ on socket %d returned 0 bytes, closing connection\n",
 	tcp6Session->sock);
 #endif
     return SYSERR; /* other side closed connection */
@@ -413,7 +407,7 @@ static int readAndProcess(int i) {
 	 (errno == EAGAIN) ) { 
 #if DEBUG_TCP6
       LOG(LOG_DEBUG,
-	  "DEBUG: READ on socket %d returned %s, closing connection\n",
+	  "READ on socket %d returned %s, closing connection\n",
 	  tcp6Session->sock,
 	  STRERROR(errno));
 #endif
@@ -422,7 +416,7 @@ static int readAndProcess(int i) {
     }
 #if DEBUG_TCP6
     LOG(LOG_INFO,
-	"INFO: read failed on peer tcp6 connection (%d), closing (%s).\n",
+	"Read failed on peer tcp6 connection (%d), closing (%s).\n",
 	ret,
 	STRERROR(errno));
 #endif
@@ -440,7 +434,7 @@ static int readAndProcess(int i) {
 	 len);
 #if DEBUG_TCP6
   LOG(LOG_DEBUG,
-      "DEBUG: Read %d bytes on socket %d, expecting %d for full message\n",
+      "Read %d bytes on socket %d, expecting %d for full message\n",
       tcp6Session->pos,
       tcp6Session->sock, 
       len);
@@ -455,16 +449,14 @@ static int readAndProcess(int i) {
   if (YES == tcp6Session->expectingWelcome) {
     TCP6Welcome * welcome;
 #if DEBUG_TCP6
-    HexName hex;
+    EncName hex;
 #endif
     
     welcome = (TCP6Welcome*) &tcp6Session->rbuff[0];
     if ( (ntohs(welcome->version) != 0) ||
 	 (ntohs(welcome->size) != sizeof(TCP6Welcome)) ) {
       LOG(LOG_WARNING,
-	  "WARNING: expected welcome on tcp6 connection, got garbage (%d, %d). Closing.\n",
-	  ntohs(welcome->version),
-	  ntohs(welcome->size));
+	  _("Expected welcome message on tcp connection, got garbage. Closing.\n"));
       tcp6Disconnect(tsession);
       return SYSERR;
     }
@@ -474,11 +466,11 @@ static int readAndProcess(int i) {
 	   sizeof(HostIdentity));     
 #if DEBUG_TCP6
     IFLOG(LOG_DEBUG,
-	  hash2hex(&tcp6Session->sender.hashPubKey,
-		   &hex));
+	  hash2enc(&tcp6Session->sender.hashPubKey,
+		   &enc));
     LOG(LOG_DEBUG,
-	"DEBUG: tcp6 welcome message from %s received\n",
-	&hex);
+	"tcp6 welcome message from %s received\n",
+	&enc);
 #endif
     memmove(&tcp6Session->rbuff[0],
 	    &tcp6Session->rbuff[sizeof(TCP6Welcome)],
@@ -496,7 +488,7 @@ static int readAndProcess(int i) {
   /* send msg to core! */
   if (len <= sizeof(TCP6MessagePack)) {
     LOG(LOG_WARNING,
-	"WARNING: received malformed message from tcp6-peer connection. Closing.\n");
+	_("Received malformed message from tcp6-peer connection. Closing connection.\n"));
     tcp6Disconnect(tsession);
     return SYSERR;
   }
@@ -514,15 +506,13 @@ static int readAndProcess(int i) {
   mp->tsession    = tsession;
 #if DEBUG_TCP6
   LOG(LOG_DEBUG,
-      "DEBUG: tcp6 transport received %d bytes, forwarding to core\n",
+      "tcp6 transport received %d bytes, forwarding to core\n",
       mp->size);
 #endif
   coreAPI->receive(mp);
 
   if (tcp6Session->pos < len) { 
-    LOG(LOG_FAILURE,
-	"FAILURE: assert failed, pos (%d) < len (%d)\n",
-	tcp6Session->pos, len);
+    BREAK();
     tcp6Disconnect(tsession);
     return SYSERR;
   }
@@ -542,7 +532,7 @@ static int readAndProcess(int i) {
  * with the return value, it must have the lock on tcp6lock before
  * calling.  It is ok to call this function without holding tcp6lock if
  * the return value is ignored.
- **/
+ */
 static int addTSession(TSession * tsession) {
   int i;
 
@@ -561,7 +551,7 @@ static int addTSession(TSession * tsession) {
  * Create a new session for an inbound connection on the given
  * socket. Adds the session to the array of sessions watched
  * by the select thread.
- **/
+ */
 static void createNewSession(int sock) {
   TSession * tsession;
   TCP6Session * tcp6Session;
@@ -594,7 +584,7 @@ static void createNewSession(int sock) {
  * core. This thread waits for activity on any of the TCP6 connections
  * and processes deferred (async) writes and buffers reads until an
  * entire message has been received.
- **/
+ */
 static void * tcp6ListenMain() {
   struct sockaddr_in6 clientAddr;
   fd_set readSet;
@@ -608,9 +598,7 @@ static void * tcp6ListenMain() {
   
   if (tcp6_sock != -1)
     if (0 != LISTEN(tcp6_sock, 5)) 
-      LOG(LOG_ERROR,
-	  "ERROR: listen (tcp6) failed (%s)\n",
-	  STRERROR(errno));
+      LOG_STRERROR(LOG_ERROR, "listen");
   SEMAPHORE_UP(serverSignal); /* we are there! */
   MUTEX_LOCK(&tcp6lock);
   while (tcp6_shutdown == NO) {
@@ -623,23 +611,17 @@ static void * tcp6ListenMain() {
 	FD_SET(tcp6_sock, &writeSet);
 	FD_SET(tcp6_sock, &errorSet);
       } else {
-	LOG(LOG_ERROR,
-	    "ERROR: tcp6_sock %d invalid: %s\n",
-	    tcp6_sock,
-	    STRERROR(errno));
+	LOG_STRERROR(LOG_ERROR, "isSocketValid");
 	tcp6_sock = -1; /* prevent us from error'ing all the time */
       }
     } else
       LOG(LOG_DEBUG,
-	  "DEBUG: TCP6 server socket not open!\n");
+	  "TCP6 server socket not open!\n");
     if (tcp6_pipe[0] != -1) {
       if (-1 != FSTAT(tcp6_pipe[0], &buf)) {
 	FD_SET(tcp6_pipe[0], &readSet);
       } else {
-	LOG(LOG_ERROR,
-	    "ERROR: tcp6_pipe %d invalid: %s\n",
-	    tcp6_pipe[0],
-	    STRERROR(errno));
+	LOG_STRERROR(LOG_ERROR, "fstat");
 	tcp6_pipe[0] = -1; /* prevent us from error'ing all the time */	
       }
     }
@@ -656,42 +638,31 @@ static void * tcp6ListenMain() {
 	  if (tcp6Session->wpos > 0)
 	    FD_SET(sock, &writeSet); /* do we have a pending write request? */
 	} else {
-	  LOG(LOG_ERROR,
-	      "ERROR: sock %d of session %d invalid: %s -- closing.\n",	      
-	      sock, 
-	      i,
-	      STRERROR(errno));
+	  LOG_STRERROR(LOG_ERROR, "isSocketValid");
 	  destroySession(i);
 	}
       } else {
-	LOG(LOG_ERROR,
-	    "ERROR: assertion failed: socket in tsessions array %d is -1 (%s:%d) -- closing.\n",
-	    i,
-	    __FILE__, 
-	    __LINE__);
+	BREAK();
 	destroySession(i);
       }
       if (sock > max)
 	max = sock;
     }    
     LOG(LOG_DEBUG,
-	"DEBUG: blocking on select!\n");
+	"Blocking on select!\n");
     MUTEX_UNLOCK(&tcp6lock);
     ret = SELECT(max+1, &readSet, &writeSet, &errorSet, NULL);    
     MUTEX_LOCK(&tcp6lock);
     LOG(LOG_DEBUG,
-	"DEBUG: select returned!\n");
+	"Select returned!\n");
     if ( (ret == -1) &&
 	 ( (errno == EAGAIN) || (errno == EINTR) ) ) 
       continue;    
     if (ret == -1) {
       if (errno == EBADF) {
-	LOG(LOG_ERROR,
-	    "ERROR: %s in select.\n",
-	    STRERROR(errno));
+	LOG_STRERROR(LOG_ERROR, "select");
       } else {
-	errexit("FATAL: unexpected error in select: %s (that's the end)\n",
-		STRERROR(errno));
+	DIE_STRERROR("select");
       }
     }
     if (tcp6_sock != -1) {
@@ -699,7 +670,7 @@ static void * tcp6ListenMain() {
 	int sock;
 	
 	LOG(LOG_DEBUG,
-	    "DEBUG: accepting inbound connection\n");
+	    "accepting inbound connection\n");
 	lenOfIncomingAddr = sizeof(clientAddr);               
 	sock = ACCEPT(tcp6_sock, 
 		      (struct sockaddr *)&clientAddr, 
@@ -708,13 +679,11 @@ static void * tcp6ListenMain() {
 	  /* verify clientAddr for eligibility here (ipcheck-style,
 	     user should be able to specify who is allowed to connect,
 	     otherwise we just close and reject the communication! */  	  
-	  if (sizeof(struct in6_addr) != sizeof(IP6addr))
-	    errexit("FATAL: assertion failed at %s:%d\n",
-		    __FILE__, __LINE__);
+	  GNUNET_ASSERT(sizeof(struct in6_addr) == sizeof(IP6addr));
 	  if (YES == isBlacklisted((IP6addr*)&clientAddr.sin6_addr)) {
 	    char * tmp = MALLOC(INET6_ADDRSTRLEN);
 	    LOG(LOG_INFO,
-		"INFO: Rejected blacklisted connection from %s.\n",
+		_("Rejected blacklisted connection from address %s.\n"),
 		inet_ntop(AF_INET6,
 			  &clientAddr,
 			  tmp,
@@ -725,9 +694,7 @@ static void * tcp6ListenMain() {
 	  } else 
 	    createNewSession(sock);      
 	} else {
-	  LOG(LOG_INFO,
-	      "INFO: P2P TCP6 server accept failed: %s\n",
-	      STRERROR(errno));
+	  LOG_STRERROR(LOG_INFO, "accept");
 	}
       }
     }
@@ -741,9 +708,7 @@ static void * tcp6ListenMain() {
       if (0 >= READ(tcp6_pipe[0], 
 		    &buf[0], 
 		    MAXSIG_BUF)) {
-	LOG(LOG_WARNING,
-	    "WARNING: reading signal on TCP6 pipe failed (%s)\n",
-	    STRERROR(errno));
+	LOG_STRERROR(LOG_WARNING, "read");
       }
     }
     for (i=0;i<tsessionCount;i++) {
@@ -763,11 +728,7 @@ static void * tcp6ListenMain() {
 			       tcp6Session->wbuff,
 			       tcp6Session->wpos);
 	if (ret == SYSERR) {
-	  LOG(LOG_WARNING,
-	      "WARNING: send failed on socket %d (%s), closing session %d.\n",
-	      sock, 
-	      STRERROR(errno),
-	      i);
+	  LOG_STRERROR(LOG_WARNING, "send");
 	  destroySession(i);
 	  i--;
 	  continue;
@@ -825,7 +786,7 @@ static void * tcp6ListenMain() {
  * @param ssize the size of the message
  * @return OK if message send or queued, SYSERR if queue is full and
  * message was dropped.
- **/
+ */
 static int tcp6DirectSend(TCP6Session * tcp6Session,
 			  void * mp,
 			  unsigned int ssize) {
@@ -835,20 +796,16 @@ static int tcp6DirectSend(TCP6Session * tcp6Session,
   if (tcp6Session->sock == -1) {
 #if DEBUG_TCP6
     LOG(LOG_INFO,
-	"INFO: tcp6DirectSend called, but socket is closed\n");
+	"tcp6DirectSend called, but socket is closed\n");
 #endif
     return SYSERR;
   }
   if (ssize == 0) {
-    LOG(LOG_ERROR,
-	"ERROR: message passed to tcp6DirectSend has size 0, which is not allowed.\n");
+    BREAK();
     return SYSERR;
   }
   if (ssize > tcp6API.mtu + sizeof(TCP6MessagePack)) {
-    LOG(LOG_ERROR,
-	"ERROR: message passed to tcp6DirectSend larger than MTU (%d > %d)\n",
-	ssize, 
-	tcp6API.mtu);
+    BREAK();
     return SYSERR;
   }
   ok = SYSERR;
@@ -863,14 +820,10 @@ static int tcp6DirectSend(TCP6Session * tcp6Session,
   if (ret == SYSERR) {
     if ( (errno == EAGAIN) ||
 	 (errno == EWOULDBLOCK)) {
-      LOG(LOG_DEBUG,
-	  "DEBUG: send failed: %s\n",
-	  STRERROR(errno));
+      LOG_STRERROR(LOG_DEBUG, "send");
       ret = 0;
     } else {
-      LOG(LOG_INFO,
-	  "INFO: write to tcp6 peer failed (%s)\n",
-	  STRERROR(errno));
+      LOG_STRERROR(LOG_INFO, "send");
       MUTEX_UNLOCK(&tcp6lock);
       return SYSERR;
     }
@@ -897,11 +850,7 @@ static int tcp6DirectSend(TCP6Session * tcp6Session,
     } else 
       ok = OK; /* all written */
   } else {
-    LOG(LOG_WARNING, 
-	"WARNING: send failed (%s) - %d %d\n",
-	STRERROR(errno),
-	errno,
-	ret);
+    LOG_STRERROR(LOG_WARNING, "send");
     ssize = 0;
     ok = SYSERR; /* write failed for real */
   }
@@ -923,7 +872,7 @@ static int tcp6DirectSend(TCP6Session * tcp6Session,
  * @param ssize the size of the message
  * @return OK if message send or queued, SYSERR if queue is full and
  * message was dropped.
- **/
+ */
 static int tcp6DirectSendReliable(TCP6Session * tcp6Session,
 				  void * mp,
 				  unsigned int ssize) {
@@ -932,20 +881,16 @@ static int tcp6DirectSendReliable(TCP6Session * tcp6Session,
   if (tcp6Session->sock == -1) {
 #if DEBUG_TCP6
     LOG(LOG_INFO,
-	"INFO: tcp6DirectSendReliable called, but socket is closed\n");
+	"tcp6DirectSendReliable called, but socket is closed\n");
 #endif
     return SYSERR;
   }
   if (ssize == 0) {
-    LOG(LOG_ERROR,
-	"ERROR: message passed to tcp6DirectSendReliable has size 0, which is not allowed.\n");
+    BREAK();
     return SYSERR;
   }
   if (ssize > tcp6API.mtu + sizeof(TCP6MessagePack)) {
-    LOG(LOG_ERROR,
-	"ERROR: message passed to tcp6DirectSend larger than MTU (%d > %d)\n",
-	ssize, 
-	tcp6API.mtu);
+    BREAK();
     return SYSERR;
   }
   MUTEX_LOCK(&tcp6lock);
@@ -977,7 +922,7 @@ static int tcp6DirectSendReliable(TCP6Session * tcp6Session,
  * @param isEncrypted is the message encrypted (YES/NO)
  * @param crc CRC32 of the plaintext
  * @return SYSERR on error, OK on success
- **/
+ */
 static int tcp6SendReliable(TSession * tsession,
 			   const void * msg,
 			   const unsigned int size,
@@ -990,15 +935,11 @@ static int tcp6SendReliable(TSession * tsession,
   if (tcp6_shutdown == YES)
     return SYSERR;
   if (size == 0) {
-    LOG(LOG_ERROR,
-	"ERROR: message passed to tcp6SendReliable has size 0, which is not allowed.\n");
+    BREAK();
     return SYSERR;
   }
   if (size > tcp6API.mtu) {
-    LOG(LOG_FAILURE,
-	"FAILURE: message larger than allowed by tcp6 transport (%d > %d)\n",
-	size, 
-	tcp6API.mtu);
+    BREAK();
     return SYSERR;
   }
   if (((TCP6Session*)tsession->internal)->sock == -1)
@@ -1028,8 +969,8 @@ static int tcp6SendReliable(TSession * tsession,
  * @param helo the HELO message to verify
  *        (the signature/crc have been verified before)
  * @return OK on success, SYSERR on error
- **/
-static int verifyHelo(HELO_Message * helo) {
+ */
+static int verifyHelo(const HELO_Message * helo) {
   Host6Address * haddr;
 
   haddr = (Host6Address*) &((HELO_Message_GENERIC*)helo)->senderAddress[0];
@@ -1051,7 +992,7 @@ static int verifyHelo(HELO_Message * helo) {
  * @param helo address where to store the pointer to the HELO
  *        message
  * @return OK on success, SYSERR on error
- **/
+ */
 static int createHELO(HELO_Message ** helo) {
   HELO_Message * msg;
   Host6Address * haddr;
@@ -1060,7 +1001,7 @@ static int createHELO(HELO_Message ** helo) {
   port = getGNUnetTCP6Port();
   if (0 == port) {
     LOG(LOG_DEBUG,
-	"DEBUG: TCP6 port is 0, will only send using TCP6\n");
+	"TCP6 port is 0, will only send using TCP6\n");
     return SYSERR; /* TCP6 transport is configured SEND-only! */
   }
   msg = (HELO_Message *) MALLOC(sizeof(HELO_Message) + sizeof(Host6Address));
@@ -1069,7 +1010,7 @@ static int createHELO(HELO_Message ** helo) {
   if (SYSERR == getPublicIP6Address(&haddr->ip)) {
     FREE(msg);
     LOG(LOG_WARNING,
-	"WARNING: Could not determine my public IP address.\n");
+	_("Could not determine my public IPv6 address.\n"));
     return SYSERR;
   }
   haddr->port = htons(port); 
@@ -1087,7 +1028,7 @@ static int createHELO(HELO_Message ** helo) {
  * @param helo the HELO-Message for the target node
  * @param tsessionPtr the session handle that is set
  * @return OK on success, SYSERR if the operation failed
- **/
+ */
 static int tcp6Connect(HELO_Message * helo,
 		       TSession ** tsessionPtr) {
   int i;
@@ -1118,9 +1059,10 @@ static int tcp6Connect(HELO_Message * helo,
 	    INET6_ADDRSTRLEN);
   rtn = getaddrinfo(hostname, NULL, &hints, &res0);
   FREE(hostname);
-  if (rtn != 0) {
+  if (rtn != 0) {    
     LOG(LOG_WARNING,	
-	"WARNING: tcp6connect: unknown service: %s\n", 
+	_("'%s': unknown service: %s\n"), 
+	__FUNCTION__,
 	gai_strerror(rtn));
     return SYSERR;
   }
@@ -1128,7 +1070,7 @@ static int tcp6Connect(HELO_Message * helo,
 #if DEBUG_TCP6
   tmp = MALLOC(INET6_ADDRSTRLEN);
   LOG(LOG_DEBUG,
-      "DEBUG: creating TCP6 connection to %s:%d\n",
+      "creating TCP6 connection to %s:%d\n",
       inet_ntop(AF_INET6,
 		haddr,
 		tmp,
@@ -1148,19 +1090,16 @@ static int tcp6Connect(HELO_Message * helo,
       continue;
     if (0 != setBlocking(sock, NO)) {
       CLOSE(sock);
-      LOG(LOG_FAILURE,
-	  "FAILURE: could not put tcp socket into non-blocking mode (%s)\n",
-	  STRERROR(errno));
+      LOG_STRERROR(LOG_FAILURE, "setBlocking");
       return SYSERR;
     }
     ((struct sockaddr_in6*)(res->ai_addr))->sin6_port 
       = haddr->port;
-    if (CONNECT(sock, 
-		res->ai_addr, 
-		res->ai_addrlen) < 0) {
-      LOG(LOG_WARNING,
-	  "WARNING: TCP6 could not connect (%s)\n",
-	  STRERROR(errno));
+    if ( (CONNECT(sock, 
+		  res->ai_addr, 
+		  res->ai_addrlen) < 0) &&
+	 (errno != EINPROGRESS) ) {
+      LOG_STRERROR(LOG_WARNING, "connect");
       CLOSE(sock);
       sock = -1;
       continue;
@@ -1169,16 +1108,12 @@ static int tcp6Connect(HELO_Message * helo,
   }
   freeaddrinfo(res0);
   if (sock == -1) {
-    LOG(LOG_FAILURE,
-	"FAILURE: Can not create socket (%s).\n",
-	STRERROR(errno));
+    LOG_STRERROR(LOG_FAILURE, "socket");
     return SYSERR;
   }
   if (0 != setBlocking(sock, NO)) {
+    LOG_STRERROR(LOG_FAILURE, "setBlocking");
     CLOSE(sock);
-    LOG(LOG_FAILURE,
-	"FAILURE: could not put tcp6 socket into non-blocking mode (%s)\n",
-	STRERROR(errno));
     return SYSERR;
   }
 
@@ -1234,7 +1169,7 @@ static int tcp6Connect(HELO_Message * helo,
  * @param isEncrypted is the message encrypted (YES/NO)
  * @param crc CRC32 of the plaintext
  * @return SYSERR on error, OK on success
- **/
+ */
 static int tcp6Send(TSession * tsession,
 		    const void * msg,
 		    const unsigned int size,
@@ -1247,15 +1182,11 @@ static int tcp6Send(TSession * tsession,
   if (tcp6_shutdown == YES)
     return SYSERR;
   if (size == 0) {
-    LOG(LOG_ERROR,
-	"ERROR: message passed to tcp6Send has size 0, which is not allowed.\n");
+    BREAK();
     return SYSERR;
   }
   if (size > tcp6API.mtu) {
-    LOG(LOG_FAILURE,
-	"FAILURE: message larger than allowed by tcp6 transport (%d > %d)\n",
-	size, 
-	tcp6API.mtu);
+    BREAK();
     return SYSERR;
   }
   if (((TCP6Session*)tsession->internal)->sock == -1)
@@ -1279,25 +1210,19 @@ static int tcp6Send(TSession * tsession,
 /**
  * Start the server process to receive inbound traffic.
  * @return OK on success, SYSERR if the operation failed
- **/
+ */
 static int startTransportServer(void) {
   struct sockaddr_in6 serverAddr;
   const int on = 1;
   unsigned short port;
   int flags;
   
-  if (serverSignal != NULL) {
-    LOG(LOG_FAILURE,
-	"FAILURE: can not start TCP6 server, already running!?\n");
-    return SYSERR;
-  }
+  GNUNET_ASSERT(serverSignal == NULL);
   serverSignal = SEMAPHORE_NEW(0);
   tcp6_shutdown = NO;
     
   if (0 != PIPE(tcp6_pipe)) {
-    LOG(LOG_ERROR,
-	"ERROR: could not create pipe (%s)\n",
-	STRERROR(errno));
+    LOG_STRERROR(LOG_ERROR, "pipe");
     return SYSERR;
   }
   flags = fcntl(tcp6_pipe[1], F_GETFL, 0);
@@ -1308,17 +1233,15 @@ static int startTransportServer(void) {
 		      business! */
     tcp6_sock = SOCKET(PF_INET6, 
 		       SOCK_STREAM, 
-		       0);
+		       0);   
     if (tcp6_sock < 0) 
-      errexit("ERROR opening tcp6 socket (%s).\n",
-	      STRERROR(errno));  
+      DIE_STRERROR("socket");
     if ( SETSOCKOPT(tcp6_sock,
 		    SOL_SOCKET, 
 		    SO_REUSEADDR, 
 		    &on, 
 		    sizeof(on)) < 0 ) 
-      errexit("ERROR: setsockopt for tcp6 socket failed (%s)\n",
-	      STRERROR(errno));  
+      DIE_STRERROR("setsockopt");
     memset((char *) &serverAddr, 
 	   0,
 	   sizeof(serverAddr));
@@ -1328,17 +1251,16 @@ static int startTransportServer(void) {
     serverAddr.sin6_port     = htons(getGNUnetTCP6Port());
 #if DEBUG_TCP6
     LOG(LOG_INFO,
-	"INFO: starting tcp6 peer server on port %d\n",
+	"starting tcp6 peer server on port %d\n",
 	ntohs(serverAddr.sin6_port));
 #endif
     if (BIND(tcp6_sock, 
 	     (struct sockaddr *) &serverAddr,
 	     sizeof(serverAddr)) < 0) {
-      LOG(LOG_ERROR, 
-	  "ERROR (%s) binding the TCP6 listener to port %d. "\
-	  "No transport service started.\n",
-	  STRERROR(errno),
-	  getGNUnetTCP6Port());
+      LOG_STRERROR(LOG_ERROR, "bind");
+      LOG(LOG_ERROR,
+	  _("Failed to start transport service on port %d.\n"),
+	  getGNUnetTCPPort());
       CLOSE(tcp6_sock);
       SEMAPHORE_FREE(serverSignal);
       serverSignal = NULL;
@@ -1352,9 +1274,7 @@ static int startTransportServer(void) {
 			  2048)) {
       SEMAPHORE_DOWN(serverSignal); /* wait for server to be up */      
   } else {
-    LOG(LOG_ERROR,
-	"ERROR: could not start tcp6 listen thread (%s)\n",
-	STRERROR(errno));
+    LOG_STRERROR(LOG_FAILURE, "pthread_create");
     CLOSE(tcp6_sock);
     SEMAPHORE_FREE(serverSignal);
     serverSignal = NULL;
@@ -1366,13 +1286,12 @@ static int startTransportServer(void) {
 /**
  * Shutdown the server process (stop receiving inbound
  * traffic). Maybe restarted later!
- **/
+ */
 static int stopTransportServer() {
   void * unused;
 
   if (serverSignal == NULL) {
-    LOG(LOG_ERROR,
-	"ERROR: stopTransportServer called by TCP6 server not running.");
+    BREAK();
     return SYSERR;
   }
   tcp6_shutdown = YES;  
@@ -1391,7 +1310,7 @@ static int stopTransportServer() {
 /**
  * Reload the configuration. Should never fail (keep old
  * configuration on error, syslog errors!)
- **/
+ */
 static void reloadConfiguration(void) {
   char * ch;
 
@@ -1410,22 +1329,23 @@ static void reloadConfiguration(void) {
 
 /**
  * Convert TCP6 address to a string.
- **/
-static char * addressToString(HELO_Message * helo) {
+ */
+static char * addressToString(const HELO_Message * helo) {
   char * ret;
   char * tmp;
   Host6Address * haddr;
   
   haddr = (Host6Address*) &((HELO_Message_GENERIC*)helo)->senderAddress[0];  
-  ret = MALLOC(INET6_ADDRSTRLEN+6);
+  ret = MALLOC(INET6_ADDRSTRLEN+16);
   tmp = MALLOC(INET6_ADDRSTRLEN);  
-  sprintf(ret,
-	  "%s:%d (TCP6)",
-	  inet_ntop(AF_INET6,
-		    haddr,
-		    tmp,
-		    INET6_ADDRSTRLEN), 
-	  ntohs(haddr->port));
+  SNPRINTF(ret,
+	   INET6_ADDRSTRLEN+16,
+	   "%s:%d (TCP6)",
+	   inet_ntop(AF_INET6,
+		     haddr,
+		     tmp,
+		     INET6_ADDRSTRLEN), 
+	   ntohs(haddr->port));
   FREE(tmp);
   return ret;
 }
@@ -1436,7 +1356,7 @@ static char * addressToString(HELO_Message * helo) {
 /**
  * The exported method. Makes the core api available
  * via a global and returns the udp transport API.
- **/ 
+ */ 
 TransportAPI * inittransport_tcp6(CoreAPIForTransport * core) {
   int mtu;
 
@@ -1447,16 +1367,17 @@ TransportAPI * inittransport_tcp6(CoreAPIForTransport * core) {
   tsessions = MALLOC(sizeof(TSession*) * tsessionArrayLength);
   coreAPI = core;
   stat_octets_total_tcp6_in 
-    = statHandle("# bytes received via tcp6");
+    = statHandle(_("# bytes received via tcp6"));
   stat_octets_total_tcp6_out 
-    = statHandle("# bytes sent via tcp6");
+    = statHandle(_("# bytes sent via tcp6"));
   mtu = getConfigurationInt("TCP6",
 			    "MTU");
   if (mtu == 0)
     mtu = 1440;
   if (mtu < 1200)
     LOG(LOG_ERROR,
-	"ERROR: MTU for TCP6 is probably to low (fragmentation not implemented!)\n");
+	_("MTU for %s is probably to low (fragmentation not implemented!)\n"),
+	"TCP6");
  
   tcp6API.protocolNumber       = TCP6_PROTOCOL_NUMBER;
   tcp6API.mtu                  = mtu - sizeof(TCP6MessagePack);
@@ -1481,8 +1402,8 @@ void donetransport_tcp6() {
 
   for (i=0;i<tsessionCount;i++)
     LOG(LOG_DEBUG,
-	"DEBUG: tsessions array contains %x\n",
-	(int)tsessions[i]);
+	"tsessions array still contains %p\n",
+	tsessions[i]);
   FREE(tsessions);
   tsessions = NULL;
   tsessionArrayLength = 0;

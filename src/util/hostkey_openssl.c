@@ -22,7 +22,7 @@
  * @file util/hostkey_openssl.c
  * @brief public key cryptography (RSA) with OpenSSL
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_util.h"
 #include "platform.h"
@@ -42,14 +42,14 @@
 
 /**
  * Initialize Random number generator.
- **/
+ */
 void initRAND() {
   srand((unsigned int)time(NULL));
 }
 
 /**
  * This HostKey implementation uses RSA.
- **/
+ */
 Hostkey makeHostkey() {
   Hostkey ret;
   RSA * hk;
@@ -57,7 +57,9 @@ Hostkey makeHostkey() {
   hk = RSA_generate_key(HOSTKEY_LEN, 65535, NULL, 0);
   if (hk == NULL) {
     LOG(LOG_ERROR,
-	"ERROR: RSA_generate_key failed: %s\n",
+	_("'%s' failed at %s:%d with error: %s\n"),
+	"RSA_generate_key",
+	__FILE__, __LINE__,
 	ERR_error_string(ERR_get_error(), NULL));  
     return NULL;
   }
@@ -68,7 +70,7 @@ Hostkey makeHostkey() {
 
 /**
  * Free memory occupied by hostkey
- **/
+ */
 void freeHostkey(Hostkey hostkey) {
   RSA_free(HOSTKEY(hostkey));
   FREE(hostkey);
@@ -79,7 +81,7 @@ void freeHostkey(Hostkey hostkey) {
  * Extract the public key of the host.
  * @param hostkey the hostkey to extract into the result.
  * @param result where to write the result.
- **/
+ */
 void getPublicKey(Hostkey hostkey,
 		  PublicKey * result) {
   unsigned short sizen;
@@ -89,26 +91,21 @@ void getPublicKey(Hostkey hostkey,
   sizen = BN_num_bytes(HOSTKEY(hostkey)->n);
   sizee = BN_num_bytes(HOSTKEY(hostkey)->e);
   size = sizen + sizee+2*sizeof(unsigned short);
-  if (size != sizeof(PublicKey)-sizeof(result->padding)) 
-    errexit("FATAL: sizeof public key does not match size (%u!=%u)\n",
-	    size, 
-	    sizeof(PublicKey)-sizeof(result->padding));
-  if (RSA_KEY_LEN != sizen+sizee) 
-    errexit("FATAL: PublicKey datastructure wrong (%u+%u!=%u)!\n",
-	    sizen, 
-	    sizee, 
-	    RSA_KEY_LEN);
+  GNUNET_ASSERT(size == sizeof(PublicKey)-sizeof(result->padding));
+  GNUNET_ASSERT(RSA_KEY_LEN == sizen+sizee);
   result->len = htons(size);
   result->sizen = htons(sizen);
-  result->padding = 0;
+  result->padding = 0;  
   if (sizen != BN_bn2bin(HOSTKEY(hostkey)->n,
 			 &result->key[0])) 
-    errexit("FATAL: BN_bn2bin(n) did not return expected size %u (%s)\n",
+    errexit(_("Function '%s' did not return expected size %u: %s\n"),
+	    "BN_bn2bin(n)",
 	    sizen, 
 	    ERR_error_string(ERR_get_error(), NULL));
   if (sizee != BN_bn2bin(HOSTKEY(hostkey)->e,
 			 &result->key[sizen]))
-    errexit("FATAL: BN_bn2bin(e) did not return expected size %u (%s)\n",
+    errexit(_("Function '%s' did not return expected size %u: %s\n"),
+	    "BN_bn2bin(e)",
 	    sizee, 
 	    ERR_error_string(ERR_get_error(), NULL));
 }
@@ -116,7 +113,7 @@ void getPublicKey(Hostkey hostkey,
 
 /**
  * Internal: publicKey => RSA-Key
- **/
+ */
 static Hostkey public2Hostkey(PublicKey * publicKey) {
   Hostkey ret;
   RSA * result;
@@ -124,19 +121,14 @@ static Hostkey public2Hostkey(PublicKey * publicKey) {
   int sizee;
 
   if (ntohs(publicKey->len) != sizeof(PublicKey)-sizeof(publicKey->padding)) {
-    LOG(LOG_ERROR,
-	"ERROR: public2Hostkey: received invalid publicKey (size=%d)\n",
-	ntohs(publicKey->len));
+    BREAK();
     return NULL;
   }
   sizen = ntohs(publicKey->sizen);
   sizee = ntohs(publicKey->len) - sizen - 2*sizeof(unsigned short);
   if ( (sizen != RSA_ENC_LEN) || 
        (sizee + sizen != RSA_KEY_LEN)) {
-    LOG(LOG_ERROR,
-	"ERROR: public2Hostkey: received invalid publicKey (sizee=%d, sizen=%d)\n",
-	sizee,
-	sizen);
+    BREAK();
     return NULL;
   }
   result = RSA_new();
@@ -156,7 +148,7 @@ static Hostkey public2Hostkey(PublicKey * publicKey) {
  * storing it into a file.
  * @returns encoding of the private key.
  *    The first 4 bytes give the size of the array, as usual.
- **/
+ */
 HostKeyEncoded * encodeHostkey(Hostkey hostkey) {
   /*
                BIGNUM *n;               public modulus
@@ -241,8 +233,8 @@ HostKeyEncoded * encodeHostkey(Hostkey hostkey) {
 /**
  * Decode the private key from the file-format back
  * to the "normal", internal format.
- **/
-Hostkey decodeHostkey(HostKeyEncoded * encoding) {
+ */
+Hostkey decodeHostkey(const HostKeyEncoded * encoding) {
   unsigned short sizen;
   unsigned short sizee;
   unsigned short sized;
@@ -310,10 +302,10 @@ Hostkey decodeHostkey(HostKeyEncoded * encoding) {
  * @param publicKey the encoded public key used to encrypt
  * @param target where to store the encrypted block
  * @returns SYSERR on error, OK if ok
- **/
-int encryptHostkey(void * block, 
+ */
+int encryptHostkey(const void * block, 
 		   unsigned short size,
-		   PublicKey * publicKey,
+		   const PublicKey * publicKey,
 		   RSAEncryptedData * target) {
   Hostkey foreignkey;
   int rs;
@@ -325,19 +317,12 @@ int encryptHostkey(void * block,
   rs = RSA_size(HOSTKEY(foreignkey));
   /* now encrypt. First get size of the block */
   if (size > (rs - 41)) {
-    LOG(LOG_ERROR,
-	"ERROR: HostKey::encryptHostkey() called with %d"
-	" bytes where foreignkey allows only %d\n",
-	size, 
-	rs-41);
+    BREAK();
     freeHostkey(foreignkey);
     return SYSERR;
   }
   if (rs != sizeof(RSAEncryptedData)) {
-    LOG(LOG_FAILURE,
-	"FAILURE: assertion failed: %d (=RSA_size(foreignkey)) != %d\n",
-	rs,
-	sizeof(RSAEncryptedData));
+    BREAK();
     freeHostkey(foreignkey);
     return SYSERR;
   }
@@ -347,10 +332,17 @@ int encryptHostkey(void * block,
 			   HOSTKEY(foreignkey),
 			   RSA_PKCS1_PADDING);
   if (len != RSA_ENC_LEN) {
-    LOG(LOG_ERROR,
-	"ERROR: RSA-Encoding has unexpected length %d (%s)!",
-	len,
-	ERR_error_string(ERR_get_error(), NULL));
+    if (len == -1)
+      LOG(LOG_ERROR,
+	  _("'%s' failed at %s:%d with error: %s\n"),
+	  "RSA_public_encrypt",
+	  __FILE__, __LINE__, 
+	  ERR_error_string(ERR_get_error(), NULL));
+    else
+      LOG(LOG_ERROR,
+	  _("RSA-Encoding has unexpected length %d (expected %d)!"),
+	  len,
+	  RSA_ENC_LEN);
     freeHostkey(foreignkey);
     return SYSERR;
   }
@@ -367,9 +359,9 @@ int encryptHostkey(void * block,
  * @param max the maximum number of bits to store for the result, if
  *        the decrypted block is bigger, an error is returned
  * @returns the size of the decrypted block, -1 on error
- **/
-int decryptHostkey(Hostkey hostkey, 
-		   RSAEncryptedData * block,
+ */
+int decryptHostkey(const Hostkey hostkey, 
+		   const RSAEncryptedData * block,
 		   void * result,
 		   unsigned int max) {
   RSAEncryptedData tmp; /* this is as big as the result can possibly get */
@@ -387,9 +379,9 @@ int decryptHostkey(Hostkey hostkey,
        (size > max) ) {
     ERR_load_crypto_strings();
     LOG(LOG_WARNING,
-	"WARNING: RSA_private_decrypt failed, size %d, expected %d (%s)\n",
-	size, 
-	max,
+	_("'%s' failed at %s:%d with error: %s\n"),
+	"RSA_private_decrypt",
+	__FILE__, __LINE__,
 	ERR_error_string(ERR_get_error(), NULL));
     ERR_free_strings();
     return -1;
@@ -408,10 +400,10 @@ int decryptHostkey(Hostkey hostkey,
  * @param block the data to sign
  * @param sig where to write the signature
  * @return SYSERR on error, OK on success
- **/
-int sign(Hostkey hostkey, 
+ */
+int sign(const Hostkey hostkey, 
 	 unsigned short size,
-	 void * block,
+	 const void * block,
 	 Signature * sig) {
 #if EXTRA_CHECKS
   PublicKey pkey;
@@ -423,9 +415,7 @@ int sign(Hostkey hostkey,
   if (block == NULL)
     return SYSERR;
   if (rs != sizeof(Signature)) {
-    LOG(LOG_ERROR,
-	"ERROR: sign: signature length (RSA_size) has unexpected value (%d)!",
-	rs);
+    BREAK();
     return SYSERR;
   }
   hash(block, 
@@ -438,15 +428,14 @@ int sign(Hostkey hostkey,
 		    &sigSize,
 		    HOSTKEY(hostkey))) {
     LOG(LOG_ERROR,
-	"ERROR: RSA_sign failed! (%s)",
+	_("'%s' failed at %s:%d with error: %s\n"),
+	"RSA_sign",
+	__FILE__, __LINE__,
 	ERR_error_string(ERR_get_error(), NULL));
     return SYSERR;
   }
   if (sigSize != sizeof(Signature)) {
-    LOG(LOG_ERROR,
-	"ERROR: sign: sigSize wrong (%u != %u)!",
-	sigSize,
-	sizeof(Signature));
+    BREAK();
     return SYSERR;
   }
 #if EXTRA_CHECKS
@@ -456,25 +445,18 @@ int sign(Hostkey hostkey,
 		      &sig->sig[0],
 		      sizeof(Signature),
 		      HOSTKEY(hostkey))) 
-    LOG(LOG_FAILURE,
-	"FAILURE: OpenSSL error: direct verification failed!\n");
+    BREAK();
   
   getPublicKey(hostkey, &pkey);
   if (SYSERR == verifySig(block, size, sig, &pkey)) {
-    LOG(LOG_FAILURE,
-	"FAILURE: sign: generated signature does not pass verification!\n");
+    BREAK();
     if (1 != RSA_verify(NID_ripemd160,
 			(unsigned char*)&hc,
 			sizeof(HashCode160),
 			&sig->sig[0],
 			sizeof(Signature),
 			HOSTKEY(hostkey))) 
-      LOG(LOG_FAILURE,
-	  "FAILURE: OpenSSL error: direct verification failed, too!\n");
-    else
-      LOG(LOG_FAILURE,
-	  "FAILURE: getPublicKey must have failed, direct verification is OK!\n");
-     
+      BREAK();
    return SYSERR;
   }
 #endif
@@ -489,11 +471,11 @@ int sign(Hostkey hostkey,
  * @param sig signature
  * @param publicKey public key of the signer
  * @returns OK if ok, SYSERR if invalid
- **/
-int verifySig(void * block,
+ */
+int verifySig(const void * block,
 	      unsigned short len,
-	      Signature * sig,	      
-	      PublicKey * publicKey) {
+	      const Signature * sig,	      
+	      const PublicKey * publicKey) {
   Hostkey hostkey;
   int rs;
   HashCode160 hc;
@@ -504,9 +486,7 @@ int verifySig(void * block,
        (block == NULL))
     return SYSERR; /* hey, no data !? */
   rs = RSA_size(HOSTKEY(hostkey));
-  if (rs != RSA_ENC_LEN) 
-    errexit("FATAL: verifySig: rs != RSA_ENC_LEN (%d)!",
-	    rs);  
+  GNUNET_ASSERT(rs == RSA_ENC_LEN);
   hash(block, 
        len, 
        &hc);
@@ -516,8 +496,9 @@ int verifySig(void * block,
 		      &sig->sig[0],
 		      sizeof(Signature),
 		      HOSTKEY(hostkey))) {
-    LOG(LOG_ERROR,
-	"ERROR: verifySig: signature mismatch (%s)\n",
+    LOG(LOG_INFO,
+	_("RSA signature verification failed at %s:%d: %s\n"),
+	__FILE__, __LINE__,
 	ERR_error_string(ERR_get_error(), NULL));
     freeHostkey(hostkey);
     return SYSERR;

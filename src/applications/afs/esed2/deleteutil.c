@@ -26,7 +26,7 @@
  * Break file that is deleted into blocks and encrypts
  * them according to the CHK-triple-hash-tree scheme.
  * Then sends delete-requests to gnunetd.
- **/
+ */
 
 #include "gnunet_afs_esed2.h"
 #include "platform.h"
@@ -34,14 +34,15 @@
 /**
  * Ask gnunetd for an index that matches the filename
  * @return the index, -1 on error
- **/
+ */
 static int askDeleteFilename(GNUNET_TCP_SOCKET * sock,
-			     char * filename) {
+			     const char * fn) {
+  char * filename;
   AFS_CS_INDEX_FILE * request;
   int result;
 
   filename 
-    = expandFileName(filename);   
+    = expandFileName(fn);   
   request
     = MALLOC(sizeof(AFS_CS_INDEX_FILE));
   request->header.size 
@@ -58,8 +59,8 @@ static int askDeleteFilename(GNUNET_TCP_SOCKET * sock,
        (SYSERR == readTCPResult(sock,
 				&result)) ) {
     LOG(LOG_WARNING, 
-	"WARNING: could not request or receive data"
-	" from gnunetd. Is gnunetd running?\n");
+	_("Could not request or receive data"
+	  " from gnunetd. Is gnunetd running?\n"));
     result = -1;
   }
   FREE(request);
@@ -79,17 +80,18 @@ static int askDeleteFilename(GNUNET_TCP_SOCKET * sock,
  *        (retrieved so far, total).
  * @param model_data pointer that is passed to the model method
  * @return SYSERR on error, OK on success
- **/
+ */
 int deleteFile(GNUNET_TCP_SOCKET * sock,
-	       char * filename, 
+	       const char * fn, 
 	       ProgressModel model,
 	       void * model_data) {
   NodeContext nc;
   size_t filesize;
   Block * top;
+  char * filename;
   int ret;
 
-  filename = expandFileName(filename);
+  filename = expandFileName(fn);
   filesize = (size_t) getFileSize(filename);
   memset(&nc, 0, sizeof(NodeContext));
   nc.pmodel = model;

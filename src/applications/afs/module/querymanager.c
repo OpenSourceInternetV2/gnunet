@@ -33,7 +33,7 @@
  * Routing is an incredibly hard problem, so please consider
  * consulting with other gnunet-developers before making any
  * significant changes here, even if you have CVS write access.
- **/
+ */
 
 #include "querymanager.h"
 
@@ -41,7 +41,7 @@
 
 /**
  * Set to 'YES' to play with 0.6.2b (and earlier) behavior.
- **/
+ */
 #define TRADITONAL_SELECTION NO
 
 /* default size of the bitmap: 16 byte = 128 bit */
@@ -64,17 +64,17 @@
  * In this struct, we store information about a 
  * query that is being send from the local node to
  * optimize the sending strategy. 
- **/
+ */
 typedef struct {
 
   /**
    * How often did we send this query so far?
-   **/
+   */
   unsigned int sendCount;  
   
   /**
    * The message that we are sending.
-   **/
+   */
   AFS_p2p_QUERY * msg;
 
   /**
@@ -85,67 +85,67 @@ typedef struct {
    * the smaller size of the bitmap. There may thus be
    * nodes with identical indices, in that case, only one of
    * the nodes will receive the query.
-   **/
+   */
   unsigned char bitmap[BITMAP_SIZE];
 
   /**
    * When do we stop forwarding (!) this query?
-   **/
+   */
   cron_t expires;
 
   /**
    * How many nodes were connected when we
    * initated sending this query?
-   **/
+   */
   unsigned int activeConnections;
 
   /**
    * What is the total distance of the query to
    * the connected nodes?
-   **/
+   */
   unsigned long long totalDistance;
 
   /**
    * To how many peers has / will this query be transmitted?
-   **/
+   */
   unsigned int transmissionCount;
   
   /**
    * To which peer will we never send this message?
-   **/
+   */
   HostIdentity noTarget;
 
   /**
    * Sender identity, for a local client.
-   **/
+   */
   ClientHandle localClient;
 
   /**
    * How important would it be to send the message
    * to all peers in this bucket?
-   **/
+   */
   int * rankings;
 
 } QueryRecord;
 
 /**
  * Array of the queries we are currently sending out.
- **/
+ */
 static QueryRecord queries[QUERY_RECORD_COUNT];
 
 /**
  * Mutex for all query manager structures.
- **/
+ */
 static Mutex * queryManagerLock;
 
 /**
  * How many queries are in the given query (header given).
- **/
+ */
 #define NUMBER_OF_QUERIES(qhdr) (((ntohs(qhdr.size)-sizeof(AFS_p2p_QUERY))/sizeof(HashCode160)))
 
 /**
  * Linked list of peer ids with number of replies received.
- **/
+ */
 typedef struct RL_ {
   HostIdentity responder;
   unsigned int responseCount;
@@ -155,48 +155,48 @@ typedef struct RL_ {
 /**
  * Structure for tracking from which peer we got valueable replies for
  * which clients / other peers.
- **/
+ */
 typedef struct RTD_ {
   /**
    * For which client does this entry track replies?
    * Only valid if localQueryOrigin == NULL!
-   **/
+   */
   HostIdentity queryOrigin;
 
   /**
    * For which client does this entry track replies?
-   **/
+   */
   ClientHandle localQueryOrigin;
 
   /**
    * Time at which we received the last reply
    * for this client.  Used to discard old entries
    * eventually.
-   **/
+   */
   TIME_T lastReplyReceived;
 
   /**
    * Linked list of peers that responded, with
    * number of responses.
-   **/
+   */
   ResponseList * responseList;
 
   /**
    * Linked list.
-   **/
+   */
   struct RTD_ * next;
 } ReplyTrackData;
 
 /**
  * Linked list tracking reply statistics.  Synchronize access using
  * the queryManagerLock!
- **/
+ */
 static ReplyTrackData * rtdList = NULL;
 
 /**
  * Cron job that ages the RTD data and that frees
  * memory for entries that reach 0.
- **/
+ */
 static void ageRTD(void * unused) {
   ReplyTrackData * pos;
   ReplyTrackData * prev;
@@ -260,7 +260,7 @@ static void ageRTD(void * unused) {
  * @param localOrigin origin if query was initiated by local client
  * @param responder peer that send the reply
  */
-void updateResponseData(HostIdentity * origin,
+void updateResponseData(const HostIdentity * origin,
 			ClientHandle localOrigin,
 			const HostIdentity * responder) {
   ReplyTrackData * pos;
@@ -323,7 +323,7 @@ void updateResponseData(HostIdentity * origin,
 
 /**
  * Map the id to an index into the bitmap array.
- **/
+ */
 static int getIndex(const HostIdentity * id) {
   unsigned int index;
 
@@ -361,8 +361,8 @@ static int getBit(QueryRecord * qr,
  * @param padding is the number of bytes left in that buffer.
  * @return the number of bytes written to
  *   that buffer (must be a positive number).
- **/
-static int fillInQuery(HostIdentity * receiver,
+ */
+static int fillInQuery(const HostIdentity * receiver,
 		       void * position,
 		       int padding) {
   static unsigned int pos = 0;
@@ -381,19 +381,19 @@ static int fillInQuery(HostIdentity * receiver,
 	 (padding - delta >=
 	  ntohs(queries[pos].msg->header.size) ) ) {
 #if DEBUG_QUERYMANAGER
-      HexName qhex;
-      HexName hhex;
+      EncName qenc;
+      EncName henc;
 
       IFLOG(LOG_DEBUG,
-	    hash2hex(&receiver->hashPubKey,
-		     &hhex);
-	    hash2hex(&queries[pos].msg->queries[0],
-		     &qhex));
+	    hash2enc(&receiver->hashPubKey,
+		     &henc);
+	    hash2enc(&queries[pos].msg->queries[0],
+		     &qenc));
       LOG(LOG_DEBUG,
-	  "DEBUG: adding %d queries (%s) to outbound buffer of %s\n",
+	  "adding %d queries (%s) to outbound buffer of %s\n",
 	  NUMBER_OF_QUERIES(queries[pos].msg->header),
-	  &qhex,
-	  &hhex);
+	  &qenc,
+	  &henc);
 #endif
       setBit(&queries[pos],
 	     getIndex(receiver));
@@ -415,7 +415,7 @@ static int fillInQuery(HostIdentity * receiver,
 
 /**
  * Initialize the query management.
- **/
+ */
 int initQueryManager() {
   int i;
 
@@ -465,11 +465,11 @@ void doneQueryManager() {
  *
  * Also computes the sum of the distances of the
  * other node IDs as a side-effect.
- **/
+ */
 static void selectActiveNodes(HostIdentity * id,
 			      QueryRecord * qr) {
 #if DEBUG_QUERYMANAGER
-  HexName hex;
+  EncName enc;
 #endif
   static unsigned int average = 0;
   static double weight = 4.0;
@@ -487,11 +487,11 @@ static void selectActiveNodes(HostIdentity * id,
   average  = (average * 15 + trf) / 16; /* approximate average over time...*/ 
 #if DEBUG_QUERYMANAGER
   IFLOG(LOG_EVERYTHING,
-	hash2hex(&id->hashPubKey,
-		 &hex));
+	hash2enc(&id->hashPubKey,
+		 &enc));
   LOG(LOG_EVERYTHING,
-      "EVERYTHING: selecting from active nodes %s as rand(%u) > rand(%u)*%f\n",
-      &hex, 
+      "Selecting active node '%s' as rand(%u) > rand(%u)*%f\n",
+      &enc, 
       trf+1,
       average+1,
       weight);
@@ -504,8 +504,8 @@ static void selectActiveNodes(HostIdentity * id,
     qr->transmissionCount++;
 #if DEBUG_QUERYMANAGER
     LOG(LOG_EVERYTHING,
-	"EVERYTHING: node selected for forwarding due to activity: %s\n",
-	&hex);
+	"Node '%s' selected for forwarding due to recent activity.\n",
+	&enc);
 #endif
   } else
     qr->totalDistance += distanceHashCode160(&qr->msg->queries[0],
@@ -516,13 +516,13 @@ static void selectActiveNodes(HostIdentity * id,
 /**
  * A "PerNodeCallback" method that selects some
  * random nodes (biased according to proximity).
- **/
+ */
 static void selectRandomNodes(HostIdentity * id,
 			      QueryRecord * qr) {
   unsigned int avgDist;
   unsigned int peerDist;
 #if DEBUG_QUERYMANAGER
-  HexName hex;
+  EncName enc;
 #endif
   static double weight = 4.0;
 
@@ -546,11 +546,11 @@ static void selectRandomNodes(HostIdentity * id,
 		                 &id->hashPubKey);
 #if DEBUG_EVERYTHING
   IFLOG(LOG_EVERYTHING,
-	hash2hex(&id->hashPubKey,
-		 &hex));
+	hash2enc(&id->hashPubKey,
+		 &enc));
   LOG(LOG_EVERYTHING,
-      "EVERYTHING: selecting at random from active nodes %s using rand(%d)*%f*%u < rand(%d)\n",
-      &hex,
+      "Selecting at random active node '%s' using rand(%d)*%f*%u < rand(%d)\n",
+      &enc,
       peerDist+1,
       qr->transmissionCount,
       weight,
@@ -564,8 +564,8 @@ static void selectRandomNodes(HostIdentity * id,
       < randomi(1+avgDist) ) {
 #if DEBUG_QUERYMANAGER
     LOG(LOG_EVERYTHING,
-	"EVERYTHING: node selected for forwarding from random set: %s\n",
-	&hex);
+	"Node '%s' selected for forwarding from random set.\n",
+	&enc);
 #endif
     setBit(qr, getIndex(id));
     qr->transmissionCount++;
@@ -624,7 +624,7 @@ static void newSelectCode(HostIdentity * id,
 /**
  * A "PerNodeCallback" method that forwards
  * the query to the selected nodes.
- **/
+ */
 static void sendToSelected(HostIdentity * id,
 			   QueryRecord * qr) {
   if (equalsHashCode160(&id->hashPubKey,
@@ -632,18 +632,18 @@ static void sendToSelected(HostIdentity * id,
     return;
   if (getBit(qr, getIndex(id)) == 1) {
 #if DEBUG_QUERYMANAGER
-    HexName hex;
-    HexName hex2;
+    EncName enc;
+    EncName enc2;
 
     IFLOG(LOG_EVERYTHING,
-	  hash2hex(&id->hashPubKey,
-		   &hex);
-	  hash2hex(&qr->msg->queries[0],
-		   &hex2));
+	  hash2enc(&id->hashPubKey,
+		   &enc);
+	  hash2enc(&qr->msg->queries[0],
+		   &enc2));
     LOG(LOG_EVERYTHING,
-	"EVERYTHING: queueing query %s in buffer of selected node %s\n",
-	&hex2,
-	&hex);
+	"Queueing query '%s' in buffer of selected node '%s'.\n",
+	&enc2,
+	&enc);
 #endif
     coreAPI->sendToNode(id,
 			&qr->msg->header,
@@ -657,7 +657,7 @@ static void sendToSelected(HostIdentity * id,
 /**
  * Take a query and forward it to the appropriate
  * number of nodes (depending on load, queue, etc).
- **/
+ */
 void forwardQuery(AFS_p2p_QUERY * msg,		  
 		  const HostIdentity * excludePeer,
 		  const ClientHandle client) {
@@ -665,7 +665,7 @@ void forwardQuery(AFS_p2p_QUERY * msg,
   QueryRecord * qr;
   QueryRecord dummy;
 #if DEBUG_QUERYMANAGER
-  HexName hex;
+  EncName enc;
 #endif
   cron_t oldestTime;
   cron_t expirationTime;
@@ -675,11 +675,11 @@ void forwardQuery(AFS_p2p_QUERY * msg,
   
 #if DEBUG_QUERYMANAGER
   IFLOG(LOG_DEBUG,
-	hash2hex(&msg->queries[0],
-		 &hex));
+	hash2enc(&msg->queries[0],
+		 &enc));
   LOG(LOG_DEBUG,
-      "DEBUG: forwarding query for %s with ttl %d\n",
-      &hex,
+      "Forwarding query for '%s' with ttl %d.\n",
+      &enc,
       ntohl(msg->ttl));
 #endif
   cronTime(&now);
@@ -725,7 +725,7 @@ void forwardQuery(AFS_p2p_QUERY * msg,
 	noclear = YES; 
 #if DEBUG_QUERYMANAGER
 	LOG(LOG_DEBUG,
-	    "DEBUG: QM noclear rule applied!\n");
+	    "QM noclear rule applied!\n");
 #endif
       }
       break; /* this is it, do not scan for other 
@@ -735,7 +735,7 @@ void forwardQuery(AFS_p2p_QUERY * msg,
   if (oldestIndex == -1) {				    
 #if DEBUG_QUERYMANAGER
     LOG(LOG_DEBUG,
-	"DEBUG: keeping track of %d queries already, will not manage this one\n",
+	"Leeping track of %d queries already, will not manage this one.\n",
 	QUERY_RECORD_COUNT);    
 #endif
     qr = &dummy;  
@@ -828,7 +828,7 @@ void forwardQuery(AFS_p2p_QUERY * msg,
  * Stop transmitting a certain query (we don't route it anymore or
  * we have learned the answer).
  */
-void dequeueQuery(HashCode160 * query) {
+void dequeueQuery(const HashCode160 * query) {
   int i;
   int j;
   QueryRecord * qr;

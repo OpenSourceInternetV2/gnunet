@@ -28,7 +28,7 @@
  * decides where to forward queries, it needs to negotiate with
  * the routing code which queries can be forwarded since we may
  * not be able to keep track of all queries.
- **/
+ */
 
 #include "routing.h"
 #include "manager.h"
@@ -58,7 +58,7 @@
 
 /** 
  * Size of the indirection table specified in gnunet.conf
- **/
+ */
 static unsigned int indirectionTableSize;
 
 /* ****************** config ************** */
@@ -84,7 +84,7 @@ static unsigned int indirectionTableSize;
  * <p>
  * THE VALUE YOU PICK MUST BE A POWER OF 2, for example:
  * 128, 256, 512, 1024, 2048, 4092, 8192, 16384, 32768, 65536
- **/
+ */
 #define MIN_INDIRECTION_TABLE_SIZE (8192)
 /* #define MIN_INDIRECTION_TABLE_SIZE 8 */
 
@@ -101,22 +101,22 @@ static unsigned int indirectionTableSize;
 /**
  * Indirection table entry. Lists what we're looking for,
  * where to forward it, and how long to keep looking for it.
- **/
+ */
 typedef struct {
   /**
    * what are we waiting for? 
-   **/
+   */
   HashCode160 hash;  
 
   /**
    * Are we limited to a specific namespace?
    * Non-NULL if yes.
-   **/
+   */
   HashCode160 * namespace;
 
   /**
    * when can we forget about this entry? 
-   **/
+   */
   cron_t ttl;
 
   /**
@@ -125,38 +125,38 @@ typedef struct {
    * hash stored in this ITE? (This is NOT the inbound priority,
    * it is the trust-adjusted inbound priority <B>divided</B> by the
    * number of queries (for a multi-query)).
-   **/
+   */
   unsigned int priority;
 
   /**
    * which replies have we already seen? 
-   **/
+   */
   unsigned int seenIndex; 
 
   /**
    * hashcodes of the encrypted (!) replies that we have forwarded so far
-   **/
+   */
   HashCode160 * seen; 
 
   /**
    * How many hosts are waiting for an answer to this query (length of
    * destination array)
-   **/
+   */
   unsigned int hostsWaiting; 
 
   /**
    * who are these hosts? 
-   **/
+   */
   HostIdentity * destination; 
 
   /**
    * How many tcpsocks are in use?
-   **/
+   */
   unsigned int tcpsocksSize;
 
   /**
    * local TCP clients to send the reply to, NULL if none 
-   **/
+   */
   ClientHandle * tcpsocks; 
 
   /**
@@ -185,20 +185,20 @@ typedef struct {
  * queries that we have recently send out. It helps 
  * GNUnet to route the replies back to the respective
  * sender.
- **/
+ */
 static IndirectionTableEntry * ROUTING_indTable_;
 
 #if VERBOSE_STATS
 /**
  * Stats handle for how much content replies we have
  * send back to clients.
- **/
+ */
 static int stat_cs_reply_content_out;
 #endif
 
 /**
  * Stats handles about incoming blocks
- **/
+ */
 static int stat_content_in_ok;
 static int stat_content_in_dupe;
 static int stat_content_in_orphan;
@@ -223,7 +223,7 @@ static int random_qsel;
  * itself a little by locking the entries. The hope is that analyzing 
  * this data in eg octave or matlab might help understand the 
  * routing behaviour better. Or not.
- **/
+ */
 static void writeIDtable(void) 
 {
   int i;
@@ -260,25 +260,25 @@ static void writeIDtable(void)
 
 /**
  * Compute the hashtable index of a host id.
- **/
-static unsigned int computeRoutingIndex(HashCode160 * query) {
+ */
+static unsigned int computeRoutingIndex(const HashCode160 * query) {
   unsigned int res = ( (((unsigned int*)query)[random_qsel]) & 
 		       ((unsigned int)(indirectionTableSize - 1)) );
   if (res >= indirectionTableSize)
-    errexit("FATAL: indirectionTableSize not power of 2? (%d)\n",
+    errexit(" indirectionTableSize not power of 2? (%d)\n",
 	    indirectionTableSize);
   return res;
 }
 
 /**
  * ITE modes for addToSlot.
- **/
+ */
 #define ITE_REPLACE 0
 #define ITE_GROW 1
 
 /**
  * Call useContent "later" and then free the pmsg.
- **/
+ */
 static void useSBLOCKContentLater(AFS_p2p_SBLOCK_RESULT * pmsg) {
   useContent(NULL,
 	     &pmsg->result.identifier,
@@ -289,7 +289,7 @@ static void useSBLOCKContentLater(AFS_p2p_SBLOCK_RESULT * pmsg) {
 /**
  * Call useContent "later" and then free the
  * pmsg.
- **/
+ */
 static void useCHKContentLater(AFS_p2p_CHK_RESULT * pmsg) {
   HashCode160 hc;
   IndirectionTableEntry * ite;
@@ -316,7 +316,7 @@ static void useCHKContentLater(AFS_p2p_CHK_RESULT * pmsg) {
 /**
  * Call useContent "later" and then free the
  * pmsg.
- **/
+ */
 static void use3HashContentLater(AFS_p2p_3HASH_RESULT * pmsg) {
   HashCode160 hc;
 
@@ -336,7 +336,7 @@ static void use3HashContentLater(AFS_p2p_3HASH_RESULT * pmsg) {
  * 
  * @param sender the next hop
  * @param result the content that was found
- **/
+ */
 static void queueCHKReply(HostIdentity * sender,
 			  CONTENT_Block * result) {
   AFS_p2p_CHK_RESULT * pmsg;
@@ -351,13 +351,13 @@ static void queueCHKReply(HostIdentity * sender,
   if (! equalsHashCode160(&ite->hash,
 			  &hc) ) {
 #if DEBUG_ROUTING
-    HexName hex;
+    EncName enc;
 
     IFLOG(LOG_EVERYTHING,
-	  hash2hex(&hc, &hex));
+	  hash2enc(&hc, &enc));
     LOG(LOG_EVERYTHING,
-	"EVERYTHING: concurrent route replacement: %s\n",
-	&hex);
+	"concurrent route replacement: %s\n",
+	&enc);
 #endif    
 #if VERBOSE_STATS
     statChange(stat_concurrent_route_replacement, 1);
@@ -366,12 +366,12 @@ static void queueCHKReply(HostIdentity * sender,
   }
   if (YES == ite->successful_local_lookup_in_delay_loop) {
 #if DEBUG_ROUTING
-    HexName hex;    
+    EncName enc;    
     IFLOG(LOG_WARNING,
-	  hash2hex(&hc, &hex));
+	  hash2enc(&hc, &enc));
     LOG(LOG_WARNING,
-	"WARNING: unexpected concurrent CHK lookup of %s\n",
-	&hex);
+	_("Unexpected concurrent CHK lookup of '%s'.\n"),
+	&enc);
 #endif    
     return; /* wow, really bad concurrent DB lookup and processing for
 	       the same query.  Well, at least we should not also
@@ -400,7 +400,7 @@ static void queueCHKReply(HostIdentity * sender,
  * 
  * @param sender the next hop
  * @param result the content that was found
- **/
+ */
 static void queueSBLOCKReply(HostIdentity * sender,
 			     SBlock * result) {
   AFS_p2p_SBLOCK_RESULT * pmsg;
@@ -429,7 +429,7 @@ static void queueSBLOCKReply(HostIdentity * sender,
  * @param sender the next hop
  * @param hc the double (!) hash
  * @param result the content that was found
- **/
+ */
 static void queue3HashReply(HostIdentity * sender,
 			    HashCode160 * hc,
 			    CONTENT_Block * result) {
@@ -456,24 +456,24 @@ static void queue3HashReply(HostIdentity * sender,
  * Hand a CHK reply to the client.
  * @param sock the client socket
  * @param result the response
- **/
+ */
 static void tellClientCHKReply(ClientHandle sock,
 			       CONTENT_Block * result) {
   AFS_CS_RESULT_CHK * reply;
   HashCode160 hc;
 #if DEBUG_ROUTING
-  HexName hex;
+  EncName enc;
 #endif
 
   hash(result,
        sizeof(CONTENT_Block),
        &hc);
 #if DEBUG_ROUTING
-  hash2hex(&hc,
-	   &hex);
+  hash2enc(&hc,
+	   &enc);
   LOG(LOG_DEBUG,
-      "DEBUG: sending client response to CHK query %s\n",
-      &hex);
+      "Sending client response to CHK query '%s'.\n",
+      &enc);
 #endif
   reply = MALLOC(sizeof(AFS_CS_RESULT_CHK));
   reply->header.tcpType
@@ -494,7 +494,7 @@ static void tellClientCHKReply(ClientHandle sock,
  * Hand an SBLOCK reply to the client.
  * @param sock the client socket
  * @param result the response
- **/
+ */
 static void tellClientSBLOCKReply(ClientHandle sock,
 				  SBlock * result) {
   AFS_CS_RESULT_SBLOCK * reply;
@@ -520,7 +520,7 @@ static void tellClientSBLOCKReply(ClientHandle sock,
  * @param sock the client socket
  * @param hc the double hash
  * @param result the response
- **/
+ */
 static void tellClient3HashReply(ClientHandle sock,
 				 HashCode160 * hc,
 				 CONTENT_Block * result) {
@@ -557,7 +557,7 @@ static void tellClient3HashReply(ClientHandle sock,
  * @param sock for which local client is the entry (NULL for peer)
  * @return OK if sock or sender was added, SYSERR if both are NULL or existed already
  *            in the queue
- **/
+ */
 static int addToSlot(int mode,
 		     IndirectionTableEntry * ite,
 		     HashCode160 * query,
@@ -605,12 +605,12 @@ static int addToSlot(int mode,
 	   (sender == NULL) &&
 	   (ite->seenIndex == 0) ) {
 #if DEBUG_ROUTING
-	HexName hex;
-	hash2hex(query,
-		 &hex);
+	EncName enc;
+	hash2enc(query,
+		 &enc);
 	LOG(LOG_DEBUG,
-	    "DEBUG: replacing local query %s without results with foreign query!\n",
-	    &hex);
+	    "Replacing local query '%s' without results with foreign query!\n",
+	    &enc);
 #endif
       }
 
@@ -629,11 +629,8 @@ static int addToSlot(int mode,
       ite->priority = priority;      
     }
   } else { /* GROW mode */
-    if (!equalsHashCode160(query,
-			   &ite->hash))
-      errexit("FATAL: assert failed in %s.%d\n", 
-	      __FILE__, 
-	      __LINE__);
+    GNUNET_ASSERT(equalsHashCode160(query,
+				    &ite->hash));
     if (sender != NULL) 
       for (i=0;i<ite->hostsWaiting;i++)
 	if (equalsHashCode160(&sender->hashPubKey,
@@ -719,7 +716,7 @@ static int addToSlot(int mode,
  * @param isRouted set to OK if we can route this query, SYSERR if we can not
  * @param doForward is set to OK if we should forward the query, SYSERR if not
  * @return a case ID for debugging
- **/
+ */
 static int needsForwarding(HashCode160 * query,
 			   HashCode160 * namespace,
 			   int ttl,
@@ -750,7 +747,7 @@ static int needsForwarding(HashCode160 * query,
        replies but do NOT forward _again_! */
 #if DEBUG_ROUTING
     LOG(LOG_INFO,
-	"INFO: GROW: ttl < 0 and existing query is equal (%d, %d)\n",
+	"GROW: ttl < 0 and existing query is equal (%d, %d)\n",
 	ttl, 
 	(int) (ite->ttl - now));
 #endif
@@ -770,7 +767,7 @@ static int needsForwarding(HashCode160 * query,
        longer expired than new query */
 #if DEBUG_ROUTING
     LOG(LOG_INFO,
-	"INFO: REPLACE and reset SEEN: existing query "
+	"REPLACE and reset SEEN: existing query "
 	"expired and older than new query (%d, %d)\n",
 	ttl, 
 	(int) (ite->ttl - now));
@@ -803,7 +800,7 @@ static int needsForwarding(HashCode160 * query,
 	/* query again */
 #if DEBUG_ROUTING
 	LOG(LOG_INFO,
-	    "INFO: REPLACE (seen was empty): existing query and TTL higher (%d, %d)\n",
+	    "REPLACE (seen was empty): existing query and TTL higher (%d, %d)\n",
 	    (int) (ite->ttl - now),
 	    ttl);
 #endif
@@ -822,7 +819,7 @@ static int needsForwarding(HashCode160 * query,
 	   just wait for the reply that may come back */
 #if DEBUG_ROUTING
 	LOG(LOG_INFO,
-	    "INFO: GROW - equal existing query exists without replies (%d, %d)\n",
+	    "GROW - equal existing query exists without replies (%d, %d)\n",
 	    (int) (ite->ttl - now),
 	    ttl);	    
 #endif
@@ -858,7 +855,7 @@ static int needsForwarding(HashCode160 * query,
 	     0);
 #if DEBUG_ROUTING
 	LOG(LOG_INFO,
-	    "INFO: REPLACE and reset SEEN: existing query equal "
+	    "REPLACE and reset SEEN: existing query equal "
 	    "but we've seen the response already (%d, %d)\n",
 	    (int) (ite->ttl - now),
 	    ttl);
@@ -882,7 +879,7 @@ static int needsForwarding(HashCode160 * query,
 	   just wait for the reply that may come back */
 #if DEBUG_ROUTING
 	LOG(LOG_INFO,
-	    "INFO: GROW - equal existing query exists without replies (%d, %d)\n",
+	    "GROW - equal existing query exists without replies (%d, %d)\n",
 	    (int) (ite->ttl - now),
 	    ttl);	    
 #endif
@@ -910,7 +907,7 @@ static int needsForwarding(HashCode160 * query,
       int isttlHigher;
 #if DEBUG_ROUTING
       LOG(LOG_INFO,
-	  "INFO: GROW - equal existing query exists without replies (%d, %d)\n",
+	  "GROW - equal existing query exists without replies (%d, %d)\n",
 	  (int) (ite->ttl - now), 
 	  ttl);	    
 #endif
@@ -944,12 +941,12 @@ static int needsForwarding(HashCode160 * query,
 			  &ite->seen[0])) ) {
     /* is CHK and we have seen the answer, get rid of it early */
 #if DEBUG_ROUTING
-    HexName old;
+    EncName old;
     IFLOG(LOG_INFO,
-	  hash2hex(&ite->hash,
+	  hash2enc(&ite->hash,
 		   &old));
     LOG(LOG_INFO,
-	"INFO: CHK %s with reply already seen, replacing eagerly (%d, %d).\n",
+	"CHK '%s' with reply already seen, replacing eagerly (%d, %d).\n",
 	&old,
 	(int) (ite->ttl - now),
 	ttl);	    
@@ -981,7 +978,7 @@ static int needsForwarding(HashCode160 * query,
        (long long) 10 * (ttl * ite->priority) ) {
 #if DEBUG_ROUTING
     LOG(LOG_INFO,
-	"INFO: priority of new query is much higher, overriding (%d, %d).\n",
+	"priority of new query is much higher, overriding (%d, %d).\n",
 	(int) (ite->ttl - now), 
 	ttl);	    
 #endif
@@ -993,7 +990,7 @@ static int needsForwarding(HashCode160 * query,
   if (randomi(TIE_BREAKER_CHANCE) == 0) {
 #if DEBUG_ROUTING
     LOG(LOG_INFO,
-	"INFO: TIE-BREAKER.  Overriding (%d, %d).\n",
+	"TIE-BREAKER.  Overriding (%d, %d).\n",
 	(int) (ite->ttl - now), 
 	ttl);	    
 #endif
@@ -1009,13 +1006,13 @@ static int needsForwarding(HashCode160 * query,
   *doForward = NO;
 #if DEBUG_ROUTING
   {
-    HexName hex;
-    hash2hex(&ite->hash, 
-	     &hex);
+    EncName enc;
+    hash2enc(&ite->hash, 
+	     &enc);
     LOG(LOG_INFO,
-	"INFO: existing %s query %s (%d) is more important (EP: %d, ET: %d; NP: %d, NT: %d)\n",
-	(ite->tcpsocksSize == 0) ? "remote" : "LOCAL", 
-	&hex,
+	"Existing %s query '%s' (%d) is more important (EP: %d, ET: %d; NP: %d, NT: %d)\n",
+	(ite->tcpsocksSize == 0) ? "remote" : "local", 
+	&enc,
 	computeRoutingIndex(&ite->hash),
 	ite->priority,
 	ite->ttl - now,
@@ -1034,9 +1031,9 @@ static int needsForwarding(HashCode160 * query,
  *
  * @param ite the matching slot in the indirection table
  * @param msg the message to route
- **/
+ */
 static void sendReply(IndirectionTableEntry * ite,
-		      p2p_HEADER * msg) {
+		      const p2p_HEADER * msg) {
   unsigned int j;
   unsigned int maxDelay;
   cron_t now;
@@ -1071,8 +1068,9 @@ static void sendReply(IndirectionTableEntry * ite,
       break;
     default:
       LOG(LOG_WARNING,
-	  "WARNING: p2p result has unexpected type: %d\n",
-	  ntohs(msg->requestType));
+	  _("Search result has unexpected type %d at %s:%d.\n"),
+	  ntohs(msg->requestType),
+	  __FILE__, __LINE__);
       break;
     }    
   }
@@ -1080,7 +1078,7 @@ static void sendReply(IndirectionTableEntry * ite,
  
 /**
  * TCP connection is shut down, cancel all replies to that client.
- **/
+ */
 static void cancelTCP_routing(ClientHandle sock) {
   unsigned int i;
   unsigned int j;
@@ -1115,7 +1113,7 @@ static void cancelTCP_routing(ClientHandle sock) {
  * @param superHash YES if the super-hash test has indicated that we#
  *        have a reply locally available
  * @return OK if the query should be routed further, SYSERR if not.
- **/
+ */
 static int execSingleQuery(HostIdentity * sender,
 			   ClientHandle sock,
 			   unsigned int prio,
@@ -1142,13 +1140,13 @@ static int execSingleQuery(HostIdentity * sender,
 			   &doForward); 
 #if DEBUG_ROUTING
   {
-    HexName hex;
-    hash2hex(query,
-	     &hex);
+    EncName enc;
+    hash2enc(query,
+	     &enc);
     LOG(LOG_DEBUG,
-	"DEBUG: needsForwarding decided for %s query %s (%d, ttl %d, pri %d): case %d (%s, %s)\n",
+	"needsForwarding decided for %s query %s (%d, ttl %d, pri %d): case %d (%s, %s)\n",
 	(sock == NULL) ? "remote" : "LOCAL",
-	&hex,
+	&enc,
 	computeRoutingIndex(query),
 	ttl,
 	prio,
@@ -1191,8 +1189,8 @@ static int execSingleQuery(HostIdentity * sender,
       if (ite->seenIndex > 0) {
 	if (equalsHashCode160(&hc,
 			      &ite->seen[0])) {
-	  LOG(LOG_ERROR,
-	      "ERROR: lookup produced result already seen.  Case: %d\n",
+	  LOG(LOG_WARNING,
+	      _("Lookup produced result already seen. Case: %d\n"),
 	      nfCase);
 	}
       }
@@ -1222,9 +1220,7 @@ static int execSingleQuery(HostIdentity * sender,
   case LOOKUP_TYPE_CHK:
   case LOOKUP_TYPE_CHKS:
     if (len != sizeof(CONTENT_Block)) {
-      LOG(LOG_WARNING,
-	  "WARNING: local CHK content had bad size %d\n",
-	  len);
+      BREAK();
       break;
     }
     if (sock != NULL) {
@@ -1243,10 +1239,7 @@ static int execSingleQuery(HostIdentity * sender,
 
     rcount = len / sizeof(CONTENT_Block);
     if (rcount * sizeof(CONTENT_Block) != (unsigned int) len) {
-      LOG(LOG_WARNING,
-	  "WARNING: database returned a 3HASH result "\
-	  "that is not multiple of 1k (%d)! Database corrupt?\n",
-	  len);
+      BREAK();
       break;
     }
     if (sock != NULL)
@@ -1263,7 +1256,7 @@ static int execSingleQuery(HostIdentity * sender,
   }
   default:
     LOG(LOG_DEBUG,
-	"DEBUG: query lookup produced unexpected type %d!\n",
+	_("Lookup produced unexpected type %d!\n"),
 	ntohs(ce.type));
     break;
   }
@@ -1288,7 +1281,7 @@ static int execSingleQuery(HostIdentity * sender,
  * @param query the query itself
  * @param namespace for which namespace
  * @return OK if the query should be routed further, SYSERR if not.
- **/
+ */
 static int execNSQuery(HostIdentity * sender,
 		       ClientHandle sock,
 		       unsigned int prio,
@@ -1300,8 +1293,8 @@ static int execNSQuery(HostIdentity * sender,
   int len;  
   HashCode160 hc;
 #if DEBUG_ROUTING
-  HexName hex1;
-  HexName hex2;
+  EncName enc1;
+  EncName enc2;
 #endif
   int isRouted;
   int doForwarding;
@@ -1310,15 +1303,15 @@ static int execNSQuery(HostIdentity * sender,
   
 #if DEBUG_ROUTING
   IFLOG(LOG_DEBUG,
-	hash2hex(query,
-		 &hex1));
+	hash2enc(query,
+		 &enc1));
   IFLOG(LOG_DEBUG,
-	hash2hex(namespace,
-		 &hex2));
+	hash2enc(namespace,
+		 &enc2));
   LOG(LOG_DEBUG,
-      "DEBUG: received NS query for %s/%s\n",
-      &hex2,
-      &hex1);
+      "received NS query for %s/%s\n",
+      &enc2,
+      &enc1);
 #endif
   ite = &ROUTING_indTable_[computeRoutingIndex(query)];  
   MUTEX_LOCK(&ite->lookup_exclusion); 
@@ -1337,7 +1330,7 @@ static int execNSQuery(HostIdentity * sender,
 			    query)) {
 #if DEBUG_ROUTING
     LOG(LOG_DEBUG,
-	"DEBUG: bloomfilter test says content not available locally.\n");
+	"Bloomfilter test says content is not available locally.\n");
 #endif
     return doForwarding; /* content not available locally,
 			    just route */
@@ -1352,7 +1345,7 @@ static int execNSQuery(HostIdentity * sender,
   if (len == -1) {
 #if DEBUG_ROUTING
     LOG(LOG_DEBUG,
-	"DEBUG: bloomfilter test wrong, DB lookup failed.\n");
+	"Bloomfilter test was wrong, DB lookup did not succeed.\n");
 #endif
     return doForwarding; /* bloomfilter was wrong, content not there */
   }
@@ -1365,16 +1358,14 @@ static int execNSQuery(HostIdentity * sender,
 				   sizeof(AFS_p2p_SBLOCK_RESULT))) {
 #if DEBUG_ROUTING
       LOG(LOG_DEBUG,
-	  "DEBUG: anonymity policy denies reply at this time.\n");
+	  "Anonymity policy denies sending a reply at this time.\n");
 #endif
       FREE(result);
       return doForwarding; /* policy says: no direct response, but 
 			      routing is ok */  
     }
   if (0 != (len % sizeof(CONTENT_Block))) {
-    LOG(LOG_WARNING,
-	"WARNING: local SBLOCK content had bad size %d\n",
-	len);
+    BREAK();
     FREE(result);
     return doForwarding;
   }
@@ -1386,7 +1377,8 @@ static int execNSQuery(HostIdentity * sender,
     if (! equalsHashCode160(namespace,
 			    &hc)) {
       LOG(LOG_WARNING,
-	  "WARNING: namespace mismatch (should be rare but can theoretically happen).\n");
+	  _("Namespace mismatch at %s:%d (should be rare but can theoretically happen).\n"),
+	  __FILE__, __LINE__);
       FREE(result);
       return doForwarding;
     }
@@ -1408,33 +1400,33 @@ static int execNSQuery(HostIdentity * sender,
 
 /**
  * Initialize routing module (initializes indirection table)
- **/
+ */
 void initRouting() {
   unsigned int i;
 
   random_qsel = randomi(sizeof(HashCode160)/sizeof(int));
 #if VERBOSE_STATS
   stat_cs_reply_content_out 
-    = statHandle("# kb downloaded by clients");
+    = statHandle(_("# kb downloaded by clients"));
   stat_delaytime_route_replacement
-    = statHandle("# routing entry replaced during delaytime");
+    = statHandle(_("# routing-table entry replaced during delaytime"));
   stat_concurrent_route_replacement
-    = statHandle("# routing entry replaced during lookup");
+    = statHandle(_("# routing-table entry replaced during lookup"));
 #endif
   stat_content_in_ok
-    = statHandle("# kb ok content in");
+    = statHandle(_("# kb ok content in"));
   stat_content_in_dupe
-    = statHandle("# kb dupe content in");
+    = statHandle(_("# kb dupe content in"));
   stat_content_in_orphan
-    = statHandle("# kb orphan or pushed content in");
+    = statHandle(_("# kb orphan or pushed content in"));
   stat_routingFull
-    = statHandle("# routing table full");
+    = statHandle(_("# routing table full"));
   stat_routingReplaced
-    = statHandle("# routing table entry replaced");
+    = statHandle(_("# routing table entry replaced"));
   stat_routingPresent
-    = statHandle("# routing table entry already in place");
+    = statHandle(_("# routing table entry already in place"));
   stat_p2p_query_out
-    = statHandle("# p2p queries sent");
+    = statHandle(_("# p2p queries sent"));
   indirectionTableSize =
     getConfigurationInt("AFS",
     			"INDIRECTIONTABLESIZE");
@@ -1446,7 +1438,7 @@ void initRouting() {
   indirectionTableSize = i; /* make sure it's a power of 2 */
 #if DEBUG_ROUTING
   LOG(LOG_DEBUG,
-      "DEBUG: Set indirectiontablesize to %d\n",
+      "Set indirectiontablesize to %d\n",
       indirectionTableSize);
 #endif
   ROUTING_indTable_ 
@@ -1475,7 +1467,7 @@ void initRouting() {
 
 /**
  * Shutdown the routing module.
- **/
+ */
 void doneRouting() {
   unsigned int i;
 
@@ -1505,11 +1497,11 @@ void doneRouting() {
 
 /**
  * Print the routing table.
- **/
+ */
 void printRoutingTable() {
   unsigned int i;
   IndirectionTableEntry * ite;
-  HexName h1;
+  EncName h1;
   cron_t now;
 
   cronTime(&now);
@@ -1519,11 +1511,11 @@ void printRoutingTable() {
     ite = &ROUTING_indTable_[i];  
     MUTEX_LOCK(&ite->lookup_exclusion); 
     IFLOG(LOG_MESSAGE,
-	  hash2hex(&ite->hash, 
+	  hash2enc(&ite->hash, 
 		   &h1));
     /* if (ite->ttl >= now)*/
     LOG(LOG_DEBUG,
-	"DEBUG: %u: hash %s ttl %ds "
+	"%u: hash %s ttl %ds "
 	"hostsWaiting %d prio %d seenIndex: %d\n", 
 	i,
 	&h1, 
@@ -1560,13 +1552,13 @@ void printRoutingTable() {
  * @param sock the TCP socket to send the answer to if it is
  *        a query from the local host, otherwise NULL.
  * @return OK if the query was routed (at least in part), SYSERR if it was dropped
- **/
+ */
 int execQuery(QUERY_POLICY qp, 
 	      AFS_p2p_QUERY * msg,
 	      ClientHandle sock) {  
   HostIdentity * sender;
 #if DEBUG_ROUTING
-  HexName queryHex;
+  EncName queryEnc;
 #endif
   HostIdentity senderCpy;
   unsigned int prio;
@@ -1596,12 +1588,12 @@ int execQuery(QUERY_POLICY qp,
 
 #if DEBUG_ROUTING
   IFLOG(LOG_INFO,
-	hash2hex(&((AFS_p2p_QUERY_GENERIC*)msg)->queries[0],
-		 &queryHex));
+	hash2enc(&((AFS_p2p_QUERY_GENERIC*)msg)->queries[0],
+		 &queryEnc));
   LOG(LOG_INFO,
-      "INFO: received %d-query %s with ttl %d and priority %u\n",
+      "received %d-query %s with ttl %d and priority %u\n",
       count,
-      &queryHex,
+      &queryEnc,
       ntohl(msg->ttl),
       ntohl(msg->priority));
 #endif
@@ -1654,7 +1646,7 @@ int execQuery(QUERY_POLICY qp,
 
   if (routeCount >= 1) {
 #if DEBUG_ROUTING
-    HexName hex;
+    EncName enc;
 #endif
     statChange(stat_p2p_query_out, routeCount);
     msg->header.size = htons(sizeof(AFS_p2p_QUERY) + 
@@ -1663,12 +1655,12 @@ int execQuery(QUERY_POLICY qp,
 		 (sock == NULL) ? sender : NULL,
 		 sock);
 #if DEBUG_ROUTING
-    hash2hex(&((AFS_p2p_QUERY_GENERIC*)msg)->queries[0],
-	     &hex);
+    hash2enc(&((AFS_p2p_QUERY_GENERIC*)msg)->queries[0],
+	     &enc);
     LOG(LOG_DEBUG,
-	"DEBUG: slots free in routing table for %s query %s; forwarded %d out of %d queries\n",
-	(sock == NULL) ? "remote" : "LOCAL",
-	&hex,
+	"slots free in routing table for %s query '%s'; forwarded %d out of %d queries\n",
+	(sock == NULL) ? "remote" : "local",
+	&enc,
 	routeCount, 
 	count);
 #endif
@@ -1676,14 +1668,14 @@ int execQuery(QUERY_POLICY qp,
   } else {
     
 #if DEBUG_ROUTING
-    HexName hex;
+    EncName enc;
 
-    hash2hex(&((AFS_p2p_QUERY_GENERIC*)msg)->queries[0],
-	     &hex);
+    hash2enc(&((AFS_p2p_QUERY_GENERIC*)msg)->queries[0],
+	     &enc);
     LOG(LOG_DEBUG,
-	"DEBUG: 0 slots free in routing table for %s query %s with %d hash codes, none forwarded\n",
-	(sock == NULL) ? "remote" : "LOCAL",
-	&hex,
+	"0 slots free in routing table for %s query '%s' with %d hash codes, none forwarded.\n",
+	(sock == NULL) ? "remote" : "local",
+	&enc,
 	count);
 #endif
     return SYSERR;
@@ -1702,30 +1694,30 @@ int execQuery(QUERY_POLICY qp,
  * @param queryHash either the triple hash or the CHK of the content
  * @param msg the p2p reply to send 
  * @return how good this content was (effective priority of the original request)
- **/
+ */
 int useContent(const HostIdentity * hostId,
-	       HashCode160 * queryHash,
-	       p2p_HEADER * msg) {
+	       const HashCode160 * queryHash,
+	       const p2p_HEADER * msg) {
   unsigned int i;
   CONTENT_Block * content;
   HashCode160 contentHC;
   IndirectionTableEntry * ite;
   int prio = -1;
   cron_t now;
-  HexName hex;
-  HexName peer;
+  EncName enc;
+  EncName peer;
   
   /*LOG(LOG_DEBUG,
-      "DEBUG: useContent - prints routing table\n");
+      " useContent - prints routing table\n");
       printRoutingTable();*/
   IFLOG(LOG_DEBUG,
-	hash2hex(queryHash, &hex));
+	hash2enc(queryHash, &enc));
   if (hostId != NULL)
-    hash2hex(&hostId->hashPubKey, &peer);
+    hash2enc(&hostId->hashPubKey, &peer);
 #if DEBUG_ROUTING
   LOG(LOG_DEBUG, 
-      "DEBUG: received content %s from peer %s\n",
-      &hex,
+      "received content %s from peer %s\n",
+      &enc,
       (hostId == NULL) ? "self" : (char*)&peer);
 #endif
 
@@ -1738,11 +1730,11 @@ int useContent(const HostIdentity * hostId,
     statChange(stat_content_in_orphan, 1);
     MUTEX_UNLOCK(&ite->lookup_exclusion);
 #if DEBUG_ROUTING
-    hash2hex(queryHash,
-	     &hex);
+    hash2enc(queryHash,
+	     &enc);
     LOG(LOG_DEBUG, 
-	"DEBUG: no matching query pending for content %s (not indirected)\n",
-	&hex);
+	"no matching query pending for content %s (not indirected)\n",
+	&enc);
 #endif
     return 0; /* no indirection pending: was useless */
   }
@@ -1796,8 +1788,9 @@ int useContent(const HostIdentity * hostId,
     break;
   default:
     LOG(LOG_WARNING,
-	"WARNING: p2p result has unexpected type: %d\n",
-	ntohs(msg->requestType));
+	_("Result has unexpected type %d at %s:%d.\n"),
+	ntohs(msg->requestType),
+	__FILE__, __LINE__);
     MUTEX_UNLOCK(&ite->lookup_exclusion);
     return 0;
   }
@@ -1811,7 +1804,7 @@ int useContent(const HostIdentity * hostId,
       statChange(stat_content_in_dupe, 1);
 #if DEBUG_ROUTING
       LOG(LOG_DEBUG, 
-	  "DEBUG: content is not new (slot: %d).\n",
+	  "Content is not new (slot: %d).\n",
 	  computeRoutingIndex(queryHash)); 
 #endif
       MUTEX_UNLOCK(&ite->lookup_exclusion);
@@ -1826,11 +1819,11 @@ int useContent(const HostIdentity * hostId,
 			because we don't get paid for those... */
 #if DEBUG_ROUTING
   IFLOG(LOG_DEBUG,
-	hash2hex(&ite->hash,
-		 &hex));
+	hash2enc(&ite->hash,
+		 &enc));
   LOG(LOG_DEBUG, 
-      "DEBUG: indirecting new content matching query %s.\n",
-      &hex);
+      "Indirecting new content matching query '%s'.\n",
+      &enc);
 #endif
 
   for (i=0;i<ite->tcpsocksSize;i++)
@@ -1855,9 +1848,9 @@ int useContent(const HostIdentity * hostId,
 
 /**
  * Handle query for current average routing priority.
- **/
+ */
 int csHandleRequestAvgPriority(ClientHandle sock,
-			       p2p_HEADER * msg) {
+			       const p2p_HEADER * msg) {
   int i;
   IndirectionTableEntry * ite;
   unsigned int j = 0;

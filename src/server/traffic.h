@@ -23,7 +23,7 @@
  * 
  * @brief Module to keep track of recent amounts of p2p traffic
  * on the local GNUnet node.
- **/
+ */
 #ifndef TRAFFIC_H
 #define TRAFFIC_H
 
@@ -38,28 +38,28 @@ void updateTrafficReceiveCounter(unsigned short ptyp,
 
 /**
  * Initialize the traffic module.
- **/
+ */
 void initTraffic();
 
 /**
  * Shutdown the traffic module.
- **/
+ */
 void doneTraffic();
 
 /**
  * A message was received. Update traffic stats.
  * @param header the header of the message
  * @param sender the identity of the sender 
- **/
-void trafficReceive(p2p_HEADER * header,
-		    HostIdentity * sender);
+ */
+void trafficReceive(const p2p_HEADER * header,
+		    const HostIdentity * sender);
 
 /**
  * A message is send. Update traffic stats.
  * @param header the header of the message
- **/
-void trafficSend(p2p_HEADER * header,
-		 HostIdentity * receiver);
+ */
+void trafficSend(const p2p_HEADER * header,
+		 const HostIdentity * receiver);
 
 /**
  * How many time-units back do we keep the history of?  (must really
@@ -67,7 +67,7 @@ void trafficSend(p2p_HEADER * header,
  * impact of this value n is 4 * 3 * MAX_MESSAGE_ID * n, which is for
  * the default of n=32 with the current MAX_MESSAGE_ID being roughly a
  * dozen less than 2k.
- **/
+ */
 #define HISTORY_SIZE 32
 
 /**
@@ -84,7 +84,7 @@ void trafficSend(p2p_HEADER * header,
  * @param timeDistribution bit-vector giving times of interactions,
  *        highest bit is current time-unit, bit 1 is 32 time-units ago (set)
  * @return OK on success, SYSERR on error
- **/
+ */
 int getTrafficStats(const unsigned short messageType,
 		    const int sendReceive,
 		    const unsigned int timePeriod,

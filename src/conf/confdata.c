@@ -8,7 +8,7 @@
  * @brief GNUnet Setup
  * @author Roman Zippel
  * @author Nils Durner
- **/
+ */
 
 #include <sys/stat.h>
 #include <ctype.h>

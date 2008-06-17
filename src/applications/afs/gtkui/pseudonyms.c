@@ -21,7 +21,7 @@
  * @file src/applications/afs/gtkui/pseudonyms.c
  * @brief dialogs for creating and deleting pseudonyms
  * @author Christian Grothoff
- **/
+ */
 #include "gnunet_afs_esed2.h"
 #include "helper.h"
 #include "insertprogress.h"
@@ -30,12 +30,112 @@
 
 /**
  * @brief state of the CreatePseudonym window
- **/
+ */
 typedef struct {
   GtkWidget * window;
   GtkWidget * pseudonymLine;
   GtkWidget * passwordLine;
+
+  GtkWidget * createNBlock;
+  GtkWidget * keyword;
+  GtkWidget * description;
+  GtkWidget * owner;
+  GtkWidget * mimetype;
+  GtkWidget * uri;
+  GtkWidget * contact;
+  GtkWidget * root;
 } CreatePseudonymWindowModel;
+
+static gint save_gtk_widget_destroy(SaveCall * arg) {
+  gtk_widget_destroy(arg->args);
+  gtkSaveCallDone(arg->sem);
+  return FALSE;
+}
+
+static void * createPseudonymThread(CreatePseudonymWindowModel * ewm) {
+  const char * name;
+  const char * pass;
+  Hostkey ps;
+
+  name = gtk_entry_get_text(GTK_ENTRY(ewm->pseudonymLine));
+  pass = gtk_entry_get_text(GTK_ENTRY(ewm->passwordLine)); 
+  /* we may want to do this in another thread
+     to keep the event manager running (and potentially
+     even give feedback in the form of a popup window).
+     After all, this can take a while... */
+  ps = createPseudonym(name, pass);
+  if (ps == NULL) {
+    guiMessage(_("Failed to create pseudonym (see logs).\n"));
+    gtk_widget_destroy(ewm->window);
+    return NULL;
+  }
+  if (gtk_toggle_button_get_active((GtkToggleButton*) ewm->createNBlock)) {
+    NBlock * nb;
+    const char * re;
+    HashCode160 root;
+
+    re = gtk_entry_get_text(GTK_ENTRY(ewm->root));
+    if (re != NULL) {
+      if (strlen(re) == 0) {
+	re = NULL;
+      } else {      
+	if (OK != enc2hash(re, &root))
+	  hash(re, strlen(re), &root);
+      }
+    }
+    nb = buildNBlock(ps,
+		     name,
+		     gtk_entry_get_text(GTK_ENTRY(ewm->description)),
+		     gtk_entry_get_text(GTK_ENTRY(ewm->owner)),
+		     gtk_entry_get_text(GTK_ENTRY(ewm->mimetype)),
+		     gtk_entry_get_text(GTK_ENTRY(ewm->uri)),
+		     gtk_entry_get_text(GTK_ENTRY(ewm->contact)),
+		     (re != NULL) ? &root : NULL);
+    if (nb != NULL) {
+      GNUNET_TCP_SOCKET * sock;
+    
+      sock = getClientSocket();
+      if (sock == NULL) {
+	guiMessage(_("Could not connect to gnunetd, advertisement not published.\n"));
+      } else {
+	const char * keyword;
+	char * info;
+
+	if (OK != insertSBlock(sock,
+			       (const SBlock *) nb)) 
+	  guiMessage(_("Error inserting NBlock into namespace. "
+		       "Is gnunetd running and space available?\n"));
+	decryptNBlock(nb);
+	addNamespace(nb);
+	info = rootNodeToString((const RootNode*)nb);
+	infoMessage(NO, _("Created namespace advertisement:\n%s\n"), info);
+	FREE(info);
+
+	keyword = gtk_entry_get_text(GTK_ENTRY(ewm->keyword));
+	if ( (keyword != NULL) && (strlen(keyword) > 0) ) {
+	  if (OK != insertRootWithKeyword(sock,
+					  (const RootNode*) nb,
+					  keyword,
+					  getConfigurationInt("GNUNET-INSERT",
+							      "CONTENT-PRIORITY")))
+	    guiMessage(_("Error inserting NBlock under keyword '%s'. "
+			 "Is gnunetd running and space available?\n"),
+		       keyword);
+	}
+      }
+      releaseClientSocket(sock);      
+      FREE(nb);
+    } else {
+      BREAK();
+      guiMessage(_("Failed to create NBlock!"));
+    }
+  }
+  freeHostkey(ps);
+  
+  gtkSaveCall((GtkFunction)save_gtk_widget_destroy, ewm->window);
+  refreshMenuSensitivity();
+  return NULL;
+}
 
 
 /**
@@ -44,45 +144,57 @@ typedef struct {
  *
  * @param dummy not used
  * @param ewm the state of the edit window
- **/
+ */
 static void create_ok(GtkWidget * dummy, 
 		      CreatePseudonymWindowModel * ewm) {
-  char * name;
-  char * pass;
-  Hostkey ps;
+  const char * name;
+  const char * pass;
+  PTHREAD_T pt;
   
   name = gtk_entry_get_text(GTK_ENTRY(ewm->pseudonymLine));
-  if (name == NULL) {
-    guiMessage("WARNING: cowardly refusing to create pseudonym without name.\n");
+  if ( (name == NULL) || (name[0] == '\0') ) {
+    guiMessage(_("Refusing to create pseudonym without a nickname.\n"));
     return;
   }
-  name = STRDUP(name);
   pass = gtk_entry_get_text(GTK_ENTRY(ewm->passwordLine));
-  if (pass != NULL) 
-    pass = STRDUP(pass);
-  gtk_widget_destroy(ewm->window);
-
-  /* we may want to do this in another thread
-     to keep the event manager running (and potentially
-     even give feedback in the form of a popup window).
-     After all, this can take a while... */
-  ps = createPseudonym(name, pass);
-  if (ps == NULL)
-    guiMessage("WARNING: failed to create pseudonym (see logs).\n");
-  else
-    freeHostkey(ps);
-  refreshMenuSensitivity();
-  FREE(name);
-  FREENONNULL(pass);
+  gtk_widget_hide(ewm->window);
+  if (0 != PTHREAD_CREATE(&pt,
+			  (PThreadMain) &createPseudonymThread,
+			  ewm,
+			  8*1024))
+    DIE_STRERROR("pthread_create");
+  PTHREAD_DETACH(&pt);
 }
 
 /**
  * Exit the application (called when the main window
  * is closed or the user selects File-Quit).
- **/
+ */
 static void destroyPCWindow(GtkWidget * widget,
 			    CreatePseudonymWindowModel * ewm) {
   FREE(ewm);
+}
+
+
+/**
+ * Advertise on/off button was clicked.
+ *
+ * @param w the button
+ * @param ewm state of the edit window
+ */
+static void button_advertise_clicked(GtkWidget * w,
+				     CreatePseudonymWindowModel * ewm) {
+  int ret;
+
+  ret = gtk_toggle_button_get_active((GtkToggleButton*) ewm->createNBlock);
+
+  gtk_widget_set_sensitive(ewm->keyword, ret);
+  gtk_widget_set_sensitive(ewm->description, ret);
+  gtk_widget_set_sensitive(ewm->owner, ret);
+  gtk_widget_set_sensitive(ewm->mimetype, ret);
+  gtk_widget_set_sensitive(ewm->uri, ret);
+  gtk_widget_set_sensitive(ewm->contact, ret);
+  gtk_widget_set_sensitive(ewm->root, ret);
 }
 
 
@@ -91,7 +203,7 @@ static void destroyPCWindow(GtkWidget * widget,
  *
  * @param unused GTK handle that is not used
  * @param unused2 not used
- **/
+ */
 void openCreatePseudonymDialog(GtkWidget * unused,
 			       unsigned int unused2) {
   CreatePseudonymWindowModel * ewm;
@@ -106,10 +218,10 @@ void openCreatePseudonymDialog(GtkWidget * unused,
   /* create new window for editing */
   ewm->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   gtk_widget_set_usize(GTK_WIDGET(ewm->window),
-		       400,
-		       120);
+		       500,
+		       380);
   gtk_window_set_title(GTK_WINDOW(ewm->window), 
-		       "Create Pseudonym");
+		       _("Create Pseudonym"));
 
   /* add container for window elements */
   vbox = gtk_vbox_new(FALSE, 0);
@@ -140,7 +252,7 @@ void openCreatePseudonymDialog(GtkWidget * unused,
 		     TRUE,
 		     0);
   gtk_widget_show(hbox);
-  label = gtk_label_new("Pseudonym:");
+  label = gtk_label_new(_("Pseudonym:"));
   gtk_box_pack_start(GTK_BOX(hbox),
 		     label, 
 		     FALSE, 
@@ -165,13 +277,14 @@ void openCreatePseudonymDialog(GtkWidget * unused,
 		     TRUE,
 		     0);
   gtk_widget_show(hbox);
-  label = gtk_label_new("Password:");
+  label = gtk_label_new(_("Password:"));
   gtk_box_pack_start(GTK_BOX(hbox),
 		     label, 
 		     FALSE, 
 		     FALSE, 
 		     0);
   gtk_widget_show(label);  
+
   ewm->passwordLine = gtk_entry_new();
   gtk_box_pack_start(GTK_BOX(hbox),
 		     ewm->passwordLine, 
@@ -190,6 +303,221 @@ void openCreatePseudonymDialog(GtkWidget * unused,
 		     0);
   gtk_widget_show(separator);
 
+  /* NBlock data */
+
+  hbox = gtk_hbox_new(FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(vbox),
+		     hbox,
+		     FALSE,
+		     TRUE,
+		     0);
+  gtk_widget_show(hbox);
+  ewm->createNBlock = gtk_check_button_new_with_label(_("Create advertisement"));
+  gtk_box_pack_start(GTK_BOX(hbox),
+                     ewm->createNBlock,
+                     TRUE,
+                     TRUE,
+                     0);
+  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(ewm->createNBlock), 
+			       1);
+  gtk_widget_set_sensitive(ewm->createNBlock, 1);
+  gtk_widget_show(ewm->createNBlock);
+
+
+  gtk_signal_connect(GTK_OBJECT(ewm->createNBlock),
+		     "toggled",
+		     GTK_SIGNAL_FUNC(button_advertise_clicked),
+		     ewm);
+ 
+
+
+
+  hbox = gtk_hbox_new(FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(vbox),
+		     hbox,
+		     FALSE,
+		     TRUE,
+		     0);
+  gtk_widget_show(hbox);
+  label = gtk_label_new(_("Keyword:"));
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     label, 
+		     FALSE, 
+		     FALSE, 
+		     0);
+  gtk_widget_show(label);
+  ewm->keyword = gtk_entry_new();
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     ewm->keyword, 
+		     TRUE, 
+		     TRUE,
+		     0);
+  gtk_entry_set_text(GTK_ENTRY(ewm->keyword), 
+		     "namespace");
+  gtk_widget_show(ewm->keyword);
+
+
+  hbox = gtk_hbox_new(FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(vbox),
+		     hbox,
+		     FALSE,
+		     TRUE,
+		     0);
+  gtk_widget_show(hbox);
+  label = gtk_label_new(_("Description:"));
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     label, 
+		     FALSE, 
+		     FALSE, 
+		     0);
+  gtk_widget_show(label);
+  ewm->description = gtk_entry_new();
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     ewm->description, 
+		     TRUE, 
+		     TRUE,
+		     0);
+  gtk_entry_set_text(GTK_ENTRY(ewm->description), 
+		     "");
+  gtk_widget_show(ewm->description);
+
+  hbox = gtk_hbox_new(FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(vbox),
+		     hbox,
+		     FALSE,
+		     TRUE,
+		     0);
+  gtk_widget_show(hbox);
+  label = gtk_label_new(_("Owner:"));
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     label, 
+		     FALSE, 
+		     FALSE, 
+		     0);
+  gtk_widget_show(label);
+  ewm->owner = gtk_entry_new();
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     ewm->owner, 
+		     TRUE, 
+		     TRUE,
+		     0);
+  gtk_entry_set_text(GTK_ENTRY(ewm->owner), 
+		     "");
+  gtk_widget_show(ewm->owner);
+
+
+  hbox = gtk_hbox_new(FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(vbox),
+		     hbox,
+		     FALSE,
+		     TRUE,
+		     0);
+  gtk_widget_show(hbox);
+  label = gtk_label_new(_("Mime-type:"));
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     label, 
+		     FALSE, 
+		     FALSE, 
+		     0);
+  gtk_widget_show(label);
+  ewm->mimetype = gtk_entry_new();
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     ewm->mimetype, 
+		     TRUE, 
+		     TRUE,
+		     0);
+  gtk_entry_set_text(GTK_ENTRY(ewm->mimetype), 
+		     "");
+  gtk_widget_show(ewm->mimetype);
+
+
+  hbox = gtk_hbox_new(FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(vbox),
+		     hbox,
+		     FALSE,
+		     TRUE,
+		     0);
+  gtk_widget_show(hbox);
+  label = gtk_label_new(_("URI:"));
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     label, 
+		     FALSE, 
+		     FALSE, 
+		     0);
+  gtk_widget_show(label);
+  ewm->uri = gtk_entry_new();
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     ewm->uri, 
+		     TRUE, 
+		     TRUE,
+		     0);
+  gtk_entry_set_text(GTK_ENTRY(ewm->uri), 
+		     "");
+  gtk_widget_show(ewm->uri);
+
+
+  hbox = gtk_hbox_new(FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(vbox),
+		     hbox,
+		     FALSE,
+		     TRUE,
+		     0);
+  gtk_widget_show(hbox);
+  label = gtk_label_new(_("Contact:"));
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     label, 
+		     FALSE, 
+		     FALSE, 
+		     0);
+  gtk_widget_show(label);
+  ewm->contact = gtk_entry_new();
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     ewm->contact, 
+		     TRUE, 
+		     TRUE,
+		     0);
+  gtk_entry_set_text(GTK_ENTRY(ewm->contact), 
+		     "");
+  gtk_widget_show(ewm->contact);
+
+
+  hbox = gtk_hbox_new(FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(vbox),
+		     hbox,
+		     FALSE,
+		     TRUE,
+		     0);
+  gtk_widget_show(hbox);
+  label = gtk_label_new(_("Root:"));
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     label, 
+		     FALSE, 
+		     FALSE, 
+		     0);
+  gtk_widget_show(label);
+  ewm->root = gtk_entry_new();
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     ewm->root, 
+		     TRUE, 
+		     TRUE,
+		     0);
+  gtk_entry_set_text(GTK_ENTRY(ewm->root), 
+		     "");
+  gtk_widget_show(ewm->root);
+
+  /* end NBlock data */
+
+
+  
+  separator = gtk_hseparator_new();
+  gtk_box_pack_start(GTK_BOX(vbox),
+		     separator,
+		     TRUE, 
+		     TRUE,
+		     0);
+  gtk_widget_show(separator);
+
+
   /* add the insertion ok/cancel buttons */
   hbox = gtk_hbox_new(FALSE, 0);
   gtk_box_pack_start(GTK_BOX(vbox),
@@ -198,8 +526,8 @@ void openCreatePseudonymDialog(GtkWidget * unused,
 		     TRUE, 
 		     0);
   gtk_widget_show(hbox);
-  button_ok = gtk_button_new_with_label("Ok");
-  button_cancel = gtk_button_new_with_label("Cancel");
+  button_ok = gtk_button_new_with_label(_("Ok"));
+  button_cancel = gtk_button_new_with_label(_("Cancel"));
   gtk_box_pack_start(GTK_BOX(hbox),
 		     button_ok,
 		     TRUE,
@@ -229,7 +557,7 @@ void openCreatePseudonymDialog(GtkWidget * unused,
 
 /**
  * @brief state of the DeletePseudonym window
- **/
+ */
 typedef struct {
   GtkWidget * window;
   char * selected;
@@ -239,7 +567,7 @@ typedef struct {
 /**
  * Exit the application (called when the main window
  * is closed or the user selects File-Quit).
- **/
+ */
 static void destroyDPWindow(GtkWidget * widget,
 			    DeletePseudonymWindowModel * ewm) {
   FREE(ewm);
@@ -251,7 +579,7 @@ static void destroyDPWindow(GtkWidget * widget,
  *
  * @param w not used
  * @param ewm state of the edit window
- **/
+ */
 static void button_del_clicked(GtkWidget * w, 
 			       DeletePseudonymWindowModel * ewm) {
   GList * tmp;
@@ -274,7 +602,7 @@ static void button_del_clicked(GtkWidget * w,
   if (key[0] == NULL)
     return;
   if (OK != deletePseudonym(key[0]))
-    guiMessage("WARNING: failed to delete pseudonym (see logs).\n");
+    guiMessage(_("Failed to delete pseudonym (see logs).\n"));
   gtk_clist_remove(GTK_CLIST(ewm->pseudonymList),
 		   row);
   refreshMenuSensitivity();
@@ -285,7 +613,7 @@ static void button_del_clicked(GtkWidget * w,
  *
  * @param unused GTK handle that is not used
  * @param unused2 not used
- **/
+ */
 void openDeletePseudonymDialog(GtkWidget * unused,
 			       unsigned int unused2) {
   DeletePseudonymWindowModel * ewm;
@@ -295,7 +623,7 @@ void openDeletePseudonymDialog(GtkWidget * unused,
   GtkWidget * scrolled_window;
   GtkWidget * button_delete;
   GtkWidget * button_cancel;
-  gchar * titles[1] = { "Pseudonyms" };
+  gchar * titles[1] = { gettext_noop("Pseudonyms") };
   int i;
   int cnt;
   char ** list;
@@ -308,7 +636,7 @@ void openDeletePseudonymDialog(GtkWidget * unused,
 		       250,
 		       300);
   gtk_window_set_title(GTK_WINDOW(window), 
-		       "Delete Pseudonym");
+		       _("Delete Pseudonym"));
 
   /* add container for window elements */
   vbox = gtk_vbox_new(FALSE, 0);
@@ -369,7 +697,7 @@ void openDeletePseudonymDialog(GtkWidget * unused,
 		     TRUE,
 		     0);
   gtk_widget_show(hbox);
-  button_delete = gtk_button_new_with_label("Delete Pseudonym");
+  button_delete = gtk_button_new_with_label(_("Delete Pseudonym"));
   gtk_box_pack_start(GTK_BOX(hbox), 
 		     button_delete, 
 		     TRUE, 
@@ -382,7 +710,7 @@ void openDeletePseudonymDialog(GtkWidget * unused,
   gtk_widget_show(button_delete);
 
 
-  button_cancel = gtk_button_new_with_label("Cancel");
+  button_cancel = gtk_button_new_with_label(_("Cancel"));
   gtk_box_pack_start(GTK_BOX(hbox), 
 		     button_cancel, 
 		     TRUE,

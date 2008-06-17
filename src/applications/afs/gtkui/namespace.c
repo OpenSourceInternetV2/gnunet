@@ -21,7 +21,7 @@
  * @file src/applications/afs/gtkui/namespace.c
  * @brief Namespace dialog for the AFS interface
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_afs_esed2.h"
 #include "helper.h"
@@ -31,7 +31,7 @@
 
 /**
  * @brief state of the insert into namespace window
- **/
+ */
 typedef struct {
   char * fileName;
   GtkWidget * window;
@@ -47,7 +47,7 @@ typedef struct {
   HashCode160 selectedPseudonym;
 } NamespaceInsertWindowModel;
 
-static int parseTime(char * t) {
+static int parseTime(const char * t) {
   int pos;
   int start;
   int ret;
@@ -76,20 +76,20 @@ static int parseTime(char * t) {
 	    (t[pos] != '\0') )
       pos++;
     if (0 == strncasecmp(&t[start],
-			 "minute",
-			 strlen("minute")))
+			 _("minutes"),
+			 strlen(_("minutes"))))
       ret += 60 * val;
     else if (0 == strncasecmp(&t[start],
-			      "second",
-			      strlen("second")))
+			      _("seconds"),
+			      strlen(_("seconds"))))
       ret += val;
     else if (0 == strncasecmp(&t[start],
-			      "hour",
-			      strlen("hour")))
+			      _("hours"),
+			      strlen(_("hours"))))
       ret += 60 * 60 * val;
     else if (0 == strncasecmp(&t[start],
-			      "day",
-			      strlen("day")))
+			      _("days"),
+			      strlen(_("days"))))
       ret += 24 * 60 * 60 * val;
     else
       return -1; /* parse error */ 
@@ -105,16 +105,16 @@ static int parseTime(char * t) {
  *
  * @param dummy not used
  * @param ewm the state of the edit window
- **/
+ */
 static void buildNSEntry(GtkWidget * dummy, 
 			 NamespaceInsertWindowModel * ewm) {
   GList * tmp;
   int row;
   gchar * key[1];
-  char * currentKey;
-  char * nextKey;
+  const char * currentKey;
+  const char * nextKey;
   char * name;
-  char * pass;
+  const char * pass;
   char * message;
   Hostkey pseudo;
   HashCode160 k; /* = key, next - increment */
@@ -123,39 +123,41 @@ static void buildNSEntry(GtkWidget * dummy,
   GNUNET_TCP_SOCKET * sock;
   SBlock * sb;
   RootNode * rn;
-  HexName hex1;
-  HexName hex2;
-  char * updateInterval;
+  char * uri;
+  const char * updateInterval;
   TIME_T now;
   TIME_T creationTime;
   char * desc;
   char * mime;
 
   updateInterval = gtk_entry_get_text(GTK_ENTRY(GTK_COMBO(ewm->updateInterval)->entry));
-  if (updateInterval == NULL) {
-    guiMessage("ERROR: you must specify an update frequency.\n");
+  if ( (updateInterval == NULL) || (updateInterval[0] == '\0') ) {
+    guiMessage(_("You must specify an update frequency.\n"));
     return;
   }
-  if (strcmp(updateInterval, "--no updates--") == 0) {
+  if (strcmp(updateInterval, _("--no updates--")) == 0) {
     interval = 0;    
-  } else if (strcmp(updateInterval, "--sporadic updates--") == 0) {
+  } else if (strcmp(updateInterval, _("--sporadic updates--")) == 0) {
     interval = -1;
   } else {
     interval = parseTime(updateInterval);
     if (interval == -1) {
-      guiMessage("ERROR: parsing of time interval failed. "
-		 "Use \"(INT [seconds|minutes|hours])*\" format.\n");
+      guiMessage(_("Parsing of time interval failed. "
+		   "Use \"(INT [%s|%s|%s])*\" format.\n"),
+		 _("seconds"),
+		 _("minutes"),
+		 _("hours"));
       return;
     }
   } 
   tmp = GTK_CLIST(ewm->pseudonymList)->selection;
   if (NULL == tmp) {
-    guiMessage("ERROR: you must select a pseudonym (Error #1).\n");    
+    guiMessage(_("You must select a pseudonym.\n"));    
     return;  
   }
   row = (int) tmp->data;
   if ( row < 0 ) {
-    guiMessage("ERROR: you must select a pseudonym (Error #2).\n");    
+    guiMessage(_("You must select a pseudonym.\n"));    
     return; 
   }
 
@@ -166,7 +168,8 @@ static void buildNSEntry(GtkWidget * dummy,
 		     &key[0]);
   name = key[0];
   if (name == NULL) {
-    guiMessage("ERROR: you must select a pseudonym (Error #3).\n");    
+    guiMessage(_("You must select a pseudonym.\n"));    
+    BREAK();
     return;  /* should never happen... */
   }
   pass = gtk_entry_get_text(GTK_ENTRY(ewm->passwordLine));
@@ -174,7 +177,7 @@ static void buildNSEntry(GtkWidget * dummy,
     pass = NULL;
   pseudo = readPseudonym(name, pass);
   if (pseudo == NULL) {
-    guiMessage("ERROR: password specified invalid for pseudonym.\n");
+    guiMessage(_("Password specified does not decrypt the pseudonym.\n"));
     return;
   }
 
@@ -183,12 +186,12 @@ static void buildNSEntry(GtkWidget * dummy,
 
   tmp = GTK_CLIST(ewm->availableList)->selection;
   if (NULL == tmp) {
-    guiMessage("ERROR: you must select a file.\n");
+    guiMessage(_("You must select a file.\n"));
     return;  
   }
   row = (int) tmp->data;
   if ( row < 0 ) {
-    guiMessage("ERROR: you must select a file.\n");
+    guiMessage(_("You must select a file.\n"));
     freeHostkey(pseudo);
     return;
   }
@@ -200,8 +203,8 @@ static void buildNSEntry(GtkWidget * dummy,
   if ( (NULL == tmp) || 
        ( ((int)tmp->data) == 0) ) {
     /* "--no update--" or nothing selected, pick random IDs */
-    tryhex2hashOrHashString(currentKey,
-			    &k);
+    if (SYSERR == enc2hash(currentKey, &k))
+      hash(currentKey, strlen(currentKey), &k);
     switch(interval) {
       case SBLOCK_UPDATE_NONE:
         /* no updates => next == this */
@@ -212,8 +215,8 @@ static void buildNSEntry(GtkWidget * dummy,
       case SBLOCK_UPDATE_SPORADIC:
         /* sporadic update; pick specified ID if given,
            otherwise go random */
-        tryhex2hashOrHashString(nextKey,
-                                &n);
+	if (SYSERR == enc2hash(nextKey, &n))
+	  hash(nextKey, strlen(nextKey), &n);
 	break;
       default:
         /* periodic update, the very first next id will be random */
@@ -227,7 +230,7 @@ static void buildNSEntry(GtkWidget * dummy,
 
     row = ((int) tmp->data) - 1; /* -1: first item is always "no update" */
     if (row >= ewm->updateableCount) {
-      guiMessage("ERROR: this should never happen.\n");    
+      BREAK();
       freeHostkey(pseudo);
       return; 
     }
@@ -255,13 +258,13 @@ static void buildNSEntry(GtkWidget * dummy,
       if (interval == SBLOCK_UPDATE_SPORADIC) {
 	/* sporadic update, pick random next ID 
 	   if not specified! */
-	tryhex2hashOrHashString(nextKey, 
-				&n);
+	if (SYSERR == enc2hash(nextKey, &n))
+	  hash(nextKey, strlen(nextKey), &n);
 	TIME(&creationTime);
       } else {
 	/* updating non-updateable SBlock!? Should
 	   never happen! */
-	guiMessage("ERROR: attempt to update an non-updateble SBlock, this should never happen!\n"); 
+	guiMessage(_("Attempt to update an non-updateble SBlock, this should never happen!\n")); 
 	BREAK();
 	return;
       }
@@ -285,20 +288,19 @@ static void buildNSEntry(GtkWidget * dummy,
   freeHostkey(pseudo);
   if (sb == NULL) {
     FREE(name);
-    guiMessage("ERROR: failed to build SBlock. Consult logs.");
+    guiMessage(_("Failed to build SBlock. Consult logs."));
     return;
   }
   sock = getClientSocket();
   if (sock == NULL) {
     FREE(sb);
     FREE(name);
-    guiMessage("ERROR: could not connect to gnunetd.");
+    guiMessage(_("Failed to connect to gnunetd."));
     return;
   }
   if (OK != insertSBlock(sock,
 			 sb)) {
-    guiMessage("ERROR: failed to insert SBlock. "
-	       "Consult logs.");    
+    guiMessage(_("Failed to insert SBlock. Consult logs."));    
     releaseClientSocket(sock);
     FREE(name);
     FREE(sb);
@@ -311,28 +313,38 @@ static void buildNSEntry(GtkWidget * dummy,
        &n);
   FREE(sb);
  
-  currentKey = STRDUP(currentKey); /* would be destroyed with window */ 
+
+  if (NULL != nextKey)
+    desc = STRDUP(nextKey);
+  else 
+    desc = NULL;
 
   /* destroy the window */
   gtk_widget_destroy(ewm->window);
   refreshMenuSensitivity();
 
-  hash2hex(&n, &hex1);
-  hash2hex(&k, &hex2);
-  message = MALLOC(512);
-  sprintf(message,
-	  "%s inserted into namespace as\n"
-	  "  gnunet://afs/%s/%s\n",
-	  name,
-	  (char*)&hex1,
-	  (currentKey[0] != '\0') ? currentKey : (char*)&hex2);
+  uri = createSubspaceURI(&n, &k);
+  message = MALLOC(128 + strlen(uri));
+  SNPRINTF(message,
+	   128 + strlen(uri),
+	   _("File '%s' inserted into namespace under URI '%s'.\n"),
+	   name,
+	   uri);
+  FREE(uri);
   LOG(LOG_DEBUG,
-      "DEBUG: %s\n",
+      "%s\n",
       message);
   infoMessage(NO, message);
-  /* FIXME remind about the next key ... if its a verbal one,
-     it can't be reconstructed from the sblock later :( */
-  FREE(currentKey);
+
+  if (desc != NULL) {
+    SNPRINTF(message,
+	     128,
+	     _("Identifier for the next update to this content will be '%s'.\n"),
+	     desc);
+    FREE(desc);
+    infoMessage(NO, message);
+  }
+
   FREE(message);
   FREE(name);  
 }  
@@ -341,7 +353,7 @@ static void buildNSEntry(GtkWidget * dummy,
 /**
  * Exit the application (called when the main window
  * is closed or the user selects File-Quit).
- **/
+ */
 static void destroyNamespaceInsertWindow(GtkWidget * widget,
 					 NamespaceInsertWindowModel * ewm) {
   int i;
@@ -377,20 +389,23 @@ static void appendToCList(RootNode * root,
   char * mime;
   RootNode * copy;
   int row;
+  size_t n;
  
-  entry[0] = MALLOC(strlen(root->header.filename)+
-		    strlen(root->header.description)+
-		    strlen(root->header.mimetype)+
-		    128);
+  n = strlen(root->header.filename)+
+    strlen(root->header.description)+
+    strlen(root->header.mimetype)+
+    128;
+  entry[0] = MALLOC(n);
   name = getFilenameFromNode(root);
   desc = getDescriptionFromNode(root);
   mime = getMimetypeFromNode(root);
-  sprintf(entry[0],
-	  "%s, %s (%s, %u bytes)",
-	  name,
-	  desc,
-	  mime,
-	  (unsigned int) ntohl(root->header.fileIdentifier.file_length)); 
+  SNPRINTF(entry[0],
+	   n,
+	   "%s, %s (%s, %u bytes)",
+	   name,
+	   desc,
+	   mime,
+	   (unsigned int) ntohl(root->header.fileIdentifier.file_length)); 
   FREE(name);
   FREE(desc);
   FREE(mime);
@@ -416,6 +431,7 @@ static void checkUpdateableSBlocks(SBlock * sb,
   HashCode160 namespace;
   SBlock * tmp;
   int i;
+  size_t n;
   
   if (SBLOCK_UPDATE_NONE == ntohl(sb->updateInterval))
     return; /* non-updateable SBlock */
@@ -443,7 +459,7 @@ static void checkUpdateableSBlocks(SBlock * sb,
        	       	       &sb->identifierIncrement,
 		       sizeof(HashCode160))) ) {
         LOG(LOG_DEBUG, 
-            "DEBUG: skipping duplicate SBlock entry ...\n");
+            "Skipping duplicate SBlock entry.\n");
         return;
       }
     }
@@ -453,16 +469,18 @@ static void checkUpdateableSBlocks(SBlock * sb,
   sb->filename[MAX_FILENAME_LEN/2-1] = 0;
   sb->description[MAX_DESC_LEN-1] = 0;
   sb->mimetype[MAX_MIMETYPE_LEN/2-1] = 0;
-  entry[0] = MALLOC(strlen(sb->filename)+
-		    strlen(sb->description)+
-		    strlen(sb->mimetype)+
-		    128);
-  sprintf(entry[0],
-	  "%s, %s (%s, %u bytes)",
-	  sb->filename,
-	  sb->description,
-	  sb->mimetype,
-	  (unsigned int) ntohl(sb->fileIdentifier.file_length)); 
+  n = strlen(sb->filename)+
+    strlen(sb->description)+
+    strlen(sb->mimetype)+
+    128;
+  entry[0] = MALLOC(n);
+  SNPRINTF(entry[0],
+	   n,
+	   "%s, %s (%s, %u bytes)",
+	   sb->filename,
+	   sb->description,
+	   sb->mimetype,
+	   (unsigned int) ntohl(sb->fileIdentifier.file_length)); 
   gtk_clist_append(GTK_CLIST(ewm->sblockList), 
 		   entry);
   FREE(entry[0]);
@@ -490,8 +508,8 @@ static void pselectCallback(GtkWidget * unused,
   GList * tmp;
   int row;
   gchar * key[1];
-  char * name;
-  char * pass;
+  const char * name;
+  const char * pass;
   Hostkey pseudo;
   PublicKey pkey;
   int i;
@@ -558,7 +576,7 @@ static void enter_callback(GtkWidget * unused,
 
 static void selectFrequencyCallback(GtkWidget * unused,
 				    NamespaceInsertWindowModel * ewm) {
-  gchar * choice;
+  const gchar * choice;
   GList * tmp;
 
   tmp = GTK_CLIST(ewm->sblockList)->selection;
@@ -602,7 +620,7 @@ static void selectSBlockCallback(GtkWidget * unused,
   int row;
   unsigned int days, hours, minutes, seconds;
   char * txt;
-  HexName hex;
+  EncName enc;
   HashCode160 currentId;
   HashCode160 nextId;
   TIME_T now;
@@ -614,7 +632,7 @@ static void selectSBlockCallback(GtkWidget * unused,
   if ( (NULL == tmp) || 
        ( ((int)tmp->data) == 0) ) {
     gtk_entry_set_text(GTK_ENTRY(GTK_COMBO(ewm->updateInterval)->entry), 
-		       "--no updates--");
+		       _("--no updates--"));
     gtk_widget_set_sensitive(ewm->currentKey, TRUE);
     gtk_widget_set_sensitive(ewm->nextKey, FALSE);
     gtk_widget_set_sensitive(ewm->updateInterval, TRUE);
@@ -627,7 +645,7 @@ static void selectSBlockCallback(GtkWidget * unused,
 
   row = ((int) tmp->data) - 1; /* -1: first item is always "no update" */
   if (row >= ewm->updateableCount) {
-    guiMessage("ERROR: this should never happen.\n");    
+    guiMessage(" this should never happen.\n");    
     gtk_widget_set_sensitive(ewm->currentKey, FALSE);
     gtk_widget_set_sensitive(ewm->nextKey, FALSE);
     gtk_widget_set_sensitive(ewm->updateInterval, FALSE);
@@ -638,11 +656,11 @@ static void selectSBlockCallback(GtkWidget * unused,
   interval = ntohl(pred->updateInterval);
   if (interval == SBLOCK_UPDATE_SPORADIC) {
     gtk_entry_set_text(GTK_ENTRY(GTK_COMBO(ewm->updateInterval)->entry), 
-		       "--sporadic updates--");
-    hash2hex(&pred->nextIdentifier,
-	     &hex);
+		       _("--sporadic updates--"));
+    hash2enc(&pred->nextIdentifier,
+	     &enc);
     gtk_entry_set_text(GTK_ENTRY(ewm->currentKey), 
-		       (gchar*)&hex);
+		       (gchar*)&enc);
 
     gtk_widget_set_sensitive(ewm->currentKey, FALSE);
     gtk_widget_set_sensitive(ewm->nextKey, TRUE);
@@ -657,16 +675,17 @@ static void selectSBlockCallback(GtkWidget * unused,
   interval = interval / 24;
   days = interval;
   txt = MALLOC(256);
-  sprintf(txt,
-	  "%u day%s %u hour%s %u minute%s %u second%s",
-	  days, 
-	  (days == 1) ? "" : "s",
-	  hours, 
-	  (hours == 1) ? "" : "s",
-	  minutes,
-	  (minutes == 1) ? "" : "s",
-	  seconds,
-	  (seconds == 1) ? "" : "s");
+  SNPRINTF(txt,
+	   256,
+	   "%u %s %u %s %u %s %u %s",
+	   days, 
+	   _("days"),
+	   hours, 
+	   _("hours"),
+	   minutes,
+	   _("minutes"),
+	   seconds,
+	   _("seconds"));
   gtk_entry_set_text(GTK_ENTRY(GTK_COMBO(ewm->updateInterval)->entry), 
 		     txt);  
   FREE(txt);
@@ -675,14 +694,14 @@ static void selectSBlockCallback(GtkWidget * unused,
   TIME(&now);
   computeIdAtTime(pred, now, &currentId);
   computeIdAtTime(pred, now + ntohl(pred->updateInterval), &nextId);
-  hash2hex(&currentId,
-	   &hex);
+  hash2enc(&currentId,
+	   &enc);
   gtk_entry_set_text(GTK_ENTRY(ewm->currentKey), 
-		     (gchar*)&hex);
-  hash2hex(&nextId,
-	   &hex);
+		     (gchar*)&enc);
+  hash2enc(&nextId,
+	   &enc);
   gtk_entry_set_text(GTK_ENTRY(ewm->nextKey), 
-		     (gchar*)&hex);
+		     (gchar*)&enc);
   gtk_widget_set_sensitive(ewm->nextKey, FALSE);
   gtk_widget_set_sensitive(ewm->currentKey, FALSE);
   gtk_widget_set_sensitive(ewm->updateInterval, FALSE);
@@ -694,7 +713,7 @@ static void selectSBlockCallback(GtkWidget * unused,
  *
  * @param unused GTK handle that is not used
  * @param context selector for a subset of the known RootNodes
- **/
+ */
 void openAssembleNamespaceDialog(GtkWidget * unused,
 				 unsigned int context) {
   NamespaceInsertWindowModel * ewm;
@@ -711,10 +730,10 @@ void openAssembleNamespaceDialog(GtkWidget * unused,
   int i;
   int cnt;
   char ** list;
-  gchar * titles[1] = { "Pseudonyms" };
-  gchar * titlesNo[1] = { "--no update--" };
-  gchar * titlesSBlocks[1] = { "Updateable SBlocks for pseudonym" };
-  gchar * titlesAvailable[1] = { "Files available" };
+  gchar * titles[1] = { gettext_noop("Pseudonyms") };
+  gchar * titlesNo[1] = { gettext_noop("--no update--") };
+  gchar * titlesSBlocks[1] = { gettext_noop("Updateable SBlocks for pseudonym") };
+  gchar * titlesAvailable[1] = { gettext_noop("Files available") };
 
   ewm = MALLOC(sizeof(NamespaceInsertWindowModel));
   memset(ewm, 0, sizeof(NamespaceInsertWindowModel));
@@ -726,7 +745,7 @@ void openAssembleNamespaceDialog(GtkWidget * unused,
 		       780,
 		       580);
   gtk_window_set_title(GTK_WINDOW(window), 
-		       "Insert into Namespace");
+		       _("Insert into Namespace"));
 
   /* add container for window elements */
   vbox = gtk_vbox_new(FALSE, 15);
@@ -814,7 +833,7 @@ void openAssembleNamespaceDialog(GtkWidget * unused,
 		     FALSE,
 		     0);
   gtk_widget_show(hboxX);
-  label = gtk_label_new("Pseudonym Password:");
+  label = gtk_label_new(_("Pseudonym Password:"));
   gtk_box_pack_start(GTK_BOX(hboxX),
 		     label, 
 		     FALSE, 
@@ -894,7 +913,7 @@ void openAssembleNamespaceDialog(GtkWidget * unused,
 		     FALSE,
 		     0);
   gtk_widget_show(hbox);
-  label = gtk_label_new("Update frequency:");
+  label = gtk_label_new(_("Update frequency:"));
   gtk_box_pack_start(GTK_BOX(hbox),
 		     label, 
 		     FALSE, 
@@ -909,14 +928,14 @@ void openAssembleNamespaceDialog(GtkWidget * unused,
   gtk_entry_set_text(GTK_ENTRY(GTK_COMBO(combo)->entry), 
 		     "--no updates--");
   glist = NULL;
-  glist = g_list_append(glist, "--no updates--");
-  glist = g_list_append(glist, "--sporadic updates--");
-  glist = g_list_append(glist, "12 hours"); 
-  glist = g_list_append(glist, "1 day"); 
-  glist = g_list_append(glist, "2 days"); 
-  glist = g_list_append(glist, "7 days"); 
-  glist = g_list_append(glist, "30 days"); 
-  glist = g_list_append(glist, "2 hours 30 minutes"); 
+  glist = g_list_append(glist, _("--no updates--"));
+  glist = g_list_append(glist, _("--sporadic updates--"));
+  glist = g_list_append(glist, _("12 hours")); 
+  glist = g_list_append(glist, _("1 days")); 
+  glist = g_list_append(glist, _("2 days")); 
+  glist = g_list_append(glist, _("7 days")); 
+  glist = g_list_append(glist, _("30 days")); 
+  glist = g_list_append(glist, _("2 hours 30 minutes")); 
 
   gtk_combo_set_popdown_strings(GTK_COMBO(combo), 
 				glist) ;
@@ -934,7 +953,7 @@ void openAssembleNamespaceDialog(GtkWidget * unused,
 		     TRUE,
 		     0);
   gtk_widget_show(hbox);
-  label = gtk_label_new("Current keyword: ");
+  label = gtk_label_new(_("Current keyword: "));
   gtk_box_pack_start(GTK_BOX(hbox),
 		     label, 
 		     FALSE, 
@@ -957,7 +976,7 @@ void openAssembleNamespaceDialog(GtkWidget * unused,
 		     TRUE,
 		     0);
   gtk_widget_show(hbox);
-  label = gtk_label_new("Future keyword: ");
+  label = gtk_label_new(_("Future keyword: "));
   gtk_box_pack_start(GTK_BOX(hbox),
 		     label, 
 		     FALSE, 
@@ -1036,8 +1055,8 @@ void openAssembleNamespaceDialog(GtkWidget * unused,
 		     FALSE, 
 		     0);
   gtk_widget_show(hbox);
-  button_ok = gtk_button_new_with_label("Ok");
-  button_cancel = gtk_button_new_with_label("Cancel");
+  button_ok = gtk_button_new_with_label(_("Ok"));
+  button_cancel = gtk_button_new_with_label(_("Cancel"));
   gtk_box_pack_start(GTK_BOX(hbox),
 		     button_ok,
 		     TRUE,
@@ -1070,18 +1089,24 @@ void openAssembleNamespaceDialog(GtkWidget * unused,
 
 /**
  * @brief state of the namespace search window
- **/
+ */
 typedef struct {
   GtkWidget * window;
   GtkWidget * namespaceCombo;
   GtkWidget * searchkeyLine;
+
+  GtkWidget * description;
+  GtkWidget * realname;
+  GtkWidget * mimetype;
+  GtkWidget * uri;
+  GtkWidget * contact;
 } NamespaceSearchWindowModel;
 
 
 /**
  * Exit the application (called when the main window
  * is closed or the user selects File-Quit).
- **/
+ */
 static void destroyNamespaceSearchWindow(GtkWidget * widget,
 					 NamespaceSearchWindowModel * ewm) {
   FREE(ewm);
@@ -1104,7 +1129,7 @@ typedef struct {
  * @param k code to search for
  * @param model Data related to the search
  * @return OK on success, SYSERR on error
- **/
+ */
 static int startNamespaceSearchThread(HashCode160 * n,
 				      HashCode160 * k,
 				      ListModel * model);
@@ -1114,7 +1139,8 @@ static int startNamespaceSearchThread(HashCode160 * n,
  * thread and adds a new tab to the window list.
  */
 static void startSearch(HashCode160 * n,
-			HashCode160 * k) {
+			HashCode160 * k,
+			const char * kname) {
   ListModel * model;  
   int ok;
   GtkWidget * box;
@@ -1134,30 +1160,36 @@ static void startSearch(HashCode160 * n,
 				  model);
   if (ok == SYSERR) {
     LOG(LOG_DEBUG,
-        "DEBUG: startNamespaceSearchThread failed\n");
+        "'%s' failed\n",
+	"startNamespaceSearchThread");
     releaseClientSocket(model->SEARCH_socket_);
     gtkSaveCall((GtkFunction) doDestroyWidget, box);
     FREE(model);
   } else {
     char * label;
-    HexName hex1;
-    HexName hex2;
+    char * nick;
+    EncName enc;
+    size_t ne;
 
-    label = MALLOC(128);    
-    hash2hex(n, &hex1);
-    hash2hex(k, &hex2);
-    sprintf(label, 
-	    "%.8s/%.8s", /* %8s: otherwise MUCH too long... */
-	    (char*)&hex1,
-	    (char*)&hex2);
+    nick = getUniqueNickname(n);
+    if (kname != NULL) 
+      ne = strlen(nick) + 4 + strlen(kname);
+    else
+      ne = strlen(nick) + sizeof(EncName) + 4;
+    label = MALLOC(ne);
+    if (kname != NULL) {
+      SNPRINTF(label, ne, "%s/%s", nick, kname);
+    } else {
+      hash2enc(k, &enc);
+      SNPRINTF(label, ne, "%s/%s", nick, &enc);
+    }
+    FREE(nick);
     addToNotebook(label,
-		  box);
-    FREE(label);
-
+		  box);   
     LOG(LOG_DEBUG, 
-	"DEBUG: namespace search initiated for %s %s\n",
-        (char *)&hex1,
-	(char *)&hex2);
+	"Namespace search initiated for '%s'.\n",
+	label);
+    FREE(label);
   }
 }
 
@@ -1165,72 +1197,95 @@ static void displayResultGTK_(SBlock * sb,
 			      NSSearchThreadData * sqc) {
   HashCode160 curK;
   int i;
-  HexName hex;
+  EncName enc;
+  char * verb;
   
-  hash(sb, sizeof(SBlock), &curK);
-  hash2hex(&curK,
-  	   &hex);
-  LOG(LOG_DEBUG, 
-      "DEBUG: got namespace result for %s\n", 
-      (char *)&hex);
-  for (i=0;i<sqc->resultCount;i++)
-    if (equalsHashCode160(&curK,
-			  &sqc->results[i])) {
-      LOG(LOG_DEBUG, 
-          "DEBUG: displayResultGTK_ skipping previously seen entry %s\n",
-          (char *)&hex);
-      return; /* displayed already */
-    }
-  GROW(sqc->results,
-       sqc->resultCount,
-       sqc->resultCount+1);
-  memcpy(&sqc->results[sqc->resultCount-1],
-	 &curK,
+  switch (ntohs(sb->major_formatVersion)) {
+  case ROOT_MAJOR_VERSION:
+    LOG(LOG_WARNING,
+	_("Received RBlock in namespace search.\n"));
+    break;
+  case SBLOCK_MAJOR_VERSION:
+    hash(sb, sizeof(SBlock), &curK);
+    hash2enc(&curK,
+	     &enc);
+    LOG(LOG_DEBUG, 
+	"Got namespace result for identifier '%s'.\n", 
+	&enc);
+    for (i=0;i<sqc->resultCount;i++)
+      if (equalsHashCode160(&curK,
+			    &sqc->results[i])) {
+	LOG(LOG_DEBUG, 
+	    "'%s' skipping previously seen entry '%s'.\n",
+	    __FUNCTION__,
+	    &enc);
+	return; /* displayed already */
+      }
+    GROW(sqc->results,
+	 sqc->resultCount,
+	 sqc->resultCount+1);
+    memcpy(&sqc->results[sqc->resultCount-1],
+	   &curK,
 	 sizeof(HashCode160));
-  displayResultGTK((RootNode*)sb, 
-  		   sqc->model);
-  refreshMenuSensitivity();
-  GROW(sqc->seen,
-       sqc->seenCount,
-       sqc->seenCount+1);
-  memcpy(&sqc->seen[sqc->seenCount-1], 
-	 &sqc->k, 
-	 sizeof(HashCode160));
-  
-  /* now search for update if possible! */
-  computeIdAtTime(sb,
-		  TIME(NULL),
-		  &curK);
-  for (i=0;i<sqc->seenCount;i++)	  
-    if (equalsHashCode160(&curK,
-			  &sqc->seen[i])) {
-      HashCode160 ns;
+    displayResultGTK((RootNode*)sb, 
+		     sqc->model);
+    refreshMenuSensitivity();
+    GROW(sqc->seen,
+	 sqc->seenCount,
+	 sqc->seenCount+1);
+    memcpy(&sqc->seen[sqc->seenCount-1], 
+	   &sqc->k, 
+	   sizeof(HashCode160));
+    
+    /* now search for update if possible! */
+    computeIdAtTime(sb,
+		    TIME(NULL),
+		    &curK);
+    for (i=0;i<sqc->seenCount;i++)	  
+      if (equalsHashCode160(&curK,
+			    &sqc->seen[i])) {
+      HashCode160 ns;      
       hash(&sb->subspace,
 	   sizeof(PublicKey),
 	   &ns);
-      hash2hex(&ns,
-	       &hex);
-      guiMessage("Found the most recent version for a hit\n"
-                 "in your original search in namespace\n\n"
-                 "%s\n\nGood.",
-	         STRDUP((char *)&hex));
+      hash2enc(&ns,
+	       &enc);
+      guiMessage(_("Found the most recent version for a hit "
+		   "in your original search in namespace '%s'."),
+	         &enc);
       LOG(LOG_DEBUG, 
-          "DEBUG: namespace result %s is the most recent\n",
-	  (char*)&hex);
+          _("Namespace result '%s' is the most recent.\n"),
+	  &enc);
       return; /* found most up-to-date / all versions! */
     }
-  /* else: start new parallel search! */
-  LOG(LOG_DEBUG, 
-      "DEBUG: starting parallel search for the current version of %s\n",
-      (char*)&hex);
-  startSearch(&sqc->n,
-	      &curK);
+    /* else: start new parallel search! */
+    LOG(LOG_DEBUG, 
+	_("Starting parallel search for the latest version of '%s'\n"),
+	&enc);
+    startSearch(&sqc->n,
+		&curK, 
+		NULL);
+    break;
+  case NBLOCK_MAJOR_VERSION:
+    addNamespace((const NBlock*) sb);
+    verb = rootNodeToString((const RootNode*) sb);
+    infoMessage(NO, 
+		_("Found namespace description block:\n%s\n"),
+		verb);
+    FREE(verb);
+  default:
+    LOG(LOG_WARNING,
+	_("Received reply of unsupported type %d in namespace search.\n"),
+	ntohs(sb->major_formatVersion));
+    break;    
+  }
 }
 
 int searchSBlock_(NSSearchThreadData * sqc) {
   LOG(LOG_DEBUG, 
-      "DEBUG: enter searchSBlock_\n");
-
+      "Entering function '%s'\n",
+      __FUNCTION__);
+  
   sqc->seen = NULL;
   sqc->seenCount = 0;
   sqc->results = NULL;
@@ -1246,7 +1301,8 @@ int searchSBlock_(NSSearchThreadData * sqc) {
 		 sqc);
   } else {
     LOG(LOG_DEBUG, 
-        "DEBUG: socket was NULL in searchSBlock_\n");
+        "Socket was NULL in %s.\n",
+	__FUNCTION__);
   }
   GROW(sqc->seen,
        sqc->seenCount,
@@ -1265,7 +1321,7 @@ int searchSBlock_(NSSearchThreadData * sqc) {
  * @param k code to search for
  * @param model Data related to the search
  * @return OK on success, SYSERR on error
- **/
+ */
 static int startNamespaceSearchThread(HashCode160 * n,
 				      HashCode160 * k,
 				      ListModel * model) {
@@ -1282,10 +1338,8 @@ static int startNamespaceSearchThread(HashCode160 * n,
   if (0 != PTHREAD_CREATE(&model->thread,
 			  (PThreadMain) &searchSBlock_,
 			  sqc,
-			  16 * 1024)) {
-    errexit("FATAL: could not create SBlock search thread (%s)!\n",
-	    STRERROR(errno));    
-  }
+			  16 * 1024)) 
+    DIE_STRERROR("pthread_create");
   return OK;
 }
 
@@ -1297,46 +1351,150 @@ static int startNamespaceSearchThread(HashCode160 * n,
  *
  * @param dummy not used
  * @param ewm the state of the search window
- **/
+ */
 static void searchNS(GtkWidget * dummy, 
 		     NamespaceSearchWindowModel * ewm) {
   HashCode160 n;
   HashCode160 k;
-  char * c;
+  const char * c;
 
   c = gtk_entry_get_text(GTK_ENTRY(GTK_COMBO(ewm->namespaceCombo)->entry));
-  if (SYSERR == tryhex2hash(c, &n)) {
-    guiMessage("ERROR: must specify valid HEX code for namespace."); 
-    return;
+  if (SYSERR == enc2hash(c, &n)) {
+    NBlock * list;
+    int cnt;
+    int i;
+    int found;
+    
+    found = NO;
+    list = NULL;
+    cnt = listNamespaces(&list);
+    for (i=0;i<cnt;i++) {
+      char * nick = getUniqueNickname(&list[i].namespace);
+      if (0 == strcmp(nick, c)) {
+	n = list[i].namespace;
+	found = YES;
+      }
+    }
+    FREENONNULL(list);
+    if (found == NO) {
+      guiMessage(_("You must specify a valid ENC code or nickname for the namespace.")); 
+      return;
+    }
   }
   c = gtk_entry_get_text(GTK_ENTRY(ewm->searchkeyLine));
-  if (strlen(c) == 0) {
-    guiMessage("ERROR: must specify string (or HEX code) for search key."); 
+  if ( (c == NULL) || (strlen(c) == 0)) {
+    guiMessage(_("You must specify a non-empty string (or ENC code) for the search key.")); 
     return;
   }  
-  tryhex2hashOrHashString(c, &k);
+  if (SYSERR == enc2hash(c, &k))
+    hash(c, strlen(c), &k);
 
   /* destroy the window */
+  startSearch(&n, &k, c);
   gtk_widget_destroy(ewm->window);
-  startSearch(&n, &k);
+}
+
+/**
+ * The user edited the namespace name.  Update descriptions 
+ * accordingly.
+ */
+static void namespace_combo_changed(GtkWidget * unused,
+				    NamespaceSearchWindowModel * ewm) {
+  const char * nickname;
+  HashCode160 ns;
+  HashCode160 z;
+  int i;
+  int size;
+  NBlock * list;
+  char * desc;
+  char * real;
+  char * ur;
+  char * cont;
+  char * mm;
+  EncName enc;
+
+  memset(&z, 0, sizeof(HashCode160));
+  ns = z;
+  nickname = gtk_entry_get_text(GTK_ENTRY(GTK_COMBO(ewm->namespaceCombo)->entry));
+  list = NULL;
+  size = listNamespaces(&list);
+  for (i=0;i<size;i++) {
+    char * nick;
+
+    nick = getUniqueNickname(&list[i].namespace);
+    if (0 == strcmp(nick,
+		    nickname)) {
+      /* set all descriptions according to 'list[i]' */
+      desc = STRNDUP(list[i].description, MAX_DESC_LEN);
+      real = STRNDUP(list[i].nickname, MAX_NAME_LEN);
+      ur = STRNDUP(list[i].uri, MAX_CONTACT_LEN);
+      mm = STRNDUP(list[i].mimetype, MAX_MIMETYPE_LEN/2);
+      cont = STRNDUP(list[i].contact, MAX_CONTACT_LEN);
+      ns = list[i].rootEntry;
+      FREE(nick);
+      break;
+    }          
+    FREE(nick);
+  }
+  if (i == size) { /* not found */
+    desc = STRDUP("");
+    real = STRDUP("");
+    ur = STRDUP("");
+    mm = STRDUP("");
+    cont = STRDUP("");
+  }
+  FREENONNULL(list);
+  hash2enc(&ns, &enc);
+  /* set all descriptions */  
+  gtk_label_set_text(GTK_LABEL(ewm->description),
+		     desc);
+  gtk_label_set_text(GTK_LABEL(ewm->realname),
+		     real);
+  gtk_label_set_text(GTK_LABEL(ewm->mimetype),
+		     mm);
+  gtk_label_set_text(GTK_LABEL(ewm->uri),
+		     ur);
+  gtk_label_set_text(GTK_LABEL(ewm->contact),
+		     cont);
+  if (equalsHashCode160(&ns, &z))
+    gtk_entry_set_text(GTK_ENTRY(ewm->searchkeyLine), 
+		       "");
+  else
+    gtk_entry_set_text(GTK_ENTRY(ewm->searchkeyLine),
+		       (const char*) &enc);
+
+  FREE(desc);
+  FREE(real);
+  FREE(ur);
+  FREE(mm);
+  FREE(cont);
 }
 
 /**
  * Open a window to allow the user to search a namespace
  *
+ * TODO: 
+ * - automatically set the content identifier to the
+ *   root (if given) from the NBlock
+ * - add an area in the dialog where the NBlock/namespace
+ *   meta-data is displayed (if available) [update whenever
+ *   the user changes the namespace ID]
+ *
  * @param unused GTK handle that is not used
  * @param unused2 argument that is always 0
- **/
+ */
 void searchNamespace(GtkWidget * unused,
 		     unsigned int unused2) {
   NamespaceSearchWindowModel * ewm;
   GtkWidget * window;
-  GtkWidget * vbox, * hbox;
+  GtkWidget * separator;
+  GtkWidget * vbox;
+  GtkWidget * hbox;
   GtkWidget * label;
   GtkWidget * button_ok;
   GtkWidget * button_cancel;
   GList * glist;
-  HashCode160 * list;
+  NBlock * list;
   int ret;
   int i;
 
@@ -1346,9 +1504,9 @@ void searchNamespace(GtkWidget * unused,
   ewm->window = window;
   gtk_widget_set_usize(GTK_WIDGET(window),
 		       650,
-		       120);
+		       320);
   gtk_window_set_title(GTK_WINDOW(window), 
-		       "Search Namespace");
+		       _("Search Namespace"));
 
   /* add container for window elements */
   vbox = gtk_vbox_new(FALSE, 10);
@@ -1380,7 +1538,7 @@ void searchNamespace(GtkWidget * unused,
 		     TRUE,
 		     0);
   gtk_widget_show(hbox);
-  label = gtk_label_new("Namespace identifier:");
+  label = gtk_label_new(_("Namespace identifier:"));
   gtk_box_pack_start(GTK_BOX(hbox),
 		     label, 
 		     FALSE, 
@@ -1403,22 +1561,25 @@ void searchNamespace(GtkWidget * unused,
   ret = listNamespaces(&list);
 
   for (i=0;i<ret;i++) {
-    HexName hex;
-    hash2hex(&list[i], 
-             &hex);
+    char * nick;
+
+    nick = getUniqueNickname(&list[i].namespace);
     LOG(LOG_DEBUG, 
-        "DEBUG: appending namespace id %s\n", 
-        (char*)&hex);
+        "Appending namespace identifier '%s'.\n", 
+        nick);
     glist = g_list_append(glist, 
- 	 	          STRDUP((char*)&hex));
-    /* FIXME: memory from STRDUP above is probably not
-     * freed anywhere - but must be DUPED or gnunet-gtk
-     * will display only a single hash multiple times */
+ 	 	          nick);
+    /* FIXME: nick possibly not freed anywhere?
+       But we can't free it here, must wait until
+       dialog is closed? */
   }
-  if (ret > 0)
-    FREE(list);
+  FREENONNULL(list);
   gtk_combo_set_popdown_strings(GTK_COMBO(ewm->namespaceCombo), 
-				glist) ;
+				glist);
+  gtk_signal_connect(GTK_OBJECT(GTK_COMBO(ewm->namespaceCombo)->entry),
+		     "changed",
+		     GTK_SIGNAL_FUNC(namespace_combo_changed),
+		     ewm);
   gtk_widget_show(ewm->namespaceCombo);
 
 
@@ -1430,7 +1591,7 @@ void searchNamespace(GtkWidget * unused,
 		     TRUE,
 		     0);
   gtk_widget_show(hbox);
-  label = gtk_label_new("Search key identifier:");
+  label = gtk_label_new(_("Search key identifier:"));
   gtk_box_pack_start(GTK_BOX(hbox),
 		     label, 
 		     FALSE, 
@@ -1451,6 +1612,145 @@ void searchNamespace(GtkWidget * unused,
 		     ewm);
   gtk_widget_show(ewm->searchkeyLine);
  
+  /* namespace information */
+ 
+  separator = gtk_hseparator_new();
+  gtk_box_pack_start(GTK_BOX(vbox),
+		     separator,
+		     TRUE, 
+		     TRUE,
+		     0);
+  gtk_widget_show(separator);
+
+
+  
+  hbox = gtk_hbox_new(FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(vbox),
+		     hbox,
+		     TRUE,
+		     TRUE,
+		     0);
+  gtk_widget_show(hbox);
+  label = gtk_label_new(_("Description:"));
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     label, 
+		     FALSE, 
+		     FALSE, 
+		     0);
+  gtk_widget_show(label); 
+  ewm->description = gtk_label_new("");
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     ewm->description, 
+		     FALSE, 
+		     FALSE, 
+		     0);
+  gtk_widget_show(ewm->description); 
+
+
+
+  hbox = gtk_hbox_new(FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(vbox),
+		     hbox,
+		     TRUE,
+		     TRUE,
+		     0);
+  gtk_widget_show(hbox);
+  label = gtk_label_new(_("Owner:"));
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     label, 
+		     FALSE, 
+		     FALSE, 
+		     0);
+  gtk_widget_show(label); 
+  ewm->realname = gtk_label_new("");
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     ewm->realname, 
+		     FALSE, 
+		     FALSE, 
+		     0);
+  gtk_widget_show(ewm->realname); 
+
+
+  hbox = gtk_hbox_new(FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(vbox),
+		     hbox,
+		     TRUE,
+		     TRUE,
+		     0);
+  gtk_widget_show(hbox);
+  label = gtk_label_new(_("Mime-type:"));
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     label, 
+		     FALSE, 
+		     FALSE, 
+		     0);
+  gtk_widget_show(label); 
+  ewm->mimetype = gtk_label_new("");
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     ewm->mimetype, 
+		     FALSE, 
+		     FALSE, 
+		     0);
+  gtk_widget_show(ewm->mimetype); 
+
+
+  hbox = gtk_hbox_new(FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(vbox),
+		     hbox,
+		     TRUE,
+		     TRUE,
+		     0);
+  gtk_widget_show(hbox);
+  label = gtk_label_new(_("URI:"));
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     label, 
+		     FALSE, 
+		     FALSE, 
+		     0);
+  gtk_widget_show(label); 
+  ewm->uri = gtk_label_new("");
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     ewm->uri, 
+		     FALSE, 
+		     FALSE, 
+		     0);
+  gtk_widget_show(ewm->uri); 
+
+
+  hbox = gtk_hbox_new(FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(vbox),
+		     hbox,
+		     TRUE,
+		     TRUE,
+		     0);
+  gtk_widget_show(hbox);
+  label = gtk_label_new(_("Contact:"));
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     label, 
+		     FALSE, 
+		     FALSE, 
+		     0);
+  gtk_widget_show(label); 
+  ewm->contact = gtk_label_new("");
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     ewm->contact, 
+		     FALSE, 
+		     FALSE, 
+		     0);
+  gtk_widget_show(ewm->contact); 
+
+  /* end namespace information */
+ 
+  separator = gtk_hseparator_new();
+  gtk_box_pack_start(GTK_BOX(vbox),
+		     separator,
+		     TRUE, 
+		     TRUE,
+		     0);
+  gtk_widget_show(separator);
+
+
+
   /* add the ok/cancel buttons */
 
   hbox = gtk_hbox_new(FALSE, 0);
@@ -1460,8 +1760,8 @@ void searchNamespace(GtkWidget * unused,
 		     FALSE, 
 		     0);
   gtk_widget_show(hbox);
-  button_ok = gtk_button_new_with_label("Search");
-  button_cancel = gtk_button_new_with_label("Cancel");
+  button_ok = gtk_button_new_with_label(_("Search"));
+  button_cancel = gtk_button_new_with_label(_("Cancel"));
   gtk_box_pack_start(GTK_BOX(hbox),
 		     button_ok,
 		     TRUE,

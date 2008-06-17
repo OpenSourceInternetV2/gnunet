@@ -1,11 +1,17 @@
 INCLUDES = -I$(top_srcdir)/src/include
 
+# GNU Gettext support
+LIBS = @LIBINTL@ @LIBS@
+# Define a C macro LOCALEDIR indicating where catalogs will be installed.
+localedir = $(datadir)/locale
+DEFS = -DLOCALEDIR=\"$(localedir)\" @DEFS@
+
 if SOLARIS
  SOLFLAGS = -lrt
 endif
 
 if MINGW
- WINFLAGS = -Wl,--no-undefined -Wl,--export-all-symbols -lole32 -lshell32 -luuid -lstdc++
+ WINFLAGS = -Wl,--no-undefined -Wl,--export-all-symbols -lole32 -lshell32 -luuid -lstdc++ -lcomdlg32
  WINSUBDIRS = win
  WINLIBADD = $(top_builddir)/src/util/win/libwin.la 
 endif
@@ -28,38 +34,23 @@ if USE_OPENSSL
  cryptofiles = hostkey_openssl.c symcipher_openssl.c
  CRYPTLIB = -lcrypto
 else
-if USE_GCRYPT
-# nothing here
-else
- GCSUBDIRS = gcry 
- cryptofiles = hostkey_gcry.c symcipher_gcry.c locking_gcrypt.c locking_gcrypt.h
- GCLIBADD = $(top_builddir)/src/util/gcry/libcipher.la 
-endif
-endif
-
-libgnunetutil_la_LIBADD = $(GCLIBADD) $(CYGLIBADD) $(WINLIBADD)
-SUBDIRS = $(GCSUBDIRS) $(WINSUBDIRS) $(CYGSUBDIRS) .
-
-if USE_GCRYPT
-if USE_OPENSSL
-# nothing here 
-else
  cryptofiles = hostkey_gcrypt.c symcipher_gcrypt.c locking_gcrypt.c locking_gcrypt.h
  CRYPTLIB = -lgcrypt
 endif
-endif
+
+libgnunetutil_la_LIBADD = $(GCLIBADD) $(CYGLIBADD) $(WINLIBADD)
+SUBDIRS = $(WINSUBDIRS) $(CYGSUBDIRS) .
 
 EXTRA_DIST = generate \
+  testconfig.conf\
   hostkey_gcrypt.c \
-  hostkey_gcry.c \
   hostkey_openssl.c \
   symcipher_gcrypt.c \
-  symcipher_gcry.c \
   symcipher_openssl.c \
   locking_gcrypt.c \
   locking_gcrypt.h 
 
-libgnunetutil_la_LDFLAGS = -export-dynamic $(LIBLTDL) $(CRYPTLIB) $(SOLFLAGS) $(WINFLAGS) $(LIBS)
+libgnunetutil_la_LDFLAGS = -export-dynamic $(LIBLTDL) $(CRYPTLIB) $(SOLFLAGS) $(WINFLAGS) $(LIBS) -lgmp
 
 generate_gnunetd_conf.c: generate
 	./generate $(top_srcdir)/contrib/gnunet.root generate_gnunetd_conf > generate_gnunetd_conf.c
@@ -90,6 +81,7 @@ libgnunetutil_la_SOURCES = \
  initialize.c \
  io.c \
  ipcheck.c \
+ kblockkey.c \
  logging.c \
  printhelp.c \
  port.c \
@@ -102,4 +94,127 @@ libgnunetutil_la_SOURCES = \
  tcp_return.c \
  tcpio.c \
  timer.c \
+ vector.c \
  xmalloc.c 
+
+################################
+# TESTCASES 
+################################
+
+check_PROGRAMS = \
+ bloomtest \
+ crctest \
+ crontest \
+ configtest \
+ hashtest \
+ hashingtest \
+ hostkeytest \
+ kblockkey_test \
+ semaphoretest \
+ shutdowntest \
+ statetest \
+ statuscallstest \
+ storagetest \
+ symciphertest \
+ tcpiotest \
+ timertest \
+ vectortest \
+ weakkeytest \
+ xmalloctest 
+
+TESTS = $(check_PROGRAMS)
+
+xmalloctest_SOURCES = \
+ xmalloctest.c 
+xmalloctest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
+statetest_SOURCES = \
+ statetest.c
+statetest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
+shutdowntest_SOURCES = \
+ shutdowntest.c
+shutdowntest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
+timertest_SOURCES = \
+ timertest.c
+timertest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
+hashingtest_SOURCES = \
+ hashingtest.c
+hashingtest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
+tcpiotest_SOURCES = \
+ tcpiotest.c
+tcpiotest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
+vectortest_SOURCES = \
+ vectortest.c
+vectortest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
+crctest_SOURCES = \
+ crctest.c
+crctest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
+kblockkey_test_SOURCES = \
+ kblockkey_test.c
+kblockkey_test_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
+configtest_SOURCES = \
+ configtest.c
+configtest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
+crontest_SOURCES = \
+ crontest.c
+crontest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
+hostkeytest_SOURCES = \
+ hostkeytest.c
+hostkeytest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
+hashtest_SOURCES = \
+ hashtest.c
+hashtest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
+storagetest_SOURCES = \
+ storagetest.c
+storagetest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
+statuscallstest_SOURCES = \
+ statuscallstest.c
+statuscallstest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
+symciphertest_SOURCES = \
+ symciphertest.c
+symciphertest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
+semaphoretest_SOURCES = \
+ semaphoretest.c
+semaphoretest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
+weakkeytest_SOURCES = \
+ weakkeytest.c
+weakkeytest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
+bloomtest_SOURCES = \
+ bloomtest.c
+bloomtest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  

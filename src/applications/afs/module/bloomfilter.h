@@ -35,8 +35,8 @@ void initBloomfilters();
 
 void doneBloomfilters();
 
-void bf_deleteEntryCallback(HashCode160 * key,
-			    ContentIndex * ce,
+void bf_deleteEntryCallback(const HashCode160 * key,
+			    const ContentIndex * ce,
 			    void * data,
 			    unsigned int datalen,
 			    void * closure);

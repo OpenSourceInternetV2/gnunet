@@ -22,7 +22,7 @@
  * @file util/initialize.c
  * @brief functions to initializing libgnunetutil in the proper order.
  * @author Christian Grothoff
- **/
+ */
 
 #include "platform.h"
 #include "gnunet_util.h"
@@ -34,48 +34,48 @@ void doneXmalloc();
 
 /**
  * Initialize Random number generator.
- **/
+ */
 void initRAND(); 
 
 /**
  * This method must be called first. Typically,
  * the command line is parsed after that and then
  * "readConfiguration" is invoked.
- **/
+ */
 void initConfiguration();
 
 /**
  * This method may be called at last to clean up.
  * Afterwards everything but initConfiguration will result
  * in errors...
- **/
+ */
 void doneConfiguration();
 
 void initState();
 
 /**
  * Clean shutdown of the state module
- **/
+ */
 void doneState();
 
 /**
  * Initialize the statistics module.
- **/
+ */
 void initStatistics();
 
 /**
  * Shutdown the statistics module.
- **/
+ */
 void doneStatistics();
 
 /**
  * initialize logging module.
- **/
+ */
 void initLogging();
 
 /**
  * Shutdown the logging module.
- **/
+ */
 void doneLogging();
 
 /**
@@ -87,17 +87,17 @@ void initStatusCalls();
 
 /**
  * Shutdown the module.
- **/
+ */
 void doneStatusCalls();
 
 /** 
  * Initialize identity module. Requries configuration.
- **/
+ */
 int initAddress();
 
 /** 
  * Shutdown identity module.
- **/
+ */
 void doneAddress();
 
 void gnunet_util_initIO();
@@ -114,10 +114,15 @@ void doneLockingGcrypt();
  * for processing command-line options <strong>after</strong> the
  * configuration module was initialized, but <strong>before</strong> logging
  * and other configuration-dependent features are started.
- **/
+ */
 int initUtil(int argc,
 	     char * argv[],
 	     CommandLineParser parser) {
+
+  setlocale (LC_ALL, "");
+  bindtextdomain (PACKAGE, LOCALEDIR);
+  textdomain (PACKAGE);
+
   gnunet_util_initIO();
   initRAND();
   initStatistics();
@@ -143,8 +148,10 @@ int initUtil(int argc,
 			      "_MAGIC_",
 			      "YES")) {
     initStatusCalls(); 
-    if (OK != initAddress())
+    if (OK != initAddress()) {
+      initState();
       return SYSERR;
+    }
   }
   initState();
   return OK;
@@ -161,7 +168,7 @@ void doneUtil() {
   doneState();
   doneStatistics();
   LOG(LOG_MESSAGE,
-      "Shutdown complete.\n");
+      _("Shutdown complete.\n"));
   doneLogging();  
   doneConfiguration();
 #ifdef MINGW

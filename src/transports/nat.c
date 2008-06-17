@@ -21,7 +21,7 @@
  * @file transports/nat.c
  * @brief Implementation of the NAT transport service
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_util.h"
 #include "gnunet_transport.h"
@@ -33,7 +33,7 @@
  * Host-Address in a NAT network.  Since the idea behind
  * NAT is that it can not be contacted from the outside,
  * the address is empty.
- **/
+ */
 typedef struct {
 } HostAddress;
 
@@ -53,8 +53,8 @@ static CoreAPIForTransport * coreAPI = NULL;
  * @param helo the HELO message to verify
  *        (the signature/crc have been verified before)
  * @return OK on success, SYSERR on failure
- **/
-static int verifyHelo(HELO_Message * helo) {
+ */
+static int verifyHelo(const HELO_Message * helo) {
 
   if ( (ntohs(helo->senderAddressSize) != sizeof(HostAddress)) ||
        (ntohs(helo->header.size) != HELO_Message_size(helo)) ||
@@ -83,7 +83,7 @@ static int verifyHelo(HELO_Message * helo) {
  *
  * @param helo where to store the HELO message
  * @return OK on success, SYSERR on error
- **/
+ */
 static int createHELO(HELO_Message ** helo) {
   HELO_Message * msg;
 
@@ -105,7 +105,7 @@ static int createHELO(HELO_Message ** helo) {
  * @param helo the HELO-Message for the target node
  * @param tsessionPtr the session handle that is to be set
  * @return always fails (returns SYSERR)
- **/
+ */
 static int natConnect(HELO_Message * helo,
 		      TSession ** tsessionPtr) {
   return SYSERR;
@@ -121,7 +121,7 @@ static int natConnect(HELO_Message * helo,
  *   layer
  * @return OK if the session could be associated,
  *         SYSERR if not.
- **/
+ */
 int natAssociate(TSession * tsession) {
   return SYSERR; /* NAT connections can never be associated */
 }
@@ -135,7 +135,7 @@ int natAssociate(TSession * tsession) {
  * @param isEncrypted is the message encrypted?
  * @param crc CRC32 checksum of the plaintext
  * @return SYSERR (always fails)
- **/
+ */
 static int natSend(TSession * tsession,
 		   const void * message,
 		   const unsigned int size,
@@ -149,7 +149,7 @@ static int natSend(TSession * tsession,
  *
  * @param tsession the session that is closed
  * @return always SYSERR
- **/
+ */
 static int natDisconnect(TSession * tsession) {
   return SYSERR;
 }
@@ -158,7 +158,7 @@ static int natDisconnect(TSession * tsession) {
  * Start the server process to receive inbound traffic.
  *
  * @return OK on success, SYSERR if the operation failed
- **/
+ */
 static int startTransportServer(void) {
   return OK;
 }
@@ -166,21 +166,21 @@ static int startTransportServer(void) {
 /**
  * Shutdown the server process (stop receiving inbound traffic). Maybe
  * restarted later!
- **/
+ */
 static int stopTransportServer() {
   return OK;
 }
 
 /**
  * Reload the configuration. Should never fail.
- **/
+ */
 static void reloadConfiguration(void) {
 }
 
 /**
  * Convert NAT address to a string.
- **/
-static char * addressToString(HELO_Message * helo) {
+ */
+static char * addressToString(const HELO_Message * helo) {
   return STRDUP("NAT");
 }
 
@@ -188,7 +188,7 @@ static char * addressToString(HELO_Message * helo) {
 /**
  * The exported method. Makes the core api available via a global and
  * returns the nat transport API.
- **/ 
+ */ 
 TransportAPI * inittransport_nat(CoreAPIForTransport * core) {
   coreAPI = core;
   natAPI.protocolNumber       = NAT_PROTOCOL_NUMBER;

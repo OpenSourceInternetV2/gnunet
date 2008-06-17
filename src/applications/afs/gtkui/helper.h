@@ -20,7 +20,7 @@
 /**
  * @file applications/afs/gtkui/helper.h
  * @author Igor Wronsky 
- **/
+ */
 
 #ifndef GTKUI_HELPER_H
 #define GTKUI_HELPER_H
@@ -46,7 +46,7 @@ typedef struct {
 } InfoMessage;      
 
 typedef struct {
-  char *labelName;
+  const char *labelName;
   GtkWidget *frame;
 } AddNotebook;
 
@@ -77,10 +77,10 @@ void infoMessage(int doPopup, const char * format, ...);
  *
  * @param txt the log entry
  *
- **/
+ */
 void addLogEntry(const char *txt);
 
-void addToNotebook(char * labelName,
+void addToNotebook(const char * labelName,
 		   GtkWidget * frame);
 
 void hideWindow(GtkWidget * widget,
@@ -99,28 +99,28 @@ void killDaemon(GtkWidget * widget,
 
 /**
  * A function for numeric comparisons of strings
- **/
+ */
 gint numericComp(GtkCList *clist,
                  gconstpointer ptr1,
                  gconstpointer ptr2);
 
 /**
  * A function for case-insensitive text comparisons
- **/
+ */
 gint alphaComp(GtkCList *clist,
                gconstpointer ptr1,
                gconstpointer ptr2);
 
 /**
  * A function for comparisons of percentages
- **/
+ */
 gint percentComp(GtkCList *clist,
                  gconstpointer ptr1,
                  gconstpointer ptr2);
 
 /**
  * A general right-button popup menu callback
- **/
+ */
 gboolean popupCallback(GtkWidget *widget,
                        GdkEvent *event,
 		                   GtkWidget *menu );
@@ -129,12 +129,12 @@ gboolean popupCallback(GtkWidget *widget,
  * Call a callback function from the mainloop/main thread ("SaveCall").
  * Since GTK doesn't work with multi-threaded applications under Windows,
  * all GTK operations have to be done in the main thread
- **/
+ */
 void gtkSaveCall(GtkFunction func, void *args);
 
 /**
  * Initialize "SaveCalls"
- **/
+ */
 void gtkInitSaveCalls();
 
 void gtkDoneSaveCalls();
@@ -143,12 +143,12 @@ void gtkRunSomeSaveCalls();
  
 /**
  * Called from a "SaveCall"-function to indicate that it is done
- **/
+ */
 void gtkSaveCallDone(Semaphore *sem);
 
 /**
  * Destroy a widget. Called from threads other than the main thread
- **/
+ */
 gint doDestroyWidget(SaveCall *call);
 
 extern GtkNotebook * notebook;

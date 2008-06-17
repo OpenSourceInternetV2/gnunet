@@ -22,7 +22,7 @@
  * @file util/xmalloc.c
  * @brief wrapper around malloc/free 
  * @author Christian Grothoff
- **/ 
+ */ 
 
 #include "gnunet_util.h"
 #include "platform.h"
@@ -59,16 +59,21 @@ void doneXmalloc() {
  * Allocate memory. Checks the return value, aborts if no more
  * memory is available.
  *
- * @param size how many bytes of memory to allocate
+ * @param size how many bytes of memory to allocate, do NOT use
+ *  this function (or MALLOC) to allocate more than several MB
+ *  of memory, if you are possibly needing a very large chunk use
+ *  xmalloc_unchecked_ instead.
  * @param filename where in the code was the call to GROW
  * @param linenumber where in the code was the call to GROW
  * @return pointer to size bytes of memory
- **/
+ */
 void * xmalloc_(size_t size, 
 		const char * filename,
 		const int linenumber) {
+  /* As a security precaution, we generally do not allow very large 
+     allocations using the default 'MALLOC' macro */
   if (size > 1024 * 1024 * 40)
-    errexit("FATAL: unexpected very large allocation (%u bytes) at %s:%d!\n",
+    errexit(_("Unexpected very large allocation (%u bytes) at %s:%d!\n"),
 	    size, filename, linenumber);
   return xmalloc_unchecked_(size, filename, linenumber);
 }
@@ -81,9 +86,7 @@ void * xmalloc_unchecked_(size_t size,
 #if STAT_MALLOC
   size += sizeof(long long); /* long long to preserve alignment on 64-bit architectures! */
 #endif
-  if (size > INT_MAX)
-    errexit("FATAL: can not allocate %u bytes (> %u)\n",
-	    size, INT_MAX);
+  GNUNET_ASSERT(size < INT_MAX);
   result = malloc(size);
 #if STAT_MALLOC
   size -= sizeof(long long);
@@ -101,12 +104,8 @@ void * xmalloc_unchecked_(size_t size,
   fflush(stdout);
   MUTEX_UNLOCK(&lock);
 #endif
-  if (result == NULL) {
-    errexit("ERROR: out of memory (%d at %s:%d)!\n",
-	    size, 
-	    filename,
-	    linenumber);
-  }
+  if (result == NULL) 
+    DIE_STRERROR_FL(filename, linenumber, "malloc");
   memset(result, 0, size); /* client code should not rely on this, though... */
 #if STAT_MALLOC
   if (statMalloc == -1) { /* this is guaranteed to be hit before we have multiple threads... */
@@ -129,14 +128,11 @@ void * xmalloc_unchecked_(size_t size,
  * @param ptr the pointer to free
  * @param filename where in the code was the call to GROW
  * @param linenumber where in the code was the call to GROW
- **/
+ */
 void xfree_(void * ptr, 
 	    const char * filename,
 	    const int linenumber) {
-  if (ptr == NULL)
-    errexit("FREE called with NULL ptr at %s:%d\n", 
-	    filename,
-	    linenumber);
+  GNUNET_ASSERT_FL(filename, linenumber, ptr != NULL);
 #if STAT_MALLOC
   MUTEX_LOCK(&lock);
   currentlyAllocated -= ((long long*)ptr)[-1];
@@ -169,16 +165,13 @@ void xfree_(void * ptr,
  * @param filename where in the code was the call to GROW
  * @param linenumber where in the code was the call to GROW
  * @return strdup(str)
- **/
+ */
 char * xstrdup_(const char * str,
 		const char * filename,
 		const int linenumber) {
   char * res;
 
-  if (str == NULL)
-    errexit("FATAL: STRDUP called with NULL argument at %s:%d\n",
-	    filename, 
-	    linenumber);
+  GNUNET_ASSERT_FL(filename, linenumber, str != NULL);
   res = (char*)xmalloc_(strlen(str)+1,
 		         filename,
 		         linenumber);
@@ -194,7 +187,7 @@ char * xstrdup_(const char * str,
  * @param filename where in the code was the call to GROW
  * @param linenumber where in the code was the call to GROW
  * @return strdup(str)
- **/
+ */
 char * xstrndup_(const char * str,
 		 const size_t n,
 		 const char * filename,
@@ -202,20 +195,18 @@ char * xstrndup_(const char * str,
   char * res;
   size_t min;
 
-  if (str == NULL)
-    errexit("FATAL: strndup called with NULL at %s:%d.\n",
-	    filename,
-	    linenumber);
+  GNUNET_ASSERT_FL(filename, linenumber, str != NULL);
   min = 0;
   while ( (min < n) && (str[min] != '\0'))
     min++;
   res = (char*)xmalloc_(min+1,
-		         filename,
-		         linenumber);
+			filename,
+			linenumber);
   memcpy(res, str, min);
   res[min] = '\0';
   return res;
 }
+
 
 /**
  * Grow an array.  Grows old by (*oldCount-newCount)*elementSize bytes
@@ -228,22 +219,17 @@ char * xstrndup_(const char * str,
  * @param newCount number of elements in the new array, may be 0
  * @param filename where in the code was the call to GROW
  * @param linenumber where in the code was the call to GROW
- **/
+ */
 void xgrow_(void ** old,
 	    size_t elementSize,
 	    unsigned int * oldCount,
 	    unsigned int newCount,
-	    char * filename,
+	    const char * filename,
 	    const int linenumber) {
   void * tmp;
   size_t size;
 
-  if (newCount < 0)
-    errexit("FATAL: grow called with newcount<0 at %s:%d\n",
-	    filename, linenumber);
-  if (INT_MAX / elementSize <= newCount)
-    errexit("FATAL: can not allocate %u * %d elements (number too large) at %s:%d.\n",
-	    elementSize, newCount, filename, linenumber);
+  GNUNET_ASSERT_FL(filename, linenumber, INT_MAX / elementSize > newCount);
   size = newCount * elementSize;
   if (size == 0) {
     tmp = NULL;
@@ -251,12 +237,7 @@ void xgrow_(void ** old,
     tmp = xmalloc_(size,
 		   filename,
 		   linenumber);  
-    if (tmp == NULL) {
-      errexit("ERROR: out of memory (%d at %s:%d)!\n",
-	      size, 
-	      filename,
-	      linenumber);
-    }
+    GNUNET_ASSERT(tmp != NULL);
     memset(tmp, 0, size); /* client code should not rely on this, though... */
     if (*oldCount > newCount)
       *oldCount = newCount; /* shrink is also allowed! */

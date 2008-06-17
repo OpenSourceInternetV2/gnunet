@@ -22,7 +22,7 @@
  * @file server/pingpong.c
  * @brief Pings a host and triggers an action if a reply is received.
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_util.h"
 #include "handler.h"
@@ -55,14 +55,14 @@ static Mutex * pingPongLock;
 /**
  * We received a PING message, send the PONG reply and notify the
  * connection module that the session is still life.
- **/	
-static int pingReceived(HostIdentity * sender,
-			p2p_HEADER * msg) {
+ */	
+static int pingReceived(const HostIdentity * sender,
+			const p2p_HEADER * msg) {
   PINGPONG_Message * pmsg;
   
 #if DEBUG_PINGPONG
   LOG(LOG_DEBUG,
-      "DEBUG: received encrypted ping\n");
+      "received encrypted ping\n");
 #endif
   if (ntohs(msg->size) != sizeof(PINGPONG_Message) )
     return SYSERR;
@@ -88,15 +88,15 @@ static int pingReceived(HostIdentity * sender,
 /**
  * We received a PING message, send the PONG reply and notify the
  * connection module that the session is still life.
- **/	
-int plaintextPingReceived(HostIdentity * sender,
+ */	
+int plaintextPingReceived(const HostIdentity * sender,
 			  TSession * tsession,
-			  p2p_HEADER * msg) {
+			  const p2p_HEADER * msg) {
   PINGPONG_Message * pmsg;
 
 #if DEBUG_PINGPONG  
   LOG(LOG_DEBUG,
-      "DEBUG: received plaintext ping\n");
+      "Received plaintext ping.\n");
 #endif
   if (ntohs(msg->size) != sizeof(PINGPONG_Message) )
     return SYSERR;
@@ -107,7 +107,7 @@ int plaintextPingReceived(HostIdentity * sender,
   if (!hostIdentityEquals(&myIdentity,
 			  &pmsg->receiver)) {
     LOG(LOG_INFO,
-	"INFO: received PING not destined for us!\n");
+	_("Received PING not destined for us!\n"));
     return SYSERR; /* not for us */
   }
   pmsg->header.requestType = htons(p2p_PROTO_PONG);
@@ -131,12 +131,12 @@ int plaintextPingReceived(HostIdentity * sender,
 				YES,
 				&helo)) {
 #if DEBUG_PINGPONG
-      HexName hn;
+      EncName hn;
       
       IFLOG(LOG_INFO,
-	    hash2hex(&sender->hashPubKey, &hn));
+	    hash2enc(&sender->hashPubKey, &hn));
       LOG(LOG_INFO,
-	  "INFO: received PING, can not send PONG, no transport known for peer %s\n",
+	  _("Received PING, cannot send PONG, no transport known that would work for peer '%s'.\n"),
 	  &hn);
 #endif
       return SYSERR;
@@ -164,9 +164,9 @@ int plaintextPingReceived(HostIdentity * sender,
 
 /**
  * Handler for a pong.
- **/ 	
-static int pongReceived(HostIdentity * sender,
-			p2p_HEADER * msg) {
+ */ 	
+static int pongReceived(const HostIdentity * sender,
+			const p2p_HEADER * msg) {
   int i;
   PINGPONG_Message * pmsg;
   PingPongEntry * entry;
@@ -188,7 +188,7 @@ static int pongReceived(HostIdentity * sender,
 			    &entry->receiverIdentity) ) {
 #if DEBUG_PINGPONG
       LOG(LOG_DEBUG, 
-	  "DEBUG: received pong, triggering action\n");
+	  "Received pong, triggering action.\n");
 #endif
       success = YES;
       entry->method(entry->data);
@@ -202,7 +202,7 @@ static int pongReceived(HostIdentity * sender,
 #if DEBUG_PINGPONG
   if (NO == success)
     LOG(LOG_DEBUG, 
-	"DEBUG: no handler found for pong\n");
+	"No handler found for pong.\n");
 #endif
   MUTEX_UNLOCK(pingPongLock);   
   return OK;
@@ -210,16 +210,16 @@ static int pongReceived(HostIdentity * sender,
 
 /**
  * Handler for a pong.
- **/ 	
-int plaintextPongReceived(HostIdentity * sender,
+ */ 	
+int plaintextPongReceived(const HostIdentity * sender,
 			  TSession * tsession,
-			  p2p_HEADER * msg) {
+			  const p2p_HEADER * msg) {
   return pongReceived(sender, msg);
 }
 
 /**
  * Initialize the pingpong module.
- **/
+ */
 void initPingPong() {
   pingPongLock = getConnectionModuleLock();
   pingPongs = (PingPongEntry*) MALLOC(sizeof(PingPongEntry)*MAX_PING_PONG);
@@ -228,13 +228,13 @@ void initPingPong() {
 	 sizeof(PingPongEntry)*MAX_PING_PONG);
 #if VERBOSE_STATS
   stat_ping_sent 
-    = statHandle("# ping messages sent");
+    = statHandle(_("# ping messages sent"));
   stat_ping_received 
-    = statHandle("# ping messages received");
+    = statHandle(_("# ping messages received"));
   stat_pong_sent 
-    = statHandle("# pong messages sent");
+    = statHandle(_("# pong messages sent"));
   stat_pong_received 
-    = statHandle("# pong messages received");
+    = statHandle(_("# pong messages received"));
 #endif
   registerp2pHandler(p2p_PROTO_PING,
 		     &pingReceived);
@@ -244,7 +244,7 @@ void initPingPong() {
 
 /**
  * Shutdown the pingpong module.
- **/
+ */
 void donePingPong() {
   int i;
 
@@ -262,8 +262,8 @@ void donePingPong() {
  * @param pmsg the ping-message, pingAction just fills it in,
  *        the caller is responsible for sending it!
  * @returns OK on success, SYSERR on error
- **/
-int pingAction(HostIdentity * receiver,
+ */
+int pingAction(const HostIdentity * receiver,
 	       CronJob method,
 	       void * data,
 	       PINGPONG_Message * pmsg) {

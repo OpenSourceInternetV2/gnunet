@@ -22,7 +22,7 @@
  * @file server/keyservice.c
  * @brief encapsulation of the hostkey of the peer
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_util.h"
 
@@ -31,18 +31,18 @@
 
 /**
  * The identity of THIS node.
- **/
+ */
 HostIdentity myIdentity;
 
 /**
  * The SECRET hostkey. Keep local, never export outside of this
  * module (except hostkey.c)!
- **/
+ */
 static Hostkey hostkey;
 
 /**
  * The public hostkey
- **/
+ */
 static PublicKey * publicKey;
 
 static void initHelper(TransportAPI * tapi,
@@ -62,14 +62,14 @@ static void initHelper(TransportAPI * tapi,
 /**
  * Initialize KeyService. Configuration must be initialized at this
  * point. You must call this method first!
- **/
+ */
 void initKeyService(char * toolName) {
   char * gnHome;
   char * hostkeyfile;
   HostKeyEncoded * encHostkey;
   unsigned short len;
   int res;
-  HexName myself;
+  EncName myself;
 
   gnHome = getFileName("",
 		       "GNUNETD_HOME",
@@ -88,7 +88,8 @@ void initKeyService(char * toolName) {
 	readFile(hostkeyfile, ntohs(len), encHostkey)) {
       FREE(encHostkey);
       LOG(LOG_WARNING,
-	  "WARNING: hostkey file failed format check, creating new hostkey\n");
+	  _("Existing hostkey in file '%s' failed format check, creating new hostkey.\n"),
+	  hostkeyfile);
       encHostkey = NULL;
     }
   } else
@@ -99,19 +100,19 @@ void initKeyService(char * toolName) {
 		      toolName)) ) &&
        (encHostkey == NULL) ) { /* make new hostkey */
     LOG(LOG_MESSAGE, 
-	"Creating new hostkey (this may take a while)...\n");
+	_("Creating new hostkey (this may take a while).\n"));
     hostkey = makeHostkey();
     if (hostkey == NULL)
-      errexit("FATAL: could not create hostkey\n");
+      errexit("could not create hostkey\n");
     encHostkey = encodeHostkey(hostkey);
     if (encHostkey == NULL)
-      errexit("FATAL: encode hostkey failed\n");
+      errexit("encode hostkey failed\n");
     writeFile(hostkeyfile, 
 	      encHostkey, 
 	      ntohs(encHostkey->len),
 	      "600");
     LOG(LOG_MESSAGE, 
-	"Done creating hostkey.\n");
+	_("Done creating hostkey.\n"));
   } else {
     if (encHostkey != NULL) {
       hostkey = decodeHostkey(encHostkey);    
@@ -127,10 +128,10 @@ void initKeyService(char * toolName) {
     getHostIdentity(publicKey, 
 		    &myIdentity);  
     IFLOG(LOG_DEBUG,
-	  hash2hex(&myIdentity.hashPubKey,
+	  hash2enc(&myIdentity.hashPubKey,
 		   &myself));
     LOG(LOG_DEBUG,
-	"DEBUG: I am %s\n",
+	_("I am peer '%s'.\n"),
 	&myself);
     forEachTransport(&initHelper, NULL);
   } else {
@@ -150,7 +151,7 @@ void doneKeyService() {
 /**
  * Get the public key of the host
  * @return reference to the public key. Do not free it!
- **/
+ */
 PublicKey * getPublicHostkey() {
   return publicKey;
 }
@@ -159,7 +160,7 @@ PublicKey * getPublicHostkey() {
  * Obtain identity from publicHostkey.
  * @param pubKey the public key of the host
  * @param result address where to write the identity of the node
- **/
+ */
 void getHostIdentity(PublicKey * pubKey,
 		     HostIdentity * result) {
   hash(pubKey,
@@ -171,7 +172,7 @@ void getHostIdentity(PublicKey * pubKey,
  * Sign arbitrary data. ALWAYS use only on data we generated
  * entirely! 
  * @return SYSERR on error, OK on success
- **/
+ */
 int signData(void * data,
 	     unsigned short size,
 	     Signature * result) {
@@ -188,7 +189,7 @@ int signData(void * data,
  * @param max the maximum number of bits to store for the result, if
  *        the decrypted block is bigger, an error is returned
  * @returns the size of the decrypted block, -1 on error
- **/
+ */
 int decryptData(RSAEncryptedData * block,
 		void * result,
 		unsigned int max) {

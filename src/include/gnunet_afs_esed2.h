@@ -21,7 +21,7 @@
  * @file include/gnunet_afs_esed2.h
  * @brief support for ESED2 encoding of files 
  * @author Christian Grothoff
- **/
+ */
 
 #ifndef GNUNET_AFS_ESED2_H
 #define GNUNET_AFS_ESED2_H
@@ -39,9 +39,10 @@
  * 2.1.x: combined CHK/3HASH encoding with 25:1 super-nodes
  * 2.2.x: with directories
  * 3.0.x: with namespaces
- **/
+ * 3.1.x: with namespace meta-data
+ */
 
-#define AFS_VERSION "3.0.4"
+#define AFS_VERSION "3.1.0"
 
 /* size of the Blocks we slice file data into 
    (DBlocks and IBlocks). Never change this! */
@@ -52,7 +53,7 @@
  *
  * A CONTENT_Block, representative of the structure
  * of the leaf nodes (a simple chunk of 1 kb of data)
- **/
+ */
 typedef struct {
   unsigned char content[CONTENT_SIZE]; 
 } CONTENT_Block;
@@ -69,17 +70,17 @@ typedef struct {
  * Note that GNUnet uses a different encoding for
  * the RBlocks (root-nodes) in order to make searches
  * possible.
- **/
+ */
 typedef struct {
 
   /**
    * The hash of the plaintext is the key to decrypt.
-   **/
+   */
   HashCode160 key;
 
   /**
    * The hash of the encrypted block is the query.
-   **/
+   */
   HashCode160 query;
 
 } CHK_Hashes;
@@ -102,27 +103,27 @@ typedef struct {
  * dot-files. It uses function pointers to allow implementors to
  * provide a different mechanism (other than files on the drive) to
  * cache the IBlocks.
- **/
+ */
 typedef struct IOContext {
 
   /**
    * The depth of the file-tree.
-   **/
+   */
   int treedepth;
   
   /**
    * A lock for each file-handle for synchronizing access.
-   **/
+   */
   Mutex * locks;
 
   /**
    * The file handles for each level in the tree.
-   **/
+   */
   int * handles;
 
   /**
    * The base-filename
-   **/
+   */
   char * filename;
 
 } IOContext;
@@ -135,10 +136,10 @@ typedef struct IOContext {
  * @param filename the name of the level-0 file
  * @param rdOnly use YES for read-only IOC
  * @return OK on success, SYSERR on failure
- **/
+ */
 int createIOContext(IOContext * this,
 		    size_t filesize,
-		    char * filename,
+		    const char * filename,
 		    int rdOnly);
 
 /**
@@ -150,7 +151,7 @@ int createIOContext(IOContext * this,
  * @param buf where to read from or write to
  * @param len how many bytes to read or write
  * @return number of bytes read or written, SYSERR on error  
- **/
+ */
 int readFromIOC(struct IOContext * this,
 		int level,
 		size_t pos,
@@ -166,7 +167,7 @@ int readFromIOC(struct IOContext * this,
  * @param buf where to read from or write to
  * @param len how many bytes to read or write
  * @return number of bytes read or written, SYSERR on error  
- **/
+ */
 int writeToIOC(struct IOContext * this,
 	       int level,
 	       size_t pos,
@@ -183,7 +184,7 @@ int writeToIOC(struct IOContext * this,
  * @param unlinkTreeFiles if YES, the non-level 0 files
  *     are unlinked (removed), set to NO if the download
  *     is not complete and may be resumed later.
- **/
+ */
 void freeIOC(struct IOContext * this,
 	     int unlinkTreeFiles);
 
@@ -196,59 +197,59 @@ void freeIOC(struct IOContext * this,
  * Handle to the state of a request manager.  Here we keep track of
  * which queries went out with which priorities and which nodes in 
  * the merkle-tree are waiting for the replies.
- **/
+ */
 typedef struct RequestManager {
 
   /**
    * Mutex for synchronizing access to this struct
-   **/
+   */
   Mutex lock;
 
   /**
    * Current list of all pending requests
-   **/ 
+   */ 
   struct RequestEntry ** requestList;
 
   /**
    * Number of pending requests (highest used index)
-   **/
+   */
   int requestListIndex;
 
   /**
    * Number of entries allocated for requestList
-   **/
+   */
   int requestListSize;
 
   /**
    * Current "good" TTL (initial) [64s].  In HOST byte order.
-   **/
+   */
   unsigned int initialTTL;
 
   /**
    * Congestion window.  How many messages
    * should be pending concurrently?
-   **/
+   */
   int congestionWindow;
 
   /**
    * Slow-start threshold (see RFC 2001)
-   **/
+   */
   int ssthresh;
 
   /**
    * Current estimate of "duplication" rate (amount of
    * duplicate replies we get).
-   **/
+   */
   int duplicationEstimate;
 
   /**
    * Socket used to talk to gnunetd.
-   **/
+   */
   GNUNET_TCP_SOCKET * sock;
 
   /**
    * The thread that receives results from gnunetd.
-   **/
+   */
   PTHREAD_T receiveThread_;
 
   TIME_T lastDET;
@@ -258,7 +259,7 @@ typedef struct RequestManager {
   /**
    * CRC of the top-IBlock, see downloadutil.c and
    * block.c::childDownloadCompleted.
-   **/ 
+   */ 
   int topCrc32;
 
   /**
@@ -274,17 +275,17 @@ typedef struct RequestManager {
  *
  * Used in the CS-TCP communication: search result content send back
  * by gnunetd
- **/
+ */
 typedef struct {
 
   /**
    * The TCP header (values: sizeof(AFS_CS_RESULT_CHK), AFS_CS_PROTO_RESULT_CHK) 
-   **/ 
+   */ 
   CS_HEADER header;
 
   /**
    * The search result.
-   **/
+   */
   CONTENT_Block result;
 
 } AFS_CS_RESULT_CHK;
@@ -304,9 +305,9 @@ typedef struct {
  * @param data an opaque handle that is passed along,
  *        typically used to pass the NodeContext
  * @return SYSERR the request manager should abort the download
- **/
+ */
 typedef int (*Listener)(void * this,
-			HashCode160 * query,
+			const HashCode160 * query,
 			AFS_CS_RESULT_CHK * reply,
 			struct RequestManager * rm,
 			void * data); 
@@ -314,22 +315,22 @@ typedef int (*Listener)(void * this,
 
 /**
  * @brief peer-to-peer message containing a set of queries.
- **/
+ */
 typedef struct {
 
   /** 
    * The TCP header (values: sizeof(AFS_CS_QUERY), AFS_CS_PROTO_QUERY) 
-   **/ 
+   */ 
   CS_HEADER header; 
 
   /**
    * how important is this request (network byte order) 
-   **/  
+   */  
   unsigned int priority; 
 
   /**
    * time to live in cronMILLIS (network byte order) 
-   **/
+   */
   int ttl;      
 
 } AFS_CS_QUERY;
@@ -341,44 +342,44 @@ typedef struct {
    * Hashcodes of the file(s) we're looking for. If multiple queries
    * are given, the first query is the super-query for the bloom
    * filter.
-   **/
+   */
   HashCode160 queries[1];
 
 } AFS_CS_QUERY_GENERIC;
 
 /**
  * @brief Format of a request as tracked by the RequestManager.
- **/
+ */
 typedef struct RequestEntry {
 
   /**
    * The message that is send to gnunetd.
-   **/
+   */
   AFS_CS_QUERY * message;
   
   /**
    * Last time the query was send.
-   **/
+   */
   cron_t lasttime;
 
   /**
    * Whom to call once we get a reply?
-   **/
+   */
   Listener receiver;
 
   /**
    * The node to pass to the receiver method.
-   **/
+   */
   struct Block * receiverNode;
 
   /**
    * Opaque data handle to pass to the Listener.
-   **/
+   */
   void * data;
 
   /**
    * How long have we been actively trying this one?
-   **/
+   */
   int tries;
 
   /**
@@ -399,7 +400,7 @@ typedef struct RequestEntry {
  * Progress of the current operation. Used for passing
  * data to callbacks. Some of these make sense only for 
  * downloading.
- **/
+ */
 typedef struct ProgressStats {
 
   size_t progress;			/* bytes processed */
@@ -427,7 +428,7 @@ typedef struct ProgressStats {
  * @param current progress statistics
  * @param data a context passed around for use by the PM
  *        implementation
- **/
+ */
 typedef void (*ProgressModel)(ProgressStats * stats,
 			      void * data);
 
@@ -436,37 +437,37 @@ typedef void (*ProgressModel)(ProgressStats * stats,
  *
  * The NodeContext groups the IOC and the progress model
  * into a single struct.
- **/
+ */
 typedef struct NodeContext {
   
   /**
    * The IO context for IO operations.
-   **/
+   */
   IOContext ioc;
 
   /**
    * Priority
-   **/
+   */
   unsigned int priority;
 
   /**
    * Index of the file that we are indexing, 0 for insertion
-   **/
+   */
   unsigned short index;
  
   /**
    * The ProgressModel to communicate status updates.
-   **/
+   */
   ProgressModel pmodel;
 
   /**
    * Data argument to the ProgressModel.
-   **/
+   */
   void * data;
 
   /**
    * Current progress so far.
-   **/
+   */
   ProgressStats stats;
 
 } NodeContext;
@@ -499,7 +500,7 @@ typedef struct RequestContinuation {
  * @param sock the socket to use to talk to the core, NULL if
  *        we just do a "fake" insert to compute the tree in memory
  * @return OK on success, SYSERR on error
- **/
+ */
 typedef int (*Inserter)(void * this,
 			NodeContext * nc,
 			GNUNET_TCP_SOCKET * sock);
@@ -513,7 +514,7 @@ typedef int (*Inserter)(void * this,
  * @param this the node that should be inserted or indexed
  * @param nc the context
  * @param rm the request manager
- **/
+ */
 typedef void (*Downloader)(void * this,
 			   NodeContext * nc,
 			   struct RequestManager * rm);
@@ -525,13 +526,13 @@ typedef void (*Downloader)(void * this,
  * @param this the block to check
  * @param nc the context
  * @return YES if the block is present, NO if not
- **/
+ */
 typedef int (*PresentChecker)(void * this,
 			      NodeContext * nc);
 
 /**
  * Print the block summary (for debugging)
- **/
+ */
 typedef void (*BlockPrinter)(void * this,
 			     int ident);
 
@@ -540,44 +541,44 @@ typedef void (*BlockPrinter)(void * this,
  * memory occupied by the Block struct itself!
  *
  * @param this reference to the Block
- **/
+ */
 typedef void (*Block_Destructor)(void * this,
 				 RequestManager * rm);
 
 typedef struct {
   /**
    * Free resources of the Block.
-   **/
+   */
   Block_Destructor done;
   
   /**
    * Insert the block.
-   **/
+   */
   Inserter insert;
 
   /**
    * Delete the block (same type as insert since totally symmetric).
-   **/
+   */
   Inserter delete;
 
   /**
    * Download the block.
-   **/
+   */
   Downloader download;
 
   /**
    * Listener method to receive a reply for the block.
-   **/
+   */
   Listener receive;
 
   /**
    * Check if the block is present.
-   **/
+   */
   PresentChecker isPresent;
 
   /**
    * Print the node to the logger.
-   **/
+   */
   BlockPrinter print;
 
 } Block_VTBL;
@@ -585,49 +586,49 @@ typedef struct {
 /**
  * @brief Shared structure used in the internal objectish representation
  *        of all blocks (DBlocks and IBlocks) in the merkle-tree.
- **/
+ */
 typedef struct Block {
 
   Block_VTBL * vtbl;
 
   /**
    * The total size of the file.
-   **/
+   */
   size_t filesize;
 
   /**
    * Position of the block relative to the beginning of the file.
-   **/
+   */
   size_t pos;
 
   /**
    * Hashes of the plaintext block (key) and the encrypted block
    * (query).
-   **/
+   */
   CHK_Hashes chk;
 
   /**
    * How many bytes in data are actual data (not padding)?
    * Set to 0 to indicate that the download of this block
    * is complete.
-   **/
+   */
   unsigned int len;
 
   /**
    * Pointer to the data of this block, NULL if the data is not yet
    * available.
-   **/
+   */
   void * data;
 
   /**
    * The parent node in the file-tree, NULL for the node on top of the
    * file-tree.
-   **/
+   */
   struct IBlock * parent;
 
   /**
    * See BLOCK_XXX constants.
-   **/
+   */
   short status;
 
 } Block; /* total: 94 bytes, 24 bytes could be saved by using a shared-VTBL 
@@ -635,61 +636,61 @@ typedef struct Block {
 
 /**
  * Block is freshly created, nothing has been done.
- **/
+ */
 #define BLOCK_CREATED 0
 
 /**
  * We know the correct block data and is is on the drive
  * (and in memory if data != NULL)
- **/
+ */
 #define BLOCK_PRESENT 1
 
 /**
  * We do not know the correct data, but we have not done a
  * request yet. It may be that we can construct the data from
  * the children (if they are present).
- **/
+ */
 #define BLOCK_NOT_PRESENT 2
 
 /**
  * We have a request pending for this block (either with the
  * parent if parent != NULL) or a direct request if 
  * parent == NULL.
- **/
+ */
 #define BLOCK_PENDING 3
 
 /**
  * This block is present and all children (transitively)
  * are also present.
- **/
+ */
 #define BLOCK_CHILDREN_PRESENT 4
 
 /**
  * This iblock has a super-query pending.
- **/
+ */
 #define BLOCK_SUPERQUERY_PENDING 5
 
 /**
  * This block is done (about to be freed).
- **/
+ */
 #define BLOCK_DONE 6
 
 /**
  * This block shall not be freed, even if all children
  * are dead.
- **/
+ */
 #define BLOCK_PERSISTENT 7
 
 /* ****************** Leaf struct ************************ */
 
 /**
  * @brief leaf (level-zero node) in the merkle-tree. 
- **/
+ */
 typedef struct DBlock {
 
   /**
    * The shared properties of all types of blocks.
-   **/
+   */
   Block common;
 
 } DBlock;
@@ -701,7 +702,7 @@ typedef struct DBlock {
  *
  * @param filesize the size of the file 
  * @return the DBlock on success, NULL on failure
- **/
+ */
 Block * createTopDBlock(size_t filesize);
 			 
  
@@ -712,33 +713,33 @@ Block * createTopDBlock(size_t filesize);
  * 25*40+20+4 is 1024. The other values are 40=sizeof(CHK_Hashes),
  * 20=sizeof(HashCode160) for the super-hash and 4=sizeof(int) for the
  * CRC32.
- **/
+ */
 #define CHK_PER_INODE 25
 
 /**
  * @brief format of an IBlock.
- **/
+ */
 typedef struct IBlockData {
 
   /**
    * The super-Hashcode for retrieving all CHK_PER_INODE sub-nodes in one
    * big lookup. This hash is the hash of the concatenation
    * of all encrypted CHK_PER_INODE children of this node.
-   **/
+   */
   HashCode160 superHash;
 
   /**
    * The CRC32 checksum of the sub-blocks (crc32N of
    * the concatenation of the individual crc32N's over
    * the plaintext-data (without padding) of each block).
-   **/
+   */
   int crc32;
 
   /**
    * The keys and queries for the nodes one level below.
    * This entry must be at the end since it is variable
    * size!
-   **/
+   */
   CHK_Hashes chks[CHK_PER_INODE];
 
 } IBlockData;
@@ -746,45 +747,45 @@ typedef struct IBlockData {
 /**
  * @brief internal OO representation of an IBlock (inner node) in the
  * merkle-tree. 
- **/
+ */
 typedef struct IBlock {
 
   /**
    * The shared properties of all types of blocks.
-   **/
+   */
   Block common;
 
   /**
    * The depth of this node in the file tree.
    * At depth 0 we have the leaves, since this is
    * an IBlock, depth is always > 0.
-   **/
+   */
   unsigned int depth;
 
   /**
    * Number of children [1-CHK_PER_INODE] of this node.
-   **/
+   */
   unsigned int childcount;
 
   /**
    * CRC (if (data != NULL): ((IBlockData)data)->crc32).
-   **/
+   */
   unsigned int crc32;
 
   /**
    * References to the children (IBlocks or DBlocks, 
    * depending on if depth > 1 or not).
-   **/
+   */
   Block ** children;
 
   /**
    * CRC of each of the children.
-   **/
+   */
   int crcs[CHK_PER_INODE];
 
   /**
    * Pointer to the parent IBlock.
-   **/
+   */
   struct IBlock * parent;
 
 } IBlock;
@@ -796,7 +797,7 @@ typedef struct IBlock {
  * @param pos the position of the IBlock in the file
  * @param parent the parent block (may not be NULL)
  * @return the IBlock 
- **/
+ */
 Block * createIBlock(size_t pos,
 		     IBlock * parent);
 
@@ -808,7 +809,7 @@ Block * createIBlock(size_t pos,
  * @param pos the offset of this block in the file
  * @param parent the parent block
  * @return the DBlock on success, NULL on failure
- **/
+ */
 Block * createDBlock(size_t pos,
 		     IBlock * parent);
 	
@@ -817,7 +818,7 @@ Block * createDBlock(size_t pos,
  * Note that you must set the chk field before calling
  * download. 
  * @param filesize the size of the file
- **/
+ */
 Block * createTopIBlock(size_t filesize);
 
 /**
@@ -835,7 +836,7 @@ Block * createTopIBlock(size_t filesize);
  * @param child the completed child block
  * @param nc the context (IO, priority, etc.)
  * @param rm request manager to schedule queries
- **/
+ */
 void childDownloadCompleted(struct IBlock * parent,
 			    Block * child,
 			    NodeContext * nc,
@@ -847,19 +848,23 @@ void childDownloadCompleted(struct IBlock * parent,
 #define MAX_DESC_LEN     256
 #define MAX_FILENAME_LEN 128
 #define MAX_MIMETYPE_LEN 128
+#define MAX_NAME_LEN 64
+#define MAX_CONTACT_LEN 64
 
 /* major/minor format versions (current) */
 #define ROOT_MINOR_VERSION 0
 #define ROOT_MAJOR_VERSION 1
 #define SBLOCK_MINOR_VERSION 0
 #define SBLOCK_MAJOR_VERSION 2
+#define NBLOCK_MINOR_VERSION 0
+#define NBLOCK_MAJOR_VERSION 3
 
 /**
  * @brief information required to download a file from GNUnet
  *
  * A FileIdentifier groups the information
  * required to download (and check) a file.
- **/
+ */
 typedef struct {
   
   /**
@@ -867,17 +872,17 @@ typedef struct {
    * FIXME: Change to unsigned long long once we break
    * backwards compatibility (to ensure correctness on 64-bit
    * size_t-systems).
-   **/
+   */
   unsigned int file_length;
 
   /**
    * Top CRC of the tree-encoding. (network byte order (!)) 
-   **/
+   */
   int crc;
 
   /**
    * Query and key of the top IBlock.
-   **/
+   */
   CHK_Hashes chk;
 } FileIdentifier;
 
@@ -887,37 +892,37 @@ typedef struct {
  * The structure of the root node - contains pertinent information for
  * the file (file length, checksum, hashcode of main indirection node,
  * description length, and description.
- **/
+ */
 typedef struct {
    
   /**
    * Major format version, in network byte order 
-   **/
+   */
   unsigned short major_formatVersion;
   
   /**
    * Minor format version, in network byte order 
-   **/
+   */
   unsigned short minor_formatVersion;
   
   /**
    * Information required for the download.
-   **/
+   */
   FileIdentifier fileIdentifier;
 
   /**
    * description of the contents, padded with zeros.
-   **/
+   */
   char description[MAX_DESC_LEN];
 
   /**
    * suggested filename, padded with zeros. 
-   **/
+   */
   char filename[MAX_FILENAME_LEN];
   
   /**
    * mime-type (as claimed by insertion!) 
-   **/
+   */
   char mimetype[MAX_MIMETYPE_LEN];
 
 } RootNodeHeader;
@@ -927,41 +932,26 @@ typedef struct {
  *
  * The structure of the root node, including padding to make
  * it to 1k.
- **/
+ */
 typedef struct {
 
   /**
    * The real data in the root-node 
-   **/
+   */
   RootNodeHeader header;
 
   /**
    * Padding 
-   **/
+   */
   char padding[CONTENT_SIZE - sizeof(RootNodeHeader)];
 
 } RootNode;
 
 /**
- * Convert a fileIdentifier to an URI string
- * (to display it to the user).
- * @param id identifier to convert
- * @returns string containing the url (must be freed by caller)
- **/
-char * fileIdentifierToString(FileIdentifier * fid);
-
-/**
- * Converts an AFS uri to a FileIdentifier
- * @param string the URI of a fileIdentifier
- * @returns the fileidentifier (caller must free)
- **/       
-FileIdentifier * stringToFileIdentifier(char * string); 
-
-/**
  * Convert a root-node to a string (to display it
  * to the user).
- **/
-char * rootNodeToString(RootNode * root);
+ */
+char * rootNodeToString(const RootNode * root);
 
 
 /**
@@ -969,39 +959,38 @@ char * rootNodeToString(RootNode * root);
  * 
  * @param root the node with meta-data
  * @return a copy of the description (client must free!)
- **/
-char * getDescriptionFromNode(RootNode * root);
+ */
+char * getDescriptionFromNode(const RootNode * root);
 
 /**
  * Obtain the mime-type from a RootNode or SBlock.
  * 
  * @param root the node with meta-data
  * @return a copy of the mime-type (client must free!)
- **/
-char * getMimetypeFromNode(RootNode * root);
+ */
+char * getMimetypeFromNode(const RootNode * root);
  
 /**
  * Obtain the filename from a RootNode or SBlock.
  * 
  * @param root the node with meta-data
  * @return a copy of the filename (client must free!)
- **/
-char * getFilenameFromNode(RootNode * root);
+ */
+char * getFilenameFromNode(const RootNode * root);
 
 /**
  * @brief data structure SBlock
- **/
-
+ */
 typedef struct {
   /* ENCRYPTED portion (with H(keyword) == identifier): */
   /**
    * Major format version, in network byte order 
-   **/
+   */
   unsigned short major_formatVersion;
   
   /**
    * Minor format version, in network byte order 
-   **/
+   */
   unsigned short minor_formatVersion;
 
   FileIdentifier fileIdentifier; /* 48 b */
@@ -1021,17 +1010,100 @@ typedef struct {
 } SBlock; /* total: 1024 bytes */
 
 /**
+ * @brief data structure for namespace information (NBlock).
+ * An NBlock is a very special kind of SBlock that does not
+ * refer to a file but rather describes a namespace.  It is
+ * published to advertise the namespace and helps users manage
+ * namespaces by associating more meaningful descriptions with
+ * the public key.  NBlocks are encrypted, verified and routed
+ * just like SBlocks.
+ */
+typedef struct {
+  /* ENCRYPTED portion (with H(keyword) == identifier): */   
+  /**
+   * Major format version, in network byte order
+   */
+  unsigned short major_formatVersion;
+  
+  /**
+   * Minor format version, in network byte order 
+   */
+  unsigned short minor_formatVersion;
+  
+  /**
+   * Identifier of the namespace
+   */
+  HashCode160 namespace;
+
+  /**
+   * Key of an (optional) root entry into the namespace
+   * (use all-zeros for not given).
+   */
+  HashCode160 rootEntry;
+  
+  /**
+   * description of the contents, padded with zeros.
+   */
+  char description[MAX_DESC_LEN/2];
+
+  /**
+   * suggested nickname for the namespace, padded with zeros. 
+   * (Note that -8 is used to achieve a struct of exactly 1k).
+   */
+  char nickname[MAX_NAME_LEN-8];
+
+  /**
+   * Claimed 'real' name of the owner of the 
+   * namespace, padded with zeros.
+   */
+  char realname[MAX_NAME_LEN];
+  
+  /**
+   * mime-type for the content in the namespace
+   * (as claimed by insertion!); use 'any' for
+   * namespaces with different types of files.
+   */
+  char mimetype[MAX_MIMETYPE_LEN/2];
+
+  /**
+   * URI with additional description about the
+   * namespace (free format)
+   */
+  char uri[MAX_CONTACT_LEN];
+
+  /**
+   * Contact information about the namespace owner.
+   * (free format, i.e. E-mail address)
+   */
+  char contact[MAX_CONTACT_LEN];  
+
+  /* NOT ENCRYPTED starting here! */
+  /**
+   * This identifies this entry as the official 
+   * namespace description.  Must be all zeros.
+   */
+  HashCode160 identifier;
+
+  /* NOT SIGNED, starting here! */
+  Signature signature; /* 256 b */
+
+  PublicKey subspace; /* S = H(subspace); 264 b */
+
+} NBlock;
+
+
+/**
  * Fixed SBlock updateInterval codes. Positive values 
  * are interpreted as durations (in seconds) for periodical 
  * updates.
- **/
+ */
 #define SBLOCK_UPDATE_SPORADIC  -1 
 #define SBLOCK_UPDATE_NONE       0
 
 /**
  * Verify that a given SBlock is well-formed.
- **/
-int verifySBlock(SBlock * sb);
+ */
+int verifySBlock(const SBlock * sb);
 
 /**
  * Compute the "current" ID of an updateable SBlock.  Will set the ID
@@ -1041,8 +1113,8 @@ int verifySBlock(SBlock * sb);
  *
  * @param sb the SBlock (must be in plaintext)
  * @param c the resulting current ID (set)
- **/
-void computeIdAtTime(SBlock * sb,
+ */
+void computeIdAtTime(const SBlock * sb,
 		     TIME_T now,
 		     HashCode160 * c);
 
@@ -1052,29 +1124,29 @@ void computeIdAtTime(SBlock * sb,
  * @param interval the update frequency (0: never, -1: sporadic)
  * @param k the key for this SBlock
  * @param n the key for the next SBlock (if updateable)
- **/
-SBlock * buildSBlock(Hostkey pseudonym,
-		     FileIdentifier * fi,
-		     char * description,
-		     char * filename,
-		     char * mimetype,
+ */
+SBlock * buildSBlock(const Hostkey pseudonym,
+		     const FileIdentifier * fi,
+		     const char * description,
+		     const char * filename,
+		     const char * mimetype,
 		     TIME_T creationTime,
 		     TIME_T interval,
-		     HashCode160 * k,
-		     HashCode160 * n);
+		     const HashCode160 * k,
+		     const HashCode160 * n);
 	
 /**
  * Insert the SBlock
  *
  * @return OK on success, SYSERR on error
- **/
+ */
 int insertSBlock(GNUNET_TCP_SOCKET * sock,
-		 SBlock * sb);
+		 const SBlock * sb);
 
 /**
  * Method to test if the receive-thread should
  * terminate.
- **/
+ */
 typedef int (*TestTerminateThread)(void * context);
 
 /**
@@ -1083,8 +1155,8 @@ typedef int (*TestTerminateThread)(void * context);
  *
  * @param sb the plaintext of the SBlock that has been received
  * @param data the opaque handle (context for the callee)
- **/
-typedef void (*NSSearchResultCallback)(SBlock * sb,
+ */
+typedef void (*NSSearchResultCallback)(const SBlock * sb,
 				       void * data);
 
 /**
@@ -1099,10 +1171,10 @@ typedef void (*NSSearchResultCallback)(SBlock * sb,
  * @param resultCallback function to call for results
  * @param closure argument to pass to resultCallback
  * @return OK on success, SYSERR on error
- **/
+ */
 int searchSBlock(GNUNET_TCP_SOCKET * sock,
-		 HashCode160 * s,
-		 HashCode160 * k,
+		 const HashCode160 * s,
+		 const HashCode160 * k,
 		 TestTerminateThread testTerminate,
 		 void * ttContext,
 		 NSSearchResultCallback resultCallback,
@@ -1113,25 +1185,25 @@ int searchSBlock(GNUNET_TCP_SOCKET * sock,
  *
  * @param stream where to print the information to (of type FILE*)
  * @param sb the SBlock -- in plaintext.
- **/
+ */
 void printSBlock(void * stream,
-		 SBlock * sb);
+		 const SBlock * sb);
 
-void decryptSBlock(HashCode160 * k,
-		   SBlock * in,
+void decryptSBlock(const HashCode160 * k,
+		   const SBlock * in,
 		   SBlock * out);
 
 
 /**
  * Message types for the GNUnet AFS.
- **/
+ */
 
 /**
  * by which amount do we decrement the TTL for simple forwarding /
  * indirection of the query; in milli-seconds.  Set somewhat in
  * accordance to your network latency (above the time it'll take you
  * to send a packet and get a reply).
- **/
+ */
 #define TTL_DECREMENT 5 * cronSECONDS
 
 /* *********** STRUCTS for the p2p protocol *********** */
@@ -1139,23 +1211,23 @@ void decryptSBlock(HashCode160 * k,
 /**
  * Request for content. The number of queries can
  * be determined from the header size.
- **/
+ */
 typedef struct {
   p2p_HEADER header; 
 
   /**
    * How important is this request (network byte order) 
-   **/
+   */
   int priority;         
 
   /**
    * Time to live in cronMILLIS (network byte order)  
-   **/
+   */
   int ttl;              
 
   /**
    * To whom to return results? 
-   **/
+   */
   HostIdentity returnTo;
 
 } AFS_p2p_QUERY;
@@ -1171,14 +1243,14 @@ typedef struct {
    * be used since it does not contain summaries for simple 1k
    * blocks. It is not possible to group multiple queries with this
    * message type if they are not dominated by the same super-query.
-   **/
+   */
   HashCode160 queries[1]; 
 
 } AFS_p2p_QUERY_GENERIC;
 
 /**
  * Request for content from a namespace.
- **/
+ */
 typedef struct {
   /* the header must be identical to an AFS_p2p_QUERY
      (except that the type field is different).
@@ -1189,56 +1261,56 @@ typedef struct {
 
   /**
    * Namespace that we are restricted to
-   **/
+   */
   HashCode160 namespace; 
 
   /**
    * Identifier that we are looking for.
-   **/
+   */
   HashCode160 identifier; 
 
 } AFS_p2p_NSQUERY;
 
 /**
  * Return message for search result (with double-hash proof).
- **/
+ */
 typedef struct {
   p2p_HEADER header;   
 
   /**
    * The double-hash
-   **/
+   */
   HashCode160 hash;
 
   /**
    * The search result.
-   **/
+   */
   RootNode result;
 
 } AFS_p2p_3HASH_RESULT;
 
 /**
  * Return message for content download (CHK style)
- **/
+ */
 typedef struct {
   p2p_HEADER header;   
 
   /**
    * The search result.
-   **/
+   */
   CONTENT_Block result;
 
 } AFS_p2p_CHK_RESULT;
 
 /**
  * Return message for SBlock download
- **/
+ */
 typedef struct {
   p2p_HEADER header;   
 
   /**
    * The search result.
-   **/
+   */
   SBlock result;
 
 } AFS_p2p_SBLOCK_RESULT;
@@ -1248,22 +1320,22 @@ typedef struct {
 
 /**
  * TCP communication: search result content send back by gnunetd
- **/
+ */
 typedef struct {
 
   /**
    * The TCP header (values: sizeof(AFS_CS_RESULT_3HASH), AFS_CS_PROTO_RESULT_3HASH) 
-   **/ 
+   */ 
   CS_HEADER header;
 
   /**
    * The double-hash 
-   **/
+   */
   HashCode160 hash;
 
   /**
    * The search result.
-   **/
+   */
   RootNode result;
 
 } AFS_CS_RESULT_3HASH;
@@ -1276,17 +1348,17 @@ typedef struct {
  *
  * Used in the CS-TCP communication: SBlock result content send back
  * by gnunetd
- **/
+ */
 typedef struct {
 
   /**
    * The TCP header (values: sizeof(AFS_CS_RESULT_SBLOCK), AFS_CS_PROTO_RESULT_SBLOCK) 
-   **/ 
+   */ 
   CS_HEADER header;
 
   /**
    * The search result.
-   **/
+   */
   SBlock result;
 
 } AFS_CS_RESULT_SBLOCK;
@@ -1294,32 +1366,32 @@ typedef struct {
 
 /**
  * @brief peer-to-peer message containing a namespace-query
- **/
+ */
 typedef struct {
 
   /** 
    * The TCP header (values: sizeof(AFS_CS_NSQUERY), AFS_CS_PROTO_NSQUERY) 
-   **/ 
+   */ 
   CS_HEADER header; 
 
   /**
    * how important is this request (network byte order) 
-   **/  
+   */  
   unsigned int priority; 
 
   /**
    * time to live in cronMILLIS (network byte order) 
-   **/
+   */
   int ttl;      
 
   /**
    * ID of the Namespace that we are searching in
-   **/
+   */
   HashCode160 namespace;
 
   /**
    * ID (in the namespace) that we're looking for
-   **/
+   */
   HashCode160 identifier;
 
 } AFS_CS_NSQUERY;
@@ -1327,22 +1399,22 @@ typedef struct {
 /**
  * Structure for an incoming request messages from the local TCP link
  * to add content to the node.
- **/
+ */
 typedef struct {
 
   /**
    * The TCP header (values: sizeof(AFS_CS_INSERT_SBLOCK), AFS_CS_PROTO_INSERT_SBLOCK) 
-   **/ 
+   */ 
   CS_HEADER header; 
 
   /**
    * The (initial) priority of the data  (network byte order)
-   **/
+   */
   unsigned int importance;
 
   /**
    * The data to insert 
-   **/
+   */
   SBlock content;  
 
 } AFS_CS_INSERT_SBLOCK;
@@ -1350,22 +1422,22 @@ typedef struct {
 /**
  * Structure for an incoming request messages from the local TCP link
  * to add content to the node.
- **/
+ */
 typedef struct {
 
   /**
    * The TCP header (values: sizeof(AFS_CS_INSERT_CHK), AFS_CS_PROTO_INSERT_CHK) 
-   **/ 
+   */ 
   CS_HEADER header; 
 
   /**
    * The (initial) priority of the data  (network byte order)
-   **/
+   */
   unsigned int importance;
 
   /**
    * The data to insert 
-   **/
+   */
   CONTENT_Block content;  
 
 } AFS_CS_INSERT_CHK;
@@ -1373,27 +1445,27 @@ typedef struct {
 /**
  * Structure for an incoming request messages from the local TCP link
  * to add content to the node.
- **/
+ */
 typedef struct {
 
   /**
    * The TCP header (values: sizeof(AFS_CS_INSERT_3HASH), AFS_CS_PROTO_INSERT_3HASH) 
-   **/ 
+   */ 
   CS_HEADER header; 
 
   /**
    * The (initial) priority of the data  (network byte order)
-   **/
+   */
   unsigned int importance;
 
   /**
    * The doubleHash of the plaintext.
-   **/
+   */
   HashCode160 doubleHash;
 
   /**
    * The data to insert 
-   **/
+   */
   CONTENT_Block content;  
 
 } AFS_CS_INSERT_3HASH;
@@ -1402,39 +1474,39 @@ typedef struct {
 
 /**
  * Free entry. Historical.
- **/
+ */
 #define LOOKUP_TYPE_FREE 0
 
 /**
  * Historical.
- **/
+ */
 #define LOOKUP_TYPE_DELETED 1
 
 /**
  * (migrated) CHK content.
- **/
+ */
 #define LOOKUP_TYPE_CHK 2
 
 /**
  * Search result, never indexed (always inserted).
- **/
+ */
 #define LOOKUP_TYPE_3HASH 3
 
 /**
  * Super-query. Add to superBloomFilter, does not
  * refer to any content in particular.
- **/
+ */
 #define LOOKUP_TYPE_SUPER 4
 
 /**
  * CHK content covered by super-query (treat like CHK
  * except do not add to singleBloomFilter).
- **/
+ */
 #define LOOKUP_TYPE_CHKS 5
 
 /**
  * SBlock content.
- **/
+ */
 #define LOOKUP_TYPE_SBLOCK 6
 
 
@@ -1447,26 +1519,26 @@ typedef struct {
  * This structure is also used as a convenience struct to
  * pass arguments around the db. Perhaps not a good idea.
  *
- **/
+ */
 typedef struct {
   /**
    * The double-hash (hash of the hash of the plaintext) of this entry
    * for 3HASH entries, or the CHK query hash (hash of the encrypted
    * content) for CHK entries. Which is the case can be determined by
    * looking at fileNameIndex and fileOffset.
-   **/
+   */
   HashCode160 hash;
 
   /**
    * The current rating of this content (in network byte order).
-   **/
+   */
   unsigned int importance;
 
   /**
    * The type of the entry. See LOOKUP_TYPE_XXX
    *
    * The field is always in network byte order.
-   **/
+   */
   unsigned short type;
 
   /**
@@ -1475,7 +1547,7 @@ typedef struct {
    * value is 0, the file is in the contentdatabase.
    *
    * The field is always in network byte order.
-   **/
+   */
   unsigned short fileNameIndex;
 
   /**
@@ -1486,24 +1558,24 @@ typedef struct {
    *
    * FIXME: change to unsigned long long once we break
    * compatibility to ensure correctness on 64-bit systems.
-   **/
+   */
   unsigned int fileOffset;
 } ContentIndex;
 
 /**
  * Structure for an incoming request messages from the local TCP link
  * to add content to the INDEX of the node.
- **/
+ */
 typedef struct {
 
   /**
    * The TCP header (values: sizeof(AFS_CS_INDEX_BLOCK), AFS_CS_PROTO_INDEX_BLOCK) 
-   **/ 
+   */ 
   CS_HEADER header; 
 
   /**
    * indexing information 
-   **/
+   */
   ContentIndex contentIndex;
 
 } AFS_CS_INDEX_BLOCK;
@@ -1513,12 +1585,12 @@ typedef struct {
 /**
  * Structure for an incoming request messages from the local TCP link
  * to add a filename to the list of directly shared files
- **/
+ */
 typedef struct {
 
   /**
    * The TCP header (values: sizeof(AFS_CS_INDEX_FILE), AFS_CS_PROTO_INDEX_FILE) 
-   **/ 
+   */ 
   CS_HEADER header; 
 
   /**
@@ -1535,12 +1607,12 @@ typedef struct {
 
 /**
  * Structure for uploading a file for AFS.
- **/
+ */
 typedef struct {
 
   /**
    * The TCP header (values: size, AFS_CS_PROTO_UPLOAD_FILE) 
-   **/ 
+   */ 
   CS_HEADER header; 
 
   /**
@@ -1557,7 +1629,7 @@ typedef struct {
 
 /**
  * Structure for uploading a file for AFS.
- **/
+ */
 typedef struct {
 
   AFS_CS_UPLOAD_FILE afs_cs_upload_file;
@@ -1571,12 +1643,12 @@ typedef struct {
 
 /**
  * Structure for uploading a file for AFS.
- **/
+ */
 typedef struct {
 
   /**
    * The TCP header (values: size, AFS_CS_PROTO_LINK_FILE) 
-   **/ 
+   */ 
   CS_HEADER header; 
 
   /**
@@ -1588,7 +1660,7 @@ typedef struct {
 
 /**
  * Structure for linking to a file for AFS.
- **/
+ */
 typedef struct {
 
   AFS_CS_LINK_FILE afs_cs_link_file;
@@ -1603,29 +1675,29 @@ typedef struct {
 /**
  * Structure for an incoming request messages from the local TCP link
  * to add a super-query to the bloom filter.
- **/
+ */
 typedef struct {
 
   /**
    * The TCP header (values: sizeof(AFS_CS_INDEX_SUPER), AFS_CS_PROTO_INDEX_SUPER) 
-   **/ 
+   */ 
   CS_HEADER header; 
 
   /**
    * The super-hash for the bloom-filter.
-   **/
+   */
   HashCode160 superHash;
 
   /**
    * The (initial) priority of the data  (network byte order)
-   **/
+   */
   unsigned int importance;
 
 } AFS_CS_INDEX_SUPER;
 
 /**
  * @brief functions for building directories
- **/
+ */
 
 /* what is the context in which a root-node was discovered? */
 #define DIR_CONTEXT_SEARCH    1
@@ -1642,7 +1714,7 @@ typedef struct {
 
 /**
  * Format of a GNUnet directory (both in memory and on the drive).
- **/ 
+ */ 
 typedef struct {
   char MAGIC[8];
 
@@ -1684,8 +1756,8 @@ typedef struct {
  * 
  * @param root the file identifier that was encountered
  * @param context the context in which the identifier was encountered (may not be a bitmask)
- **/
-void makeRootNodeAvailable(RootNode * root,
+ */
+void makeRootNodeAvailable(const RootNode * root,
 			   unsigned int context);
 
 /**
@@ -1693,15 +1765,15 @@ void makeRootNodeAvailable(RootNode * root,
  * from the directory database.
  *
  * @param context bitmask of the databases that should be emptied.
- **/ 
+ */ 
 void emptyDirectoryDatabase(unsigned int contexts);
 
 /**
  * Callback function.
  * @param root a root-node
  * @param closure a closure
- **/
-typedef void (*RootNodeCallback)(RootNode * root, 
+ */
+typedef void (*RootNodeCallback)(const RootNode * root, 
 				 void * closure);
 
 /**
@@ -1712,7 +1784,7 @@ typedef void (*RootNodeCallback)(RootNode * root,
  * @param callback function to call on each entry, may be NULL
  * @param closure extra argument to the callback
  * @return number of entries found
- **/
+ */
 int iterateDirectoryDatabase(unsigned int contexts,
 			     RootNodeCallback callback,
 			     void * closure);
@@ -1724,10 +1796,10 @@ int iterateDirectoryDatabase(unsigned int contexts,
  * @param name what is the name of the directory
  * @param entries the entries in the directory
  * @return the directory
- **/
+ */
 GNUnetDirectory * buildDirectory(int numberOfEntries,
-				 char * name,
-				 RootNode * entries);
+				 const char * name,
+				 const RootNode * entries);
 
 /**
  * Write a directory to a file.
@@ -1735,17 +1807,17 @@ GNUnetDirectory * buildDirectory(int numberOfEntries,
  * @param dir the directory
  * @param fn the filename
  * @return OK on success, SYSERR on error
- **/
-int writeGNUnetDirectory(GNUnetDirectory * dir,
-			 char * fn);
+ */
+int writeGNUnetDirectory(const GNUnetDirectory * dir,
+			 const char * fn);
 
 /**
  * Read a directory from a file.
  * 
  * @param fn the filename
  * @return the directory on success, NULL on error
- **/
-GNUnetDirectory * readGNUnetDirectory(char * fn);
+ */
+GNUnetDirectory * readGNUnetDirectory(const char * fn);
 
 
 /**
@@ -1755,13 +1827,13 @@ GNUnetDirectory * readGNUnetDirectory(char * fn);
  *
  * @param dn the directory name (string)
  * @return the converted name on success, caller must free
- **/
-char * expandDirectoryName(char * dn);
+ */
+char * expandDirectoryName(const char * dn);
 
 
 /**
  * deleteutil, helper methods for file deletion.
- **/
+ */
 
 /**
  * Deletes a file under the given name into the local GNUnet node.
@@ -1775,19 +1847,19 @@ char * expandDirectoryName(char * dn);
  *        (retrieved so far, total).
  * @param model_data pointer that is passed to the model method
  * @return OK on success, SYSERR on error
- **/
+ */
 int deleteFile(GNUNET_TCP_SOCKET * sock,
-	       char * filename,
+	       const char * filename,
 	       ProgressModel model,
 	       void * model_data); 
 
 /**
  * Insertutil, helper methods for file insertion.
- **/
+ */
 
 /**
  * Default priority for locally indexed content ("infty")
- **/
+ */
 #define LOCAL_INDEXED_CONTENT_PRIO 0xFFFF
 
 /**
@@ -1802,9 +1874,9 @@ int deleteFile(GNUNET_TCP_SOCKET * sock,
  *        (retrieved so far, total).
  * @param model_data pointer that is passed to the model method
  * @return top IBlock on success, NULL on error
- **/
+ */
 Block * insertFile(GNUNET_TCP_SOCKET * sock,
-		   char * filename,
+		   const char * filename,
 		   ProgressModel model,
 		   void * model_data); 
 
@@ -1814,14 +1886,14 @@ Block * insertFile(GNUNET_TCP_SOCKET * sock,
  * @param num_keys the number of keywords to be associated with the file
  * @param rootNode output, the root node (must be alloc'd by caller)
  * @return OK on success, SYSERR on error
- **/
+ */
 int insertRoot(GNUNET_TCP_SOCKET * sock,
-	       Block * top,
-	       char * description,
-	       char * filenameRoot,
-	       char * mimetype,
+	       const Block * top,
+	       const char * description,
+	       const char * filenameRoot,
+	       const char * mimetype,
 	       unsigned int num_keys,
-	       char ** keywords,
+	       const char ** keywords,
 	       RootNode * rootNode);
 
 
@@ -1832,26 +1904,26 @@ int insertRoot(GNUNET_TCP_SOCKET * sock,
  * @param rn the RootNode to insert
  * @param keyword the keyword under which the rn is inserted
  * @param contentPriority priority of the inserted content
- **/
+ */
 int insertRootWithKeyword(GNUNET_TCP_SOCKET * sock,
-			  RootNode * rn,
-			  char * keyword,
+			  const RootNode * rn,
+			  const char * keyword,
 			  int contentPriority);
 
-RootNode * createRootNode(FileIdentifier * fid,
-			  char * description,
-			  char * shortFN,
-			  char * mimetype);
+RootNode * createRootNode(const FileIdentifier * fid,
+			  const char * description,
+			  const char * shortFN,
+			  const char * mimetype);
 
 /**
  * Wrapper around insertFile that gives the user the appropriate
  * feedback.  The insertWrapper is expected to update fid at the
  * end of the insertion.  See "gnunet-insert.c::doFile()" for
  * a possible implementation.
- **/
+ */
 typedef int (*InsertWrapper)(GNUNET_TCP_SOCKET * sock,
-			     char * filename,
-			     FileIdentifier * fid,
+			     const char * filename,
+			     const FileIdentifier * fid,
 			     void * closure);
 
 
@@ -1863,12 +1935,12 @@ typedef int (*InsertWrapper)(GNUNET_TCP_SOCKET * sock,
  * @param dirName the name of the last component of the path to the directory
  * @param description the description for the file
  * @return the RBlock
- **/
+ */
 RootNode * buildDirectoryRBlock(GNUNET_TCP_SOCKET * sock,
-				FileIdentifier * fid,
-				char * dirName,
-				char * description,
-				char ** gloKeywords,
+				const FileIdentifier * fid,
+				const char * dirName,
+				const char * description,
+				const char ** gloKeywords,
 				unsigned int gloKeywordCnt);
 
 
@@ -1882,11 +1954,11 @@ RootNode * buildDirectoryRBlock(GNUNET_TCP_SOCKET * sock,
  * @param dirName name of this directory
  * @param fid resulting file identifier for the directory
  * @returns SYSERR on failure, OK on success
- **/
+ */
 int insertDirectory(GNUNET_TCP_SOCKET * sock,
 		    unsigned int nodeCount, 
-		    RootNode * rootNodes, 
-		    char * dirName,
+		    const RootNode * rootNodes, 
+		    const char * dirName,
 		    FileIdentifier * fid,
 		    ProgressModel model,
 		    void * pmArg);
@@ -1911,11 +1983,11 @@ int insertDirectory(GNUNET_TCP_SOCKET * sock,
  * @return RootNode that identifies the single file or directory or
  *      NULL on error or NULL if filename is a directory and we don't
  *      create directories.
- **/
+ */
 RootNode * insertRecursively(GNUNET_TCP_SOCKET * sock,
-			     char * filename,
+			     const char * filename,
 			     FileIdentifier * fid,
-			     char ** gloKeywords,
+			     const char ** gloKeywords,
 			     unsigned int gloKeywordCnt,
 			     void * extractors_,
 			     ProgressModel model,
@@ -1927,7 +1999,7 @@ RootNode * insertRecursively(GNUNET_TCP_SOCKET * sock,
 /**
  * Layer to encapsulate the keyword extraction API and
  * make it accessible to gnunet-insert.
- **/
+ */
 
 
 /**
@@ -1944,8 +2016,8 @@ RootNode * insertRecursively(GNUNET_TCP_SOCKET * sock,
  * @param num_keywords the number of keywords in the
  *        existing *keywords array that was passed in.
  *        Set *num_keywords to the new number of keywords!
- **/
-void extractKeywords(char * filename,
+ */
+void extractKeywords(const char * filename,
 		     char ** description,
 		     char ** mimetype,
 		     char *** keywords,
@@ -1970,8 +2042,8 @@ void * getExtractors();
  *        Set *num_keywords to the new number of keywords!
  * @param exList list of libextractor plugins, NULL if 
  *        libextractor is not used.  Of type EXTRACTOR_ExtractorList*
- **/
-void extractKeywordsMulti(char * filename,
+ */
+void extractKeywordsMulti(const char * filename,
 			  char ** description,
 			  char ** mimetype,
 			  char *** keywords,
@@ -1980,7 +2052,7 @@ void extractKeywordsMulti(char * filename,
 
 /**
  * @brief functions for handling pseudonyms
- **/
+ */
 
 /**
  * Create a new pseudonym. 
@@ -1988,17 +2060,17 @@ void extractKeywordsMulti(char * filename,
  * @param name the name of the pseudonym
  * @param password passphrase to encrypt the pseudonym on disk (may be NULL)
  * @return NULL on error (e.g. pseudonym exists), otherwise the secret key
- **/
-Hostkey createPseudonym(char * name,
-			char * password);
+ */
+Hostkey createPseudonym(const char * name,
+			const char * password);
 
 /**
  * Delete a pseudonym.
  * 
  * @param name the name of the pseudonym
  * @return OK on success, SYSERR on error
- **/
-int deletePseudonym(char * name);
+ */
+int deletePseudonym(const char * name);
 
 /**
  * Read pseudonym.
@@ -2006,15 +2078,15 @@ int deletePseudonym(char * name);
  * @param name the name of the pseudonym
  * @param password passphrase to encrypt the pseudonym on disk (may be NULL)
  * @return NULL on error (e.g. password invalid, pseudonym does not exist), otherwise the secret key
- **/
-Hostkey readPseudonym(char * name,
-		      char * password);
+ */
+Hostkey readPseudonym(const char * name,
+		      const char * password);
 
 /**
  * Test if we have any pseudonyms.
  *
  * @return YES if we do have pseudonyms, otherwise NO.
- **/
+ */
 int havePseudonyms();
 
 /**
@@ -2022,28 +2094,13 @@ int havePseudonyms();
  *
  * @param list where to store the pseudonyms (is allocated, caller frees)
  * @return SYSERR on error, otherwise the number of pseudonyms in list
- **/
+ */
 int listPseudonyms(char *** list);
-
-/**
- * Build a list of all known namespaces.
- *
- * @param list where to store the names of the namespaces
- * @return SYSERR on error, otherwise the number of known namespaces
- */
-int listNamespaces(HashCode160 ** list);
-
-/**
- * Add a namespace to the set of known namespaces.
- * 
- * @param ns the namespace identifier
- */
-void addNamespace(HashCode160 * ns);
 
 /** 
  * @brief The RequestManager keeps track of queries and re-issues 
  *        requests if no reply is received.
- **/ 
+ */ 
 
 /**
  * Create a request manager. Will create the request manager
@@ -2055,7 +2112,7 @@ void addNamespace(HashCode160 * ns);
  * such that it is possible to tell when we are done.
  *
  * @return NULL on error
- **/
+ */
 RequestManager * createRequestManager();
 
 /**
@@ -2064,24 +2121,24 @@ RequestManager * createRequestManager();
  * after the download is complete.
  *
  * @param this the request manager struct from createRequestManager
- **/
+ */
 void destroyRequestManager(RequestManager * this);
 
 /**
  * For debugging.
- **/
+ */
 void printRequestManager(RequestManager * this);
 
 /**
  * Assert that there are no pending requests for this node.
- **/
+ */
 void requestManagerAssertDead(RequestManager * this,
 			      Block * node);
 
 /**
  * We are approaching the end of the download.  Cut
  * all TTLs in half.
- **/
+ */
 void requestManagerEndgame(RequestManager * this);
 
 /**
@@ -2092,7 +2149,7 @@ void requestManagerEndgame(RequestManager * this);
  * @param callback the method to invoke
  * @param data the data argument to the Listener
  * @param message the query to send to gnunetd, freed by callee!
- **/
+ */
 void requestManagerRequest(RequestManager * this,
 			   Block * node,
 			   Listener callback,
@@ -2108,7 +2165,7 @@ void requestManagerRequest(RequestManager * this,
  * @param node the block for which the request is updated
  * @param msg the new query message for that node, NULL for 
  *        none (then the request is dropped)
- **/
+ */
 void requestManagerUpdate(RequestManager * this,
 			  Block * node,
 			  AFS_CS_QUERY * msg);
@@ -2116,7 +2173,7 @@ void requestManagerUpdate(RequestManager * this,
 
 /**
  * Helper functions for searching.
- **/
+ */
 
 /**
  * Type of a callback method for results that have
@@ -2124,7 +2181,7 @@ void requestManagerUpdate(RequestManager * this,
  *
  * @param root the RootNode of the result that has been received
  * @param data the opaque handle (context for the callee)
- **/
+ */
 typedef void (*SearchResultCallback)(RootNode * root,
 				     void * data);
 
@@ -2142,7 +2199,7 @@ int searchRBlock(GNUNET_TCP_SOCKET * sock,
 
 /**
  * Helper functions for downloading.
- **/
+ */
 
 /**
  * Download a file.
@@ -2155,9 +2212,9 @@ int searchRBlock(GNUNET_TCP_SOCKET * sock,
  * @param data pointer that is passed to the model method.
  * @return a request manager that can be used to abort on 
  *         success, NULL on error
- **/
-RequestManager * downloadFile(FileIdentifier * fi,
-			      char * fileName,
+ */
+RequestManager * downloadFile(const FileIdentifier * fi,
+			      const char * fileName,
 			      ProgressModel model,
 			      void * data);
 
@@ -2172,9 +2229,9 @@ RequestManager * downloadFile(FileIdentifier * fi,
  *        value used in the alg
  * @param result where to store the result (encrypted block)
  * @returns OK on success, SYSERR on error
- **/
-int encryptContent(CONTENT_Block * data,
-		   HashCode160 * hashcode,
+ */
+int encryptContent(const CONTENT_Block * data,
+		   const HashCode160 * hashcode,
 		   CONTENT_Block * result);
 
 /**
@@ -2185,20 +2242,20 @@ int encryptContent(CONTENT_Block * data,
  *        value used in the alg
  * @param result where to store the result (encrypted block)
  * @returns OK on success, SYSERR on error
- **/
-int decryptContent(CONTENT_Block * data,
-		   HashCode160 * hashcode,
+ */
+int decryptContent(const CONTENT_Block * data,
+		   const HashCode160 * hashcode,
 		   CONTENT_Block * result);
 
 
 /**
  * Initialize the module.
- **/
+ */
 void initAnonymityPolicy(CoreAPIForApplication * capi);
 
 /**
  * Shutdown the module.
- **/
+ */
 void doneAnonymityPolicy();
 
 /**
@@ -2209,127 +2266,155 @@ void doneAnonymityPolicy();
  * @param size the size of the message that will be
  *        transmitted
  * @return YES if this is ok for the policy, NO if not
- **/
+ */
 int checkAnonymityPolicy(unsigned short type,
 			 unsigned short size);
 
 /* ************* URI handling **************** */
 
-/**
- * GNUnet AFS uri format
- *
- * gnunet://afs/action/tag1=value1?tag2=value2...
- *
- * where action is one of {download,search,insert,delete} 
- * and supported tags are
- *
- * tag         description
- * -------------------------------------------------------
- * ns          Namespace identifier
- * kh          Keyhash
- * qh          Queryhash
- * crc         File CRC32 
- * fn          File name (suggested)
- * size        File length
- * keyword     Search keyword (can be specified multiple times)
- * pseudonym   Pseudonym for namespace insertion
- * password    Password for a pseudonym
- *
- * Not all tags make sense in all contexts.
- *
- **/
- 
 #define AFS_URI_PREFIX "gnunet://afs/"
 
-#define URI_ACTION_DOWNLOAD 1
-#define URI_ACTION_SEARCH   2
-#define URI_ACTION_INSERT   3
-#define URI_ACTION_DELETE   4
-
-/**
- * Header prefix for whatever is in an AFS URI.
- * "action" is the identifier of the URI purpose/context. 
- **/
-typedef struct {
-  int action;
-  void * data;
-} generalURI;
-
-typedef struct {
-  int action;
-  HashCode160 * namespace;
-  HashCode160 * keyhash;
-  char ** keywords;
-  int keycount;
-} searchURI;
-
-typedef struct {
-  int action;
-  FileIdentifier fid;
-  char * filename;
-} downloadURI;
-
-typedef struct {
-  int action;
-  char * filename;
-  char ** keywords;
-  char * pseudonym;
-  char * password;
-  int keycount;
-} insertURI;
-
-typedef struct {
-  int action;
-  char * filename;
-} deleteURI;
-
 /** 
- * Parses an AFS URI string to an internal representation
- *
- * Usage:
- *   generalURI * block;
- *   parseURI(string, &block);
- *   if(block->action == URI_ACTION_DOWNLOAD) {
- *     downloadURI * bl;
- *     bl = (downloadURI *)block;
- *   ...
+ * Parses an AFS search URI.
  *
  * @param uri an uri string
- * @param block output, the parsed values
- * @returns SYSERR on failure
- **/
-int parseURI(char * uri,
-	     generalURI ** block);
+ * @param keyword will be set to an array with the keywords
+ * @return SYSERR if this is not a search URI, otherwise
+ *  the number of keywords placed in the array
+ */
+int parseKeywordURI(const char * uri,
+		    char *** keywords);
+
+/** 
+ * Parses an AFS namespace / subspace identifier URI.
+ *
+ * @param uri an uri string
+ * @param namespace set to the namespace ID
+ * @param identifier set to the ID in the namespace
+ * @return OK on success, SYSERR if this is not a namespace URI
+ */
+int parseSubspaceURI(const char * uri,
+		     HashCode160 * namespace,
+		     HashCode160 * identifier);
+
+/** 
+ * Parses an URI that identifies a file
+ *
+ * @param uri an uri string
+ * @param fi the file identifier
+ * @return OK on success, SYSERR if this is not a file URI
+ */
+int parseFileURI(const char * uri,
+		 FileIdentifier * fi);
 
 /**
- * Turns an internal representation into a AFS uri string
- *
- * @param block the values to print
- * @param uri, output
- * @returns SYSERR on failure
- **/
-int produceURI(generalURI * block,
-	       char ** uri);
+ * Generate a keyword URI.
+ * @return NULL on error (i.e. keywordCount == 0)
+ */
+char * createKeywordURI(char ** keywords,
+			unsigned int keywordCount);
 
+/**
+ * Generate a subspace URI.
+ */ 
+char * createSubspaceURI(const HashCode160 * namespace,
+			 const HashCode160 * identifier);
 
+/**
+ * Generate a file URI.
+ */ 
+char * createFileURI(const FileIdentifier * fi);
 
 /**
  * This method must be called to start the priority
  * tracker.
- **/
+ */
 void startAFSPriorityTracker();
 
 /**
  * This method must be called to stop the priority
  * tracker.  Call after cron has been stopped.
- **/
+ */
 void stopAFSPriorityTracker();
 
 /**
  * What is the highest priority that AFS clients should
  * use for requests at this point in time?
- **/
+ */
 unsigned int getMaxPriority();
+
+/**
+ * Change our evaluation of a namespace.
+ * @param delta by how much should the evaluation be changed?
+ * @return the new ranking for this namespace
+ */
+int evaluateNamespace(const HashCode160 * ns,
+		      int delta);
+
+/**
+ * Verify that a given NBlock is well-formed.
+ * @param sb the nblock
+ */
+int verifyNBlock(const NBlock * sb);
+
+/**
+ * Build an (encrypted) NBlock.
+ */
+NBlock * buildNBlock(const Hostkey pseudonym,
+		     const char * nickname,
+		     const char * description,
+		     const char * realname,
+		     const char * mimetype,
+		     const char * uri,
+		     const char * contact,
+		     const HashCode160 * rootEntry);
+
+/**
+ * Print the information contained in an NBlock.
+ * 
+ * @param stream where to print the information to
+ * @param sb the NBlock -- in plaintext.
+ */
+void printNBlock(void * swrap,
+		 const NBlock * sb);
+
+
+/**
+ * Build a list of all known namespaces.
+ *
+ * @param list where to store the names of the namespaces
+ * @return SYSERR on error, otherwise the number of known namespaces
+ */
+int listNamespaces(NBlock ** list);
+
+/**
+ * Add a namespace to the set of known namespaces.
+ * 
+ * @param ns the namespace identifier
+ */
+void addNamespace(const NBlock * ns);
+
+
+/**
+ * Change our evaluation of a namespace.
+ * @param delta by how much should the evaluation be changed?
+ * @return the new ranking for this namespace
+ */
+int evaluateNamespace(const HashCode160 * ns,
+		      int delta);
+
+/**
+ * Get the nickname of the given namespace.  If the
+ * nickname is not unique within our database, append
+ * the namespace identifier to make it unique.
+ */
+char * getUniqueNickname(const HashCode160 * ns);
+
+void encryptSBlock(const HashCode160 * k,
+		   const SBlock * in,
+		   SBlock * out);
+
+void decryptNBlock(NBlock * sb);
 
 
 #endif

@@ -25,7 +25,7 @@
  * @see http://www.ovmj.org/GNUnet/encoding.php3
  * @author Krista Bennett
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_afs_esed2.h"
 #include "platform.h"
@@ -40,11 +40,12 @@
  * @param sock connection to gnunetd
  * @param filename the name to add to fileindex.c
  * @return the index, -1 on error
- **/
+ */
 static int transferFile(GNUNET_TCP_SOCKET * sock,
-			char * filename) {
+			const char * fn) {
   AFS_CS_INDEX_FILE * request;
   AFS_CS_UPLOAD_FILE * upload;
+  char * filename;
   int result;
   int index;
   int ret;
@@ -56,7 +57,7 @@ static int transferFile(GNUNET_TCP_SOCKET * sock,
 
   /* first: request index */
   filename 
-    = expandFileName(filename);   
+    = expandFileName(fn);   
   getFileHash(filename,
 	      &hc);
   fsize
@@ -76,8 +77,8 @@ static int transferFile(GNUNET_TCP_SOCKET * sock,
        (SYSERR == readTCPResult(sock,
 				&index)) ) {
     LOG(LOG_WARNING, 
-	"WARNING: could not request or receive data"
-	" from gnunetd.  Is gnunetd running?\n");
+	_("Could not request or receive data"
+	  " from gnunetd.  Is gnunetd running?\n"));
     FREE(filename);
     FREE(request);
     return -1;
@@ -85,14 +86,12 @@ static int transferFile(GNUNET_TCP_SOCKET * sock,
   FREE(request);
   if (index == -1) {
     LOG(LOG_WARNING,
-	"WARNING: gnunetd refused to index file (no space left?)\n");
+	_("gnunetd refused to index file (consult gnunetd logs).\n"));
     FREE(filename);
     return -1;
   }
   if (index == 0) {
-    LOG(LOG_WARNING,
-	"WARNING: gnunetd violated protocol (returned 0) at %s:%d\n",
-	__FILE__, __LINE__);
+    BREAK();
     FREE(filename);
     return -1;
   }
@@ -120,7 +119,7 @@ static int transferFile(GNUNET_TCP_SOCKET * sock,
 				  &ret)) ||
 	 (ret != OK) ) {
       LOG(LOG_WARNING,
-	  "WARNING: link request to gnunetd failed. "
+	  " link request to gnunetd failed. "
 	  "Trying to, make copy instead.\n");
       FREE(req);
     } else {
@@ -135,8 +134,8 @@ static int transferFile(GNUNET_TCP_SOCKET * sock,
     = OPEN(filename, O_RDONLY);
   if (handle == -1) {
     LOG(LOG_ERROR,
-	"ERROR: could not open file: %s\n",
-	strerror(errno));
+	"Could not open file: %s\n",
+	STRERROR(errno));
     FREE(filename);
     return -1;
   }
@@ -162,12 +161,12 @@ static int transferFile(GNUNET_TCP_SOCKET * sock,
     if (ret != delta) {
       if (ret == -1) {
 	LOG(LOG_ERROR,
-	    "ERROR: could not read file: %s\n",
-	    strerror(errno));
+	    " could not read file: %s\n",
+	    STRERROR(errno));
 	index = -1;
 	break;
       } else
-	errexit("FATAL: assertion failed (short file read)!");
+	GNUNET_ASSERT(0);
     }
     
     if ( (SYSERR == writeToSocket(sock,
@@ -175,8 +174,8 @@ static int transferFile(GNUNET_TCP_SOCKET * sock,
 	 (SYSERR == readTCPResult(sock,
 				  &result)) ) {
       LOG(LOG_WARNING, 
-	  "WARNING: could not receive data from gnunetd. "
-	  "Is gnunetd running?\n");
+	  _("Could not receive data from gnunetd. "
+	    "Is gnunetd running?\n"));
       index = -1;
     }
     if (result == -1)
@@ -198,10 +197,10 @@ static int transferFile(GNUNET_TCP_SOCKET * sock,
  * @param rn the RootNode to insert
  * @param keyword the keyword under which the rn is inserted
  * @param contentPriority priority of the inserted content
- **/
+ */
 int insertRootWithKeyword(GNUNET_TCP_SOCKET * sock,
-			  RootNode * rn,
-			  char * keyword,
+			  const RootNode * rn,
+			  const char * keyword,
 			  int contentPriority) {
   HashCode160 hc;
   AFS_CS_INSERT_3HASH * msg;
@@ -228,8 +227,8 @@ int insertRootWithKeyword(GNUNET_TCP_SOCKET * sock,
   if (SYSERR == writeToSocket(sock,
 			      &msg->header)) {
     LOG(LOG_WARNING, 
-	"WARNING: could not send data to gnunetd. "
-	"Is gnunetd running?\n");
+	_("Could not send data to gnunetd. "
+	  "Is gnunetd running?\n"));
     FREE(msg);
     return SYSERR;
   }
@@ -237,12 +236,12 @@ int insertRootWithKeyword(GNUNET_TCP_SOCKET * sock,
   if (SYSERR == readTCPResult(sock,
 			      &res)) {
     LOG(LOG_WARNING, 
-	"WARNING: server did not send confirmation of insertion\n");
+	_("Server did not send confirmation of insertion.\n"));
     return SYSERR;
   } else {
     if (res == SYSERR)
       LOG(LOG_WARNING, 
-	  "WARNING: server could not perform insertion\n");
+	  _("Server could not perform insertion.\n"));
   }
   /* FIXME: somehow I sometimes get a random number back
      here (like 102).  I've instrumented the gnunetd handler
@@ -265,18 +264,19 @@ int insertRootWithKeyword(GNUNET_TCP_SOCKET * sock,
  *        (retrieved so far, total).
  * @param model_data pointer that is passed to the model method
  * @return NULL on error, otherwise the top block
- **/
+ */
 Block * insertFile(GNUNET_TCP_SOCKET * sock,
-		   char * filename, 
+		   const char * fn, 
 		   ProgressModel model,
 		   void * model_data) {
+  char * filename;
   NodeContext nc;
   size_t filesize;
   Block * top;
   char * restore;
   int ret;
 
-  filename = expandFileName(filename);
+  filename = expandFileName(fn);
   filesize = (size_t) getFileSize(filename);
   restore = getConfigurationString("GNUNET-INSERT",
 				   "INDEX-CONTENT");
@@ -296,12 +296,10 @@ Block * insertFile(GNUNET_TCP_SOCKET * sock,
 				     "INDEX-CONTENT",
 				     "YES")) {
     ret = transferFile(sock, filename);
-    if (ret == 0)
-      errexit("FATAL: assertion failed at %s:%d\n",
-	      __FILE__, __LINE__);
+    GNUNET_ASSERT(ret != 0);
     if (ret == -1) {
       LOG(LOG_WARNING,
-	  "WARNING: adding to index list failed, trying insertion!\n");
+	  _("Adding to index list failed, trying insertion!\n"));
       nc.index = 0; 
     } else {
       nc.index = ret;
@@ -344,34 +342,31 @@ Block * insertFile(GNUNET_TCP_SOCKET * sock,
   return top;
 }
 
-RootNode * createRootNode(FileIdentifier * fid,
-			  char * description,
-			  char * shortFN,
-			  char * mimetype) {
+#define MIN(a,b)  ( ((a) < (b)) ? (a) : (b))
+
+RootNode * createRootNode(const FileIdentifier * fid,
+			  const char * description,
+			  const char * shortFN,
+			  const char * mimetype) {
   RootNode * rn;
 
   rn = MALLOC(sizeof(RootNode));
+  memset(rn, 0, sizeof(RootNode));
   rn->header.major_formatVersion 
     = htons(ROOT_MAJOR_VERSION);
   rn->header.minor_formatVersion 
     = htons(ROOT_MINOR_VERSION);
   rn->header.fileIdentifier
     = *fid;
-  if (strlen(description) >= MAX_DESC_LEN)
-    description[MAX_DESC_LEN-1] = 0;
   memcpy(&rn->header.description[0],
 	 description,
-	 strlen(description)+1);
-  if (strlen(shortFN) >= MAX_FILENAME_LEN)
-    shortFN[MAX_FILENAME_LEN-1] = 0;
+	 MIN(strlen(description)+1, MAX_DESC_LEN-1));
   memcpy(&rn->header.filename[0],
 	 shortFN,
-	 strlen(shortFN)+1);
-  if (strlen(mimetype) >= MAX_MIMETYPE_LEN)
-    mimetype[MAX_MIMETYPE_LEN-1] = 0;
+	 MIN(strlen(shortFN)+1, MAX_FILENAME_LEN-1));
   memcpy(&rn->header.mimetype[0],
 	 mimetype,
-	 strlen(mimetype)+1);
+	 MIN(strlen(mimetype)+1, MAX_MIMETYPE_LEN));
   return rn;
 }
 
@@ -387,14 +382,14 @@ RootNode * createRootNode(FileIdentifier * fid,
  * @param keywords the keywords that shall be used to retrieve the file
  * @param rootNode output, the root node (must be alloc'd by caller) 
  * @return OK on success, SYSERR on error
- **/
+ */
 int insertRoot(GNUNET_TCP_SOCKET * sock,
-	       Block * top,
-	       char * description,
-     	       char * filenameRoot,
-	       char * mimetype,
+	       const Block * top,
+	       const char * description,
+     	       const char * filenameRoot,
+	       const char * mimetype,
 	       unsigned int num_keys,
-	       char ** keywords,
+	       const char ** keywords,
 	       RootNode * rootNode) {
   unsigned int i;
   unsigned int priority;
@@ -439,11 +434,11 @@ int insertRoot(GNUNET_TCP_SOCKET * sock,
  * @param dirName name of this directory
  * @param fid resulting file identifier for the directory
  * @returns SYSERR on failure, OK on success
- **/
+ */
 int insertDirectory(GNUNET_TCP_SOCKET * sock,
 		    unsigned int nodeCount, 
-		    RootNode * rootNodes, 
-		    char * dirName,
+		    const RootNode * rootNodes, 
+		    const char * dirName,
 		    FileIdentifier * fid,
 		    ProgressModel model,
 		    void * modelArg) {
@@ -462,12 +457,12 @@ int insertDirectory(GNUNET_TCP_SOCKET * sock,
   strcat(fileName, ".XXXXXX");
   handle = mkstemp(fileName);
   if (handle == -1)
-    errexit("FATAL: mkstemp failed (%s)\n",
-	    STRERROR(errno));
+    DIE_STRERROR("mkstemp");
   
   if (SYSERR == writeGNUnetDirectory(dir, fileName)) {
     LOG(LOG_WARNING,
-        "WARNING: could not write directory to temporary file.\n");
+        "Could not write directory to temporary file '%s'.\n",
+	fileName);
     UNLINK(fileName);
     FREE(fileName);
     close(handle);
@@ -492,9 +487,9 @@ int insertDirectory(GNUNET_TCP_SOCKET * sock,
   FREENONNULL(oldval);
   if (top == NULL) {
     LOG(LOG_ERROR,
-	"ERROR: Error inserting directory %s.\n"
-	"You may want to check whether or not you are out of space.\n"
-	"Run gnunet-stats | grep \"AFS storage left\" to check.\n",
+	_("Error inserting directory %s.\n"
+	  "You may want to check whether or not you are out of space.\n"
+	  "Run gnunet-stats | grep \"AFS storage left\" to check.\n"),
 	fileName);
     FREE(fileName);
     return SYSERR;
@@ -518,11 +513,11 @@ int insertDirectory(GNUNET_TCP_SOCKET * sock,
  * @param fid the identifier for the file
  * @param filename the full filename (complete path)
  * @return the RootNode
- **/
+ */
 static RootNode * buildFileRBlock(GNUNET_TCP_SOCKET * sock,
-				  FileIdentifier * fid,
-				  char * filename,
-				  char ** gloKeywords,
+				  const FileIdentifier * fid,
+				  const char * filename,
+				  const char ** gloKeywords,
 				  unsigned int gloKeywordCnt,
 				  void * extractors_) {
   RootNode * result;
@@ -547,10 +542,11 @@ static RootNode * buildFileRBlock(GNUNET_TCP_SOCKET * sock,
 					  "ADDITIONAL-RBLOCKS",
 					  "NO");
   if (shortFN == NULL) {
-    shortFN = &filename[strlen(filename)-1];
-    while (shortFN[-1] != DIR_SEPARATOR)
-      shortFN--;
-    shortFN = STRDUP(shortFN);
+    const char * tmp;
+    tmp = &filename[strlen(filename)-1];
+    while (tmp[-1] != DIR_SEPARATOR)
+      tmp--;
+    shortFN = STRDUP(tmp);
   }
 #if USE_LIBEXTRACTOR
   num_keywords = 0;
@@ -582,8 +578,8 @@ static RootNode * buildFileRBlock(GNUNET_TCP_SOCKET * sock,
 				    getConfigurationInt("GNUNET-INSERT",
 							"CONTENT-PRIORITY"))) {
       LOG(LOG_ERROR,
-	  "ERROR: failed to insert RBlock. "
-	  "Is gnunetd running and space available?\n");
+	  _("Failed to insert RBlock. "
+	    "Is gnunetd running and space available?\n"));
       break;
     }
   
@@ -596,8 +592,8 @@ static RootNode * buildFileRBlock(GNUNET_TCP_SOCKET * sock,
 				      getConfigurationInt("GNUNET-INSERT",
 							  "CONTENT-PRIORITY"))) {
 	LOG(LOG_ERROR,
-	    "ERROR: failed to insert RBlock. "
-	    "Is gnunetd running and space available?\n");
+	    _("Failed to insert RBlock. "
+	      "Is gnunetd running and space available?\n"));
       }
     }
     FREE(keywords[i]);
@@ -618,12 +614,12 @@ static RootNode * buildFileRBlock(GNUNET_TCP_SOCKET * sock,
  * @param dirName the name of the last component of the path to the directory
  * @param description the description for the file
  * @return the RBlock
- **/
+ */
 RootNode * buildDirectoryRBlock(GNUNET_TCP_SOCKET * sock,
-				FileIdentifier * fid,
-				char * dirName,
-				char * description,
-				char ** gloKeywords,
+				const FileIdentifier * fid,
+				const char * dirName,
+				const char * description,
+				const char ** gloKeywords,
 				unsigned int gloKeywordCnt) {
   RootNode * result;
   int i;
@@ -649,8 +645,8 @@ RootNode * buildDirectoryRBlock(GNUNET_TCP_SOCKET * sock,
 				    getConfigurationInt("GNUNET-INSERT",
 							"CONTENT-PRIORITY"))) {
       LOG(LOG_ERROR,
-	  "ERROR: failed to insert RBlock. "
-	  "Is gnunetd running and space available?\n");
+	  _("Failed to insert RBlock. "
+	    "Is gnunetd running and space available?\n"));
     }
   }
   return result;
@@ -662,7 +658,7 @@ typedef struct {
   RootNode * rbs;
   int rbCount;
   GNUNET_TCP_SOCKET * sock;
-  char ** gloKeywords;
+  const char ** gloKeywords;
   unsigned int gloKeywordCnt;
   void * extractors_;
   ProgressModel model;
@@ -690,7 +686,7 @@ static void dirEntryCallback(char * filename,
   rb = insertRecursively(data->sock,
 			 fn,
 			 &data->fid[data->fiCount-1],
-			 data->gloKeywords,
+			 (const char**) data->gloKeywords,
 			 data->gloKeywordCnt,
 			 data->extractors_,
 			 data->model,
@@ -729,11 +725,11 @@ static void dirEntryCallback(char * filename,
  * @return RootNode that identifies the single file or directory or
  *      NULL on error or NULL if filename is a directory and we don't
  *      create directories.
- **/
+ */
 RootNode * insertRecursively(GNUNET_TCP_SOCKET * sock,
-			     char * filename,
+			     const char * filename,
 			     FileIdentifier * fid,
-			     char ** gloKeywords,
+			     const char ** gloKeywords,
 			     unsigned int gloKeywordCnt,
 			     void * extractors_,
 			     ProgressModel model,
@@ -786,15 +782,13 @@ RootNode * insertRecursively(GNUNET_TCP_SOCKET * sock,
     if (ret == -1)
       return NULL;
     if (dec.rbCount != dec.fiCount) {
-      LOG(LOG_ERROR,
-	  "ERROR: assertion violated at %s:%d\n",
-	  __FILE__, __LINE__);
+      BREAK();
       GROW(dec.fid, dec.fiCount, 0);
       GROW(dec.rbs, dec.rbCount, 0);
       return NULL;
     }       
     if (builddir) {
-      char * dirName;
+      const char * dirName;
 
       dirName = &filename[strlen(filename)-1];
       while (dirName[-1] != DIR_SEPARATOR)

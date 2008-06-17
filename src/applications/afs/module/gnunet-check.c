@@ -27,7 +27,7 @@
  * there, the current code will just delete them. It'd be nice if they
  * could be moved instead.
  * 
- **/
+ */
 
 #include "gnunet_util.h"
 #include "gnunet_afs_esed2.h"
@@ -79,7 +79,7 @@ static void PRINTV(char * format,
 /**
  * Check that the content at the given offset/file
  * has the given double hash.
- **/
+ */
 static int checkHashMatch(unsigned short fileNameIndex,
 			  size_t offset,
 			  HashCode160 * chkquery) {
@@ -99,10 +99,7 @@ static int checkHashMatch(unsigned short fileNameIndex,
     return SYSERR;
   fileHandle = OPEN(fn, O_EXCL, S_IRUSR);
   if (fileHandle == -1) {
-    LOG(LOG_WARNING, 
-	"WARNING: Could not open file %s (%u).\n",
-	fn,
-	fileNameIndex);    
+    LOG_FILE_STRERROR(LOG_WARNING, "open", fn);
     FREE(fn);
     return SYSERR;
   }
@@ -127,7 +124,7 @@ static int checkHashMatch(unsigned short fileNameIndex,
   if (!equalsHashCode160(&dhc,
 			 chkquery)) {
     LOG(LOG_WARNING, 
-	"WARNING: content found in %s at %d does not match expected hash.\n",
+	_("Content found in file '%s' at %d does not match expected hash.\n"),
 	fn,
 	offset);    
     FREE(fn);
@@ -150,18 +147,18 @@ static int removeCount = 0;
  * We can't remove the bogus content instantly since that would be a
  * concurrent modification while using the iterator. Thus we remember
  * the keys to remove and do it later.
- **/
+ */
 static void deferredRemove() {
   int i;
-  HexName hex;
+  EncName enc;
 
   for (i=0;i<removeCount;i++)
     if (OK != removeContent(&removeList[i].hc,
 			    removeList[i].bucket)) {
-      hash2hex(&removeList[i].hc,
-	       &hex);
-      PRINTQ("Deferred content removal of %s failed!\n",
-	     &hex);
+      hash2enc(&removeList[i].hc,
+	       &enc);
+      PRINTQ(_("Deferred content removal of '%s' failed!\n"),
+	     &enc);
     }
   GROW(removeList,
        removeCount,
@@ -171,7 +168,7 @@ static void deferredRemove() {
 /**
  * If we are fixing problems, remove this content and
  * print the appropriate messages.
- **/
+ */
 static void ifFixRemove(HashCode160 * query, 
  	  	        int bucket) {
   if (do_fix == YES) {    
@@ -182,7 +179,7 @@ static void ifFixRemove(HashCode160 * query,
 	   query,
 	   sizeof(HashCode160));
     removeList[removeCount-1].bucket = bucket;
-    PRINTQ("Will fix (deferred).\n");
+    PRINTQ(_("Will fix (deferred).\n"));
   } else
     PRINTQ("\n");	  
 }
@@ -190,19 +187,19 @@ static void ifFixRemove(HashCode160 * query,
 /**
  * This function is called for each entry in the
  * content/index/lookup database.
- **/
+ */
 static void checkDatabaseContent(HashCode160 * query,
 				 ContentIndex * ce,
 				 int bucket,
 				 void * result,
 				 int len) {
-  HexName hn;
+  EncName hn;
   
-  hash2hex(query,
+  hash2enc(query,
 	   &hn);  
 
   if (computeBucketGlobal(query) != (unsigned int)bucket) {
-    PRINTQ("Entry %s is in wrong bucket %d (expected %d). ",
+    PRINTQ(_("Entry '%s' is in wrong bucket %d (expected %d). "),
 	   (char*)&hn,
 	   bucket,
 	   computeBucketGlobal(query));
@@ -214,7 +211,7 @@ static void checkDatabaseContent(HashCode160 * query,
   case LOOKUP_TYPE_CHK:
     if (len != 0) {
       if (len != sizeof(CONTENT_Block)) {
-	PRINTQ("Bad content stored for %s (bad length %d). ",
+	PRINTQ(_("Bad content stored for '%s' (bad length %d). "),
 	       (char*)&hn, 
 	       len);
 	ifFixRemove(query,
@@ -225,7 +222,7 @@ static void checkDatabaseContent(HashCode160 * query,
       if (SYSERR == checkHashMatch(ntohs(ce->fileNameIndex),
 				   ntohl(ce->fileOffset),
 				   query)) {
-	PRINTQ("Bad CHK content indexed for %s ",
+	PRINTQ(_("Bad CHK content indexed for '%s' "),
 	       (char*)&hn);
 	ifFixRemove(query,
 	            bucket); 
@@ -238,12 +235,12 @@ static void checkDatabaseContent(HashCode160 * query,
     } else {
       if (testBloomfilter(singleBloomFilter,
 			  query) == NO) {
-	PRINTQ("Bloomfilter test failed for CHK content %s ",
+	PRINTQ(_("Bloomfilter test failed for CHK content '%s' "),
 	       (char*)&hn);
 	if (do_fix == YES) {
 	  addToBloomfilter(singleBloomFilter,
 			   query);
-	  PRINTQ("Fixed.\n");
+	  PRINTQ(_("Fixed.\n"));
 	} else
 	  PRINTQ("\n");	
       }
@@ -263,7 +260,7 @@ static void checkDatabaseContent(HashCode160 * query,
       if (SYSERR == checkHashMatch(ntohs(ce->fileNameIndex),
 				   ntohl(ce->fileOffset),
 				   query)) {
-	PRINTQ("Bad CHKS content indexed for %s ",
+	PRINTQ(_("Bad CHKS content indexed for '%s' "),
 	       (char*)&hn);
 	ifFixRemove(query,
 	            bucket);
@@ -278,12 +275,12 @@ static void checkDatabaseContent(HashCode160 * query,
     } else {
       if (testBloomfilter(singleBloomFilter,
 			  query) == NO) {
-	PRINTQ("Bloomfilter test failed for 3HASH content %s ",
+	PRINTQ(_("Bloomfilter test failed for 3HASH content '%s' "),
 	       (char*)&hn);
 	if (do_fix == YES) {
 	  addToBloomfilter(singleBloomFilter,
 			   query);
-	  PRINTQ("Fixed.\n");
+	  PRINTQ(_("Fixed.\n"));
 	} else
 	  PRINTQ("\n");	
       }
@@ -296,12 +293,12 @@ static void checkDatabaseContent(HashCode160 * query,
     } else {
       if (testBloomfilter(superBloomFilter,
 			  query) == NO) {
-	PRINTQ("Bloomfilter test failed for SUPER hash %s ",
+	PRINTQ(_("Bloomfilter test failed for SUPER hash '%s' "),
 	       (char*)&hn);
 	if (do_fix == YES) {
 	  addToBloomfilter(superBloomFilter,
 			   query);
-	  PRINTQ("Fixed.\n");
+	  PRINTQ(_("Fixed.\n"));
 	} else
 	  PRINTQ("\n");	
       }
@@ -314,19 +311,19 @@ static void checkDatabaseContent(HashCode160 * query,
     } else {
       if (testBloomfilter(singleBloomFilter,
 			  query) == NO) {
-        PRINTQ("Bloomfilter test failed for SBLOCK content %s ",
+        PRINTQ(_("Bloomfilter test failed for SBLOCK content '%s' "),
 	       (char*)&hn);
 	if (do_fix == YES) {
 	  addToBloomfilter(singleBloomFilter,
 			   query);
-	  PRINTQ("Fixed.\n");
+	  PRINTQ(_("Fixed.\n"));
 	} else
 	  PRINTQ("\n");	
       }
     }
     break;
   default:
-    PRINTQ("ERROR: unexpected content type %d. ",
+    PRINTQ(_("Unexpected content type %d. "),
 	   ntohs(ce->type));
     ifFixRemove(query,
 		bucket);
@@ -337,7 +334,7 @@ static void checkDatabaseContent(HashCode160 * query,
 /**
  * Check that for each entry in the contentdatabase
  * there is an entry in the lookup-database.
- **/
+ */
 static void checkDatabase() {
   void * iterState;
   int count;
@@ -347,7 +344,7 @@ static void checkDatabase() {
   int len;
   int bucket;
   
-  PRINTQ("Checking Content Database\n");
+  PRINTQ(_("Checking Content Database\n"));
   count = 0;
   iterState = makeDatabaseIteratorState();
   data = NULL;
@@ -367,14 +364,14 @@ static void checkDatabase() {
     data = NULL;
   } 
   deferredRemove();
-  PRINTQ("\n==> Done checking %d entries in content database.\n", 
+  PRINTQ(_("\n==> Done checking %d entries in content database.\n"), 
 	 count);
 }
 
 /**
  * Process a request to insert content from the client.
  * @return SYSERR if the TCP connection should be closed, otherwise OK
- **/
+ */
 static int checkInsertCHK(GNUNET_TCP_SOCKET * sock,
 			  AFS_CS_INSERT_CHK * insertRequest) {
   CONTENT_Block * block;
@@ -382,7 +379,7 @@ static int checkInsertCHK(GNUNET_TCP_SOCKET * sock,
   int dup;
   ContentIndex entry;
   HashCode160 hc;
-  HexName hn;
+  EncName hn;
 
   if (ntohs(insertRequest->header.size) != 
       sizeof(AFS_CS_INSERT_CHK)) {
@@ -398,7 +395,7 @@ static int checkInsertCHK(GNUNET_TCP_SOCKET * sock,
   hash(&insertRequest->content,
        sizeof(CONTENT_Block),
        &hc);
-  hash2hex(&hc,
+  hash2enc(&hc,
 	   &hn);
   PRINTV("* %s (ins)\n",
 	 (char*)&hn);
@@ -417,9 +414,10 @@ static int checkInsertCHK(GNUNET_TCP_SOCKET * sock,
     len = SYSERR;
   
   if (len == SYSERR || ntohl(entry.importance)<fixedPriority) {
-    PRINTQ("Content %s %s in database. ",
-	   (char*) &hn,
-           (len == SYSERR ? "malformed or missing" : "has low priority"));
+    PRINTQ((len == SYSERR) 
+	   ? _("Content '%s' malformed or missing in database. ") 
+	   : _("Content '%s' has low priority in database. "),	   
+	   (char*) &hn);
     if (do_fix == YES) {
       entry.type = htons(LOOKUP_TYPE_CHK); /* CHK or CHKS? How can we tell? FIXME! */
       entry.importance = htonl(fixedPriority); 
@@ -433,9 +431,9 @@ static int checkInsertCHK(GNUNET_TCP_SOCKET * sock,
 			      &insertRequest->content,
 			      NULL, /* sender = localhost */
 			      &dup)) {
-	PRINTQ("Fixed.\n");
+	PRINTQ(_("Fixed.\n"));
       } else {
-	PRINTQ("WARNING: can not fix (database full?)\n");
+	PRINTQ(_(" cannot fix (database full?)\n"));
       }
     } else 
       PRINTQ("\n");
@@ -448,11 +446,10 @@ static int checkInsertCHK(GNUNET_TCP_SOCKET * sock,
 /**
  * Process a request to insert content from the client.
  * @return SYSERR if the TCP connection should be closed, otherwise OK
- **/
+ */
 static int checkInsert3HASH(GNUNET_TCP_SOCKET * sock,
 			    AFS_CS_INSERT_3HASH * insertRequest) {
-  LOG(LOG_WARNING,
-      "WARNING: did not expect 3HASH insert invocation!\n");
+  BREAK();
   sendTCPResult(sock, OK);
   return OK;
 }
@@ -467,19 +464,18 @@ static int checkSuper(GNUNET_TCP_SOCKET * sock,
 
   if (ntohs(superIndexRequest->header.size) != 
       sizeof(AFS_CS_INDEX_SUPER)) {
-    LOG(LOG_WARNING, 
-	"WARNING: super-hash indexing request from client was malformed!\n");
+    BREAK();
     return SYSERR;
   }
   if (NO == testBloomfilter(superBloomFilter,
 			    &superIndexRequest->superHash)) { 
     if (do_reset == NO)
-      PRINTQ("Super-Hash not listed in super-hash bloom filter ");
+      PRINTQ(_("Super-Hash not listed in super-hash bloom filter "));
     if (do_fix == YES) {
       addToBloomfilter(superBloomFilter,
 		       &superIndexRequest->superHash);
       if (do_reset == NO)
-        PRINTQ("Fixed.\n");
+        PRINTQ(_("Fixed.\n"));
     } else
       if (do_reset == NO)
         PRINTQ("\n");
@@ -506,12 +502,12 @@ static int checkSuper(GNUNET_TCP_SOCKET * sock,
 			NO);
   FREENONNULL(result);
   if (SYSERR == len || ntohl(entry2.importance)<fixedPriority) {
-    HexName expect;
+    EncName expect;
     
-    hash2hex(&superIndexRequest->superHash,
+    hash2enc(&superIndexRequest->superHash,
 	     &expect);
-    PRINTQ("Did not find super-hash entry in "
-	   "lookup database for hash %s (or had low priority). ",
+    PRINTQ(_("Did not find super-hash entry in "
+	     "lookup database for hash %s (or had low priority). "),
 	   (char*)&expect);    
     if (do_fix == YES) {
       if (OK == insertContent(&entry, 
@@ -519,9 +515,9 @@ static int checkSuper(GNUNET_TCP_SOCKET * sock,
 			      NULL,
 			      NULL,
 			      &dup)) {
-	PRINTQ("Fixed.\n");
+	PRINTQ(_("Fixed.\n"));
       } else {
-	PRINTQ("Failed to fix.\n");
+	PRINTQ(_("Failed to fix.\n"));
       }
     } else
       PRINTQ("\n"); 
@@ -530,16 +526,16 @@ static int checkSuper(GNUNET_TCP_SOCKET * sock,
     if (0 != memcmp(&entry, 
 		    &entry2, 
 		    sizeof(ContentIndex))) {
-      HexName have;
-      HexName expect;
+      EncName have;
+      EncName expect;
       
-      hash2hex(&entry2.hash,
+      hash2enc(&entry2.hash,
 	       &have);
-      hash2hex(&entry.hash,
+      hash2enc(&entry.hash,
 	       &expect);
-      PRINTQ("Entry in database for super-hash does not "
-	     "match expectations (have: %s, %u, %u, %u; "
-	     "expected: %s, %u, %u, %u). ",
+      PRINTQ(_("Entry in database for super-hash does not "
+	       "match expectations (have: %s, %u, %u, %u; "
+	       "expected: %s, %u, %u, %u). "),
 	     (char*)&have, 
 	     ntohl(entry2.importance),
 	     ntohs(entry2.fileNameIndex), 
@@ -554,9 +550,9 @@ static int checkSuper(GNUNET_TCP_SOCKET * sock,
 				NULL,
 				NULL,
 				&dup)) {
-	  PRINTQ("Fixed.\n");
+	  PRINTQ(_("Fixed.\n"));
 	} else {
-	  PRINTQ("Failed to fix.\n");
+	  PRINTQ(_("Failed to fix.\n"));
 	}
       } else
  	PRINTQ("\n");
@@ -569,18 +565,18 @@ static int checkSuper(GNUNET_TCP_SOCKET * sock,
 /**
  * Process a request to index content from the client.
  * @return SYSERR if the TCP connection should be closed, otherwise OK
- **/
+ */
 static int checkIndex(GNUNET_TCP_SOCKET * sock,
 		      AFS_CS_INDEX_BLOCK * indexingRequest) {
   HashCode160 triple;
   HashCode160 * query;
   ContentIndex res;
-  HexName hn;
+  EncName hn;
   void * data;
   int len;
   int dup;
 
-  hash2hex(&indexingRequest->contentIndex.hash,
+  hash2enc(&indexingRequest->contentIndex.hash,
 	   &hn);
   PRINTV("* %s (idx)\n",
 	 (char*)&hn);
@@ -597,21 +593,16 @@ static int checkIndex(GNUNET_TCP_SOCKET * sock,
     break;
   default:  
     LOG(LOG_ERROR,
-	"ERROR: Unexpected content index type: %d.\n",
+	_("Unexpected content index type: %d.\n"),
 	ntohs(indexingRequest->contentIndex.type));
     return SYSERR; 
   }
   if (ntohs(indexingRequest->header.size) != 
       sizeof(AFS_CS_INDEX_BLOCK)) {
-#if PRINT_TCP
-    printf("TCP: WARNING: indexing request malformed!\n");
-#endif
+    BREAK();
     sendTCPResult(sock, SYSERR);
     return SYSERR;
   }
-#if PRINT_TCP 
-  printf("TCP: received indexing request\n");
-#endif
   /* check if everything is already in place, and if not and 
      we are allowed to fix, do the write-actions: */
   memset(&res,
@@ -629,9 +620,10 @@ static int checkIndex(GNUNET_TCP_SOCKET * sock,
     = htonl(indexPriority);
   if ( (len == SYSERR) || 
        (ntohl(res.importance) < indexPriority)) {
-    PRINTQ("Content %s %s in lookup database. ",
-	   (char*) &hn,
-	   (len == SYSERR) ? "not indexed" : "had low priority");
+    PRINTQ((len == SYSERR) 
+	   ? ("Content '%s' not indexed in lookup database. ")
+	   : _("Content '%s' had low priority in lookup database. "),
+	   (char*) &hn);
     if (do_fix == YES) {
       if (SYSERR ==
 	  insertContent(&indexingRequest->contentIndex,
@@ -639,9 +631,9 @@ static int checkIndex(GNUNET_TCP_SOCKET * sock,
 			NULL,
 			NULL,
 			&dup)) {
-	PRINTQ("Could not fix, insertion failed.\n");
+	PRINTQ(_("Could not fix, insertion failed.\n"));
       } else {
-	PRINTQ("Fixed.\n");
+	PRINTQ(_("Fixed.\n"));
       }
     } else
       PRINTQ("\n");
@@ -649,7 +641,7 @@ static int checkIndex(GNUNET_TCP_SOCKET * sock,
     if (0 != memcmp(&res.hash, 
 		    &indexingRequest->contentIndex.hash,
 		    sizeof(HashCode160))) {
-      PRINTQ("Bad value (hash) stored in database ");
+      PRINTQ(_("Bad value (hash) stored in database "));
       if (do_fix == YES) {
 	if (SYSERR ==
 	    insertContent(&indexingRequest->contentIndex,
@@ -657,9 +649,9 @@ static int checkIndex(GNUNET_TCP_SOCKET * sock,
 			  NULL,
 			  NULL,
 			  &dup)) {
-	  PRINTQ("Could not fix, insertion failed.\n");
+	  PRINTQ(_("Could not fix, insertion failed.\n"));
 	} else {
-	  PRINTQ("Fixed.\n");
+	  PRINTQ(_("Fixed.\n"));
 	}
       } else
 	PRINTQ("\n");
@@ -675,7 +667,7 @@ static int checkIndex(GNUNET_TCP_SOCKET * sock,
  * (code copied from afs/handler.c).
  *
  * @return SYSERR if the TCP connection should be closed, otherwise OK
- **/
+ */
 static int csHandleRequestIndexFile(GNUNET_TCP_SOCKET * sock,
 				    AFS_CS_INDEX_FILE * listFileRequest) {
   HexName hex;
@@ -685,8 +677,7 @@ static int csHandleRequestIndexFile(GNUNET_TCP_SOCKET * sock,
 
   if (ntohs(listFileRequest->header.size) != 
       sizeof(AFS_CS_INDEX_FILE)) {
-    LOG(LOG_WARNING, 
-	"WARNING: file indexing request from client was malformed!\n");
+    BREAK();
     return SYSERR;
   }
   hash2hex(&listFileRequest->hash,
@@ -694,8 +685,7 @@ static int csHandleRequestIndexFile(GNUNET_TCP_SOCKET * sock,
   filename = getConfigurationString("AFS",
 				    "INDEX-DIRECTORY");
   if (filename == NULL) {
-    LOG(LOG_WARNING,
-	"WARNING: rejecting content-unindex request, INDEX-DIRECTORY option not set!\n");
+    BREAK();
     return -1;
   }
   prefix = expandFileName(filename);
@@ -716,7 +706,7 @@ static int csHandleRequestIndexFile(GNUNET_TCP_SOCKET * sock,
 /**
  * Handle data available on the TCP socket descriptor;
  * check that the request is already fullfilled.
- **/
+ */
 static void checkProcessor(int * sockptr) {
   CS_HEADER * hdr;
   GNUNET_TCP_SOCKET sock;
@@ -777,7 +767,7 @@ static void checkProcessor(int * sockptr) {
  * (and fix if appropriate). Also return SYSERR
  * if the file is gone and should thus be removed
  * from the list.
- **/
+ */
 int checkIndexedFile(char * name,
 		     int index,
 		     GNUNET_TCP_SOCKET * sock) {
@@ -796,10 +786,10 @@ int checkIndexedFile(char * name,
   } else
     result = SYSERR;
   if (result == SYSERR) {
-    PRINTQ("Problem checking indexing of file %s ",
+    PRINTQ(_("Problem checking indexing of file '%s' "),
 	   name);
     if (do_fix == YES) {
-      PRINTQ("Removing file from list.\n");
+      PRINTQ(_("Removing file from list.\n"));
       return SYSERR; /* remove file, there was a problem */
     } else {
       PRINTQ("\n");
@@ -814,59 +804,59 @@ int checkIndexedFile(char * name,
  * the list of indexed files actually exist
  * and that they are properly indexed in the
  * lookup (triple->double hash) database.
- **/
+ */
 static void checkIndexedFileList() {
   GNUNET_TCP_SOCKET * sock;
   int count;
 
   sock = getClientSocket();
   if (sock == NULL)
-    errexit("FATAL: could not create socket.\n");
-  PRINTQ("Checking indexed files\n");
+    DIE_STRERROR("getClientSocket");
+  PRINTQ(_("Checking indexed files\n"));
   count = forEachIndexedFile((IndexedFileNameCallback)&checkIndexedFile,
 			     sock);
-  PRINTQ("==> Done with %d indexed files.\n",
+  PRINTQ(_("==> Done with %d indexed files.\n"),
 	 count);
   releaseClientSocket(sock);
 }
 
 /**
  * Print a list of the options we offer.
- **/
+ */
 static void printhelp() {
   static Help help[] = {
     HELP_CONFIG,
     { 'a', "all", NULL,
-      "check everything" },
+      gettext_noop("check everything") },
     { 'D', "data", NULL,
-      "only check the content database" },
+      gettext_noop("only check the content database") },
     { 'f', "files", NULL,
-      "only check the indexed files" },
+      gettext_noop("only check the indexed files") },
     HELP_HELP,
     HELP_LOGLEVEL,
     { 'n', "nofix", NULL,
-      "do not fix problems, only report" },
+      gettext_noop("do not fix problems, only report") },
     { 'p', "prio", "PRIORITY",
-      "specifies the priority of the restored content" },
+      gettext_noop("specifies the priority of the restored content") },
     { 'q', "quiet", NULL,
-      "be quiet" },
-    { 'r', "reset", NULL,
-      "reset bloom-filters (requires 'a' option, slow)" },
+      gettext_noop("be quiet") },
+      { 'r', "reset", NULL,
+      gettext_noop("reset bloom-filters (requires 'a' option, slow)") },
     { 'u', "update", NULL,
-      "perform database-updates necessary after GNUnet version change" },
+      gettext_noop("perform AFS database-updates necessary after GNUnet version change") },
     HELP_VERSION,
     HELP_VERBOSE,
     HELP_END,
   };
   formatHelp("gnunet-check [OPTIONS]",
-	     "Check GNUnet AFS databases.\n"
-	     "Never run gnunet-check while gnunetd is running!",
+	     _("Check GNUnet AFS databases.\n"
+	       "Never run gnunet-check while gnunetd is running!"),
 	     help);
 }
-
+  
 /**
  * Perform option parsing from the command line. 
- **/
+ */
 static int parseCommandLine(int argc, 
 			    char * argv[]) {
   int c;
@@ -953,7 +943,8 @@ static int parseCommandLine(int argc,
       
       if (1 != sscanf(GNoptarg, "%ud", &prio)) {
 	LOG(LOG_FAILURE,
-	    "FAILURE: You must pass a number to the -p option.\n");
+	    "You must pass a number to the '%s' option.\n",
+	    "-p");
 	return SYSERR;
       }
       setConfigurationInt("GNUNET-CHECK",
@@ -972,21 +963,19 @@ static int parseCommandLine(int argc,
       be_verbose = YES;
       break;
     default:
-      printf("Unknown option %c. Aborting.\n"
-	     "Use --help to get a list of options.\n",
-	     c);
+      printf(_("Use --help to get a list of options.\n"));
       return SYSERR;
     } /* end of parsing commandline */
   }
   if (GNoptind < argc) {
-    printf("Invalid arguments: ");
+    printf(_("Invalid arguments: "));
     while (GNoptind < argc)
       printf("%s ", argv[GNoptind++]);
-    printf("\nExiting.\n");
+    printf(_("\nExiting.\n"));
     return SYSERR;
   }
   if (do_fix == NO) 
-    PRINTQ("You selected verification only, will not fix problems!\n");
+    PRINTQ(_("You selected verification only, will not fix problems!\n"));
   return OK;
 }
 
@@ -1001,7 +990,7 @@ static int listenerFD;
 
 /**
  * Initialize the TCP port and listen for incoming connections.
- **/
+ */
 static void * tcpListenMain() {
   CSPair * clients = NULL;
   int clientsSize = 0;
@@ -1015,7 +1004,7 @@ static void * tcpListenMain() {
   listenerPort = getGNUnetPort(); 
   /* create the socket */
   if ( (listenerFD = SOCKET(PF_INET, SOCK_STREAM, 0)) < 0) 
-    errexit("Error opening socket. Is gnunetd running?\n");
+    DIE_STRERROR("socket");
  
   /* fill in the inet address structure */
   memset((char *) &serverAddr, 0, sizeof(serverAddr));
@@ -1030,13 +1019,15 @@ static void * tcpListenMain() {
 		  SOL_SOCKET, 
 		  SO_REUSEADDR, 
 		  &on, sizeof(on)) < 0 )
-    perror("setsockopt");
-
+    DIE_STRERROR("setsockopt");
+  
   if (BIND(listenerFD, 
 	   (struct sockaddr *) &serverAddr,
-	   sizeof(serverAddr)) < 0)
-    errexit("Error (%s) binding the TCP listener to port. Is gnunetd running?\n",
-	    STRERROR(errno));
+	   sizeof(serverAddr)) < 0) {
+    printf(_("Could not bind to port %d.  Is gnunetd running?\n"),
+	   listenerPort);
+    DIE_STRERROR("bind");
+  }
   
   /* start listening for new connections */
   LISTEN(listenerFD, 1); 
@@ -1050,8 +1041,7 @@ static void * tcpListenMain() {
 			&lenOfIncomingAddr);
     if (incomingFD < 0) {
       if (listenerFD != -1)
-	LOG(LOG_ERROR, 
-	    "ERROR accepting new connection.\n");
+	LOG_STRERROR(LOG_ERROR, "accept");
       continue;
     }
     LOG(LOG_DEBUG, 
@@ -1063,14 +1053,8 @@ static void * tcpListenMain() {
     if ((PTHREAD_CREATE(&clients[clientsSize-1].pt,
 			(PThreadMain) &checkProcessor, 
 			(void *)&incomingFD,
-			16*1024)) != 0) {
-      LOG(LOG_ERROR, 
-	  "Error creating thread to handle new incoming connection.\n");    
-      CLOSE(incomingFD);
-      GROW(clients,
-	   clientsSize,
-	   clientsSize-1);
-    }
+			16*1024)) != 0) 
+      DIE_STRERROR("pthread_create");
   } /* while (listenerFD != -1) */
   while (clientsSize > 0) {
     void * unused;
@@ -1086,7 +1070,7 @@ static void * tcpListenMain() {
 
 /**
  * Maximum length of the name of an indexed file (with path).
- **/ 
+ */ 
 #define MAX_LINE_SIZE 1024
 
 /**
@@ -1132,7 +1116,8 @@ static int update061b() {
 				    "INDEX-DIRECTORY");
   if (filename == NULL) {
     LOG(LOG_WARNING,
-	"WARNING: can not fix indexed content, INDEX-DIRECTORY option not set!\n");
+	_("Cannot fix indexed content, '%s' option not set!\n"),
+	"INDEX-DIRECTORY");
     FREE(fil);
     return SYSERR;
   }
@@ -1201,10 +1186,7 @@ static int update061b() {
 	strcat(lname,
 	       (char*)&hex);
 	if (0 != SYMLINK(lines[i], lname)) {
-	  errexit("FATAL: could not create link from %s to %s: %s\n",
-		  lines[i],
-		  lname,
-		  strerror(errno));
+	  DIE_STRERROR("symlink");
 	} else {
 	  fprintf(handle,
 		  "%s\n",
@@ -1253,10 +1235,10 @@ int main(int argc, char * argv[]) {
       FREE(sbit);
       switch (ntohl(version)) {
       case 0x061b: /* need to add links for indexed files */
-	printf("Updating from version %x\n",
+	printf(_("Updating from version %x\n"),
 	       version);
 	if (SYSERR == update061b())
-	  errexit("Errors while updating version!\n");
+	  errexit(_("Errors while updating version!\n"));
 	/* finally, update version to current */
 	val = htonl(0x0620);
 	stateWriteContent("VERSION",
@@ -1264,10 +1246,10 @@ int main(int argc, char * argv[]) {
 			  &val);
 	break;
       case 0x0620:
-	printf("State is current, no update required.\n");
+	printf(_("State is current, no update required.\n"));
 	break;
       default:
-	printf("WARNING: unknown GNUnet version %x\n",
+	printf(_("Unknown GNUnet version %x.\n"),
 	       version);
       }
     } else {
@@ -1291,7 +1273,8 @@ int main(int argc, char * argv[]) {
       return 0;
     }
     fprintf(stderr,
-	    "You must choose what to check (specify -D, -f, or -a).\n");
+	    _("You must choose what to check (specify '%s', '%s', or '%s').\n"),
+	    "-D", "-f", "-a");
     doneUtil();
     return -1;
   }
@@ -1299,16 +1282,16 @@ int main(int argc, char * argv[]) {
   fixedPriority = getConfigurationInt("GNUNET-CHECK",
 		 	              "FIXED-PRIORITY");
   if (fixedPriority <= 0) {
-    LOG(LOG_WARNING, 
-        "WARNING: GNUNET-CHECK/FIXED-PRIORITY in conf either <= 0 or missing\n");
+    LOG(LOG_DEBUG, 
+        "GNUNET-CHECK/FIXED-PRIORITY in conf either <= 0 or missing\n");
     fixedPriority = 0;
   }
 
   indexPriority = getConfigurationInt("GNUNET-INSERT",
 		 	              "CONTENT-PRIORITY");
   if (indexPriority <= 0) {
-    LOG(LOG_WARNING,
-    	"WARNING: GNUNET-INSERT/CONTENT-PRIORITY in conf either <= 0 or missing\n");
+    LOG(LOG_DEBUG,
+    	"GNUNET-INSERT/CONTENT-PRIORITY in conf either <= 0 or missing\n");
     indexPriority = 65536;
   }
 
@@ -1321,13 +1304,14 @@ int main(int argc, char * argv[]) {
 			  (PThreadMain) &tcpListenMain, 
 			  NULL,
 			  16*1024))
-    errexit("FATAL: Could not create tcpServer thread\n");
+    DIE_STRERROR("pthread_create");
   SEMAPHORE_DOWN(serverSignal);
   SEMAPHORE_FREE(serverSignal);
 
   if ( (do_reset == YES) && 
        (check != 'a') ) {
-    errexit("Can't use --reset without -a\n");
+    errexit(_("Cannot use option '%s' without option '%s'.\n"),
+	    "--reset", "-a");
   }
   if ( (do_reset == YES) && 
        (check == 'a') &&

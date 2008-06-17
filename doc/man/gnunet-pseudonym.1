@@ -1,27 +1,63 @@
-.TH GNUNET-PSEUDONYM "1" "31 Mar 2004" "GNUnet"
+.TH GNUNET-PSEUDONYM "1" "22 Aug 2004" "GNUnet"
 .SH NAME
-gnunet-pseudonym \- create, delete or list pseudonyms
+gnunet\-pseudonym \- create, delete or list pseudonyms
 .SH SYNOPSIS
 .B gnunet-pseudonym 
 [options]
 .SH DESCRIPTION
 .PP
-By default, gnunet-pseudonyms lists all pseudonyms created locally. 
-.TP
-\fB\-p PASS\fR, \fB\-\-password=PASS\fR
-Specify password to decrypt pseudonyms encountered or to encrypt pseudonyms created.  The namespace identifiers are displayed for the pseudonyms that could be decrypted.
+gnunet\-pseudonym is a tool for managing pseudonyms and namespaces.  A pseudonym is the persona that controls a namespace.  As such, it is identical to a public\-private RSA key pair.  A namespace is a collection of files that have been signed by the corresponding private RSA key.  A namespace is typically associated with a nickname and other metadata which is kept in a specially named file in the namespace.  
+
+Namespaces are an important tool for providing assurances about content integrity and authenticity in GNUnet.  Since all of the content in the namespace must have been provided by the same entity, users can form an opinion about that entity and learn to search (or avoid) certain namespaces.
+
+gnunet\-pseudonym can be used to list all of the pseudonyms that were created locally, to create new pseudonyms, to delete existing pseudonyms (the namespace will continue to exist, but it will be impossible to add additional data to it) and to list all of the namespaces (with their meta-data) known to the local user.  By default, gnunet\-pseudonym lists all pseudonyms created locally and all of the namespaces that were discovered so far.  
+
+Creating a new pseudonym requires using the \-C option together with a nickname that is to be used for the namespace.  Nicknames must be unique for each user, global uniqueness is desireable but not necessary.  If two namespaces in GNUnet use the same nickname all GNUnet tools will display the nickname together with the unique namespace identifier (which is derived from the public key and hence guaranteed to be unique) to avoid ambiguity.  Additional options can be passed together with the \-C option to provide additional meta-data that describes the namespace.  Possible meta-data includes the 'realname' of the person controlling the namespace, a description, the mime-type for content in the namespace (useful if the namespace is dedicated to some specific type of content) and contact information.  One important piece of meta-data that can be specified is the identifier of a document root, that is the name of a file in the namespace that is a portal to the rest of the content.  This is useful to help users find this root in the absence of conventions.  Note that all of this meta-data is optional and should never be trusted blindly.
+
+When a pseudonym is created it can be optionally encrypted with a password.  That password is then required to insert content into the namespace and to determine that the pseudonym is available to the local user.  This option is useful if the local machine could fall under the control of an adversary and additional caution to protect the namespace is advisable.
+
+gnunet\-pseudonym also lists the meta-data available for other namespaces.  Namespaces can be discovered whenever the peer obtains the namespace advertisement that is created at the time where the pseudonym is created.  Namespace advertisements can be found in directories (not implemented), ordinary keyword-based searches (by default gnunet\-pseudonym publishes the namespace advertisement under the keyword 'namespace', but the \-k option can be used to specify another keyword) and under the 'all-zeros' identifier of the respective namespace (using a namespace-search if the namespace ID is already known).
+
+For more details about GNUnet namespaces and content encoding please read the 'Encoding for Censorship-resistant Sharing' (ECRS) paper which can be found on the GNUnet webpage.
+
 .TP
 \fB\-C NAME\fR, \fB\-\-create=NAME\fR
 Creates a new pseudonym with the given NAME.
 .TP
 \fB\-D NAME\fR, \fB\-\-delete=NAME\fR
-Deletes the pseudonym with the given NAME.
+Delete the pseudonym with the given NAME.
+.TP
+\fB\-e EMAIL\fR, \fB\-\-email=EMAIL\fR
+Include EMAIL a contact address to contact the author of the namespace (use with \-C).
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+print help page
+.TP
+\fB\-k KEYWORD\fR, \fB\-\-keyword=KEYWORD\fR
+Publish the namespace advertisement under the keyword 'KEYWORD'.  Default is 'namespace' (use with \-C).
+.TP
+\fB\-m MIMETYPE\fR, \fB\-\-mimetype=MIMETYPE\fR
+Advertise that the namespace contains files of the given MIMETYPE (use with \-C).
+.TP
+\fB\-n\fR, \fB\-\-no\--advertisement\fR
+Do not generate an advertisement for the namespace (use with \-C).
+.TP
+\fB\-p PASS\fR, \fB\-\-password=PASS\fR
+Specify password to decrypt pseudonyms encountered or to encrypt pseudonyms created.  The namespace identifiers are displayed for the pseudonyms that could be decrypted.
 .TP
 \fB\-q\fR, \fB\-\-quiet\fR
 Do not print the list of pseudonyms (only perform create or delete operation).
 .TP
-\fB\-h\fR, \fB\-\-help\fR
-print help page
+\fB\-r NAME\fR, \fB\-\-realname=NAME\fR
+Claim that the name of the author of the content in the namespace in 'real' life is NAME (use with \-C).
+.P
+.TP
+\fB\-t TEXT\fR, \fB\-\-text=TEXT\fR
+Use TEXT as the description for the namespace (use with \-C).
+.TP
+\fB\-u URI\fR, \fB\-\-uri=URI\fR
+Include URI as an address where additional information about the namespace can be found (use with \-C).
+
 .SH FILES
 .TP
 ~/.gnunet/data/pseudonyms/

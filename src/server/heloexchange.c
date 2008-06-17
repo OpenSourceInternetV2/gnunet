@@ -24,7 +24,7 @@
  * connected (nodes know of each other).
  *
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_util.h"
 
@@ -47,12 +47,12 @@
 
 /**
  * Tell everybody we are there...
- **/
+ */
 static void broadcastHELO(void * unused);
  
 /**
  * Forward HELOs from all known hosts to all known hosts.
- **/
+ */
 static void forwardHELO(void * unused);
 
 #if VERBOSE_STATS
@@ -83,9 +83,9 @@ static cron_t lastHELOMsg = 0;
 
 /**
  * Type for a HELO send via an encrypted channel.
- **/
-int eHELOHandler(HostIdentity * sender,
-		 p2p_HEADER * message) {
+ */
+int eHELOHandler(const HostIdentity * sender,
+		 const p2p_HEADER * message) {
   if (OK == receivedHELO(message)) {
     /* if the HELO was ok, update traffic preference
        for the peer (depending on how much we like
@@ -154,17 +154,17 @@ static void configurationUpdateCallback() {
 /**
  * Initialize a few cron jobs. Must be called after
  * initcron (!).
- **/
+ */
 void initHeloExchange() {
 #if VERBOSE_STATS
   stat_helo_received
-    = statHandle("# HELO messages received overall");
+    = statHandle(_("# HELO messages received overall"));
   stat_helo_valid_received
-    = statHandle("# valid HELO messages received");
+    = statHandle(_("# valid HELO messages received"));
   stat_helo_forwarded
-    = statHandle("# HELO messages forwarded from other peers");
+    = statHandle(_("# HELO messages forwarded from other peers"));
   stat_helo_initiated
-    = statHandle("# HELO messages originated");
+    = statHandle(_("# HELO messages originated from this peer"));
 #endif
   registerp2pHandler(p2p_PROTO_HELO,
 		     &eHELOHandler);
@@ -179,7 +179,7 @@ void initHeloExchange() {
     activeCronJobs += ACJ_ANNOUNCE;
   } else
     LOG(LOG_WARNING,
-	"WARNING: network advertisements disabled by configuration!\n");
+	_("Network advertisements disabled by configuration!\n"));
   if (testConfigurationString("NETWORK",
 			      "HELOEXCHANGE",
 			      "YES") == YES) {
@@ -192,13 +192,13 @@ void initHeloExchange() {
 #if DEBUG_HELOEXCHANGE
   else
     LOG(LOG_DEBUG, 
-	"DEBUG: HELO forwarding disabled!\n");
+	"HELO forwarding disabled!\n");
 #endif
 }
 
 /**
  * Stops a few cron jobs that exchange HELOs.
- **/
+ */
 void doneHeloExchange() {
   if (ACJ_ANNOUNCE == (activeCronJobs & ACJ_ANNOUNCE)) {
     delCronJob(&broadcastHELO,
@@ -223,8 +223,8 @@ void doneHeloExchange() {
  *
  * @param message the HELO message
  * @return SYSERR on error, OK on success
- **/
-int receivedHELO(p2p_HEADER * message) {
+ */
+int receivedHELO(const p2p_HEADER * message) {
   TSession * tsession;
   HELO_Message * copy;
   HostIdentity foreignId;
@@ -254,19 +254,18 @@ int receivedHELO(p2p_HEADER * message) {
 			  - sizeof(p2p_HEADER),
 			  &msg->signature,
 			  &msg->publicKey)) {
-    HexName hex;
+    EncName enc;
     IFLOG(LOG_WARNING,
-	  hash2hex(&msg->senderIdentity.hashPubKey,
-		   &hex));
+	  hash2enc(&msg->senderIdentity.hashPubKey,
+		   &enc));
     LOG(LOG_WARNING, 
-	"WARNING: HELO message from %s invalid (signature invalid). Dropping.\n",
-	(char*)&hex);
+	_("HELO message from '%s' invalid (signature invalid). Dropping.\n"),
+	(char*)&enc);
     return SYSERR; /* message invalid */  
   }
   if ((TIME_T)ntohl(msg->expirationTime) > TIME(NULL) + MAX_HELO_EXPIRES) {
      LOG(LOG_WARNING, 
-	"WARNING: HELO message received invalid"
-	 " (expiration time over limit). Dropping.\n");   
+	 _("HELO message received invalid (expiration time over limit). Dropping.\n"));   
     return SYSERR;
   }
   if (SYSERR == transportVerifyHelo(msg)) 
@@ -277,7 +276,7 @@ int receivedHELO(p2p_HEADER * message) {
 #endif
 #if DEBUG_HELOEXCHANGE
   LOG(LOG_INFO,
-      "INFO: HELO advertisement for protocol %d received\n",
+      _("HELO advertisement for protocol %d received.\n"),
       ntohs(msg->protocol));
 #endif
   if (ntohs(msg->protocol) == NAT_PROTOCOL_NUMBER) {
@@ -285,7 +284,7 @@ int receivedHELO(p2p_HEADER * message) {
        can do is just accept it.  The best thing
        that we may do is check that it was not
        forwarded by another peer (forwarding NAT
-       advertisements is illegal), but even that
+       advertisements is invalid), but even that
        check can not be done securely (since we
        have to accept HELOs in plaintext).  Thus
        we take NAT advertisements at face value
@@ -317,10 +316,10 @@ int receivedHELO(p2p_HEADER * message) {
     } else {
 #if DEBUG_HELOEXCHANGE
       LOG(LOG_DEBUG,
-	  "DEBUG: advertised HELO differs from prior knowledge,"
+	  "advertised HELO differs from prior knowledge,"
 	  " requireing ping-pong confirmation.\n");
       LOG(LOG_EVERYTHING,
-	  "DEBUG: HELO-diff: %d -- %d, %d -- %d, %d -- %d, %d -- %d\n",
+	  "HELO-diff: %d -- %d, %d -- %d, %d -- %d, %d -- %d\n",
 	  msg->senderAddressSize,
 	  copy->senderAddressSize,
 	  msg->protocol,
@@ -403,7 +402,8 @@ int receivedHELO(p2p_HEADER * message) {
 			       buffer);
   if (heloEnd == -1) {
     LOG(LOG_WARNING,
-	"WARNING: could not getAdvertisedHELOs, no PINGing\n");
+	"'%s' failed. Will not send PING.\n",
+	"getAdvertisedHELOs");
     FREE(buffer);
     transportDisconnect(tsession);    
     return SYSERR;
@@ -420,7 +420,7 @@ int receivedHELO(p2p_HEADER * message) {
     FREE(copy);
     res = SYSERR;
     LOG(LOG_INFO,
-	"INFO: could not send HELOs+PING, ping buffer full\n");
+	_("Could not send HELOs+PING, ping buffer full.\n"));
   }
   /* ok, finally we can send! */
   if (res == OK) {
@@ -459,19 +459,20 @@ static void broadcastHelper(const HostIdentity * hi,
 			    SendData * sd) {
   HELO_Message * helo;
   TSession * tsession;
-  HexName other;
+  EncName other;
   int prio;
 
   if (proto == NAT_PROTOCOL_NUMBER)
     return; /* don't advertise NAT addresses via broadcast */
   if (randomi(sd->n) != 0) 
     return;
-  hash2hex(&hi->hashPubKey,
+  hash2enc(&hi->hashPubKey,
 	   &other);
 #if DEBUG_HELOEXCHANGE
   LOG(LOG_DEBUG,
-      "DEBUG: enter heloexchange - broadcast helper to %s\n",
-      (char*)&other);
+      "Entering '%s' with target '%s'.\n",
+      __FUNCTION__,
+      &other);
 #endif
   if (hostIdentityEquals(hi,
 			 &myIdentity))
@@ -506,8 +507,9 @@ static void broadcastHelper(const HostIdentity * hi,
 			      &helo)) {
 #if DEBUG_HELOEXCHANGE
     LOG(LOG_DEBUG,
-	"DEBUG: exit heloexchange - "
-	"broadcast helper (error: identity2helo failed)\n");
+	"Exit from '%s' (error: '%s' failed).\n",
+	__FUNCTION__,
+	"identity2Helo");
 #endif
     return;
   }
@@ -517,8 +519,9 @@ static void broadcastHelper(const HostIdentity * hi,
     FREE(helo);
 #if DEBUG_HELOEXCHANGE
     LOG(LOG_DEBUG,
-	"DEBUG: enter heloexchange - "\
-	"broadcast helper (connect error)\n");
+	"Exit from '%s' (%s error).\n",
+	__FUNCTION__,
+	"transportConnect");
 #endif
     return; /* could not connect */
   }
@@ -536,14 +539,15 @@ static void broadcastHelper(const HostIdentity * hi,
   transportDisconnect(tsession);
 #if DEBUG_HELOEXCHANGE
   LOG(LOG_DEBUG,
-      "DEBUG: exit heloexchange - broadcast helper\n");
+      "Exit from %s.\n",
+      __FUNCTION__);
 #endif
  }
 
 /**
  * Tell a couple of random hosts on the currentKnownHost list 
  * that we exist (called for each transport)...
- **/
+ */
 static void broadcastHELOTransport(TransportAPI * tapi,
 				   void * unused) {
   SendData sd;
@@ -551,7 +555,8 @@ static void broadcastHELOTransport(TransportAPI * tapi,
 
 #if DEBUG_HELOEXCHANGE
   LOG(LOG_CRON,
-      "CRON: enter broadcastHELO\n");
+      "Enter '%s'.\n",
+      __FUNCTION__);
 #endif
   cronTime(&now);
   sd.n = forEachHost(NULL, 
@@ -559,7 +564,7 @@ static void broadcastHELOTransport(TransportAPI * tapi,
 		     NULL); /* just count */
   if (sd.n < 1) {
     LOG(LOG_WARNING,
-	"WARNING: announcing ourselves pointless: no hosts known\n");
+	_("Announcing ourselves pointless: no other peers are known to us so far.\n"));
     return; /* no point in trying... */
   }
   if (SYSERR == transportCreateHELO(tapi->protocolNumber,
@@ -567,7 +572,7 @@ static void broadcastHELOTransport(TransportAPI * tapi,
     return;
 #if DEBUG_HELOEXCHANGE
   LOG(LOG_INFO,
-      "INFO: advertising my transport %d to selected peers\n",
+      _("Advertising my transport %d to selected peers.\n"),
       tapi->protocolNumber);
 #endif
   bindAddress(sd.m);
@@ -580,14 +585,15 @@ static void broadcastHELOTransport(TransportAPI * tapi,
   FREE(sd.m);
 #if DEBUG_HELOEXCHANGE
   LOG(LOG_CRON,
-      "CRON: exit broadcastHELO\n");
+      "Exit '%s'.\n",
+      __FUNCTION__);
 #endif
 }
 
 /**
  * Tell a couple of random hosts on the currentKnownHost list 
  * that we exist...
- **/
+ */
 static void broadcastHELO(void * unused) {
   forEachTransport(&broadcastHELOTransport,
 		   NULL);
@@ -596,7 +602,7 @@ static void broadcastHELO(void * unused) {
 
 /**
  * Forward HELOs from all known hosts to all connected hosts.
- **/
+ */
 static void forwardHELOHelper(const HostIdentity * identity,
 			      const unsigned short protocol,
 			      int * probability) {
@@ -611,7 +617,7 @@ static void forwardHELOHelper(const HostIdentity * identity,
 	       (on average: 1 peer per run!) */
 #if DEBUG_HELOEXCHANGE
   LOG(LOG_CRON,
-      "CRON: forwarding HELOs\n");
+      "forwarding HELOs\n");
 #endif
   if (SYSERR == identity2Helo(identity,
 			      protocol,
@@ -625,14 +631,14 @@ static void forwardHELOHelper(const HostIdentity * identity,
   /* do not forward expired HELOs */
   TIME(&now);
   if ((TIME_T)ntohl(helo->expirationTime) < now) {
-    HexName hex;
+    EncName enc;
     /* remove HELOs that expired */ 
     IFLOG(LOG_INFO,
-	  hash2hex(&identity->hashPubKey,
-		   &hex));
+	  hash2enc(&identity->hashPubKey,
+		   &enc));
     LOG(LOG_INFO,
-	"INFO: Removing expired HELO from %s (expired %ds ago)\n",
-	&hex,
+	_("Removing HELO from peer '%s' (expired %ds ago).\n"),
+	&enc,
 	now - ntohl(helo->expirationTime));
     delHostFromKnown(identity, protocol);
     FREE(helo);
@@ -655,14 +661,15 @@ static void forwardHELOHelper(const HostIdentity * identity,
 
 /**
  * Forward HELOs from all known hosts to all connected hosts.
- **/
+ */
 static void forwardHELO(void * unused) {
   int count;
   int conn;
 
 #if DEBUG_HELOEXCHANGE
   LOG(LOG_CRON,
-      "CRON: enter forwardHELO\n");
+      "Enter '%s'.\n",
+      __FUNCTION__);
 #endif
   count = forEachHost(NULL, 
 		      0, 
@@ -677,7 +684,8 @@ static void forwardHELO(void * unused) {
 	      &count);
 #if DEBUG_HELOEXCHANGE
   LOG(LOG_CRON,
-      "CRON: exit forwardHELO\n");
+      "Exit '%s'.\n",
+      __FUNCTION__);
 #endif
 }
 

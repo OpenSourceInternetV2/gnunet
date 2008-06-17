@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -24,7 +24,7 @@
  *
  * @author Paul Ruth
  * @file applications/tbench/tbench.c
- **/
+ */
 
 #include "tbench.h"
 #include "platform.h"
@@ -46,13 +46,14 @@ static int msgCnt = 1;
 static int msgIter = 1;
 static int receiveCnt;
 static int currIteration;
+
 /* */
-static int handleTBenchReq(HostIdentity * sender,
-			   p2p_HEADER * message) {
+static int handleTBenchReq(const HostIdentity * sender,
+			   const p2p_HEADER * message) {
   TBENCH_p2p_MESSAGE *pmsg = (TBENCH_p2p_MESSAGE*)message;
   
   LOG(LOG_DEBUG, 
-      "DEBUG: handleTBenchReq received iteration %d, message %d",
+      " handleTBenchReq received iteration %d, message %d",
       htons(pmsg->iterationNum), 
       htons(pmsg->packetNum));
   pmsg->header.requestType = htons(TBENCH_p2p_PROTO_REPLY);
@@ -60,24 +61,24 @@ static int handleTBenchReq(HostIdentity * sender,
   return OK;
 }
 /* */
-static int handleTBenchReply(HostIdentity * sender,
-			   p2p_HEADER * message) {
+static int handleTBenchReply(const HostIdentity * sender,
+			     const p2p_HEADER * message) {
   TBENCH_p2p_MESSAGE *pmsg = (TBENCH_p2p_MESSAGE*)message;
   
   LOG(LOG_DEBUG, 
-      "DEBUG: handleTBenchReply");
+      " handleTBenchReply");
   MUTEX_LOCK(&lockCnt); 
   if(htons(pmsg->iterationNum) == currIteration) {
     cronTime(&endTime);
     receiveCnt++;
     LOG(LOG_DEBUG,
-	"DEBUG: iteration %d, received reply, %d",
+	" iteration %d, received reply, %d",
 	currIteration, receiveCnt);
     if(receiveCnt >= msgCnt)
       SEMAPHORE_UP(sem);
   } else {
     LOG(LOG_DEBUG,
-	"DEBUG: Old Reply: iteration %d, received reply, %d",
+	" Old Reply: iteration %d, received reply, %d",
 	currIteration, receiveCnt);
   }
   MUTEX_UNLOCK(&lockCnt);
@@ -89,8 +90,8 @@ static void semaUp(Semaphore * sem) {
 }
 
 /* */
-static void csHandleTBenchRequest(GNUNET_TCP_SOCKET * client,
- 				  CS_HEADER * message) {
+static void csHandleTBenchRequest(ClientHandle client,
+ 				  const CS_HEADER * message) {
   int i,j;
   int sum_loss,sum_time;
   double sum_variance_time, sum_variance_loss;
@@ -100,7 +101,7 @@ static void csHandleTBenchRequest(GNUNET_TCP_SOCKET * client,
   struct Result *results;
 
   LOG(LOG_DEBUG, 
-      "DEBUG: handleTBenchRequest");
+      " handleTBenchRequest");
   icmsg   = (TBENCH_CS_MESSAGE*)message;
  
   opmsg = MALLOC(sizeof(TBENCH_p2p_MESSAGE)+ntohs(icmsg->msgSize)+1);
@@ -113,7 +114,7 @@ static void csHandleTBenchRequest(GNUNET_TCP_SOCKET * client,
   results = MALLOC(msgIter * sizeof(struct Result));
 
   LOG(LOG_DEBUG,
-      "DEBUG: TBENCH: msgCnt %d msgIter %d",
+      " TBENCH: msgCnt %d msgIter %d",
       msgCnt, msgIter);
   sem = SEMAPHORE_NEW(0);
 
@@ -133,7 +134,7 @@ static void csHandleTBenchRequest(GNUNET_TCP_SOCKET * client,
     opmsg->iterationNum = htons(currIteration);
     receiveCnt = 0;
     LOG(LOG_DEBUG,
-	"DEBUG: Timeout after %u ms",
+	" Timeout after %u ms",
 	ntohl(icmsg->timeOut));
     addCronJob((CronJob)&semaUp,
 	       ntohl(icmsg->timeOut) * cronMILLIS,
@@ -173,7 +174,7 @@ static void csHandleTBenchRequest(GNUNET_TCP_SOCKET * client,
   /* Lets see what the raw results are */
   for(i = 0; i <  msgIter; i++){
     LOG(LOG_EVERYTHING, 
-	"EVERYTHING: iter[%d], packets %d/%d, time %d ms",
+	" iter[%d], packets %d/%d, time %d ms",
 	i,
 	results[i].packets,
 	msgCnt,
@@ -188,7 +189,7 @@ static void csHandleTBenchRequest(GNUNET_TCP_SOCKET * client,
   ocmsg->min_time = htons(results[0].time);
   for(i = 1; i < msgIter; i++) {
     LOG(LOG_EVERYTHING, 
-	"EVERYTHING: iteration=%d", 
+	" iteration=%d", 
 	i);
     sum_loss += msgCnt - results[i].packets;
     if(msgCnt-results[i].packets > htons(ocmsg->max_loss))
@@ -211,7 +212,7 @@ static void csHandleTBenchRequest(GNUNET_TCP_SOCKET * client,
   sum_variance_loss = 0.0;
   for(i = 0; i < msgIter; i++){
     LOG(LOG_DEBUG,
-	"DEBUG: TBENCH: iteration=%d msgIter=%d", 
+	" TBENCH: iteration=%d msgIter=%d", 
 	i,
 	msgIter);
     sum_variance_time += (results[i].time - ocmsg->mean_time)*
@@ -227,22 +228,22 @@ static void csHandleTBenchRequest(GNUNET_TCP_SOCKET * client,
   ocmsg->header.tcpType = htons(TBENCH_CS_PROTO_REPLY);
 
   LOG(LOG_DEBUG, 
-      "DEBUG: calling writeToSocket");
-  if (SYSERR == writeToSocket(client,
-			      &ocmsg->header))
+      "calling writeToSocket");
+  if (SYSERR == coreAPI->sendToClient(client,
+				      &ocmsg->header))
     return;
   FREE(opmsg);
   FREE(ocmsg);
   FREE(results);
   LOG(LOG_DEBUG,
-      "DEBUG: finishing benchmark");
+      "finishing benchmark");
 }
 
 /**
  * Initialize the AFS module. This method name must match
  * the library name (libgnunet_XXX => initialize_XXX).
  * @return SYSERR on errors
- **/
+ */
 int initialize_tbench_protocol(CoreAPIForApplication * capi) {
   int ok = OK;
 

@@ -40,7 +40,11 @@
  * overcomes problems with the crude database implementations that we
  * would have to use otherwise (and that would be really bad for
  * performance without this).
- **/
+ *
+ * TODO: replace use of HEX with use of ENC.  That'd be easy, but
+ * also a converter must be added to gnunet-check that updates the
+ * database.
+ */
 
 #include "large_file_support.h"
 
@@ -51,18 +55,20 @@
 /**
  * Initialize the Directory module, expand filename
  * @param dir the directory where content is configured to be stored (e.g. ~/.gnunet/data/content).
- **/
-static char * getDirectory(char * dir) {
+ */
+static char * getDirectory(const char * dir) {
   char * result;
   char * tmp;
+  size_t n;
 
 #if LFS_DEBUG
   LOG(LOG_INFO, 
       "Database (Directory): %s\n", 
       dir);
 #endif
-  tmp = MALLOC(strlen(dir) + strlen(DIR_EXT) + 5);
-  sprintf(tmp, "%s%s", dir, DIR_EXT);
+  n = strlen(dir) + strlen(DIR_EXT) + 5;
+  tmp = MALLOC(n);
+  SNPRINTF(tmp, n, "%s%s", dir, DIR_EXT);
   result = expandFileName(tmp);
   FREE(tmp);
   return result;
@@ -74,7 +80,7 @@ LFS lfsInit(char * dir) {
   idx = MALLOC(sizeof(lfs_struct));
   idx->dir = getDirectory(dir);  
   if (idx->dir == NULL) 
-    errexit("FATAL: could not open directory %s!\n",
+    errexit(_("Could not open directory '%s'!\n"),
 	    idx->dir);
   mkdirp(idx->dir);
   MUTEX_CREATE_RECURSIVE(&idx->lock);
@@ -84,11 +90,11 @@ LFS lfsInit(char * dir) {
 /**
  * Remove the lfs database.
  * @param handle the database
- **/
+ */
 void lfsDelete(LFS handle) {
   if (OK != rm_minus_rf(handle->dir))
     LOG(LOG_ERROR,
-	"ERROR: lfs: could not remove %s: %s\n",
+	_("lfs: could not remove entry '%s': %s\n"),
 	handle->dir,
 	STRERROR(errno));
   FREE(handle->dir);
@@ -99,7 +105,7 @@ void lfsDelete(LFS handle) {
 /**
  * Clean shutdown of the storage module
  * @param handle the database
- **/
+ */
 void lfsDone(LFS handle) {
   FREE(handle->dir);
   MUTEX_DESTROY(&handle->lock);
@@ -114,9 +120,9 @@ void lfsDone(LFS handle) {
  * @param blocks the buffer to write the result to 
  *        (*blocks should be NULL, sufficient space is allocated)
  * @return the number of blocks read on success, -1 on failure
- **/ 
+ */ 
 int lfsRead(LFS dbh,
-	    HashCode160 * query,
+	    const HashCode160 * query,
 	    CONTENT_Block ** blocks) {
   /* open file, must exist, open read only */
   int fd;
@@ -124,16 +130,19 @@ int lfsRead(LFS dbh,
   char * fil;
   size_t fsize;
   HexName name;
+  size_t n;
 
   if (blocks == NULL)
     return -1;
-  fil = MALLOC(strlen(dbh->dir) + 45);
+  n = strlen(dbh->dir) + 45;
+  fil = MALLOC(n);
   hash2hex(query,
 	   &name);
-  sprintf(fil, 
-	  "%s/%s", 
-	  dbh->dir, 
-	  (char*)&name);
+  SNPRINTF(fil, 
+	   n,
+	   "%s/%s", 
+	   dbh->dir, 
+	   (char*)&name);
   MUTEX_LOCK(&dbh->lock);
   fd = OPEN(fil, 
 	    O_RDONLY,
@@ -152,7 +161,7 @@ int lfsRead(LFS dbh,
   }
   if ( (fsize % sizeof(CONTENT_Block)) != 0) {
     LOG(LOG_WARNING,
-	"WARNING: lfs database corrupt (file has bad length), trying to fix.\n");
+	_("lfs database corrupt (file has bad length), trying to fix.\n"));
     fsize = (fsize / sizeof(CONTENT_Block)) * sizeof(CONTENT_Block);
     ftruncate(fd, 
 	      fsize);
@@ -181,9 +190,9 @@ int lfsRead(LFS dbh,
  * @param prio the priority of the query (influences how many
  *        results we will return if we have the choice)
  * @return number of blocks read on success, SYSERR on failure
- **/ 
+ */ 
 int lfsReadRandom(LFS dbh,
-		  HashCode160 * query,
+		  const HashCode160 * query,
 		  CONTENT_Block ** block,
 		  unsigned int prio) {
   /* open file, must exist, open read only */
@@ -195,19 +204,22 @@ int lfsReadRandom(LFS dbh,
   int max;
   int * perm;
   int i;
+  size_t n;
 
   max = (50-getNetworkLoadUp())*(prio+1);
   if (max <= 0)
     max = 1;
   if (block == NULL)
     return SYSERR;
-  fil = MALLOC(strlen(dbh->dir) + 45);
+  n = strlen(dbh->dir) + 45;
+  fil = MALLOC(n);
   hash2hex(query,
 	   &name);
-  sprintf(fil, 
-	  "%s/%s", 
-	  dbh->dir, 
-	  (char*) &name);
+  SNPRINTF(fil, 
+	   n,
+	   "%s/%s", 
+	   dbh->dir, 
+	   (char*) &name);
   MUTEX_LOCK(&dbh->lock);
   fd = OPEN(fil, 
 	    O_RDONLY,
@@ -226,7 +238,7 @@ int lfsReadRandom(LFS dbh,
   }
   if ( (fsize % sizeof(CONTENT_Block)) != 0) {
     LOG(LOG_WARNING,
-	"WARNING: lfs database corrupt (file has bad length), trying to fix.\n");
+	_("lfs database corrupt (file has bad length), trying to fix.\n"));
     fsize = (fsize / sizeof(CONTENT_Block)) * sizeof(CONTENT_Block);
     ftruncate(fd, 
 	      fsize);
@@ -237,7 +249,7 @@ int lfsReadRandom(LFS dbh,
   if ((size_t)max > fsize)
     max = fsize;
   LOG(LOG_DEBUG,
-      "DEBUG: received query, have %d results, adding %d to queue.\n",
+      "received query, have %d results, adding %d to queue.\n",
       fsize,
       max);
   *block = MALLOC(max * sizeof(CONTENT_Block));
@@ -269,60 +281,57 @@ int lfsReadRandom(LFS dbh,
  * @param query the key for the entry
  * @param block the data to store
  * @return SYSERR on error, OK if ok.
- **/
+ */
 int lfsAppend(LFS handle,
-	      HashCode160 * query,
-	      CONTENT_Block * block) {
+	      const HashCode160 * query,
+	      const CONTENT_Block * block) {
   char * fil;
   int fd;
   off_t offlen;
   HexName name;
+  size_t n;
 
-  fil = MALLOC(strlen(handle->dir) + 45);
+  n = strlen(handle->dir) + 45;
+  fil = MALLOC(n);
   hash2hex(query,
 	   &name);
-  sprintf(fil,
-	  "%s/%s", 
-	  handle->dir, 
-	  (char*)&name);
+  SNPRINTF(fil,
+	   n,
+	   "%s/%s", 
+	   handle->dir, 
+	   (char*)&name);
   MUTEX_LOCK(&handle->lock);
   fd = OPEN(fil,
 	    O_RDWR|O_CREAT,
 	    S_IRUSR|S_IWUSR);
   if (fd == -1) {
-    LOG(LOG_WARNING,
-	"WARNING: Failed to open file %s (%s)\n", 
-	fil,
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_WARNING, "open", fil);
     MUTEX_UNLOCK(&handle->lock);
     FREE(fil);
     return SYSERR; /* failed! */
   }
-  FREE(fil);
   offlen = lseek(fd, 
 		 0, 
 		 SEEK_END);
   if (offlen == (off_t)-1) {
-    LOG(LOG_FAILURE,
-	"FAILURE: lseek failed (%s)\n",
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_FAILURE, "lseek", fil);
+    FREE(fil);
     CLOSE(fd);
     MUTEX_UNLOCK(&handle->lock);
     return SYSERR;
   }
   if ( (offlen % sizeof(CONTENT_Block)) != 0) {
     LOG(LOG_WARNING,
-	"WARNING: lfs database corrupt (file has bad length), trying to fix.\n");
+	_("lfs database corrupt (file has bad length), trying to fix.\n"));
     offlen = (offlen / sizeof(CONTENT_Block)) * sizeof(CONTENT_Block);
     lseek(fd, 
 	  offlen, 
 	  SEEK_SET);
     if (0 != ftruncate(fd, 
 		       offlen))
-      LOG(LOG_FAILURE,
-	  "FAILURE: could not truncate file (%s)\n",
-	  STRERROR(errno));
+      LOG_FILE_STRERROR(LOG_FAILURE, "truncate", fil);
   }
+  FREE(fil);  
   WRITE(fd, 
 	block, 
 	sizeof(CONTENT_Block));
@@ -336,19 +345,22 @@ int lfsAppend(LFS handle,
  *
  * @param handle the database
  * @param query the hashcode representing the entry
- **/
+ */
 int lfsRemove(LFS handle,
-	      HashCode160 * query) {
+	      const HashCode160 * query) {
   char * fil;
   HexName name;
+  size_t n;
 
-  fil = MALLOC(strlen(handle->dir) + 45);
+  n = strlen(handle->dir) + 45;
+  fil = MALLOC(n);
   hash2hex(query,
 	   &name);
-  sprintf(fil, 
-	  "%s/%s",
-	  handle->dir, 
-	  (char*)&name);
+  SNPRINTF(fil, 
+	   n,
+	   "%s/%s",
+	   handle->dir, 
+	   (char*)&name);
   MUTEX_LOCK(&handle->lock);
   UNLINK(fil);
   MUTEX_UNLOCK(&handle->lock);

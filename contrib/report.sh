@@ -21,32 +21,32 @@ echo "HARDWARE       : $HW"
 TEST=`$WHICH openssl 2>/dev/null`
 if test -n "$TEST"; then
   VERS=`openssl version 2>/dev/null | sed -e "s/OpenSSL //"`
-  echo "OpenSSL Version: $VERS"
+  echo "OpenSSL        : $VERS"
 else
-  echo "OpenSSL Version: Not Found"
+  echo "OpenSSL        : Not Found"
 fi
 
 TEST=`$WHICH gcc 2>/dev/null`
 if test -n "$TEST"; then
   VERS=`gcc --version 2>/dev/null | head -n 1`
-  echo "gcc version    : $VERS"
+  echo "gcc            : $VERS"
 else
-  echo "gcc version    : Not Found";
+  echo "gcc            : Not Found";
 fi
 
 TEST=`$WHICH gmake 2>/dev/null`
 if test -n "$TEST" ; then
 	gmake --version 2>/dev/null |\
 		awk -F, '{print $1}' |\
-		awk '/GNU Make/{print "Gnu gmake      :",$NF}'
+		awk '/GNU Make/{print "GNU gmake      :",$NF}'
 else
   TEST=`make --version 2>/dev/null`
   if test -n "$TEST"; then
 		make --version 2>/dev/null |\
 			awk -F, '{print $1}' |\
-			awk '/GNU Make/{print "Gnu make       :",$NF}'
+			awk '/GNU Make/{print "make           :",$NF}'
   else
-		echo "Gnu Make       : Not Found"
+		echo "make           : Not Found"
   fi
 fi
 
@@ -93,7 +93,7 @@ fi
 
 TEST=`$WHICH gnunetd 2>/dev/null`
 if test -n "$TEST"; then
-  gnunetd -v 2>/dev/null |\
+  gnunetd -v | sed -e "s/v//" 2>/dev/null |\
     awk '{print "GNUnet         : "$2}'
 else
   echo "GNUnet         : Not Found"
@@ -104,7 +104,7 @@ if test -n "$TEST"; then
   libgcrypt-config --version 2> /dev/null | \
     awk '{print "libgcrypt      : "$1}'
 else
-   echo 'libgcrypt     : Not Found'
+  echo "libgcrypt      : Not Found"
 fi
 
 TEST=`$WHICH mysql_config 2> /dev/null`
@@ -112,7 +112,51 @@ if test -n "$TEST"; then
   mysql_config --version 2> /dev/null | \
     awk '{print "mysql          : "$1}'
 else
-   echo 'mysql         : Not Found'
+  echo "mysql          : Not Found"
 fi
+
+TEST=`$WHICH db_stat 2> /dev/null`
+if test -n "$TEST"; then
+  db_stat -V | sed -e "s/://" 2> /dev/null \
+    awk '{print "Berkeley DB    : "$5}'
+else
+  echo "Berkeley DB    : Not Found"
+fi
+
+TEST=`$WHICH glib-config 2> /dev/null`
+if test -n "$TEST"; then
+  glib-config --version 2> /dev/null | \
+    awk '{print "glib           : "$1}'
+else
+  echo "glib           : Not Found"
+fi
+
+TEST=`$WHICH gtk-config 2> /dev/null`
+if test -n "$TEST"; then
+  gtk-config --version -V 2> /dev/null | \
+    awk '{print "gtk+           : "$1}'
+else
+  echo "gtk+           : Not Found"
+fi
+
+TEST=`$WHICH rpm 2> /dev/null`
+if test -n "$TEST"; then
+  rpm -q gmp | sed -e "s/gmp-//" 2> /dev/null | \
+    awk '{print "GMP            : "$1}'
+else
+  echo "GMP            : Test not available"
+fi
+
+TEST=`$WHICH gettext 2> /dev/null`
+if test -n "$TEST"; then
+  gettext --version | head -n1 2> /dev/null | \
+    awk '{print "GNU gettext    : "$4}'
+else
+  echo "GNU gettext    : Not found"
+fi
+
+
+
+
 
 echo "--------------------------------------------------------------"

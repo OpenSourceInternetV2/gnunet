@@ -15,7 +15,7 @@
  * @author Roman Zippel
  * @author Petr Baudis
  * @author Nils Durner
- **/
+ */
 
 #include <sys/ioctl.h>
 #include <sys/wait.h>

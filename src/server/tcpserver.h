@@ -20,7 +20,7 @@
  * @file server/tcpserver.h
  * @brief TCP server (gnunetd-client communication).
  * @author Christian Grothoff
- **/
+ */
 
 #ifndef TCPSERVER_H
 #define TCPSERVER_H
@@ -32,18 +32,18 @@
 /**
  * Initialize the TCP port and listen for incoming client connections.
  * @return OK on success, SYSERR on error
- **/
+ */
 int initTCPServer();
 
 /**
  * Stop the server (but do not yet destroy the data structures)
- **/
+ */
 int stopTCPServer();
 
 /**
  * Shutdown the module.
  * @return OK on success, SYSERR on error
- **/ 
+ */ 
 int doneTCPServer();
 
 /**
@@ -56,7 +56,7 @@ int doneTCPServer();
  *        afterwards (all other parts are ignored)
  * @return OK on success, SYSERR if there is already a
  *         handler for that type
- **/
+ */
 int registerCSHandler(const unsigned short type,
 		      CSHandler callback);
 
@@ -66,7 +66,7 @@ int registerCSHandler(const unsigned short type,
  * @param the message type
  * @return YES if there is a handler for the type,
  * 	NO if there isn't
- **/
+ */
 int isCSHandlerRegistered(const unsigned short type);
   
 /**
@@ -79,7 +79,7 @@ int isCSHandlerRegistered(const unsigned short type);
  *        afterwards (all other parts are ignored)
  * @return OK on success, SYSERR if there is no or another
  *         handler for that type
- **/
+ */
 int unregisterCSHandler(const unsigned short type,
 			CSHandler callback);
 
@@ -95,7 +95,7 @@ int unregisterClientExitHandler(ClientExitHandler callback);
  * transfer happens asynchronously.
  */
 int sendToClient(ClientHandle handle,
-		 CS_HEADER * message);
+		 const CS_HEADER * message);
 
 
 /**
@@ -105,9 +105,12 @@ int sendToClient(ClientHandle handle,
  * @param ret the return value to send via TCP
  * @return SYSERR on error, OK if the return value was
  *         send successfully
- **/
+ */
 int sendTCPResultToClient(ClientHandle sock,
 			  int ret);
+
+
+void terminateClientConnection(ClientHandle sock);
 
 #endif
 /* end of tcpserver.h */

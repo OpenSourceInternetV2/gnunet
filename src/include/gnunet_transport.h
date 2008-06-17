@@ -21,7 +21,7 @@
  * @file include/gnunet_transport.h
  * @brief The APIs for GNUnet transport layer implementations.
  * @author Christian Grothoff
- **/
+ */
 
 #ifndef GNUNET_TRANSPORT_H
 #define GNUNET_TRANSPORT_H
@@ -39,7 +39,7 @@
  * something changes in the transport API.  It follows
  * roughly the main GNUnet version scheme, but is
  * more a compatibility ID.
- **/
+ */
 #define GNUNET_TRANSPORT_VERSION 0x00060105
 
 
@@ -61,20 +61,20 @@
  * }
  *
  * The type of inittransport_XXX is TransportMainMethod.
- **/
+ */
 typedef struct {
 
   /**
    * This field is used by the core internally;
    * the transport should never do ANYTHING
    * with it.
-   **/
+   */
   void * libHandle;
 
   /**
    * The name of the transport, set by the
    * core. Read only for the service itself!
-   **/ 
+   */ 
   char * transName;
 
   /**
@@ -83,20 +83,20 @@ typedef struct {
    * so caching the result for a while is a good
    * idea.  The field is updated by a cron job
    * periodically.
-   **/
+   */
   HELO_Message * helo;
 
   /**
    * The number of the protocol that is supported by this transport
    * API (i.e. 6 tcp, 17 udp, 80 http, 25 smtp, etc.)
-   **/
+   */
   unsigned short protocolNumber;
 
   /**
    * The MTU for the protocol (e.g. 1472 for UDP).
    * Can be up to 65535 for stream-oriented transport
    * protocols)
-   **/
+   */
   unsigned short mtu;
 
   /**
@@ -104,7 +104,7 @@ typedef struct {
    * transports, UDP and TCP are scaled to be both 100). The cost is
    * used by GNUnet to select the most preferable mode of
    * transportation.
-   **/
+   */
   unsigned int cost;
 
   /**
@@ -114,8 +114,8 @@ typedef struct {
    * @param helo the HELO message to verify
    *        (the signature/crc have been verified before)
    * @return OK if the helo is well-formed
-   **/
-  int (*verifyHelo)(HELO_Message * helo);
+   */
+  int (*verifyHelo)(const HELO_Message * helo);
   
   /**
    * Create a HELO-Message for the current node. The HELO is
@@ -129,7 +129,7 @@ typedef struct {
    *        message
    * @return OK on success, SYSERR on error (e.g. send-only
    *  transports return SYSERR here)
-   **/
+   */
   int (*createHELO)(HELO_Message ** helo);
 
   /**
@@ -138,7 +138,7 @@ typedef struct {
    * @param helo the HELO-Message for the target node
    * @param tsession the session handle that is to be set
    * @return OK on success, SYSERR if the operation failed
-   **/
+   */
   int (*connect)(HELO_Message * helo,
 		 TSession ** tsession);
 
@@ -152,7 +152,7 @@ typedef struct {
    *         the caller must call "disconnect" and not continue
    *         using the session afterwards (useful if the other
    *         side closed the connection).
-   **/
+   */
   int (*send)(TSession * tsession,
 	      const void * msg,
 	      const unsigned int size,
@@ -172,7 +172,7 @@ typedef struct {
    *         the caller must call "disconnect" and not continue
    *         using the session afterwards (useful if the other
    *         side closed the connection).
-   **/
+   */
   int (*sendReliable)(TSession * tsession,
 		      const void * msg,
 		      const unsigned int size,
@@ -197,7 +197,7 @@ typedef struct {
    *   layer
    * @return OK if the session could be associated,
    *         SYSERR if not.
-   **/
+   */
   int (*associate)(TSession * tsession);
 
   /**
@@ -212,31 +212,31 @@ typedef struct {
    *
    * @param tsession the session that is to be closed
    * @return OK on success, SYSERR if the operation failed
-   **/
+   */
   int (*disconnect)(TSession * tsession);  
 
   /**
    * Start the server process to receive inbound traffic.
    * @return OK on success, SYSERR if the operation failed
-   **/
+   */
   int (*startTransportServer)(void);
 
   /**
    * Shutdown the server process (stop receiving inbound
    * traffic). Maybe restarted later!
-   **/
+   */
   int (*stopTransportServer)(void);
 
   /**
    * Reload the configuration. Should never fail (keep old
    * configuration on error, syslog errors!)
-   **/
+   */
   void (*reloadConfiguration)(void);
 
   /**
    * Convert transport address to human readable string.
-   **/
-  char * (*addressToString)(HELO_Message * helo);
+   */
+  char * (*addressToString)(const HELO_Message * helo);
 
 } TransportAPI;
 
@@ -258,7 +258,7 @@ typedef struct {
  * }
  *
  * The type of inittransport_XXX is TransportMainMethod.
- **/
+ */
 typedef TransportAPI * (*TransportMainMethod)(CoreAPIForTransport *);
 
 

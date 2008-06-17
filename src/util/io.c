@@ -22,7 +22,7 @@
  * @file util/io.c
  * @brief (network) input/output operations
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_util.h"
 #include "platform.h"
@@ -32,7 +32,7 @@
 #ifndef LINUX
 static void catcher(int sig) {
   LOG(LOG_INFO,
-      "INFO: signal %d caught\n", 
+      _("Caught signal %d.\n"), 
       sig);
   /* re-install signal handler! */
   signal(sig, catcher);
@@ -43,12 +43,9 @@ static void catcher(int sig) {
 
 void gnunet_util_initIO() {
 #if ! (defined(LINUX) || defined(MINGW))
-  if ( SIG_ERR == signal(SIGPIPE, SIG_IGN)) {
+  if ( SIG_ERR == signal(SIGPIPE, SIG_IGN))
     if ( SIG_ERR == signal(SIGPIPE, catcher))
-      LOG(LOG_WARNING,
-	  "WARNING: could not install handler for SIGPIPE!\n"\
-	  "Attempting to continue anyway.");
-  }
+      LOG_STRERROR(LOG_WARNING, "signal"); 
 #endif
 }
 
@@ -91,7 +88,7 @@ int setBlocking(int s, int doBlock) {
  * Check whether the socket is blocking
  * @param s the socket
  * @return YES if blocking, NO non-blocking
- **/
+ */
 int isSocketBlocking(int s)
 {
 #ifndef MINGW
@@ -185,9 +182,7 @@ int RECV_BLOCKING_ALL(int s,
     }
     pos += i;
   }
-  if (pos != len)
-    errexit("ASSERTION failed: %u != %u\n",
-	    len, pos);
+  GNUNET_ASSERT(pos == len);
   
   setBlocking(s, NO);
 
@@ -204,7 +199,7 @@ int RECV_BLOCKING_ALL(int s,
  * @return the number of bytes written or SYSERR. 
  */ 
 int SEND_NONBLOCKING(int s,
-		     void * buf,
+		     const void * buf,
 		     size_t max) {  
   int ret, flags;
 
@@ -247,7 +242,7 @@ int SEND_NONBLOCKING(int s,
  *   otherwise the number of bytes transmitted (must be len)
  */
 int SEND_BLOCKING_ALL(int s,
-		      void * buf,
+		      const void * buf,
 		      size_t len) {
   size_t pos;
   int i, flags;
@@ -261,34 +256,29 @@ int SEND_BLOCKING_ALL(int s,
     flags = 0;
 #endif  
     i = SEND(s,
-	           &((char*)buf)[pos],
-	           len - pos,
-	           flags);
-	     
+	     &((char*)buf)[pos],
+	     len - pos,
+	     flags);
+    
     if ( (i == -1) &&
 	 (errno == EINTR) )
       continue; /* ingnore interrupts */
     if (i <= 0) {
       if (i == -1)
-	LOG(LOG_WARNING,
-	    "WARNING: could not send: %s\n",
-	    STRERROR(errno));
+	LOG_STRERROR(LOG_WARNING, "send");
       return SYSERR;    
     }
     pos += i;
   }
   setBlocking(s, NO);
-
-  if (pos != len)
-    errexit("ASSERTION failed: %u != %u\n",
-	    len, pos);
+  GNUNET_ASSERT(pos == len);
   return pos;
 }
 
 /**
  * Check if socket is valid
  * @return 1 if valid, 0 otherwise
- **/
+ */
 int isSocketValid(int s)
 {
 #ifndef MINGW
@@ -302,7 +292,7 @@ int isSocketValid(int s)
 
 /**
  * Open a file
- **/
+ */
 int OPEN(const char *filename, int oflag, ...)
 {
   int mode;

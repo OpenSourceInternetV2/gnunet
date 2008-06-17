@@ -31,7 +31,7 @@
  * - determining load between calls to /proc might be made
  *   interface specific
  * - port to other platforms
- **/
+ */
 
 #include "gnunet_util.h"
 #include "platform.h"
@@ -100,7 +100,7 @@ static int initialized_ = NO;
  * Note: the caller doesn't know what interface it is attached to,
  * so this type of bandwidth limitation is always global (for all
  * network interfaces).
- **/
+ */
 void incrementBytesSent(unsigned long long delta) {
   if (initialized_ == NO)
     return;
@@ -126,7 +126,7 @@ static void cronLoadUpdate(void * unused) {
 
 /**
  * Re-read the configuration for statuscalls.
- **/
+ */
 static void resetStatusCalls() {
   char * interfaces;
   char * ifcs;
@@ -140,7 +140,9 @@ static void resetStatusCalls() {
   /* fail if config-file is incomplete */
   if (interfaces == NULL) {
     LOG(LOG_ERROR,
-	"ERROR: No network interfaces defined!\n");
+	_("No network interfaces defined in configuration section '%s' under '%s'!\n"),
+	"LOAD",
+	"INTERFACES");
     numInterfaces = 0;
     MUTEX_UNLOCK(&statusMutex);
     return;
@@ -164,8 +166,10 @@ static void resetStatusCalls() {
       start = NO;         
     } else {
       if (*interfaces != ',')
-	errexit("interfaces string (%s) invalid\n",
-		ifcs);
+	errexit(_("Interfaces string (%s) in configuration section '%s' under '%s' is malformed.\n"),
+		ifcs,
+		"LOAD",
+		"INTERFACES");
       if (start == NO) {
 	start = YES;
 	numInterfaces++;
@@ -175,7 +179,9 @@ static void resetStatusCalls() {
   }
   if (numInterfaces <= 0) {
     LOG(LOG_ERROR,
-	"ERROR: No network interfaces specified in the configuration file\n");
+	_("No network interfaces specified in the configuration file in section '%s' under '%s'.\n"),
+	"LOAD",
+	"INTERFACES");
     MUTEX_UNLOCK(&statusMutex);
     return;
   }
@@ -246,15 +252,13 @@ static FILE * proc_stat = NULL;
  * The following method is called in order to initialize the status calls
  * routines.  After that it is safe to call each of the status calls separately
  * @return OK on success and SYSERR on error (or calls errexit).
- **/
+ */
 void initStatusCalls() {
   initialized_ = YES;
 #ifdef LINUX
   proc_stat = fopen("/proc/stat", "r");
   if (NULL == proc_stat) 
-    LOG(LOG_ERROR,
-	"ERROR: Could not open /proc/stat (%s)\n",
-	STRERROR(errno));    
+    LOG_FILE_STRERROR(LOG_ERROR, "fopen", "/proc/stat");
 #endif
   MUTEX_CREATE_RECURSIVE(&statusMutex);
   last_net_results = NULL; /* has numInterfaces entries */
@@ -263,11 +267,11 @@ void initStatusCalls() {
   globalTrafficBetweenProc.last_in = 0;
   globalTrafficBetweenProc.last_out = 0;
   stat_handle_network_load_up
-    = statHandle("% of allowed network load (up)");
+    = statHandle(_("% of allowed network load (up)"));
   stat_handle_network_load_down
-    = statHandle("% of allowed network load (down)");
+    = statHandle(_("% of allowed network load (down)"));
   stat_handle_cpu_load
-    = statHandle("% of allowed cpu load");
+    = statHandle(_("% of allowed cpu load"));
   cronTime(&lastnettimeUp);  
   cronTime(&lastnettimeDown);  
   registerConfigurationUpdateCallback(&resetStatusCalls);
@@ -283,7 +287,7 @@ void initStatusCalls() {
 
 /**
  * Shutdown the status calls module.
- **/
+ */
 void doneStatusCalls() {
 #ifdef LINUX
   if (proc_stat != NULL)
@@ -304,7 +308,7 @@ void doneStatusCalls() {
 
 /**
  * The basic usage meter considers only gnunetd traffic.
- **/
+ */
 static int networkUsageBasicUp() {
   cron_t now, elapsedTime;
   double upUsage;
@@ -334,7 +338,7 @@ static int networkUsageBasicUp() {
 
 /**
  * The basic usage meter considers only gnunetd traffic.
- **/
+ */
 static int networkUsageBasicDown() {
   cron_t now, elapsedTime;
   double downUsage;
@@ -368,7 +372,7 @@ static int networkUsageBasicDown() {
  * can have different capabilities for different types of traffic 
  * (like support for very fast local traffic but capable of 
  * handling only small-scale inet traffic).
- **/
+ */
 static int networkUsageAdvancedDown() {
 #define MAX_PROC_LINE 5000
   char line[MAX_PROC_LINE];
@@ -433,10 +437,7 @@ static int networkUsageAdvancedDown() {
   proc_net_dev = fopen(PROC_NET_DEV, "r");
   /* Try to open the file*/
   if (NULL == proc_net_dev) {
-    LOG(LOG_ERROR,
-	"ERROR: Could not open %s (%s)\n", 
-	PROC_NET_DEV,
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_ERROR, "fopen", PROC_NET_DEV);
     MUTEX_UNLOCK(&statusMutex);
     lastNetResultDown = -1;
     return -1;
@@ -456,9 +457,9 @@ static int networkUsageAdvancedDown() {
 	if (sscanf(data,
 		   "%llu %*s %*s %*s %*s %*s %*s %*s %llu",
 		  &rxnew, &txnew) != 2) {
-	  fclose(proc_net_dev);
-	  errexit("ERROR: reading interface data from %s\n",
-		  PROC_NET_DEV);
+	  fclose(proc_net_dev);	 
+	  errexit(_("Failed to parse interface data from '%s' at %s:%d.\n"),
+		  PROC_NET_DEV, __FILE__, __LINE__);
 	}
 	if ( (signed long long)(rxnew - last_net_results[ifnum].last_in) > 0) {
 	  /* ignore the result if it is currently overflowing */
@@ -493,8 +494,7 @@ static int networkUsageAdvancedDown() {
     
     if ( ( command = popen("netstat -e", "rt") ) == NULL )
     {
-      LOG(LOG_ERROR,
-	      "ERROR: could not open netstat\n");
+      LOG_FILE_STRERROR(LOG_ERROR, "popen", "netstat -e");
       lastNetResultDown = -1;
       MUTEX_UNLOCK(&statusMutex);
       return -1;
@@ -519,8 +519,7 @@ static int networkUsageAdvancedDown() {
     return 0;
   }
   if ( ( command = popen("netstat -n -f inet -i", "r") ) == NULL ) {
-    LOG(LOG_ERROR,
-	"ERROR: could not open netstat\n");
+    LOG_FILE_STRERROR(LOG_ERROR, "popen", "netstat -n -f inet -i");
     lastNetResultDown = -1;
     MUTEX_UNLOCK(&statusMutex);
     return -1;
@@ -536,7 +535,9 @@ static int networkUsageAdvancedDown() {
 	if(sscanf(line, "%*s %*s %*s %*s %llu %*s %llu %*s %*s", 
 		  &rxnew, &txnew) != 2 ) {
 	  pclose(command);
-	  errexit("ERROR: reading interface data using netstat\n");
+	  errexit(_("Failed to parse interface data '%s' output at %s:%d.\n"),
+		  "netstat -n -f inet -i",
+		  __FILE__, __LINE__);
 	}
 	if ( (signed long long)(rxnew - last_net_results[ifnum].last_in) > 0) {
 	  /* ignore the result if it is currently overflowing */
@@ -565,7 +566,7 @@ static int networkUsageAdvancedDown() {
  * can have different capabilities for different types of traffic 
  * (like support for very fast local traffic but capable of 
  * handling only small-scale inet traffic).
- **/
+ */
 static int networkUsageAdvancedUp() {
 #define MAX_PROC_LINE 5000
   char line[MAX_PROC_LINE];
@@ -631,10 +632,7 @@ static int networkUsageAdvancedUp() {
   proc_net_dev = fopen(PROC_NET_DEV, "r");
   /* Try to open the file*/
   if (NULL == proc_net_dev) {
-    LOG(LOG_ERROR,
-	"ERROR: Could not open %s (%s)\n", 
-	PROC_NET_DEV,
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_ERROR, "fopen", PROC_NET_DEV);
     MUTEX_UNLOCK(&statusMutex);
     lastNetResultUp = -1;
     return -1;
@@ -655,8 +653,8 @@ static int networkUsageAdvancedUp() {
 		   "%llu %*s %*s %*s %*s %*s %*s %*s %llu",
 		  &rxnew, &txnew) != 2) {
 	  fclose(proc_net_dev);
-	  errexit("ERROR: reading interface data from %s\n",
-		  PROC_NET_DEV);
+	  errexit(_("Failed to parse interface data from '%s' at %s:%d.\n"),
+		  PROC_NET_DEV, __FILE__, __LINE__);
 	} 	
 	if ( (signed long long)(txnew - last_net_results[ifnum].last_out) > 0) {
 	  /* ignore the result if it is currently overflowing */
@@ -691,8 +689,7 @@ static int networkUsageAdvancedUp() {
     
     if ((command = popen("netstat -e", "rt")) == NULL)
     {
-      LOG(LOG_ERROR,
-	        "ERROR: could not open netstat\n");
+      LOG_FILE_STRERROR(LOG_ERROR, "popen", "netstat -e");
       lastNetResultUp = -1;
       MUTEX_UNLOCK(&statusMutex);
       return -1;
@@ -717,8 +714,7 @@ static int networkUsageAdvancedUp() {
     return 0;
   }
   if ( ( command = popen("netstat -n -f inet -i", "r") ) == NULL ) {
-    LOG(LOG_ERROR,
-	"ERROR: could not open netstat\n");
+    LOG_FILE_STRERROR(LOG_ERROR, "popen", "netstat -n -f inet -i");
     lastNetResultUp = -1;
     MUTEX_UNLOCK(&statusMutex);
     return -1;
@@ -734,7 +730,7 @@ static int networkUsageAdvancedUp() {
 	if(sscanf(line, "%*s %*s %*s %*s %llu %*s %llu %*s %*s", 
 		  &rxnew, &txnew) != 2 ) {
 	  pclose(command);
-	  errexit("ERROR: reading interface data using netstat\n");
+	  errexit(" reading interface data using netstat\n");
 	}
 	if ( (signed long long)(txnew - last_net_results[ifnum].last_out) > 0) {
 	  /* ignore the result if it is currently overflowing */
@@ -762,7 +758,7 @@ static int networkUsageAdvancedUp() {
  * network bandwidth of the host is consumed.  The method
  * initStatusCalls() should be called before this routine is invoked.
  * If there is an error the method returns -1.
- **/
+ */
 int networkUsageUp() {
   if (initialized_ == NO)
     return -1;
@@ -778,7 +774,7 @@ int networkUsageUp() {
  * network bandwidth of the host is consumed.  The method
  * initStatusCalls() should be called before this routine is invoked.
  * If there is an error the method returns -1.
- **/
+ */
 int networkUsageDown() {
   if (initialized_ == NO)
     return -1;
@@ -795,7 +791,7 @@ int networkUsageDown() {
  * 
  * Before its first invocation the method initStatusCalls() must be called.
  * If there is an error the method returns -1
- **/
+ */
 int cpuUsage(){
   static cron_t lastcputime = 0;
   static int lastcpuresult = -1;
@@ -832,11 +828,8 @@ int cpuUsage(){
     rewind(proc_stat);
     fflush(proc_stat);
     if (fgets(line, 128, proc_stat)==NULL) {
-      LOG(LOG_ERROR,
-	  "ERROR: reading /proc/stat file");
+      LOG_FILE_STRERROR(LOG_ERROR, "fgets", "/proc/stat");
       fclose(proc_stat);
-      LOG(LOG_ERROR,
-	  "ERROR: could not read /proc/stat file\n");
       proc_stat = NULL;
     } else {
       if (sscanf(line, "%*s %i %i %i %i", 
@@ -844,7 +837,9 @@ int cpuUsage(){
 		 &idle_read) != 4) {
 	fclose(proc_stat);
 	LOG(LOG_ERROR,
-	    "ERROR: decoding /proc/stat file\n");
+	    _("Could not decoding file '%s' at %s:%d.\n"),
+	    "/proc/stat",
+	    __FILE__, __LINE__);
 	proc_stat = NULL; /* don't try again */
       } else {
 
@@ -862,7 +857,7 @@ int cpuUsage(){
 	  total_time = 1; /* avoid fpe */
 	ret = (100 * usage_time) / total_time;
 	/*LOG(LOG_DEBUG,
-	    "DEBUG: LOAD: u%d s%d n%d i%d => ret %d\n",
+	    "LOAD: u%d s%d n%d i%d => ret %d\n",
 	    user, system, nice, idle, ret);*/
 	/* Store the values for the next calculation*/
 	last_cpu_results[0] = user_read;
@@ -896,8 +891,7 @@ int cpuUsage(){
     if (kstat_once == 0) {
       kc = kstat_open();
       if (kc == NULL)
-	LOG(LOG_ERROR,
-	    "ERROR: kstat_open failed (insufficient permissions?)\n");
+	LOG_STRERROR(LOG_ERROR, "kstat_open");
     } else {
       kc = NULL;
     }
@@ -928,8 +922,7 @@ int cpuUsage(){
       }
     }
     if (0 != kstat_close(kc))
-      LOG(LOG_ERROR,
-	  "ERROR: kstat_close failed.\n");
+      LOG_STRERROR(LOG_ERROR, "kstat_close");
     if ( (idlecount == 0) &&
 	 (totalcount == 0) )
       goto ABORT_KSTAT; /* no stats found => abort */
@@ -965,8 +958,7 @@ int cpuUsage(){
     static int once = 0;
     if (once == 0) {
       once = 1;
-      LOG(LOG_ERROR,
-	  "ERROR: getloadavg failed.\n");
+      LOG_STRERROR(LOG_ERROR, "getloadavg");
     }
     /* continue with next method -- if we had any... */
   } else {
@@ -1020,7 +1012,7 @@ int cpuUsage(){
   	  {
   	    once = 1;
   	    LOG(LOG_ERROR,
-  		  "ERROR: Can't query the CPU usage (Win NT)\n");
+		_("Cannot query the CPU usage (Windows NT).\n"));
   	  }
     }
   }
@@ -1040,7 +1032,7 @@ int cpuUsage(){
   	  {
   	    once = 1;
   	    LOG(LOG_ERROR,
-  		  "ERROR: Can't query the CPU usage (Win 9x)\n");
+		_("Cannot query the CPU usage (Win 9x)\n"));
   	  }      
     }
     dwDataSize = sizeof(dwDummy);
@@ -1082,7 +1074,7 @@ int cpuUsage(){
  * Get the load of the network relative to what is allowed.
  * @return the network load as a percentage of allowed
  *        (100 is equivalent to full load)
- **/
+ */
 int getNetworkLoadUp() {
   static int lastRet = 0;
   static cron_t lastCall = 0;
@@ -1115,7 +1107,7 @@ int getNetworkLoadUp() {
  * Get the load of the network relative to what is allowed.
  * @return the network load as a percentage of allowed
  *        (100 is equivalent to full load)
- **/
+ */
 int getNetworkLoadDown() {
   static int lastRet = 0;
   static cron_t lastCall = 0;
@@ -1151,7 +1143,7 @@ int getNetworkLoadDown() {
  * Get the load of the CPU relative to what is allowed.
  * @return the CPU load as a percentage of allowed
  *        (100 is equivalent to full load)
- **/
+ */
 int getCPULoad() {
   static int lastRet = 0;
   static cron_t lastCall = 0;

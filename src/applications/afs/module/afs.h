@@ -19,7 +19,7 @@
 /**
  * @author Christian Grothoff
  * @file applications/afs/module/afs.h
- **/
+ */
 
 #ifndef AFS_H
 #define AFS_H

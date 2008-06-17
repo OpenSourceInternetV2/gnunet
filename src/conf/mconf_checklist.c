@@ -26,7 +26,7 @@
  * @file conf/mconf_checklist.c
  * @author Savio Lam
  * @author Nils Durner
- **/
+ */
 
 #include "mconf_dialog.h"
 

@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -25,7 +25,7 @@
  * @author Christian Grothoff
  * @author Uli Luckas
  * @author Igor Wronsky
- **/
+ */
 
 #include "low_backend.h"
 #include "platform.h"
@@ -38,18 +38,18 @@
 
 /**
  * Extension for the TDB database.
- **/
+ */
 #define TDB_EXT ".tdb"
 
 /**
  * After how-many insert operations test
  * DB size?
- **/
+ */
 #define TEST_FREQUENCY 1024
 
 /**
  * @brief tdb wrapper
- **/ 
+ */ 
 typedef struct {
   TDB_CONTEXT * dbf;
   unsigned char * filename;
@@ -58,12 +58,28 @@ typedef struct {
   Mutex DATABASE_Lock_;
 } tdbHandle;
 
+
+/**
+ * Die with an error message that indicates
+ * a failure of the command 'cmd' with the message given
+ * by strerror(errno).
+ */
+#define DIE_TDB(cmd, dbh) do { errexit(_("'%s' failed on file '%s' at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, dbh->filename, tdb_errorstr(dbh->dbf)); } while(0);
+
+/**
+ * Log an error message at log-level 'level' that indicates
+ * a failure of the command 'cmd' on file 'filename'
+ * with the message given by strerror(errno).
+ */
+#define LOG_TDB(level, cmd, dbh) do { LOG(level, _("'%s' failed on file '%s' at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, dbh->filename, tdb_errorstr(dbh->dbf)); } while(0);
+
+
 /**
  * Open a tdb database (for content)
  * @param dir the directory where content is configured 
  * to be stored (e.g. data/content). A file called ${dir}.dbf is used instead
- **/
-static tdbHandle * getDatabase(char * dir) {
+ */
+static tdbHandle * getDatabase(const char * dir) {
   char * ff;
   tdbHandle * dbh;
  
@@ -71,7 +87,7 @@ static tdbHandle * getDatabase(char * dir) {
 
 #if TDB_DEBUG  
   LOG(LOG_DEBUG,
-      "DEBUG: Database: %s (TDB)\n", 
+      "Database: '%s' (TDB)\n", 
       dir);
 #endif
   dbh = MALLOC(sizeof(tdbHandle));
@@ -86,9 +102,7 @@ static tdbHandle * getDatabase(char * dir) {
  
   dbh->dbf = tdb_open(dbh->filename, 0, TDB_NOMMAP, O_RDWR | O_CREAT, S_IRUSR|S_IWUSR);
   if (NULL == dbh->dbf) 
-    errexit("getDatabase: failed to open database file %s with error: %s\n",
-	    dbh->filename,
-	    tdb_errorstr(dbh->dbf));
+    DIE_TDB("tdb_open", dbh);
 
   FREE(ff);
   dbh->insertCount = TEST_FREQUENCY; 
@@ -96,7 +110,7 @@ static tdbHandle * getDatabase(char * dir) {
   return dbh;
 }
 
-void * lowInitContentDatabase(char * dir) {
+void * lowInitContentDatabase(const char * dir) {
   tdbHandle * dbh;
   
   dbh = getDatabase(dir);
@@ -109,17 +123,14 @@ void * lowInitContentDatabase(char * dir) {
  * Delete the TDB database.
  *
  * @param handle the database
- **/
+ */
 void lowDeleteContentDatabase(void * handle) {
   tdbHandle * dbh = handle;
 
   MUTEX_DESTROY(&dbh->DATABASE_Lock_);
   tdb_close(dbh->dbf);
   if (0 != REMOVE(dbh->filename))
-    LOG(LOG_ERROR,
-	"ERROR: could not remove %s: %s\n",
-	dbh->filename,
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_ERROR, "remove", dbh->filename);
   FREE(dbh->filename);
   FREE(dbh);
 }
@@ -128,7 +139,7 @@ void lowDeleteContentDatabase(void * handle) {
  * Normal shutdown of the storage module
  *
  * @param handle the database
- **/
+ */
 void lowDoneContentDatabase(void * handle) {
   tdbHandle * dbh = handle;
 
@@ -147,7 +158,7 @@ void lowDoneContentDatabase(void * handle) {
  * @param callback the callback method
  * @param data second argument to all callback calls
  * @return the number of items stored in the content database
- **/
+ */
 int lowForEachEntryInDatabase(void * handle,
 			      LowEntryCallback callback,
 			      void * data) {
@@ -182,7 +193,7 @@ int lowForEachEntryInDatabase(void * handle,
 /**
  * @param handle the database
  * @param count number to store
- **/
+ */
 static void storeCount(void * handle,
 		       int count) {
   tdbHandle * dbh = handle;
@@ -194,11 +205,8 @@ static void storeCount(void * handle,
   buffer.dptr = (char*)&count;
   buffer.dsize = sizeof(int);
   MUTEX_LOCK(&dbh->DATABASE_Lock_);
-  if (0 != tdb_store(dbh->dbf, key, buffer, TDB_REPLACE)) {
-    LOG(LOG_WARNING,
-	"WARNING: tdb_store failed: %s\n",
-	tdb_errorstr(dbh->dbf));
-  }
+  if (0 != tdb_store(dbh->dbf, key, buffer, TDB_REPLACE)) 
+    LOG_TDB(LOG_WARNING, "tdb_store", dbh);
   MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
 }
 
@@ -207,7 +215,7 @@ static void storeCount(void * handle,
  *
  * @param handle the database
  * @return number of entries
- **/
+ */
 int lowCountContentEntries(void * handle) {
   tdbHandle * dbh = handle;
   TDB_DATA key;
@@ -239,9 +247,9 @@ int lowCountContentEntries(void * handle) {
  * @param result the buffer to write the result to 
  *        (*result should be NULL, sufficient space is allocated)
  * @return the number of bytes read on success, -1 on failure
- **/ 
+ */ 
 int lowReadContent(void * handle,
-		   HashCode160 * name,
+		   const HashCode160 * name,
 		   void ** result) {
   tdbHandle * dbh = handle;
   HexName fn;
@@ -273,11 +281,11 @@ int lowReadContent(void * handle,
  * @param len the size of the block
  * @param block the data to store
  * @return SYSERR on error, OK if ok.
- **/
+ */
 int lowWriteContent(void * handle,
-		    HashCode160 * name, 
+		    const HashCode160 * name, 
 		    int len,
-		    void * block) {
+		    const void * block) {
   tdbHandle * dbh = handle;
   HexName fn;
   TDB_DATA buffer, key, old;
@@ -287,7 +295,7 @@ int lowWriteContent(void * handle,
     if (getFileSize(dbh->filename) > 
 	(unsigned long long) 2 * GIGA_BYTE - 3 * TEST_FREQUENCY * len) {
       LOG(LOG_WARNING,
-	  "WARNING: single tdb database is limited to 2 GB, can not store more data.\n");
+	  _("Single tdb database is limited to 2 GB, cannot store more data.\n"));
       return SYSERR; /* enforce TDB size limit of 2 GB minus 3*TF_len slack */
     }
     dbh->insertCount = 0;
@@ -297,7 +305,7 @@ int lowWriteContent(void * handle,
   hash2hex(name, &fn);
   key.dptr = fn.data;
   key.dsize = strlen(key.dptr) + 1;
-  buffer.dptr = block;
+  buffer.dptr = (void*) block;
   buffer.dsize = len;
   MUTEX_LOCK(&dbh->DATABASE_Lock_);
   old = tdb_fetch(dbh->dbf, key);
@@ -307,9 +315,7 @@ int lowWriteContent(void * handle,
     free(old.dptr);
   }
   if (0 !=  tdb_store(dbh->dbf, key, buffer, TDB_REPLACE)) {
-    LOG(LOG_WARNING,
-	"WARNING: tdb_store failed: %s\n",
-	tdb_errorstr(dbh->dbf));
+    LOG_TDB(LOG_WARNING, "tdb_store", dbh);
     MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
   } else {
     dbh->deleteSize -= len;
@@ -327,9 +333,9 @@ int lowWriteContent(void * handle,
  * @param handle the database
  * @param name hashcode representing the name of the file (without directory)
  * @return OK on success, SYSERR on error
- **/
+ */
 int lowUnlinkFromDB(void * handle,
-		    HashCode160 * name) {
+		    const HashCode160 * name) {
   tdbHandle * dbh = handle;
   TDB_DATA key, buffer;
   HexName fn;
@@ -350,11 +356,8 @@ int lowUnlinkFromDB(void * handle,
     storeCount(dbh, cnt - 1);
     return OK;
   } else {
+    LOG_TDB(LOG_WARNING, "tdb_delete", dbh);
     MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
-    LOG(LOG_WARNING,
-	"WARNING: tdb_delete failed for key %s (%s)\n",
-	&fn,
-	tdb_errorstr(dbh->dbf));
     return SYSERR;
   }
 }
@@ -364,7 +367,7 @@ int lowUnlinkFromDB(void * handle,
  *
  * @param handle the database
  * @return the number of kb that the DB is assumed to use at the moment.
- **/
+ */
 int lowEstimateSize(LowDBHandle handle) {
   tdbHandle * dbh = handle;
 

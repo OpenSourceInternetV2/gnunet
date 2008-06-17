@@ -22,7 +22,7 @@
  * @file applications/tracekit/gnunet-tracekit.c 
  * @brief tool that sends a trace request and prints the received network topology
  * @author Christian Grothoff
- **/
+ */
 
 #include "tracekit.h"
 #include "platform.h"
@@ -36,7 +36,7 @@ static Semaphore * doneSem;
  * @param argc the number of options
  * @param argv the option list (including keywords)
  * @return OK on error, SYSERR if we should exit 
- **/
+ */
 static int parseOptions(int argc,
 			char ** argv) {
   int option_index;
@@ -133,7 +133,7 @@ static int parseOptions(int argc,
     }
     default: 
       LOG(LOG_FAILURE,
-	  "FAILURE: Unknown option %c. Aborting.\n"\
+	  " Unknown option %c. Aborting.\n"\
 	  "Use --help to get a list of options.\n",
 	  c);
       return -1;
@@ -169,16 +169,16 @@ static void * receiveThread(GNUNET_TCP_SOCKET * sock) {
   while (OK == readFromSocket(sock, 
 			      (CS_HEADER**)&buffer)) {
     int count;
-    HexName hex;
+    EncName enc;
 
     count = ntohs(buffer->header.size) - sizeof(TRACEKIT_CS_REPLY);
     if (count < 0) {
       LOG(LOG_ERROR,
-	  "ERROR: invalid reply from gnunetd\n");
+	  " invalid reply from gnunetd\n");
       break; /* faulty reply */
     }
-    hash2hex(&buffer->responderId.hashPubKey,
-	     &hex);
+    hash2enc(&buffer->responderId.hashPubKey,
+	     &enc);
     match = NO;
     for (j=0;j<prCount;j++)
       if (equalsHashCode160(&buffer->responderId.hashPubKey,
@@ -198,18 +198,18 @@ static void * receiveThread(GNUNET_TCP_SOCKET * sock) {
 	sizeof(TRACEKIT_CS_REPLY) +
 	count * sizeof(HostIdentity)) {
       LOG(LOG_ERROR,
-	  "ERROR: invalid reply from gnunetd\n");
+	  " invalid reply from gnunetd\n");
       break;
     }
     if (count == 0) {
       switch (format) {
       case 0:
 	printf("%s is not connected to any peer.\n",
-	       (char*)&hex);
+	       (char*)&enc);
 	break;
       case 1:
 	printf("  %.*s;\n",
-	       4, (char*)&hex);
+	       4, (char*)&enc);
 	break;
       default:
 	printf("Format specification invalid. "
@@ -217,7 +217,7 @@ static void * receiveThread(GNUNET_TCP_SOCKET * sock) {
 	break;
       }
     } else {
-      HexName other;
+      EncName other;
 
       for (i=0;i<count;i++) {
 	match = NO;
@@ -235,17 +235,17 @@ static void * receiveThread(GNUNET_TCP_SOCKET * sock) {
 		 sizeof(HostIdentity));
 	}
 
-	hash2hex(&((TRACEKIT_CS_REPLY_GENERIC*)buffer)->peerList[i].hashPubKey,
+	hash2enc(&((TRACEKIT_CS_REPLY_GENERIC*)buffer)->peerList[i].hashPubKey,
 		 &other);
 	switch (format) {
 	case 0:
 	  printf("%s connected to %s.\n",
-		 (char*)&hex,
+		 (char*)&enc,
 		 (char*)&other);
 	  break;
 	case 1: /* DOT */
 	  printf("  \"%.*s\" -> \"%.*s\";\n",
-		 4, (char*)&hex,
+		 4, (char*)&enc,
 		 4, (char*)&other);
 	  break;
 	default: /* undef */
@@ -258,7 +258,7 @@ static void * receiveThread(GNUNET_TCP_SOCKET * sock) {
   }
   FREE(buffer);
   for (i=0;i<psCount;i++) {
-    HexName hex;
+    EncName enc;
 
     match = NO;
     for (j=0;j<prCount;j++)
@@ -266,16 +266,16 @@ static void * receiveThread(GNUNET_TCP_SOCKET * sock) {
 			    &peersSeen[i].hashPubKey))
 	match = YES;
     if (match == NO) {
-      hash2hex(&peersSeen[i].hashPubKey,
-	       &hex);
+      hash2enc(&peersSeen[i].hashPubKey,
+	       &enc);
       switch (format) {
       case 0:
 	printf("Peer %s did not report back.\n",
-	       (char*)&hex);
+	       (char*)&enc);
 	break;
       case 1:
 	printf("  \"%.*s\" [style=filled,color=\".7 .3 1.0\"];\n",
-	       4, (char*)&hex);
+	       4, (char*)&enc);
 	break;
       default:
 	break;
@@ -294,7 +294,7 @@ static void * receiveThread(GNUNET_TCP_SOCKET * sock) {
  * @param argc number of arguments from the command line
  * @param argv command line arguments
  * @return return value from gnunet-tracekit: 0: ok, -1: error
- **/   
+ */   
 int main(int argc, char ** argv) {
   GNUNET_TCP_SOCKET * sock;
   PTHREAD_T messageReceiveThread;
@@ -306,7 +306,7 @@ int main(int argc, char ** argv) {
     return 0; /* parse error, --help, etc. */ 
   sock = getClientSocket();
   if (sock == NULL)
-    errexit("FATAL: could not connect to gnunetd.\n");
+    errexit(" could not connect to gnunetd.\n");
 
   doneSem = SEMAPHORE_NEW(0);
   PTHREAD_CREATE(&messageReceiveThread, 
@@ -327,7 +327,7 @@ int main(int argc, char ** argv) {
   if (SYSERR == writeToSocket(sock,
                               &probe.header)) {
     LOG(LOG_ERROR,
-	"ERROR: could not send request to gnunetd\n");
+	" could not send request to gnunetd\n");
     return -1;
   }
   startCron();

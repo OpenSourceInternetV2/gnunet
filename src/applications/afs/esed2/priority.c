@@ -23,7 +23,7 @@
  * @brief keep track of the maximum priority that we
  *   are currently using
  * @author Christian Grothoff
- **/ 
+ */ 
 
 #include "gnunet_afs_esed2.h"
 #include "platform.h"
@@ -69,7 +69,7 @@ static void trackPriority(void * unused) {
 /**
  * This method must be called to start the priority
  * tracker.
- **/
+ */
 void startAFSPriorityTracker() {
   trackPriority(NULL);
   addCronJob(&trackPriority,
@@ -81,7 +81,7 @@ void startAFSPriorityTracker() {
 /**
  * This method must be called to stop the priority
  * tracker.  Call after cron has been stopped.
- **/
+ */
 void stopAFSPriorityTracker() {
   delCronJob(&trackPriority,
 	     TTL_DECREMENT,
@@ -91,7 +91,7 @@ void stopAFSPriorityTracker() {
 /**
  * What is the highest priority that AFS clients should
  * use for requests at this point in time?
- **/
+ */
 unsigned int getMaxPriority() {
   return maxPriority_;
 }

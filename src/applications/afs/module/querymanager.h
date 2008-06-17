@@ -54,7 +54,7 @@ void forwardQuery(AFS_p2p_QUERY * msg,
  * Stop transmitting a certain query (we don't route it anymore or
  * we have learned the answer).
  */
-void dequeueQuery(HashCode160 * query);
+void dequeueQuery(const HashCode160 * query);
 
 /**
  * We received a reply from 'responder' to a query
@@ -64,7 +64,7 @@ void dequeueQuery(HashCode160 * query);
  * @param localOrigin origin if query was initiated by local client
  * @param responder peer that send the reply
  */
-void updateResponseData(HostIdentity * origin,
+void updateResponseData(const HostIdentity * origin,
 			ClientHandle localOrigin,
 			const HostIdentity * responder);
  

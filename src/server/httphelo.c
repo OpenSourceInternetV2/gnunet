@@ -23,7 +23,7 @@
  * @brief HOSTLISTURL support
  *
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_core.h"
 
@@ -48,7 +48,7 @@ static Semaphore * hostlistDownload;
 
 /**
  * The HTTP proxy (optional)
- **/
+ */
 static struct sockaddr_in theProxy;
 
 
@@ -58,7 +58,7 @@ void initHttpHelo() {
 
 #if VERBOSE_STATS
   stat_helo_received_via_http 
-    = statHandle("# HELO messages received from http server");
+    = statHandle(_("# HELO messages received from http server"));
 #endif
   proxy = getConfigurationString("GNUNETD", 
 				 "HTTP-PROXY");
@@ -66,7 +66,7 @@ void initHttpHelo() {
     ip = GETHOSTBYNAME(proxy);
     if (ip == NULL) {
       LOG(LOG_ERROR, 
-	  "Couldn't resolve name of HTTP proxy %s\n",
+	  _("Could not resolve name of HTTP proxy '%s'. Trying without a proxy.\n"),
 	  proxy);
       theProxy.sin_addr.s_addr = 0;
     } else {
@@ -130,15 +130,15 @@ static void receiveHeloDeferred(HELOHelperContext * hcq) {
 
   if ( (NULL == hcq) || 
        (hcq->helosCount==0) ) {
-    LOG(LOG_ERROR, 
-        "ERROR: receiveHeloDeferred called with hcq->helosCount==0. This should never happen.");
+    BREAK();
     return;
   }
   /* select HELO by random */
   rndidx = randomi(hcq->helosCount);
 #if DEBUG_HELOEXCHANGE
   LOG(LOG_DEBUG,
-      "DEBUG: receiveHeloDeferred() chose HELO %d of %d\n",
+      "%s chose HELO %d of %d\n",
+      __FUNCTION__,
       rndidx, hcq->helosCount);
 #endif
   msg = hcq->helos[rndidx];
@@ -168,7 +168,8 @@ static void receiveHeloDeferred(HELOHelperContext * hcq) {
   } else { /* all HELOs processed, its ok to go again */
 #if DEBUG_HELOEXCHANGE
     LOG(LOG_DEBUG, 
-        "DEBUG: receiveHeloDeferred() processed all HELOs\n");
+        "%s processed all HELOs\n",
+	__FUNCTION__);
 #endif
     FREE(hcq);
     SEMAPHORE_UP(hostlistDownload);
@@ -213,7 +214,8 @@ static void postProcessHelos(HeloListClosure * cls) {
   } else {
 #if DEBUG_HELOEXCHANGE
     LOG(LOG_DEBUG, 
-        "DEBUG: postProcessHelos has no HELOs to process\n");
+        "%s has no HELOs to process\n",
+	__FUNCTION__);
 #endif
     SEMAPHORE_UP(hostlistDownload);
   }
@@ -225,7 +227,7 @@ static void postProcessHelos(HeloListClosure * cls) {
 /**
  * Download hostlist from the web and call method
  * on each HELO.
- **/
+ */
 void downloadHostlistHelper(char * url,
 			    HELO_Callback callback,
 			    void * arg) {
@@ -241,19 +243,20 @@ void downloadHostlistHelper(char * url,
   cron_t start;
   char c;
   char * buffer;
+  size_t n;
 
   port = TCP_HTTP_PORT;
 
 #if DEBUG_HELOEXCHANGE
   LOG(LOG_INFO,
-      "INFO: Trying to download a hostlist from %s\n",
+      _("Trying to download a hostlist from '%s'.\n"),
       url);
 #endif
     
  
   if (0 != strncmp(HTTP_URL, url, strlen(HTTP_URL)) ) {
     LOG(LOG_WARNING, 
-	"WARNING: invalid URL %s (must begin with %s)\n", 
+	_("Invalid URL '%s' (must begin with '%s')\n"), 
 	url, 
 	HTTP_URL);
     return;
@@ -272,7 +275,9 @@ void downloadHostlistHelper(char * url,
   sock = SOCKET(PF_INET, SOCK_STREAM, 0);
   if (sock < 0) {
     LOG(LOG_ERROR,
-	"ERROR: could not open socket for hostlist download (%s).\n",
+	_("'%s' failed at %s:%d with error: '%s'.\n"),
+	"socket",
+	__FILE__, __LINE__,
 	STRERROR(errno));
     FREE(filename);
     return;
@@ -283,7 +288,7 @@ void downloadHostlistHelper(char * url,
     ip_info = GETHOSTBYNAME(hostname);
     if (ip_info == NULL) {
       LOG(LOG_WARNING,
-	  "WARNING: could not download hostlist, host %s unknown\n",
+	  _("Could not download list of peer contacts, host '%s' unknown.\n"),
 	  hostname);
       FREE(filename);
       return;
@@ -305,23 +310,23 @@ void downloadHostlistHelper(char * url,
 	      (struct sockaddr*)&soaddr, 
 	      sizeof(soaddr)) < 0) {
     LOG(LOG_WARNING,
-	"WARNING: failed to send HTTP request to host %s (%u - %d) - (%s)\n",
+	_("'%s' to '%s' failed at %s:%d with error: %s\n"),
+	"connect",
 	hostname,
-	curpos, 
-	sock,
+	__FILE__, __LINE__,
 	STRERROR(errno));
     FREE(filename);
     CLOSE(sock);
     return;
   }
   
-  command = MALLOC(strlen(filename) 
-		   + strlen(GET_COMMAND) 
-		   + strlen(hostname));
-  sprintf(command, 
-	  GET_COMMAND,
-	  hostname,
-	  filename);
+  n = strlen(filename) + strlen(GET_COMMAND) + strlen(hostname) + 1;
+  command = MALLOC(n);
+  SNPRINTF(command, 
+	   n,
+	   GET_COMMAND,
+	   hostname,
+	   filename);
   FREE(filename);
   curpos = strlen(command)+1;
   curpos = SEND_BLOCKING_ALL(sock,
@@ -329,11 +334,10 @@ void downloadHostlistHelper(char * url,
 			     curpos);
   if (SYSERR == (int)curpos) {
     LOG(LOG_WARNING,
-	"WARNING: failed so send HTTP request %s to host %s (%u - %d) - %s\n",
-	command,
+	_("'%s' to '%s' failed at %s:%d with error: %s\n"),
+	"send",
 	hostname,
-	curpos, 
-	sock,
+	__FILE__, __LINE__,
 	STRERROR(errno));
     FREE(command);
     CLOSE(sock);
@@ -366,7 +370,8 @@ void downloadHostlistHelper(char * url,
 
   if (curpos < 4) { /* we have not found it */
     LOG(LOG_WARNING, 
-	"WARNING: exit downloadHostlist (error: no http response read)\n");
+	_("Parsing HTTP response for URL '%s' failed.\n"),
+	url);
     CLOSE(sock);
     return;
   }
@@ -400,10 +405,8 @@ void downloadHostlistHelper(char * url,
     if (curpos != HELO_Message_size(helo)) {
       if (curpos != 0)
 	LOG(LOG_WARNING,
-	    "WARNING: received incomplete/invalid helo from %s (%d!=%d)\n",
-	    url,
-	    curpos,
-	    HELO_Message_size(helo));
+	    _("Parsing HELO from '%s' failed.\n"),
+	    url);
       break;
     }
     helo->header.size = htons(HELO_Message_size(helo));
@@ -422,7 +425,8 @@ void downloadHostlistHelper(char * url,
   CLOSE(sock);  
 #if DEBUG_HELOEXCHANGE
   LOG(LOG_INFO,
-      "INFO: exit downloadHostlist (%d seconds before timeout)\n",
+      _("Completed '%s' (%ds before timeout).\n"),
+      __FUNCTION__,
       (int)(start + 300 * cronSECONDS - cronTime(NULL))/cronSECONDS);
 #endif
 }
@@ -438,7 +442,8 @@ void downloadHostlist() {
   if (url == NULL) {
 #if DEBUG_HELOEXCHANGE
     LOG(LOG_CRON,
-	"CRON: exit downloadHostlist (error: URL not specified)\n");
+	"Exiting '%s': no URL specified in configuration file.\n",
+	__FUNCTION__);
 #endif
     return;
   }
@@ -447,7 +452,7 @@ void downloadHostlist() {
   arg.helos = NULL;
   if (SYSERR == SEMAPHORE_DOWN_NONBLOCKING(hostlistDownload)) {
     LOG(LOG_INFO,
-	"INFO: won't dl hostlist until last time HELOs are all processed\n");
+	_("Will not download hostlist until HELOs downloaded previously are all processed.\n"));
     return;
   }
   cnt = 1;

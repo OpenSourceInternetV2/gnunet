@@ -20,7 +20,7 @@
  * @file server/handler.h
  * @brief Main handler for incoming packets.
  * @author Christian Grothoff
- **/
+ */
 
 #ifndef HANDLER_H
 #define HANDLER_H
@@ -30,21 +30,31 @@
 
 /**
  * Initialize message handling module.
- **/
+ */
 void initHandler();
 
 /**
  * Shutdown message handling module.
- **/
+ */
 void doneHandler();
+
+/**
+ * Handle a message (that was decrypted if needed).  Checks the CRC
+ * and if that's ok, processes the message by calling the registered
+ * handler for each message part.
+ */
+void handleHelper(const char * msg,
+		  const HostIdentity * sender,
+		  const unsigned int size,
+		  const int crc);
 
 /**
  * The actual main method of GNUnet: message dispatch/handling.
  * @param msg the message that was received. Caller frees it on return
- **/
+ */
 void handleMessage(TSession * session,
-		   HostIdentity * sender,
-		   void * msg,
+		   const HostIdentity * sender,
+		   const void * msg,
 		   const unsigned int size,
 		   int isEncrypted,
 		   const int crc);
@@ -61,7 +71,7 @@ void setPercentRandomInboundDrop(int value);
  *        afterwards (all other parts are ignored)
  * @return OK on success, SYSERR if there is already a
  *         handler for that type
- **/
+ */
 int registerp2pHandler(const unsigned short type,
 		       MessagePartHandler callback); 
 /**
@@ -70,7 +80,7 @@ int registerp2pHandler(const unsigned short type,
  * @param the message type
  * @return YES if there is a handler for the type,
  * 	NO if there isn't
- **/
+ */
 int isp2pHandlerRegistered(const unsigned short type);
 
 /**
@@ -81,16 +91,16 @@ int isp2pHandlerRegistered(const unsigned short type);
  *        that type is received
  * @return OK on success, SYSERR if there is a different
  *         handler for that type
- **/
+ */
 int unregisterp2pHandler(const unsigned short type,
 			 MessagePartHandler callback);
 
 /**
  * Handle a request to see if a particular p2p message 
  * is supported.
- **/
+ */
 int handlep2pMessageSupported(ClientHandle sock,
-			      CS_HEADER * message);
+			      const CS_HEADER * message);
 
 
 #endif

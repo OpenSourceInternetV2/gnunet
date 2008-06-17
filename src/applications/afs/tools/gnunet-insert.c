@@ -25,7 +25,7 @@
  * @author Krista Bennett
  * @author James Blackwell
  * @author Igor Wronsky
- **/
+ */
 
 #include "gnunet_afs_esed2.h"
 #include "platform.h"
@@ -39,87 +39,89 @@ extern char *strptime(const char *s, const char *format, struct tm *tm);
 
 /**
  * Print progess message.
- **/
+ */
 static void printstatus(ProgressStats * stats,
 			void * verboselevel) {
-  if (*(int*)verboselevel == YES)
-    printf("%8u of %8u bytes inserted\r",
+  if (*(int*)verboselevel == YES) {
+    printf(_("%8u of %8u bytes inserted"),
 	   (unsigned int) stats->progress,
 	   (unsigned int) stats->filesize);  
+    printf("\r");
+  }
 }
 
 /**
  * Prints the usage information for this command if the user errs.
  * Aborts the program.
- **/
+ */
 static void printhelp() {
   static Help help[] = {
     { 'b', "builddir", NULL,
-      "build a directory listing all processed files" },
+      gettext_noop("build a directory listing all processed files") },
     HELP_CONFIG,
-    { 'D', "desc", "DESCRIPTION",
-      "set description for all files" },
+    { 'D', "desc", gettext_noop("DESCRIPTION"),
+      gettext_noop("set description for all files") },
     { 'e', "sprev", "FILENAME",
-      "filename of the SBlock of a previous version of the content"
-      " (for namespace insertions only)" },
+      gettext_noop("filename of the SBlock of a previous version of the content"
+		   " (for namespace insertions only)") },
     { 'E', "extract", NULL,
-      "print list of extracted keywords that would be used, but do not perform insertion or indexing" },
+      gettext_noop("print list of extracted keywords that would be used, but do not perform insertion or indexing") },
     { 'f', "name", "NAME",
-      "publish NAME as the name of the file or directory" },
+      gettext_noop("publish NAME as the name of the file or directory") },
     HELP_HELP,
     HELP_HOSTNAME,
     { 'i', "interval", "SECONDS",
-      "set interval for availability of updates to SECONDS"
-      " (for namespace insertions only)" },
+      gettext_noop("set interval for availability of updates to SECONDS"
+		   " (for namespace insertions only)") },
     { 'k', "key", "KEYWORD",
-      "add an additional keyword for the top-level file or directory"
-      " (this option can be specified multiple times)" },
+      gettext_noop("add an additional keyword for the top-level file or directory"
+		   " (this option can be specified multiple times)") },
     { 'K', "global-key", "KEYWORD",
-      "add an additional keyword for all files and directories"
-      " (this option can be specified multiple times)" },   
+      gettext_noop("add an additional keyword for all files and directories"
+		   " (this option can be specified multiple times)") },   
     { 'l', "link", NULL,
-      "if gnunetd is running on the local machine, create a link instead of making a copy in the GNUnet share directory" },
+      gettext_noop("if gnunetd is running on the local machine, create a link instead of making a copy in the GNUnet share directory") },
     HELP_LOGLEVEL,
     { 'm', "mime", "MIMETYPE",
-      "set the mimetype for the file to be MIMETYPE" },
+      gettext_noop("set the mimetype for the file to be MIMETYPE") },
     { 'n', "noindex", NULL,
-      "do not index, perform full insertion (stores entire "
-      "file in encrypted form in GNUnet database)" },
+      gettext_noop("do not index, perform full insertion (stores entire "
+		   "file in encrypted form in GNUnet database)") },
     { 'N', "next", "ID",
-      "specify ID of an updated version to be published in the future"
-      " (for namespace insertions only)" },
+      gettext_noop("specify ID of an updated version to be published in the future"
+		   " (for namespace insertions only)") },
     { 'o', "sout", "FILENAME",
-      "write the created SBlock in plaintext to FILENAME" 
-      " (for namespace insertions only)" },
+      gettext_noop("write the created SBlock in plaintext to FILENAME" 
+		   " (for namespace insertions only)") },
     { 'p', "prio", "PRIORITY",
-      "specify the priority of the content" },
+      gettext_noop("specify the priority of the content") },
     { 'P', "pass", "PASSWORD",
-      "use PASSWORD to decrypt the secret key of the pseudonym" 
-      " (for namespace insertions only)" },
+      gettext_noop("use PASSWORD to decrypt the secret key of the pseudonym" 
+		   " (for namespace insertions only)") },
     { 'R', "recursive", NULL,
-      "process directories recursively" },
+      gettext_noop("process directories recursively") },
     { 's', "pseudonym", "NAME",
-      "publish the files under the pseudonym NAME (place file into namespace)" },
+      gettext_noop("publish the files under the pseudonym NAME (place file into namespace)") },
     { 'S', "sporadic", NULL,
-      "specifies this as an aperiodic but updated publication"
-      " (for namespace insertions only)" },
+      gettext_noop("specifies this as an aperiodic but updated publication"
+		   " (for namespace insertions only)") },
     { 't', "this", "ID",
-      "set the ID of this version of the publication"
-      " (for namespace insertions only)" },
+      gettext_noop("set the ID of this version of the publication"
+		   " (for namespace insertions only)") },
     { 'T', "time", "TIME",
-      "specify creation time for SBlock (see man-page for format)" },
+      gettext_noop("specify creation time for SBlock (see man-page for format)") },
     { 'u', "url", NULL,
-      "print the GNUnet URL of the inserted file(s)" },
+      gettext_noop("print the GNUnet URL of the inserted file(s)") },
     HELP_VERSION,
     HELP_VERBOSE,
     { 'x', "noextraction", NULL,
-      "disable automatic metadata extraction" },
+      gettext_noop("disable automatic metadata extraction") },
     { 'X', "nodirectindex", NULL,
-      "disable generation of RBlocks for keywords extracted from each file" },
+      gettext_noop("disable generation of RBlocks for keywords extracted from each file") },
     HELP_END,
   };
   formatHelp("gnunet-insert [OPTIONS] FILENAME*",
-	     "Make files available to GNUnet for sharing.",
+	     _("Make files available to GNUnet for sharing."),
 	     help);
 }
 
@@ -129,7 +131,7 @@ static void printhelp() {
  * @param filename the name of the file to insert
  * @param fid resulting file identifier for the node
  * @returns OK on success, SYSERR on error
- **/
+ */
 static int doFile(GNUNET_TCP_SOCKET * sock,
 		  char * filename,
 		  FileIdentifier * fid,
@@ -139,16 +141,16 @@ static int doFile(GNUNET_TCP_SOCKET * sock,
 
   cronTime(&startTime);
   if (YES == *verbose)
-    printf("Working on file %s...\n",
+    printf(_("Working on file '%s'.\n"),
 	   filename); 
   top = insertFile(sock,
 		   filename, 
 		   &printstatus,
 		   verbose);
   if (top == NULL) {
-    printf("Error inserting file %s.\n"
-	   "You may want to check whether or not you are out of space.\n"
-	   "Run gnunet-stats | grep \"AFS storage left\" to check.\n",
+    printf(_("Error inserting file '%s'.\n"
+	     "You may want to check whether or not you are out of space.\n"
+	     "Run gnunet-stats | grep \"AFS storage left\" to check.\n"),
 	   filename);
     return SYSERR;
   } else {
@@ -161,7 +163,7 @@ static int doFile(GNUNET_TCP_SOCKET * sock,
 				"PRINTURL",
 				"YES")) {
       char * fstring;
-      fstring = fileIdentifierToString(fid);	
+      fstring = createFileURI(fid);	
       printf("%s\n",
 	     fstring);
       FREE(fstring);
@@ -169,11 +171,11 @@ static int doFile(GNUNET_TCP_SOCKET * sock,
     if (*verbose == YES) {
       char * fstring;
 
-      fstring = fileIdentifierToString(fid);	    
-      printf("File %s successfully indexed -- %s\n",
+      fstring = createFileURI(fid);	    
+      printf(_("File '%s' successfully indexed -- %s\n"),
 	     filename,
 	     fstring);
-      printf("Speed was %8.3f kilobyte per second.\n",
+      printf(_("Speed was %8.3f kilobyte per second.\n"),
 	     (top->filesize/1024.0) / 
 	     (((double)(cronTime(NULL)-startTime)) / (double)cronSECONDS) );
       FREE(fstring);
@@ -283,7 +285,8 @@ static int parseOptions(int argc,
       unsigned int interval;
       if (1 != sscanf(GNoptarg, "%ud", &interval)) {
         LOG(LOG_FAILURE,
-	    "FAILURE: You must pass a positive number to the -i option.\n");
+	    _("You must pass a positive number to the '%s' option.\n"),
+	    "-i");
 	return -1;
       } else
 	setConfigurationInt("GNUNET-INSERT",
@@ -338,7 +341,8 @@ static int parseOptions(int argc,
       
       if (1 != sscanf(GNoptarg, "%ud", &contentPriority)) {
 	LOG(LOG_FAILURE,
-	    "FAILURE: You must pass a number to the -p option.\n");
+	    _("You must pass a number to the '%s' option.\n"),
+	    "-p");
 	return SYSERR;
       }
       setConfigurationInt("GNUNET-INSERT",
@@ -413,7 +417,8 @@ static int parseOptions(int argc,
 					 "NO"));
 #else
       LOG(LOG_INFO,
-      	  "INFO: compiled without libextractor, -x automatic\n");
+      	  "compiled without libextractor, '%s' automatic\n",
+	  "-x");
 #endif
       break;
     case 'X':
@@ -423,19 +428,18 @@ static int parseOptions(int argc,
 					 "NO"));
 #else
       LOG(LOG_INFO,
-      	  "INFO: compiled without libextractor, -X automatic\n");
+      	  "compiled without libextractor, '%s' automatic\n",
+	  "-X");
 #endif
       break;
     default: 
       LOG(LOG_FAILURE,
-	  "FAILURE: Unknown option %c. Aborting.\n"\
-	  "Use --help to get a list of options.\n",
-	  c);
+	  _("Use --help to get a list of options.\n"));
       return SYSERR;
     } /* end of parsing commandline */
   } /* while (1) */
   if (argc == GNoptind) {
-    printf("ERROR: you must specify a list of files to insert.\n");
+    printf(_("You must specify a list of files to insert.\n"));
     return SYSERR;
   }
   if (printAndReturn) {
@@ -443,17 +447,17 @@ static int parseOptions(int argc,
     EXTRACTOR_ExtractorList * l;
     l = getExtractors();
     for (c=GNoptind;c<argc;c++) {
-      printf("Keywords for file %s:\n",
-	     argv[c]);
       EXTRACTOR_KeywordList * list 
 	= EXTRACTOR_getKeywords(l, argv[c]);
+      printf(_("Keywords for file '%s':\n"),
+	     argv[c]);
       EXTRACTOR_printKeywords(stdout,
 			      list);
       EXTRACTOR_freeKeywords(list);
     }
     EXTRACTOR_removeAll(l);
 #else
-    printf("libextractor not used, no keywords will be extracted.\n");
+    printf(_("libextractor not used, no keywords will be extracted.\n"));
 #endif
     return SYSERR;
   }
@@ -466,7 +470,7 @@ static int parseOptions(int argc,
  * Insert the given RBlock into GNUnet.
  * @param rb the root node
  * @param keyword the keyword to use
- **/
+ */
 static void insertRBlock(GNUNET_TCP_SOCKET * sock,
 			 RootNode * rb,
 			 char * keyword) {
@@ -475,8 +479,8 @@ static void insertRBlock(GNUNET_TCP_SOCKET * sock,
 				  keyword,
 				  getConfigurationInt("GNUNET-INSERT",
 						      "CONTENT-PRIORITY")))
-    printf("ERROR inserting RootNode. "
-	   "Is gnunetd running and space available?\n");
+    printf(_("Error inserting RBlock. "
+	     "Is gnunetd running and space available?\n"));
 }
 
 
@@ -487,7 +491,7 @@ static void insertRBlock(GNUNET_TCP_SOCKET * sock,
  * @param argc number of arguments from the command line
  * @param argv command line arguments
  * @return return 0 for ok, -1 on error
- **/   
+ */   
 int main(int argc, char ** argv) {
   RootNode * roots;
   int i;
@@ -531,7 +535,7 @@ int main(int argc, char ** argv) {
     pseudonym = readPseudonym(pname,
 			      password);
     if (pseudonym == NULL) {
-      printf("ERROR: could not read pseudonym %s (does not exist or password invalid).\n",
+      printf(_("Could not read pseudonym '%s' (does not exist or password invalid).\n"),
 	     pname);
       FREE(pname);
       FREENONNULL(password);
@@ -555,26 +559,32 @@ int main(int argc, char ** argv) {
 	 (fileNameCount > 1) )
        && (NULL != getConfigurationString("GNUNET-INSERT",
 					  "FILENAMEROOT") ) )
-    errexit("FATAL: the options -b, -r or multiple file"
-	    " arguments can not be used together with option -f.\n");
+    errexit(_("The options '%s', '%s' or multiple file"
+	      " arguments cannot be used together with option '%s'.\n"),
+	    "-b", "-r", "-f");
 
   if (pseudonym == NULL) {
     if (NULL != getConfigurationString("GNUNET-INSERT",
 				       "NEXTHASH"))
-      errexit("FATAL: Option -N makes no sense without -P\n");
+      errexit(_("Option '%s' makes no sense without option '%s'.\n"),
+	      "-N", "-s");
     if (NULL != getConfigurationString("GNUNET-INSERT",
 				       "THISHASH"))
-      errexit("FATAL: Option -t makes no sense without -P\n");
+      errexit(_("Option '%s' makes no sense without option '%s'.\n"),
+	      "-t", "-s");
     if (NULL != getConfigurationString("GNUNET-INSERT",
 				       "PASSWORD"))
-      errexit("FATAL: Option -P makes no sense without -P\n");
+      errexit(_("Option '%s' makes no sense without option '%s'.\n"),
+	      "-P", "-s");
     if (0 != getConfigurationInt("GNUNET-INSERT",
 				 "INTERVAL"))
-      errexit("FATAL: Option -i makes no sense without -P\n");
+      errexit(_("Option '%s' makes no sense without option '%s'.\n"),
+	      "-i", "-s");
     if (testConfigurationString("GNUNET-INSERT",
 				"SPORADIC",
 				"YES"))
-      errexit("FATAL: Option -S makes no sense without -P\n");
+      errexit(_("Option '%s' makes no sense without option '%s'.\n"),
+	      "-S", "-s");
   }
 #if USE_LIBEXTRACTOR
     if (testConfigurationString("GNUNET-INSERT",
@@ -583,14 +593,15 @@ int main(int argc, char ** argv) {
 	testConfigurationString("GNUNET-INSERT",
 				"ADDITIONAL-RBLOCKS",
 				"NO") )
-      printf("WARNING: -X is implied by -x.\n");
+      printf(_("Option '%s' is implied by option '%s'.\n"),
+	     "-X", "-x");
 #endif
   
   
   /* fundamental init */
   sock = getClientSocket();
   if (sock == NULL)
-    errexit("FATAL: could not connect to gnunetd.\n");
+    errexit(_("Could not connect to gnunetd.\n"));
 #if USE_LIBEXTRACTOR
   extractors = getExtractors();
 #endif
@@ -606,7 +617,7 @@ int main(int argc, char ** argv) {
     r = insertRecursively(sock,
 			  fileName,
 			  &fid,
-			  gloKeywords,
+			  (const char**) gloKeywords,
 			  gloKeywordCnt,
 #if USE_LIBEXTRACTOR
 			  extractors,
@@ -649,7 +660,7 @@ int main(int argc, char ** argv) {
     fileName = getConfigurationString("GNUNET-INSERT",
 				      "FILENAMEROOT");
     if (fileName == NULL)
-      fileName = STRDUP("no name specified");
+      fileName = STRDUP(_("no filename specified"));
     i = insertDirectory(sock,
 			fileNameCount,
 			roots,
@@ -665,15 +676,15 @@ int main(int argc, char ** argv) {
 				  "PRINTURL",
 				  "YES")) {
 	char * fstring;
-	fstring = fileIdentifierToString(&fid);	
+	fstring = createFileURI(&fid);	
 	printf("%s\n",
 	       fstring);
 	FREE(fstring);
       }
       if (verbose == YES) {
 	char * fstring;
-	fstring = fileIdentifierToString(&fid);	
-	printf("Directory %s successfully indexed -- %s\n",
+	fstring = createFileURI(&fid);	
+	printf(_("Directory %s successfully indexed -- %s\n"),
 	       fileName,
 	       fstring);
 	FREE(fstring);
@@ -682,12 +693,12 @@ int main(int argc, char ** argv) {
       description = getConfigurationString("GNUNET-INSERT",
 					   "DESCRIPTION");
       if (description == NULL)
-        description = STRDUP("no description supplied");
+        description = STRDUP("No description supplied.");
       r = buildDirectoryRBlock(sock,
 			       &fid,
 			       fileName,
 			       description,
-			       gloKeywords,
+			       (const char**) gloKeywords,
 			       gloKeywordCnt);
       FREE(description);
       FREE(r);
@@ -724,7 +735,7 @@ int main(int argc, char ** argv) {
   if (mimetype == NULL)
     mimetype = STRDUP("unknown");
   if (description == NULL)
-    description = STRDUP("no description supplied");
+    description = STRDUP(_("No description supplied."));
   
   /* if a directory, add mimetype as key unless forbidden */
   if (strcmp(mimetype,GNUNET_DIRECTORY_MIME)==0 &&
@@ -747,14 +758,14 @@ int main(int argc, char ** argv) {
       insertRBlock(sock, 
 		   r, 
 		   gloKeywords[i]);    
-      printf("Inserting %s (%s, %s) under keyword %s.\n",
+      printf(_("Inserting file '%s' (%s, %s) under keyword '%s'.\n"),
 	     shortFN, description, mimetype, gloKeywords[i]);
     }
     for (i=0;i<topKeywordCnt;i++) {
       insertRBlock(sock,
 		   r,
 		   topKeywords[i]);    
-      printf("Inserting %s (%s, %s) under keyword %s.\n",
+      printf(_("Inserting file '%s' (%s, %s) under keyword '%s'.\n"),
 	     shortFN, description, mimetype, topKeywords[i]);
     }
 #if USE_LIBEXTRACTOR
@@ -765,7 +776,7 @@ int main(int argc, char ** argv) {
 	insertRBlock(sock,
 		     r,
 		     keywords[i]);    
-	printf("Inserting %s (%s, %s) under keyword %s.\n",
+	printf(_("Inserting file '%s' (%s, %s) under keyword '%s'.\n"),
 	       shortFN, description, mimetype, keywords[i]);
       }
 #endif
@@ -789,15 +800,17 @@ int main(int argc, char ** argv) {
     if(timestr != NULL) {
       struct tm t;
 
-      if((NULL == strptime(timestr, "%j-%m-%Y %R", &t)))
-        errexit("FATAL: parsing time failed. Use \"DAY-MONTHNUMBER-YEAR HOUR:MINUTE\" format\n");
+      if((NULL == strptime(timestr, "%j-%m-%Y %R", &t))) {
+	LOG_STRERROR(LOG_FATAL, "strptime");
+        errexit(_("Parsing time failed. Use 'DD-MM-YY HH:MM' format.\n"));
+      }
       now = mktime(&t);
       FREE(timestr);
       /* On my system, the printed time is in advance +1h 
 	 to what was specified? -- It is in UTC! */
       timestr = GN_CTIME(&now);
       LOG(LOG_DEBUG, 
-          "DEBUG: read time %s\n", 
+          "Read time %s.\n", 
 	  timestr);
       FREE(timestr);
     } else {
@@ -815,7 +828,7 @@ int main(int argc, char ** argv) {
       if (sizeof(SBlock) != readFile(prevname,
       				     sizeof(SBlock),
 				     &pb) ) {
-        errexit("FATAL: SBlock in %s either doesn't exist or is malformed\n",
+        errexit(_("SBlock in file '%s' either does not exist or is malformed.\n"),
 		prevname);
       }
       /* check that it matches the selected pseudonym */
@@ -824,10 +837,10 @@ int main(int argc, char ** argv) {
       if (0 != memcmp(&pkey,
       	  	      &pb.subspace,
 		      sizeof(PublicKey)))
-        errexit("FATAL: Given SBlock doesn't match the selected pseudonym");
-					   
+        errexit(_("The given SBlock does not belong to the namespace of the selected pseudonym."));
+      
       if (SYSERR == verifySBlock(&pb)) {
-        errexit("FATAL: Verification of SBlock in %s failed\n", 
+        errexit(_("Verification of SBlock in file '%s' failed\n"), 
 		prevname);
       }
       interval = ntohl(pb.updateInterval);
@@ -855,7 +868,7 @@ int main(int argc, char ** argv) {
         creationTime = now;
         if (interval == SBLOCK_UPDATE_SPORADIC) {
           LOG(LOG_DEBUG,
-              "DEBUG: sporadic update in sblock...\n");
+              "Sporadic update in sblock.\n");
           hx = getConfigurationString("GNUNET-INSERT",
                                       "NEXTHASH");
           if (hx == NULL) {
@@ -865,7 +878,7 @@ int main(int argc, char ** argv) {
             FREE(hx);
           }
         } else {
-          errexit("FATAL: trying to update nonupdatable sblock\n");
+          errexit(_("Trying to update nonupdatable SBlock.\n"));
         }
       }
     } else {
@@ -939,13 +952,13 @@ int main(int argc, char ** argv) {
 	FREE(outname);
       }     
       /* FIXME: until URI is decided for sblocks, stick to SPACE KEY -format */
-      printf("File %s (%s, %s) successfully inserted into namespace under\n"
-	     "  %s %s\n",
+      printf(_("File '%s' (%s, %s) successfully inserted into namespace under\n"
+	       "  %s %s\n"),
 	     shortFN, description, mimetype,
 	     (char*)&hex2,
 	     (char*)&hex1);
     } else
-      printf("Insertion of file into namespace failed.\n");
+      printf(_("Insertion of file into namespace failed.\n"));
     FREE(sb);
   }
 

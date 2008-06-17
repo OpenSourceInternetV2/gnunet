@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -26,7 +26,7 @@
  * @file util/checksum.c
  * @brief implementation of CRC32 and various helper methods
  * @author Christian Grothoff
- **/ 
+ */ 
 
 #include "platform.h"
 #include "gnunet_util.h"
@@ -74,7 +74,7 @@ static void make_crc_table() {
  * property of detecting all burst errors of length 32 bits or less.
  */
 static uLong crc32(uLong crc,
-		   char const *buf, 
+		   const char *buf, 
 		   size_t len) {
   if (crc_table[255] == 0)
     make_crc_table();
@@ -91,8 +91,8 @@ static uLong crc32(uLong crc,
  * @param buf the data over which we're taking the CRC
  * @param len the length of the buffer
  * @return the resulting CRC32 checksum
- **/
-int crc32N(void * buf, int len) {
+ */
+int crc32N(const void * buf, int len) {
   uLong crc;
   crc = crc32(0L, Z_NULL, 0);
   crc = crc32(crc, (char*)buf, len);
@@ -102,7 +102,7 @@ int crc32N(void * buf, int len) {
 /**
  * Random on unsigned 64-bit values.  We break them down into signed
  * 32-bit values and reassemble the 64-bit random value bit-wise.
- **/
+ */
 unsigned long long randomi64(unsigned long long u) {
   unsigned long long ret;
   int i;
@@ -125,7 +125,7 @@ unsigned long long randomi64(unsigned long long u) {
  * it...
  *
  * @return a random value in the interval [0,i[. 
- **/
+ */
 int randomi(int i) {
   static unsigned int invokeCount;
   int ret;
@@ -138,23 +138,15 @@ int randomi(int i) {
 #endif
 #endif
   }
-  if (i <= 0)
-    errexit("FATAL: randomi() called with %d as the argument\n", 
-	    i); 
-
+  GNUNET_ASSERT(i > 0);
   ret = rand() % i;
-
-  if ( (ret < 0) || 
-       (ret >= i) )
-    errexit("FATAL: randomi broken (%d, %d)\n",
-	    i, 
-	    ret);  
+  GNUNET_ASSERT((ret >= 0) && (ret < i));
   return ret;
 }
 
 /**
  * Get an array with a random permutation of the numbers 0...n-1.
- **/
+ */
 int * permute(int n) {
   int * ret;
   int i;
@@ -179,7 +171,7 @@ int * permute(int n) {
 /**
  * This method does not really belong here, but where else to put
  * it...
- **/
+ */
 unsigned long long ntohll(unsigned long long n) {
 #if __BYTE_ORDER == __BIG_ENDIAN
   return n; 
@@ -191,7 +183,7 @@ unsigned long long ntohll(unsigned long long n) {
 /**
  * This method does not really belong here, but where else to put
  * it...
- **/
+ */
 unsigned long long htonll(unsigned long long n) {
 #if __BYTE_ORDER == __BIG_ENDIAN
   return n; 

@@ -24,7 +24,7 @@
  * @file conf/mconf_inputbox.c
  * @author Savio Lam
  * @author Nils Durner
- **/
+ */
 
 #include "mconf_dialog.h"
 

@@ -21,7 +21,7 @@
  * @file src/applications/afs/gtkui/directorydisplay.c
  * @brief code that displays the contents of a directory
  * @author Christian Grothoff
- **/
+ */
 
 
 #include "gnunet_afs_esed2.h"
@@ -30,7 +30,7 @@
 #include "directorydisplay.h"
 #include "search.h"
 
-void displayDirectory(char * filename,
+void displayDirectory(const char * filename,
 		      RootNode * rn) {
   GtkWidget * box;
   ListModel * model;  
@@ -40,9 +40,9 @@ void displayDirectory(char * filename,
   dir = readGNUnetDirectory(filename);
   if (dir == NULL) {
     LOG(LOG_WARNING,
-        "WARNING: directory downloaded (%s) has invalid format.\n",
+        _("Downloaded directory '%s' has invalid format.\n"),
         filename);
-    guiMessage("WARNING: directory downloaded (%s) has invalid format.\n",
+    guiMessage(_("Downloaded directory '%s' has invalid format.\n"),
                filename);
     return;
   }
@@ -74,7 +74,7 @@ void displayDirectory(char * filename,
     addToNotebook(rn->header.description,
   	  	  box);
   } else {
-    char * fileNameRoot = filename;
+    const char * fileNameRoot = filename;
     int i;
 
     for (i=strlen(filename)-1;i>=0;i--) {

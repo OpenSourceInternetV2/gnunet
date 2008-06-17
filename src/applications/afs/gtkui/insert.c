@@ -22,7 +22,7 @@
  * @brief handles file insertions in the GTK GUI
  * @author Igor Wronsky
  * @author Christian Grothoff (refactoring, added bugs)
- **/
+ */
 
 #include "gnunet_afs_esed2.h"
 #include "helper.h"
@@ -32,7 +32,7 @@
 
 /**
  * @brief state of the edit RootNode window
- **/
+ */
 typedef struct {
   char * fileName;
   GtkWidget * editAttributesWindow;
@@ -47,7 +47,7 @@ typedef struct {
 
 /**
  * @brief state of the edit RootNode window
- **/
+ */
 typedef struct {
   char * fileName;
   GtkWidget * editAttributesWindow;
@@ -68,11 +68,11 @@ typedef struct {
  *
  * @param dummy not used
  * @param ewm the state of the edit window
- **/
+ */
 static void startInsert(GtkWidget * dummy, 
 			EditWindowModel * ewm) {
   InsertModel * ilm;
-  gchar * txt;
+  const gchar * txt;
   int i;
   PTHREAD_T insertThread;
 
@@ -84,26 +84,25 @@ static void startInsert(GtkWidget * dummy,
     ilm->indexContent = YES;
   else
     ilm->indexContent = NO;
-  ilm->copyFile = gtk_toggle_button_get_active(
-                    (GtkToggleButton *)ewm->checkCopy);
+  ilm->copyFile = gtk_toggle_button_get_active((GtkToggleButton *)ewm->checkCopy);
 
   /* get the published filename */
   txt = gtk_entry_get_text(GTK_ENTRY(ewm->fileNameLine));
   if (txt == NULL)
-    ilm->fileNameRoot = STRDUP("none specified");
+    ilm->fileNameRoot = STRDUP(_("Filename not specified."));
   else
     ilm->fileNameRoot = STRDUP(txt);
   
   /* get the new description, if any */
   txt = gtk_entry_get_text(GTK_ENTRY(ewm->descriptionLine));
   if (txt == NULL)
-    ilm->description = STRDUP("no description specified");
+    ilm->description = STRDUP(_("Description not given."));
   else
     ilm->description = STRDUP(txt);
 
   txt = gtk_entry_get_text(GTK_ENTRY(ewm->mimeLine));
   if (txt == NULL)
-    ilm->mimetype = STRDUP("unknown");
+    ilm->mimetype = STRDUP(_("Mime-type unknown."));
   else
     ilm->mimetype = STRDUP(txt);
 
@@ -113,27 +112,27 @@ static void startInsert(GtkWidget * dummy,
   if (ilm->num_keywords > 0) {
     ilm->keywords = (char**) MALLOC(ilm->num_keywords * sizeof(char*));
     for(i=0;i<ilm->num_keywords;i++) {     
+      gchar * tmp;
       gtk_clist_get_text(GTK_CLIST(ewm->keywordList),
 			 i,
 			 0,
-			 &txt);
-      ilm->keywords[i] = STRDUP(txt);
+			 &tmp);
+      ilm->keywords[i] = STRDUP(tmp);
     } 
   } else
     ilm->keywords = NULL;
 
   if(ilm->indexContent == YES)
-    strcpy(ilm->opDescription, "indexed");
+    strcpy(ilm->opDescription, _("indexed"));
   else
-    strcpy(ilm->opDescription, "inserted");
+    strcpy(ilm->opDescription, _("inserted"));
   createInsertProgressBar(ilm);
   /* start the insert thread */
   if (0 != PTHREAD_CREATE(&insertThread,
 			  (PThreadMain) insertFileGtkThread,
 			  ilm,
 			  16 * 1024))
-    errexit("FATAL: could not create insert thread (%s)!\n",
-	    STRERROR(errno));
+    DIE_STRERROR("pthread_create");
   PTHREAD_DETACH(&insertThread);
 
   /* destroy the "editAttributes" window */
@@ -146,11 +145,11 @@ static void startInsert(GtkWidget * dummy,
  *
  * @param dummy not used
  * @param ewm the state of the edit window
- **/
+ */
 static void startInsertDirectory(GtkWidget * dummy, 
 				 EditDirectoryWindowModel * ewm) {
   InsertDirectoryModel * ilm;
-  gchar * txt;
+  const gchar * txt;
   int i;
   PTHREAD_T insertThread;
 
@@ -162,19 +161,18 @@ static void startInsertDirectory(GtkWidget * dummy,
     ilm->indexContent = YES;
   else
     ilm->indexContent = NO;
-  ilm->copyFile = gtk_toggle_button_get_active(
-                    (GtkToggleButton *)ewm->checkCopy);
+  ilm->copyFile = gtk_toggle_button_get_active((GtkToggleButton *)ewm->checkCopy);
   /* get the published filename */
   txt = gtk_entry_get_text(GTK_ENTRY(ewm->fileNameLine));
   if (txt == NULL)
-    ilm->fileNameRoot = STRDUP("none specified");
+    ilm->fileNameRoot = STRDUP(_("Filename not specified."));
   else
     ilm->fileNameRoot = STRDUP(txt);
   
   /* get the new description, if any */
   txt = gtk_entry_get_text(GTK_ENTRY(ewm->descriptionLine));
   if (txt == NULL)
-    ilm->description = STRDUP("no description specified");
+    ilm->description = STRDUP(_("No description specified."));
   else
     ilm->description = STRDUP(txt);
 
@@ -186,11 +184,12 @@ static void startInsertDirectory(GtkWidget * dummy,
   if (ilm->num_keywords > 0) {
     ilm->keywords = (char**) MALLOC(ilm->num_keywords * sizeof(char*));
     for(i=0;i<ilm->num_keywords;i++) {     
+      gchar * tmp;
       gtk_clist_get_text(GTK_CLIST(ewm->keywordList),
 			 i,
 			 0,
-			 &txt);
-      ilm->keywords[i] = STRDUP(txt);
+			 &tmp);
+      ilm->keywords[i] = STRDUP(tmp);
     } 
   } else
     ilm->keywords = NULL;
@@ -201,19 +200,20 @@ static void startInsertDirectory(GtkWidget * dummy,
   if (ilm->num_gkeywords > 0) {
     ilm->gkeywords = (char**) MALLOC(ilm->num_gkeywords * sizeof(char*));
     for(i=0;i<ilm->num_gkeywords;i++) {     
+      gchar * tmp;
       gtk_clist_get_text(GTK_CLIST(ewm->gkeywordList),
 			 i,
 			 0,
-			 &txt);
-      ilm->gkeywords[i] = STRDUP(txt);
+			 &tmp);
+      ilm->gkeywords[i] = STRDUP(tmp);
     } 
   } else
     ilm->gkeywords = NULL;
 
   if(ilm->indexContent == YES)
-    strcpy(ilm->opDescription, "indexed");
+    strcpy(ilm->opDescription, _("indexed"));
   else
-    strcpy(ilm->opDescription, "inserted");
+    strcpy(ilm->opDescription, _("inserted"));
   /*
     FIXME: allow setting this as an option in the dialog!
   FREENONNULL(setConfigurationString("GNUNET-INSERT",
@@ -226,8 +226,7 @@ static void startInsertDirectory(GtkWidget * dummy,
 			  (PThreadMain) insertDirectoryGtkThread,
 			  ilm,
 			  16 * 1024))
-    errexit("FATAL: could not create insert thread (%s)!\n",
-	    STRERROR(errno));
+    DIE_STRERROR("pthread_create");
   PTHREAD_DETACH(&insertThread);
   /* destroy the "editAttributes" window */
   gtk_widget_destroy(ewm->editAttributesWindow);
@@ -239,20 +238,21 @@ static void startInsertDirectory(GtkWidget * dummy,
  *
  * @param w not used
  * @param ewm the state of the edit window
- **/
+ */
 static void button_add_clicked(GtkWidget * w, 
 			       EditWindowModel * ewm) {
+  const gchar * keyConst;
   gchar * key;
   gchar * newKeyword;
   int i;
 
-  key = gtk_entry_get_text(GTK_ENTRY(ewm->keywordLine));
-  if (key == NULL) {
+  keyConst = gtk_entry_get_text(GTK_ENTRY(ewm->keywordLine));
+  if (keyConst == NULL) {
     /* message to enter a string? */
     return;
   }    
 
-  newKeyword = STRDUP(key);
+  newKeyword = STRDUP(keyConst);
   key = newKeyword;
 
   /* remove trailing & heading spaces */
@@ -281,7 +281,7 @@ static void button_add_clicked(GtkWidget * w,
  *
  * @param w not used
  * @param ewm state of the edit window
- **/
+ */
 static void button_del_clicked(GtkWidget * w, 
 			       EditWindowModel * ewm) {
   GList * tmp;
@@ -301,20 +301,21 @@ static void button_del_clicked(GtkWidget * w,
  *
  * @param w not used
  * @param ewm the state of the edit window
- **/
+ */
 static void button_dir_add_clicked1(GtkWidget * w, 
 				    EditDirectoryWindowModel * ewm) {
+  const gchar * keyConst;
   gchar * key;
   gchar * newKeyword;
   int i;
 
-  key = gtk_entry_get_text(GTK_ENTRY(ewm->keywordLine));
-  if (key == NULL) {
+  keyConst = gtk_entry_get_text(GTK_ENTRY(ewm->keywordLine));
+  if (keyConst == NULL) {
     /* message to enter a string? */
     return;
   }    
 
-  newKeyword = STRDUP(key);
+  newKeyword = STRDUP(keyConst);
   key = newKeyword;
 
   /* remove trailing & heading spaces */
@@ -343,7 +344,7 @@ static void button_dir_add_clicked1(GtkWidget * w,
  *
  * @param w not used
  * @param ewm state of the edit window
- **/
+ */
 static void button_dir_del_clicked1(GtkWidget * w, 
 				    EditDirectoryWindowModel * ewm) {
   GList * tmp;
@@ -363,20 +364,21 @@ static void button_dir_del_clicked1(GtkWidget * w,
  *
  * @param w not used
  * @param ewm the state of the edit window
- **/
+ */
 static void button_dir_add_clicked2(GtkWidget * w, 
 				    EditDirectoryWindowModel * ewm) {
+  const gchar * keyConst;
   gchar * key;
   gchar * newKeyword;
   int i;
 
-  key = gtk_entry_get_text(GTK_ENTRY(ewm->gkeywordLine));
-  if (key == NULL) {
+  keyConst = gtk_entry_get_text(GTK_ENTRY(ewm->gkeywordLine));
+  if (keyConst == NULL) {
     /* message to enter a string? */
     return;
   }    
 
-  newKeyword = STRDUP(key);
+  newKeyword = STRDUP(keyConst);
   key = newKeyword;
 
   /* remove trailing & heading spaces */
@@ -405,7 +407,7 @@ static void button_dir_add_clicked2(GtkWidget * w,
  *
  * @param w not used
  * @param ewm state of the edit window
- **/
+ */
 static void button_dir_del_clicked2(GtkWidget * w, 
 				    EditDirectoryWindowModel * ewm) {
   GList * tmp;
@@ -424,7 +426,7 @@ static void button_dir_del_clicked2(GtkWidget * w,
  *
  * @param w the button
  * @param ewm state of the edit window
- **/
+ */
 static void button_index_clicked(GtkWidget * w,
                                  EditWindowModel * ewm) {
   gtk_widget_set_sensitive(ewm->checkCopy, w == ewm->indexButton);
@@ -433,7 +435,7 @@ static void button_index_clicked(GtkWidget * w,
 /**
  * Exit the application (called when the main window
  * is closed or the user selects File-Quit).
- **/
+ */
 static void destroyEditWindow(GtkWidget * widget,
 			      EditWindowModel * ewm) {
   FREE(ewm->fileName);
@@ -443,7 +445,7 @@ static void destroyEditWindow(GtkWidget * widget,
 /**
  * Exit the application (called when the main window
  * is closed or the user selects File-Quit).
- **/
+ */
 static void destroyEditDirectoryWindow(GtkWidget * widget,
 				       EditDirectoryWindowModel * ewm) {
   FREE(ewm->fileName);
@@ -460,7 +462,7 @@ static void destroyEditDirectoryWindow(GtkWidget * widget,
  * @param mimetype the mimetype of the ile
  * @param keywords the extracted keywords of the file
  * @param num_keywords the number of keywords extracted
- **/
+ */
 static void editAttributes(char * filename,
 			   char * fileNameRoot,
 			   char * description,
@@ -484,7 +486,7 @@ static void editAttributes(char * filename,
   GtkWidget * indexbutton2;
   GtkWidget * check_copy;
   int doIndex;
-  gchar * titles[1] = { "Keyword(s) used" };
+  gchar * titles[1] = { gettext_noop("Keyword(s) used") };
   int i;
 
   ewm = MALLOC(sizeof(EditWindowModel));
@@ -496,7 +498,7 @@ static void editAttributes(char * filename,
 		       400,
 		       480);
   gtk_window_set_title(GTK_WINDOW(window), 
-		       "Edit attributes");
+		       _("Edit attributes"));
 
   /* add container for window elements */
   vbox = gtk_vbox_new(FALSE, 0);
@@ -520,7 +522,7 @@ static void editAttributes(char * filename,
 				 10);
 
   /* Create a line to change the published filename */
-  label = gtk_label_new("Published filename:");
+  label = gtk_label_new(_("Published filename:"));
   gtk_box_pack_start(GTK_BOX(vbox),
 		     label, 
 		     FALSE, 
@@ -538,7 +540,7 @@ static void editAttributes(char * filename,
   gtk_widget_show(ewm->fileNameLine);
   
   /* Create a line to change the mime type */
-  label = gtk_label_new("Mimetype:");
+  label = gtk_label_new(_("Mimetype:"));
   gtk_box_pack_start(GTK_BOX(vbox),
 		     label, 
 		     FALSE, 
@@ -556,7 +558,7 @@ static void editAttributes(char * filename,
   gtk_widget_show(ewm->mimeLine);
 
   /* Create a line to change the description */
-  label = gtk_label_new("Description:");
+  label = gtk_label_new(_("Description:"));
   gtk_box_pack_start(GTK_BOX(vbox),
 		     label, 
 		     FALSE, 
@@ -574,7 +576,7 @@ static void editAttributes(char * filename,
   gtk_widget_show(ewm->descriptionLine);
   
   /* add buttons to select the insertion method */
-  label = gtk_label_new("Insertion method:");
+  label = gtk_label_new(_("Insertion method:"));
   gtk_box_pack_start(GTK_BOX(vbox),
 		     label,
 		     FALSE, 
@@ -589,10 +591,13 @@ static void editAttributes(char * filename,
 		     0);
   gtk_widget_show(hbox);
   indexbutton1 = gtk_radio_button_new_with_label(NULL,
-						 "Index only");
+						 _("Index only"));
   ewm->indexButton = indexbutton1;
+  check_copy = gtk_check_button_new_with_label(_("Copy file to shared directory"));
+  ewm->checkCopy = check_copy;
+
   gtk_signal_connect(GTK_OBJECT(indexbutton1),
-	                   "toggled",
+		     "toggled",
                      GTK_SIGNAL_FUNC(button_index_clicked),
                      ewm);
   gtk_box_pack_start(GTK_BOX (hbox),
@@ -603,9 +608,9 @@ static void editAttributes(char * filename,
   gtk_widget_show(indexbutton1);  
   group = gtk_radio_button_group(GTK_RADIO_BUTTON(indexbutton1));
   indexbutton2 = gtk_radio_button_new_with_label(group, 
-						 "Full insertion");
+						 _("Full insertion"));
   gtk_signal_connect(GTK_OBJECT(indexbutton2),
-	                   "toggled",
+		     "toggled",
                      GTK_SIGNAL_FUNC(button_index_clicked),
                      ewm);
   gtk_box_pack_start(GTK_BOX(hbox), 
@@ -616,7 +621,7 @@ static void editAttributes(char * filename,
   gtk_widget_show(indexbutton2);
   if (testConfigurationString("GNUNET-INSERT",
   			      "INDEX-CONTENT",
-			        "YES") == YES) {
+			      "YES") == YES) {
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(indexbutton1), 
 				 TRUE);
 	  doIndex = 1;
@@ -627,8 +632,6 @@ static void editAttributes(char * filename,
     doIndex = 0;
 	}
 	
-  check_copy = gtk_check_button_new_with_label("Copy file to shared dir");
-  ewm->checkCopy = check_copy;
   gtk_box_pack_start(GTK_BOX(hbox),
                      check_copy,
                      TRUE,
@@ -636,7 +639,7 @@ static void editAttributes(char * filename,
                      0);
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(check_copy), 
 			       ! testConfigurationString("GNUNET-INSERT",
-  			                               "LINK",
+							 "LINK",
 			                                 "YES"));
   gtk_widget_set_sensitive(check_copy, doIndex);
   gtk_widget_show(check_copy);
@@ -690,8 +693,8 @@ static void editAttributes(char * filename,
 		     TRUE,
 		     0);
   gtk_widget_show(hbox);
-  button_add = gtk_button_new_with_label("Add keyword");
-  button_delete = gtk_button_new_with_label("Delete keyword");
+  button_add = gtk_button_new_with_label(_("Add keyword"));
+  button_delete = gtk_button_new_with_label(_("Delete keyword"));
   gtk_box_pack_start(GTK_BOX(hbox), 
 		     button_add, 
 		     TRUE, 
@@ -729,8 +732,8 @@ static void editAttributes(char * filename,
 		     TRUE, 
 		     0);
   gtk_widget_show(hbox);
-  button_ok = gtk_button_new_with_label("Ok");
-  button_cancel = gtk_button_new_with_label("Cancel");
+  button_ok = gtk_button_new_with_label(_("Ok"));
+  button_cancel = gtk_button_new_with_label(_("Cancel"));
   gtk_box_pack_start(GTK_BOX(hbox),
 		     button_ok,
 		     TRUE,
@@ -779,9 +782,7 @@ static void file_selected(char *filename) {
       break;
     }
   }  
-  if (i == -1)
-    errexit("FATAL: ASSERTION failed: filename does not start with a '/'");
-
+  GNUNET_ASSERT(i != -1);
   /* try to extract keywords */ 
   description = NULL;
   mimetype = NULL; 
@@ -823,7 +824,7 @@ static void file_selected(char *filename) {
  *
  * @param filename the name of the file that is inserted
  * @param fileNameRoot the short name of the file
- **/
+ */
 static void editDirectoryAttributes(char * filename,
 				    char * fileNameRoot) {
   EditDirectoryWindowModel * ewm;
@@ -843,8 +844,8 @@ static void editDirectoryAttributes(char * filename,
   GtkWidget * indexbutton2;
   GtkWidget * check_copy;
   int doIndex;
-  gchar * titles[1] = { "Keyword(s) used for directory" };
-  gchar * gtitles[1] = { "Keyword(s) used for all files in directory" };
+  gchar * titles[1] = { gettext_noop("Keyword(s) used for directory") };
+  gchar * gtitles[1] = { gettext_noop("Keyword(s) used for all files in directory") };
 
   ewm = MALLOC(sizeof(EditDirectoryWindowModel));
   ewm->fileName = STRDUP(filename);
@@ -855,7 +856,7 @@ static void editDirectoryAttributes(char * filename,
 		       400,
 		       480);
   gtk_window_set_title(GTK_WINDOW(window), 
-		       "Edit attributes");
+		       _("Edit attributes"));
 
   /* add container for window elements */
   vbox = gtk_vbox_new(FALSE, 0);
@@ -879,7 +880,7 @@ static void editDirectoryAttributes(char * filename,
 				 10);
 
   /* Create a line to change the published filename */
-  label = gtk_label_new("Published directoryname:");
+  label = gtk_label_new(_("Published name of the directory:"));
   gtk_box_pack_start(GTK_BOX(vbox),
 		     label, 
 		     FALSE, 
@@ -916,7 +917,7 @@ static void editDirectoryAttributes(char * filename,
   gtk_widget_show(ewm->descriptionLine);
   
   /* add buttons to select the insertion method */
-  label = gtk_label_new("Insertion method (for files in directory):");
+  label = gtk_label_new(_("Insertion method (for files in directory):"));
   gtk_box_pack_start(GTK_BOX(vbox),
 		     label,
 		     FALSE, 
@@ -931,11 +932,11 @@ static void editDirectoryAttributes(char * filename,
 		     0);
   gtk_widget_show(hbox);
   indexbutton1 = gtk_radio_button_new_with_label(NULL,
-						 "Index only");
-	gtk_signal_connect(GTK_OBJECT(indexbutton1),
-	                   "toggled",
+						 _("Index only"));
+  gtk_signal_connect(GTK_OBJECT(indexbutton1),
+		     "toggled",
                      GTK_SIGNAL_FUNC(button_index_clicked),
-                     ewm);
+                     ewm);    
   ewm->indexButton = indexbutton1;
   gtk_box_pack_start(GTK_BOX (hbox),
 		     indexbutton1,
@@ -945,7 +946,9 @@ static void editDirectoryAttributes(char * filename,
   gtk_widget_show(indexbutton1);  
   group = gtk_radio_button_group(GTK_RADIO_BUTTON(indexbutton1));
   indexbutton2 = gtk_radio_button_new_with_label(group, 
-						 "Full insertion");
+						 _("Full insertion"));
+  check_copy = gtk_check_button_new_with_label(_("Copy file to shared directory"));
+  ewm->checkCopy = check_copy;
   gtk_signal_connect(GTK_OBJECT(indexbutton2),
 	                   "toggled",
                      GTK_SIGNAL_FUNC(button_index_clicked),
@@ -970,8 +973,6 @@ static void editDirectoryAttributes(char * filename,
   }
 
 
-  check_copy = gtk_check_button_new_with_label("Copy file to shared dir");
-  ewm->checkCopy = check_copy;
   gtk_box_pack_start(GTK_BOX(hbox),
                      check_copy,
                      TRUE,
@@ -979,7 +980,7 @@ static void editDirectoryAttributes(char * filename,
                      0);
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(check_copy), 
 			       ! testConfigurationString("GNUNET-INSERT",
-  			                               "LINK",
+							 "LINK",
 			                                 "YES"));
   gtk_widget_set_sensitive(check_copy, doIndex);
   gtk_widget_show(check_copy);
@@ -1094,8 +1095,8 @@ static void editDirectoryAttributes(char * filename,
 		     TRUE,
 		     0);
   gtk_widget_show(hbox);
-  button_add = gtk_button_new_with_label("Add keyword");
-  button_delete = gtk_button_new_with_label("Delete keyword");
+  button_add = gtk_button_new_with_label(_("Add keyword"));
+  button_delete = gtk_button_new_with_label(_("Delete keyword"));
   gtk_box_pack_start(GTK_BOX(hbox), 
 		     button_add, 
 		     TRUE, 
@@ -1135,8 +1136,8 @@ static void editDirectoryAttributes(char * filename,
 		     TRUE, 
 		     0);
   gtk_widget_show(hbox);
-  button_ok = gtk_button_new_with_label("Ok");
-  button_cancel = gtk_button_new_with_label("Cancel");
+  button_ok = gtk_button_new_with_label(_("Ok"));
+  button_cancel = gtk_button_new_with_label(_("Cancel"));
   gtk_box_pack_start(GTK_BOX(hbox),
 		     button_ok,
 		     TRUE,
@@ -1165,7 +1166,7 @@ static void editDirectoryAttributes(char * filename,
 
 /**
  * Insert a directory.
- **/
+ */
 static void directory_selected(char * filename) {
   int i;
   char * fileNameRoot;
@@ -1185,9 +1186,7 @@ static void directory_selected(char * filename) {
   if (strlen(filename) == 0) {
     fileNameRoot = STRDUP("");
   } else {
-    if (i == -1)
-      errexit("FATAL: ASSERTION failed: filename does not start with a %c",
-	      DIR_SEPARATOR);
+    GNUNET_ASSERT(i != -1);
   }
 
   /* allow the user to edit the insertion related info */
@@ -1204,8 +1203,8 @@ static void directory_selected(char * filename) {
  * @param window the file selection window
  */
 static gint gtk_file_selected(GtkWidget * okButton, 
-			  GtkWidget * window) {
-  gchar * filename;
+			      GtkWidget * window) {
+  const gchar * filename;
   char * fn;  
 
   filename 
@@ -1216,7 +1215,7 @@ static gint gtk_file_selected(GtkWidget * okButton,
   }
   if ( (NO == isDirectory(filename)) &&
        (0 == assertIsFile(filename)) ) {
-    guiMessage("%s is not a file!\n",
+    guiMessage(_("'%s' is not a file!\n"),
 	       filename);
     gtk_widget_destroy(window);
     return FALSE;
@@ -1237,11 +1236,11 @@ static gint gtk_file_selected(GtkWidget * okButton,
 
 /**
  * Close the open-file window.
- **/
+ */
 static gint destroyOpenFile(GtkWidget * widget,
 			    GtkWidget * window) {
   LOG(LOG_DEBUG, 
-      "DEBUG: destroying open-file window (%x)\n", 
+      "Destroying open-file window (%p)\n", 
       window);
   return TRUE;
 }
@@ -1259,12 +1258,12 @@ static char szFilename[_MAX_PATH + 1] = "\0";
  *
  * openSelectFile[OK click->]gtk_file_selected->file_selected->
  * editAttributes[OK click]->startInsert->newthread.insertFile_
- **/
+ */
 void openSelectFile(void) {
 #ifndef MINGW
   GtkWidget * window;
 
-  window = gtk_file_selection_new("Choose file to be inserted");
+  window = gtk_file_selection_new(_("Choose file to be inserted"));
   gtk_signal_connect(GTK_OBJECT(window), 
 		     "destroy",
 		     GTK_SIGNAL_FUNC(destroyOpenFile),

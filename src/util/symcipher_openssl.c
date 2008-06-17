@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -23,7 +23,7 @@
  * @brief Symetric encryption services.
  * @author Christian Grothoff
  * @author Ioana Patrascu
- **/
+ */
 
 #include "gnunet_util.h"
 #include "platform.h"
@@ -33,7 +33,7 @@
 #include <openssl/err.h>
 /**
  * Create a new SessionKey (for Blowfish)
- **/
+ */
 void makeSessionkey(SESSIONKEY * key) {
   int i;
   for (i=0;i<SESSIONKEY_LEN;i++)
@@ -50,20 +50,16 @@ void makeSessionkey(SESSIONKEY * key) {
  *        for streams.
  * @param result the output parameter in which to store the encrypted result
  * @returns the size of the encrypted block, -1 for errors
- **/
-int encryptBlock(void * block, 
+ */
+int encryptBlock(const void * block, 
 		 unsigned short len,
-		 SESSIONKEY * sessionkey,
-		 unsigned char * iv,
+		 const SESSIONKEY * sessionkey,
+		 const unsigned char * iv,
 		 void * result) {
   int outlen = 0;
   EVP_CIPHER_CTX ctx;
   
-  if ( (block == NULL) || (sessionkey == NULL) ) {
-    LOG(LOG_FAILURE,
-	"FAILURE: encyrptBlock called with NULL in arguments\n");
-    return -1;  
-  }
+  GNUNET_ASSERT( (block != NULL) && (sessionkey != NULL) );
   /* compute result size by adding block-length, always padded */
   EVP_EncryptInit(&ctx, 
 		  EVP_bf_cfb(), 
@@ -74,8 +70,7 @@ int encryptBlock(void * block,
 			     result, 
 			     &outlen,
 			     block, len)) {
-    LOG(LOG_FAILURE,
-	"FAILURE: symcipher.c-encryptBlock: EVP_EncryptUpdate failed!\n");
+    BREAK();
     return -1;
   }
 #else
@@ -87,8 +82,7 @@ int encryptBlock(void * block,
   if (0 == EVP_EncryptFinal(&ctx,
                             &((unsigned char*)result)[len],
 			    &outlen)) {
-    LOG(LOG_FAILURE,
-	"FAILURE: symcipher.c-encryptBlock: EVP_EncryptFinal failed!\n");
+    BREAK();
     return -1;
   }
 #else
@@ -110,11 +104,11 @@ int encryptBlock(void * block,
  *        for streams.
  * @param result address to store the result at
  * @return -1 on failure, size of decrypted block on success
- **/
-int decryptBlock(SESSIONKEY * sessionkey, 
-		 void * block,
+ */
+int decryptBlock(const SESSIONKEY * sessionkey, 
+		 const void * block,
 		 unsigned short size,
-		 unsigned char * iv,
+		 const unsigned char * iv,
 		 void * result) {
   int outlen = 0;
   EVP_CIPHER_CTX ctx;
@@ -130,8 +124,7 @@ int decryptBlock(SESSIONKEY * sessionkey,
 			     &outlen,
 			     block, 
 			     size)) {
-    LOG(LOG_FAILURE,
-	"FAILURE: symcipher.c-decryptBlock: EVP_DecryptUpdate failed!\n");
+    BREAK();
     return -1;
   }
 #else
@@ -145,8 +138,7 @@ int decryptBlock(SESSIONKEY * sessionkey,
   outlen = 0; 
 #if SSL_MICRO >= 6
   if (0 == EVP_DecryptFinal(&ctx, &((unsigned char*)result)[size], &outlen)) {
-    LOG(LOG_FAILURE,
-	"FAILURE: symcipher.c-decryptBlock: EVP_DecryptFinal failed!\n");
+    BREAK();
     return -1;
   }
 #else

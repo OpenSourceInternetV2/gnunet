@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -90,7 +90,7 @@
  *
  *    <pre>
  *    # mysql -u $USER
- *    mysql> use gnunet
+ *    mysql> use gnunet;
  *    </pre>
  *    
  *    If you get the message &quot;Database changed&quot; it probably works.
@@ -136,7 +136,7 @@
  * is that mysql is basically operational, that you can connect 
  * to it, create tables, issue queries etc.
  *
- **/
+ */
 
 #include "high_backend.h"
 #include "platform.h"
@@ -161,12 +161,31 @@
      UNIQUE KEY `unique_name` (`name`(32))
    ) TYPE=MyISAM
  *
- **/
+ */
 #define TRACK_3HASH_QUERIES NO
+
+
+
+/**
+ * Die with an error message that indicates
+ * a failure of the command 'cmd' with the message given
+ * by strerror(errno).
+ */
+#define DIE_MYSQL(cmd, dbh) do { errexit(_("'%s' failed at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, mysql_error(dbh->dbf)); } while(0);
+
+/**
+ * Log an error message at log-level 'level' that indicates
+ * a failure of the command 'cmd' on file 'filename'
+ * with the message given by strerror(errno).
+ */
+#define LOG_MYSQL(level, cmd, dbh) do { LOG(level, _("'%s' failed at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, mysql_error(dbh->dbf)); } while(0);
+
+
+
 
 /**
  * @brief mysql wrapper
- **/
+ */
 typedef struct {
   MYSQL * dbf; 
   unsigned int i;	   /* database index */
@@ -180,7 +199,7 @@ typedef struct {
 /**
  * @param i index of the database
  * @param n total number of databases
- **/
+ */
 HighDBHandle initContentDatabase(unsigned int i,
 				 unsigned int n) {
   MYSQL_RES * sql_res;
@@ -189,22 +208,22 @@ HighDBHandle initContentDatabase(unsigned int i,
   char * cnffile;
   FILE * fp;
   struct passwd * pw;
+  size_t nX;
 
   /* verify that .my.cnf can be found */
   pw = getpwuid(getuid());
-  if(!pw) {
-    errexit("FATAL: getpwuid(uid=%d) returned NULL\n",
-    	    getuid());
-  }
-  cnffile = MALLOC(strlen(pw->pw_dir)+1024);
-  sprintf(cnffile, "%s/.my.cnf", pw->pw_dir);
+  if(!pw) 
+    DIE_STRERROR("getpwuid");
+  nX = strlen(pw->pw_dir)+1024;
+  cnffile = MALLOC(nX);
+  SNPRINTF(cnffile, nX, "%s/.my.cnf", pw->pw_dir);
   LOG(LOG_DEBUG, 
-      "DEBUG: Trying to use %s as .my.cnf\n",
+      _("Trying to use file '%s' for MySQL configuration.\n"),
       cnffile);
   fp = FOPEN(cnffile, "r");
-  if(!fp) {
-    errexit("FATAL: Unable to open %s\n",
-             cnffile);
+  if (!fp) {
+    LOG_FILE_STRERROR(LOG_ERROR, "fopen", cnffile);
+    return NULL;
   } else {
     fclose(fp);
   }
@@ -215,7 +234,7 @@ HighDBHandle initContentDatabase(unsigned int i,
   dbh->n = n;
   if(dbh->dbf == NULL) {
     LOG(LOG_ERROR, 
-	"ERROR: Unable to init MySQL\n");
+	_("Unable to initialize MySQL.\n"));
     FREE(dbh);
     return NULL;
   }
@@ -241,34 +260,35 @@ HighDBHandle initContentDatabase(unsigned int i,
 		     NULL,
 		     0);
   if (mysql_error(dbh->dbf)[0]) {
-    LOG(LOG_ERROR, 
-	"ERROR: %s\n", 
-	mysql_error(dbh->dbf));
+    LOG_MYSQL(LOG_ERROR, 
+	      "mysql_real_connect",
+	      dbh);
     FREE(dbh);
     return NULL;
   }    
 
   scratch = MALLOC(1024);
-  sprintf(scratch,
-  	  "CREATE TABLE IF NOT EXISTS data%uof%u ("
-	  "  hash tinyblob NOT NULL default'',"
-	  "  priority int(11) NOT NULL default 0,"
-	  "  type tinyint NOT NULL default 0,"
-	  "  fileIndex smallint NOT NULL default 0,"
-	  "  fileOffset int(11) NOT NULL default 0,"
-	  "  doubleHash tinyblob NOT NULL default '',"
-	  "  content mediumblob NOT NULL default '',"
-	  "  PRIMARY KEY (hash(20)),"
-	  "  KEY priority (priority)"
-	  ") TYPE=MyISAM",
-	  dbh->n,
-	  dbh->i);
+  SNPRINTF(scratch,
+	   1024,
+	   "CREATE TABLE IF NOT EXISTS data%uof%u ("
+	   "  hash tinyblob NOT NULL default'',"
+	   "  priority int(11) NOT NULL default 0,"
+	   "  type tinyint NOT NULL default 0,"
+	   "  fileIndex smallint NOT NULL default 0,"
+	   "  fileOffset int(11) NOT NULL default 0,"
+	   "  doubleHash tinyblob NOT NULL default '',"
+	   "  content mediumblob NOT NULL default '',"
+	   "  PRIMARY KEY (hash(20)),"
+	   "  KEY priority (priority)"
+	   ") TYPE=MyISAM",
+	   dbh->n,
+	   dbh->i);
   mysql_query(dbh->dbf,
   	      scratch);
   if (mysql_error(dbh->dbf)[0]) {
-    LOG(LOG_ERROR, 
-	"ERROR: %s\n", 
-	mysql_error(dbh->dbf));
+    LOG_MYSQL(LOG_ERROR, 
+	      "mysql_query",
+	      dbh);
     FREE(dbh);
     FREE(scratch);
     return NULL;
@@ -277,16 +297,18 @@ HighDBHandle initContentDatabase(unsigned int i,
 
   /* Find out which column contains the avg row length field and assume
    * that mysqld always gives it in the same order across calls :) */
-  sprintf(scratch, "SHOW TABLE STATUS FROM gnunet LIKE 'data%uof%u'",
-          dbh->n,
-	  dbh->i);
+  SNPRINTF(scratch, 
+	   1024,
+	   "SHOW TABLE STATUS FROM gnunet LIKE 'data%uof%u'",
+	   dbh->n,
+	   dbh->i);
   mysql_query(dbh->dbf,
   	      scratch);
   FREE(scratch);
   if (mysql_error(dbh->dbf)[0]) {
-    LOG(LOG_ERROR, 
-	"ERROR: %s\n", 
-	mysql_error(dbh->dbf));
+    LOG_MYSQL(LOG_ERROR, 
+	      "mysql_query",
+	      dbh);
     FREE(dbh);
     return NULL;
   }
@@ -306,12 +328,11 @@ HighDBHandle initContentDatabase(unsigned int i,
 	break;
       }
     }
-    if (dbh->avgLength_ID == -1)
-      errexit("FATAL: could not find row avg_row_length\n");
+    GNUNET_ASSERT(dbh->avgLength_ID != -1);
     mysql_free_result(sql_res);
-    if(found == NO) {
-      LOG(LOG_ERROR, 
-      	  "ERROR: mysql Avg_row_length not found in SHOW TABLE STATUS\n");
+    if (found == NO) {
+      BREAK();
+      /* avg_row_length not found in SHOW TABLE STATUS */
       FREE(dbh);
       return NULL;
     }
@@ -324,7 +345,7 @@ HighDBHandle initContentDatabase(unsigned int i,
  * Normal shutdown of the storage module
  *
  * @param handle the database
- **/
+ */
 void doneContentDatabase(HighDBHandle handle) {
   mysqlHandle * dbh = handle;
  
@@ -342,7 +363,7 @@ void doneContentDatabase(HighDBHandle handle) {
  * @param callback the callback method
  * @param data second argument to all callback calls
  * @return the number of items stored in the content database
- **/
+ */
 int forEachEntryInDatabase(HighDBHandle handle,
  		           EntryCallback callback,
 	    	           void * data) {
@@ -357,18 +378,17 @@ int forEachEntryInDatabase(HighDBHandle handle,
 
   MUTEX_LOCK(&dbh->DATABASE_Lock_);
   scratch = MALLOC(256);
-  sprintf(scratch,
-  	  "SELECT content,type,priority,doubleHash,fileOffset,fileIndex,hash "
-	  "FROM data%uof%u",
-	  dbh->n,
-	  dbh->i);
+  SNPRINTF(scratch,
+	   256,
+	   "SELECT content,type,priority,doubleHash,fileOffset,fileIndex,hash "
+	   "FROM data%uof%u",
+	   dbh->n,
+	   dbh->i);
   mysql_query(dbh->dbf, 
 	      scratch);
   FREE(scratch);
   if (mysql_error(dbh->dbf)[0]) {
-    LOG(LOG_ERROR, 
-	"ERROR: %s\n", 
-	mysql_error(dbh->dbf));
+    LOG_MYSQL(LOG_ERROR, "mysql_query", dbh);
     MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
     return(SYSERR);
   }
@@ -420,7 +440,7 @@ int forEachEntryInDatabase(HighDBHandle handle,
  *
  * @param handle the database
  * @return the number of entries
- **/
+ */
 int countContentEntries(HighDBHandle handle) {
   mysqlHandle * dbh = handle;
   MYSQL_RES * sql_res;
@@ -430,10 +450,11 @@ int countContentEntries(HighDBHandle handle) {
 
   MUTEX_LOCK(&dbh->DATABASE_Lock_);
   scratch = MALLOC(128);
-  sprintf(scratch, 
-          "SELECT count(*) FROM data%uof%u",
-	  dbh->n,
-  	  dbh->i);
+  SNPRINTF(scratch, 
+	   128,
+	   "SELECT count(*) FROM data%uof%u",
+	   dbh->n,
+	   dbh->i);
   mysql_query(dbh->dbf,
   	      scratch);
   FREE(scratch);
@@ -462,9 +483,9 @@ int countContentEntries(HighDBHandle handle) {
  * @param prio by how much should the priority of the content be changed
  *           (if it is found)
  * @return the number of bytes read on success, -1 on failure
- **/ 
+ */ 
 int readContent(HighDBHandle handle,
-		HashCode160 * query,
+		const HashCode160 * query,
 	        ContentIndex * ce,
 	        void ** result,
 		int prio) {
@@ -481,18 +502,17 @@ int readContent(HighDBHandle handle,
 		      (char *)query, 
 		      sizeof(HashCode160));
   scratch = MALLOC(256);
-  sprintf(scratch, 
-	  "SELECT content,type,priority,doubleHash,fileOffset,fileIndex "
-	  "FROM data%uof%u WHERE hash='%s'",
-	  dbh->n,
-          dbh->i,
-	  escapedHash);
+  SNPRINTF(scratch, 
+	   256,
+	   "SELECT content,type,priority,doubleHash,fileOffset,fileIndex "
+	   "FROM data%uof%u WHERE hash='%s'",
+	   dbh->n,
+	   dbh->i,
+	   escapedHash);
   mysql_query(dbh->dbf, 
 	      scratch);
   if (mysql_error(dbh->dbf)[0]) {
-    LOG(LOG_ERROR, 
-	"ERROR2: %s\n",
-	mysql_error(dbh->dbf));
+    LOG_MYSQL(LOG_ERROR, "mysql_query", dbh);
     FREE(escapedHash);
     FREE(scratch);
     MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
@@ -500,9 +520,7 @@ int readContent(HighDBHandle handle,
   }
 
   if (!(sql_res=mysql_store_result(dbh->dbf))) {
-    LOG(LOG_ERROR, 
-	"ERROR3: %s\n",
-	mysql_error(dbh->dbf));
+    LOG_MYSQL(LOG_ERROR, "mysql_store_result", dbh);
     MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
     FREE(escapedHash);
     FREE(scratch);
@@ -550,19 +568,22 @@ int readContent(HighDBHandle handle,
 
     hash2hex(query,
 	     &hex);
-    sprintf(scratch, "UPDATE dictionary SET hits=hits+1 WHERE hash='%s'",
-		     (char*)&hex);
+    SNPRINTF(scratch,
+	     256,
+	     "UPDATE dictionary SET hits=hits+1 WHERE hash='%s'",
+	     (char*)&hex);
     mysql_query(dbh->dbf,scratch);
   }
 #endif
 
   if (prio != 0) {
-    sprintf(scratch, 
-	    "UPDATE data%uof%u SET priority=priority+%d WHERE hash='%s'",
-	    dbh->n,
-    	    dbh->i,
-	    prio,
-	    escapedHash);
+    SNPRINTF(scratch, 
+	     256,
+	     "UPDATE data%uof%u SET priority=priority+%d WHERE hash='%s'",
+	     dbh->n,
+	     dbh->i,
+	     prio,
+	     escapedHash);
     mysql_query(dbh->dbf,scratch); 
   }
 
@@ -587,11 +608,11 @@ int readContent(HighDBHandle handle,
  * @param len the size of the block
  * @param block the data to store
  * @return SYSERR on error, OK if ok.
- **/
+ */
 int writeContent(HighDBHandle handle,
-		 ContentIndex * ce,
+		 const ContentIndex * ce,
 		 unsigned int len,
-		 void * block) {
+		 const void * block) {
   mysqlHandle * dbh = handle;
   HashCode160 tripleHash;
   char * doubleHash;
@@ -628,7 +649,7 @@ int writeContent(HighDBHandle handle,
 		      len);
   n = len*2+sizeof(HexName)*2+sizeof(HashCode160)*2+100+1;
   scratch = MALLOC(n);
-  snprintf(scratch, 
+  SNPRINTF(scratch, 
 	   n,
 	   "REPLACE %s INTO data%uof%u "
 	   "(content,hash,priority,fileOffset,fileIndex,doubleHash,type)"
@@ -649,9 +670,7 @@ int writeContent(HighDBHandle handle,
   FREE(escapedHash);
   FREENONNULL(doubleHash);
   if(mysql_error(dbh->dbf)[0]) {
-    LOG(LOG_ERROR, 
-	"ERROR1: %s\n", 
-	mysql_error(dbh->dbf));
+    LOG_MYSQL(LOG_ERROR, "mysql_query", dbh);
     MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
     return SYSERR;
   }
@@ -665,28 +684,30 @@ int writeContent(HighDBHandle handle,
  *
  * @param handle the database
  * @param name hashcode for the block to be deleted
- **/
+ */
 int unlinkFromDB(HighDBHandle handle,
-		 HashCode160 * name) {
+		 const HashCode160 * name) {
   mysqlHandle * dbh = handle;
   char * escapedHash;
   char * scratch;
+  size_t n;
 
   MUTEX_LOCK(&dbh->DATABASE_Lock_);
   escapedHash = MALLOC(2*sizeof(HashCode160)+1);
   mysql_escape_string(escapedHash, (char *)name, sizeof(HashCode160));
-  scratch=MALLOC(sizeof(HashCode160)*2+100+1);
-  sprintf(scratch, 
-	  "DELETE FROM data%uof%u WHERE hash='%s'",	
-	  dbh->n,
-	  dbh->i,
-  	  escapedHash);
+  n = sizeof(HashCode160)*2+100+1;
+  scratch=MALLOC(n);
+  SNPRINTF(scratch, 
+	   n,
+	   "DELETE FROM data%uof%u WHERE hash='%s'",	
+	   dbh->n,
+	   dbh->i,
+	   escapedHash);
   mysql_query(dbh->dbf,scratch);
   FREE(escapedHash);
   FREE(scratch);
   if(mysql_error(dbh->dbf)[0]) {
-    LOG(LOG_ERROR, 
-	"ERROR: %s\n", mysql_error(dbh->dbf));
+    LOG_MYSQL(LOG_ERROR, "mysql_query", dbh);
     MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
     return SYSERR;
   }
@@ -703,7 +724,7 @@ int unlinkFromDB(HighDBHandle handle,
  * @param handle the database
  * @param ce the meta-data of the random content (set)
  * @return OK on success, SYSERR on error
- **/
+ */
 int getRandomContent(HighDBHandle handle,
                      ContentIndex * ce) {
   mysqlHandle * dbh = handle;
@@ -714,6 +735,7 @@ int getRandomContent(HighDBHandle handle,
   char * scratch;
   int i;
   int found;
+  size_t n;
 #if DEBUG_TIME_MYSQL
   cron_t startTime;
   cron_t endTime;
@@ -727,13 +749,15 @@ int getRandomContent(HighDBHandle handle,
   MUTEX_LOCK(&dbh->DATABASE_Lock_);
   hash = MALLOC(sizeof(HashCode160));
   escapedHash = MALLOC(2*sizeof(HashCode160)+1);
-  scratch = MALLOC(2*sizeof(HashCode160)+256+1);
+  n = 2*sizeof(HashCode160)+256+1;
+  scratch = MALLOC(n);
 
   found = NO;
   for (i=0;i<sizeof(HashCode160);i++)
     hash[i] = randomi(256);
   mysql_escape_string(escapedHash, hash, sizeof(HashCode160));
-  sprintf(scratch,
+  SNPRINTF(scratch,
+	  n,
           "SELECT hash,type,priority,fileOffset,fileIndex "
           "FROM data%uof%u "
           "WHERE hash >= '%s' "
@@ -746,9 +770,7 @@ int getRandomContent(HighDBHandle handle,
           LOOKUP_TYPE_CHKS);
   mysql_query(dbh->dbf, scratch);
   if(mysql_error(dbh->dbf)[0]) {
-    LOG(LOG_ERROR,
-        "ERROR: %s\n",
-        mysql_error(dbh->dbf));
+    LOG_MYSQL(LOG_ERROR, "mysql_query", dbh);
     FREE(scratch);
     FREE(escapedHash);
     FREE(hash);
@@ -756,9 +778,7 @@ int getRandomContent(HighDBHandle handle,
     return SYSERR;
   }
   if(!(sql_res=mysql_store_result(dbh->dbf))) {
-    LOG(LOG_ERROR,
-        "ERROR: %s\n",
-        mysql_error(dbh->dbf));
+    LOG_MYSQL(LOG_ERROR, "mysql_store_result", dbh);
     FREE(scratch);
     FREE(escapedHash);
     FREE(hash);
@@ -767,21 +787,20 @@ int getRandomContent(HighDBHandle handle,
   }
   if (mysql_num_rows(sql_res)==0) {
     mysql_free_result(sql_res);
-    sprintf(scratch,
-            "SELECT hash,type,priority,fileOffset,fileIndex "
-            "FROM data%uof%u "
-            "WHERE hash >= '' "
-            "AND (type = %d OR type = %d) "
-            "LIMIT 1",
-            dbh->n,
-            dbh->i,
-            LOOKUP_TYPE_CHK,
-            LOOKUP_TYPE_CHKS);
+    SNPRINTF(scratch,
+	     n,
+	     "SELECT hash,type,priority,fileOffset,fileIndex "
+	     "FROM data%uof%u "
+	     "WHERE hash >= '' "
+	     "AND (type = %d OR type = %d) "
+	     "LIMIT 1",
+	     dbh->n,
+	     dbh->i,
+	     LOOKUP_TYPE_CHK,
+	     LOOKUP_TYPE_CHKS);
     mysql_query(dbh->dbf, scratch);
     if(mysql_error(dbh->dbf)[0]) {
-      LOG(LOG_ERROR,
-          "ERROR: %s\n",
-          mysql_error(dbh->dbf));
+      LOG_MYSQL(LOG_ERROR, "mysql_query", dbh);
       FREE(scratch);
       FREE(escapedHash);
       FREE(hash);
@@ -789,9 +808,7 @@ int getRandomContent(HighDBHandle handle,
       return SYSERR;
     }
     if(!(sql_res=mysql_store_result(dbh->dbf))) {
-      LOG(LOG_ERROR,
-          "ERROR: %s\n",
-          mysql_error(dbh->dbf));
+      LOG_MYSQL(LOG_ERROR, "mysql_store_result", dbh);
       FREE(scratch);
       FREE(escapedHash);
       FREE(hash);
@@ -801,9 +818,7 @@ int getRandomContent(HighDBHandle handle,
   }
   if(mysql_num_rows(sql_res)>0) {
     if(!(sql_row=mysql_fetch_row(sql_res))) {
-      LOG(LOG_ERROR,
-          "ERROR: %s\n",
-          mysql_error(dbh->dbf));
+      LOG_MYSQL(LOG_ERROR, "mysql_num_rows", dbh);
       FREE(scratch);
       FREE(escapedHash);
       FREE(hash);
@@ -830,162 +845,27 @@ int getRandomContent(HighDBHandle handle,
   
 #if DEBUG_TIME_MYSQL
   cronTime(&endTime);
-  spentTime=spentTime + (endTime-startTime);
+  spentTime = spentTime + (endTime-startTime);
   LOG(LOG_DEBUG, 
-      "DEBUG: Routine1 spent total %lld / %d calls\n", spentTime, calls);
+      "Spent total %lldms / %d calls\n", spentTime, calls);
 #endif 
   
   if(found==YES) {
     return OK;
   } else {
     LOG(LOG_DEBUG,
-        "DEBUG: MySQL random didn't find anything!\n");
+        "'%s' did not find anything!\n",
+	__FUNCTION__);
     return SYSERR;
   }
 }
-
-#if 0
-/**
- * This function tries to efficiently get a random hash entry from 
- * the database by restricting the search with a randomized prefix.
- * The prefix length is started from the value where we can expect
- * to get 1 result. If we don't get that, the prefix length is
- * decremented, growing the expected number of results.
- *
- * This is the version that was used in 0.6.0a and previously.
- * 
- * FIXME: The way to calculate the initial prefix len might be 
- * suboptimal (but seems to work in practice)
- *
- * @param handle the database
- * @param ce the meta-data of the random content (set)
- * @return OK on success, SYSERR on error
- **/
-int getRandomContent(HighDBHandle handle,
-		     ContentIndex * ce) {
-  mysqlHandle * dbh = handle;
-  MYSQL_RES * sql_res;
-  MYSQL_ROW sql_row;
-  char * escapedPrefix;
-  char * prefix;
-  char * scratch;
-  int entries;
-  int prefixlen;
-  int found;
-  int i;
-#if DEBUG_TIME_MYSQL
-  cron_t startTime;
-  cron_t endTime;
-  static cron_t spentTime=0;
-  static int calls = 0;
-
-  calls++;
-  cronTime(&startTime);
-#endif
-
-  MUTEX_LOCK(&dbh->DATABASE_Lock_);
-  entries = countContentEntries(handle);
-  prefixlen = (int)floor(log(entries)/(double)5.5452); /* 5.5452=log(256) */
-  if (prefixlen>sizeof(HashCode160))
-    prefixlen=sizeof(HashCode160);
-  prefix = MALLOC(sizeof(HashCode160));
-  escapedPrefix = MALLOC(2*sizeof(HashCode160)+1);
-  scratch = MALLOC(2*sizeof(HashCode160)+256+1);
-
-  found = NO;
-  while((found == NO) && prefixlen>=0) {
-    for (i=0;i<prefixlen;i++)
-      prefix[i] = randomi(256);
-    mysql_escape_string(escapedPrefix, prefix, prefixlen);
-
-    sprintf(scratch, 
-	    "SELECT hash,type,priority,fileOffset,fileIndex " 
-	    "FROM data%uof%u "
-	    "WHERE hash LIKE '%s%%' "
-	    "AND (type = %d OR type = %d) "
-	    "ORDER BY RAND() LIMIT 1",
-	    dbh->n,
-    	    dbh->i,
-	    escapedPrefix,
-	    LOOKUP_TYPE_CHK,
-	    LOOKUP_TYPE_CHKS);
-    mysql_query(dbh->dbf, scratch);
-    if(mysql_error(dbh->dbf)[0]) {
-      LOG(LOG_ERROR, 
-  	  "ERROR: %s\n", 
-	  mysql_error(dbh->dbf));
-      FREE(prefix);
-      FREE(scratch);
-      FREE(escapedPrefix);
-      MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
-      return SYSERR;
-    }
-    if(!(sql_res=mysql_store_result(dbh->dbf))) {
-      LOG(LOG_ERROR, 
-  	  "ERROR: %s\n",
-	  mysql_error(dbh->dbf));
-      FREE(prefix);
-      FREE(scratch);
-      FREE(escapedPrefix);
-      MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
-      return SYSERR;
-    }
-    if(mysql_num_rows(sql_res)==0) {
-      mysql_free_result(sql_res);
-      prefixlen--;
-      continue;
-    }
-    if(!(sql_row=mysql_fetch_row(sql_res))) {
-      LOG(LOG_ERROR, 
-  	  "ERROR: %s\n", 
-	  mysql_error(dbh->dbf));
-      FREE(prefix);
-      FREE(scratch);
-      FREE(escapedPrefix);
-      mysql_free_result(sql_res);
-      MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
-      return SYSERR;
-    }
-    memcpy(&ce->hash,
-    	   sql_row[0],
-	   sizeof(HashCode160));
-    ce->type = htons(atol(sql_row[1]));
-    ce->importance = htonl(atol(sql_row[2]));
-    ce->fileOffset = htonl(atol(sql_row[3]));
-    ce->fileNameIndex = htons(atol(sql_row[4]));
-    found = YES;
-    mysql_free_result(sql_res);
-  }
-
-  FREE(escapedPrefix);
-  FREE(prefix);
-  FREE(scratch);
- 
-  MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
-  
-#if DEBUG_TIME_MYSQL
-  cronTime(&endTime);
-  spentTime=spentTime + (endTime-startTime);
-  LOG(LOG_DEBUG, 
-      "DEBUG: Routine0 spent total %lld / %d calls\n", spentTime, calls);
-#endif
-
-  if(found==YES) {
-    return OK;
-  } else {
-    LOG(LOG_DEBUG, 
-	"DEBUG: MySQL random didn't find anything!\n");
-    return SYSERR;
-  }
-}
-#endif
 
 /**
  * Get the lowest priority value of all content in the store.
  *
  * @param handle the database
  * @return the lowest priority
- **/
+ */
 unsigned int getMinimumPriority(HighDBHandle handle) {
   mysqlHandle * dbh = handle;
   MYSQL_RES * sql_res;
@@ -996,10 +876,11 @@ unsigned int getMinimumPriority(HighDBHandle handle) {
   MUTEX_LOCK(&dbh->DATABASE_Lock_);
   scratch = MALLOC(256);
  
-  sprintf(scratch, 
-	  "SELECT MIN(priority) FROM data%uof%u",
-	  dbh->n,
-	  dbh->i);
+  SNPRINTF(scratch, 
+	   256,
+	   "SELECT MIN(priority) FROM data%uof%u",
+	   dbh->n,
+	   dbh->i);
   mysql_query(dbh->dbf, scratch);
   FREE(scratch);
   if (!(sql_res=mysql_store_result(dbh->dbf))) {
@@ -1027,7 +908,7 @@ unsigned int getMinimumPriority(HighDBHandle handle) {
  * @param callback method to call on each deleted entry
  * @param closure extra argument to callback
  * @return OK on success, SYSERR on error
- **/
+ */
 int deleteContent(HighDBHandle handle,
 		  unsigned int count,
 		  EntryCallback callback,
@@ -1045,26 +926,23 @@ int deleteContent(HighDBHandle handle,
   scratch = MALLOC(256);
  
   /* Collect hashes to delete */
-  sprintf(scratch, 
-	  "SELECT hash FROM data%uof%u "
-	  "ORDER BY priority ASC LIMIT %d",
-	  dbh->n,
-	  dbh->i,
-  	  count);
+  SNPRINTF(scratch, 
+	   256,
+	   "SELECT hash FROM data%uof%u "
+	   "ORDER BY priority ASC LIMIT %d",
+	   dbh->n,
+	   dbh->i,
+	   count);
   mysql_query(dbh->dbf, scratch);
   if (mysql_error(dbh->dbf)[0]) {
-    LOG(LOG_ERROR, 
-        "ERROR: %s\n",
-	mysql_error(dbh->dbf));
+    LOG_MYSQL(LOG_ERROR, "mysql_query", dbh);
     FREE(scratch);
     MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
     return SYSERR;
   }
   if (!(sql_res=mysql_use_result(dbh->dbf))) {
     FREE(scratch);
-    LOG(LOG_ERROR, 
-        "ERROR: %s\n", 
-	mysql_error(dbh->dbf));
+    LOG_MYSQL(LOG_ERROR, "mysql_use_result", dbh);
     MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
     return SYSERR;
   }
@@ -1092,28 +970,30 @@ int deleteContent(HighDBHandle handle,
 		       &ce,
 		       &data,
 		       0);
-    if (dlen >= 0) 
-      if (callback != NULL)
+    if (dlen >= 0) {
+      if (callback != NULL) {
 	callback(&deleteThese[i],
 		 &ce,
 		 data,
 		 dlen,
 		 closure);
-    FREENONNULL(data);
+      } else {
+	FREENONNULL(data);
+      }
+    }
 
     mysql_escape_string(escapedHash, 	
                         (char *)&deleteThese[i],
 			sizeof(HashCode160));
-    sprintf(scratch, 
-	    "DELETE FROM data%uof%u WHERE hash='%s'",
-	    dbh->n,
-	    dbh->i,
-    	    escapedHash);
+    SNPRINTF(scratch, 
+	     256,
+	     "DELETE FROM data%uof%u WHERE hash='%s'",
+	     dbh->n,
+	     dbh->i,
+	     escapedHash);
     mysql_query(dbh->dbf,scratch);
     if(mysql_error(dbh->dbf)[0])
-      LOG(LOG_ERROR, 
-          "ERROR: %s\n",
-	  mysql_error(dbh->dbf));
+      LOG_MYSQL(LOG_ERROR, "mysql_query", dbh);
   }
     
   FREE(escapedHash);  
@@ -1139,7 +1019,7 @@ int deleteContent(HighDBHandle handle,
  * @param handle the database
  * @param quota the number of kb available for the DB
  * @return number of blocks left
- **/ 
+ */ 
 int estimateAvailableBlocks(HighDBHandle handle,
 			    unsigned int quota) {
   mysqlHandle * dbh = handle;
@@ -1155,7 +1035,7 @@ int estimateAvailableBlocks(HighDBHandle handle,
   /* find out average row length in bytes */
   /* FIXME: probably unnecessary to check avg row length every time */
   scratch = MALLOC(512);
-  snprintf(scratch, 
+  SNPRINTF(scratch, 
 	   512,
 	   "SHOW TABLE STATUS FROM gnunet LIKE 'data%uof%u'",
 	   dbh->n,
@@ -1163,12 +1043,9 @@ int estimateAvailableBlocks(HighDBHandle handle,
   mysql_query(dbh->dbf,
   	      scratch);
   if (mysql_error(dbh->dbf)[0]) {
-    LOG(LOG_ERROR, 
-	"ERROR: %s\n", 
-	mysql_error(dbh->dbf));
+    DIE_MYSQL("mysql_query", dbh); /* this MUST not fail... */
     MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
     FREE(scratch);
-    errexit("FATAL: estimateAvailableBlocks() is not allowed to fail\n");
     return SYSERR;	/* shouldn't get here */
   }
   if ((sql_res=mysql_store_result(dbh->dbf))) {
@@ -1176,24 +1053,14 @@ int estimateAvailableBlocks(HighDBHandle handle,
     sql_row = mysql_fetch_row(sql_res);
     if (sql_row == NULL) {
       LOG(LOG_ERROR, 
-	  "ERROR: query %s had no results.\n", 
+	  _("Query '%s' had no results.\n"), 
 	  scratch);
       FREE(scratch);
-      errexit("FATAL: estimateAvailableBlocks() is not allowed to fail\n");
+      GNUNET_ASSERT(0); /* not allowed to fail*/
       return SYSERR;	/* shouldn't get here */
     }
-    if ( (dbh->avgLength_ID >= rows) ||
-	 (dbh->avgLength_ID < 0) ) {
-      mysql_free_result(sql_res);
-      LOG(LOG_ERROR, 
-	  "ERROR: query %s had %d rows, expected > %d.\n", 
-	  scratch,
-	  rows,
-	  dbh->avgLength_ID);
-      FREE(scratch);
-      errexit("FATAL: estimateAvailableBlocks() is not allowed to fail\n");
-      return SYSERR;	/* shouldn't get here */    
-    }    
+    GNUNET_ASSERT( (dbh->avgLength_ID < rows) &&
+ 	           (dbh->avgLength_ID >= 0) ); 
     if (sql_row[dbh->avgLength_ID] != NULL) 
       avgRowLen = atoll(sql_row[dbh->avgLength_ID]);
     else
@@ -1201,15 +1068,9 @@ int estimateAvailableBlocks(HighDBHandle handle,
     
     mysql_free_result(sql_res);
   }
-  if (avgRowLen<0) {
-    MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
-    FREE(scratch);
-    errexit("FATAL: mysql claimed avgRowLen<0 (or failed)");
-    return SYSERR;
-  }
- 
+  GNUNET_ASSERT(avgRowLen >= 0);
   /* find number of entries (rows) */
-  snprintf(scratch, 
+  SNPRINTF(scratch, 
 	   512,
 	   "SELECT count(*) FROM data%uof%u",
 	   dbh->n,
@@ -1217,20 +1078,12 @@ int estimateAvailableBlocks(HighDBHandle handle,
   mysql_query(dbh->dbf,
   	      scratch);
   FREE(scratch);
-  if (!(sql_res=mysql_store_result(dbh->dbf))) {
-    MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
-    errexit("FATAL: estimateAvailableBlocks() is not allowed to fail(2)\n");
-    return(SYSERR);
-  }
+  if (!(sql_res=mysql_store_result(dbh->dbf))) 
+    DIE_MYSQL("mysql_store_result", dbh);
 
   if ((sql_row=mysql_fetch_row(sql_res))) {
     int cols = mysql_num_fields(sql_res);
-    if (cols <= 0) {
-      errexit("FATAL: Query \"SELECT count(*) FROM data%uof%u\" returned %d as the length of the result column\n",
-	      dbh->n,
-	      dbh->i,
-	      cols);
-    }
+    GNUNET_ASSERT(cols > 0);
     if (sql_row[0] != NULL)
       rowsInTable = atoll(sql_row[0]);
     else
@@ -1244,7 +1097,7 @@ int estimateAvailableBlocks(HighDBHandle handle,
 
 #if DEBUG_MYSQL
   LOG(LOG_DEBUG, 
-      "DEBUG: estimateContentAvailable (q=%d,u=%ud,rem=%d)\n",
+      "estimateContentAvailable (q=%d,u=%ud,rem=%d)\n",
       quota,
       kbUsed,
       quota-kbUsed);
@@ -1257,17 +1110,18 @@ int estimateAvailableBlocks(HighDBHandle handle,
  * Close and delete the database.
  *
  * @param handle the database
- **/
+ */
 void deleteDatabase(HighDBHandle handle) {
   mysqlHandle * dbh = handle;
   char * scratch;
   
   MUTEX_DESTROY(&dbh->DATABASE_Lock_);
   scratch = MALLOC(128);
-  sprintf(scratch,
-  	  "DROP TABLE data%uof%u", 
-	  dbh->n,
-	  dbh->i);
+  SNPRINTF(scratch,
+	   128,
+	   "DROP TABLE data%uof%u", 
+	   dbh->n,
+	   dbh->i);
   mysql_query(dbh->dbf,
   	      scratch);
   FREE(scratch);

@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -23,7 +23,7 @@
  * @brief This module is responsible to manage content, in particular 
  *        it needs to decide what content to keep.
  * @author Christian Grothoff
- **/
+ */
 
 #include "manager.h"
 #include "high_backend.h"
@@ -41,21 +41,21 @@
  * Entry length that indicates that the entry
  * was too large for the usual DB and has been
  * stored in a separate file instead.
- **/
+ */
 #define VERY_LARGE_FILE 42
 
 /**
  * How large is very large? (number of ContentEntries)
  * Mysql seems to have some limit at 16k, so let's pick 15 to
  * be on the good side for sure.
- **/
+ */
 #define VERY_LARGE_SIZE 15
 
 #define VLS_DIR "large"
 
 #define DB_DIRTY_AVAILABLE INT_MIN
 
-#define TRACK_INDEXED_FILES YES
+#define TRACK_INDEXED_FILES NO 
 #define TRACKFILE "indexed_requests.txt"
 
 /* ********************* GLOBALS ***************** */
@@ -64,29 +64,29 @@
 /**
  * The current base value for fresh content (used to time-out old
  * content).
- **/
+ */
 static int MANAGER_age;
 
 /**
  * Is active migration allowed? This is about us receiving
  * data from the network, actively pushing content out is
  * always ok.
- **/
+ */
 static int useActiveMigration;
 
 /**
  * Global database handle
- **/
+ */
 static DatabaseAPI * dbAPI = NULL;
 
 /**
  * Large file handling.
- **/
+ */
 static LFS lfs;
 
 /**
  * Statistics handles
- **/
+ */
 static int stat_handle_lookup_3hash;
 static int stat_handle_lookup_sblock;
 static int stat_handle_lookup_chk;
@@ -98,18 +98,19 @@ static int stat_handle_spaceleft;
 
 /**
  * Open the AGE file and return the handle.
- **/
+ */
 static int getAgeFileHandle() {
   char * fileName;
   char * ef;
   int handle;
   
   LOG(LOG_CRON, 
-      "CRON: enter cronReduceImportance\n");
+      "Enter '%s'.\n",
+      __FUNCTION__);
   fileName = getFileName("AFS",
 			 "AFSDIR",
-			 "Configuration file must specify directory for"
-			 " storage of AFS data in section %s under %s.\n");
+			 _("Configuration file must specify directory for"
+			   " storage of AFS data in section '%s' under '%s'.\n"));
   ef = MALLOC(strlen(fileName) + 
 	      strlen(AGEFILE) +2);
   strcpy(ef, fileName);
@@ -120,10 +121,7 @@ static int getAgeFileHandle() {
 		O_CREAT|O_RDWR,
 		S_IRUSR|S_IWUSR);
   if (handle < 0) {
-    LOG(LOG_WARNING,
-	"Could not open agefile %s (%s)\n",
-	ef,
-	STRERROR(errno));
+    LOG_FILE_STRERROR(LOG_ERROR, "open", ef);
     FREE(ef);
     return SYSERR;
   }
@@ -134,12 +132,13 @@ static int getAgeFileHandle() {
 /**
  * Cron-job that decreases the importance-level of all
  * files by 1. Runs 'not very often'.
- **/
+ */
 static void cronReduceImportance(void * unused) {
   int handle;
     
   LOG(LOG_CRON, 
-      "CRON: enter cronReduceImportance\n");
+      "Enter '%s'.\n",
+      __FUNCTION__);
   handle = getAgeFileHandle();
   if (handle == SYSERR)
     return;
@@ -149,37 +148,36 @@ static void cronReduceImportance(void * unused) {
 	sizeof(int));
   CLOSE(handle);
   LOG(LOG_CRON, 
-      "CRON: exit cronReduceImportance\n");
+      "Exit '%s'.\n",
+      __FUNCTION__);
 }
 
 /**
  * Encode a block from a file on the drive, put the
  * result in the result buffer (allocate) and return
  * the size of the block.
- **/ 
-static int encodeOnDemand(ContentIndex * ce,
+ */ 
+static int encodeOnDemand(const ContentIndex * ce,
 			  CONTENT_Block ** result) {
   char * fn;
   int fileHandle;
   ssize_t blen;
   HashCode160 hc;
   CONTENT_Block * iobuf;
-  HexName hex;
+  EncName enc;
 
   /* on-demand encoding mechanism */
   fn = getIndexedFileName(ntohs(ce->fileNameIndex));
   if (fn == NULL) {
     LOG(LOG_FAILURE, 
-	"FAILURE: Database inconsistent! "
-	"(index points to invalid offset (%u)\n",
+	_("Database inconsistent! "
+	  "(index points to invalid offset (%u)\n"),
 	ntohs(ce->fileNameIndex));
     return SYSERR;
   }
   fileHandle = OPEN(fn, O_EXCL, S_IRUSR);
   if (fileHandle == -1) {
-    LOG(LOG_FAILURE, 
-	"FAILURE: Could not open file %s.\n",
-	fn);   
+    LOG_FILE_STRERROR(LOG_ERROR, "open", fn);
     FREE(fn);
     return SYSERR;
   }
@@ -192,11 +190,11 @@ static int encodeOnDemand(ContentIndex * ce,
   
     afsDir = getFileName("AFS",
 			 "AFSDIR",
-			 "Configuration file must specify directory for"
-			 " storage of AFS data in section %s under %s.\n");
+			 _("Configuration file must specify directory for"
+			   " storage of AFS data in section '%s' under '%s'.\n"));
     n = strlen(afsDir)+strlen(TRACKFILE)+8;
     scratch = MALLOC(n);
-    snprintf(scratch,
+    SNPRINTF(scratch,
 	     n,
 	     "%s/%s", afsDir, TRACKFILE);
     fp = FOPEN(scratch, "a");
@@ -209,14 +207,10 @@ static int encodeOnDemand(ContentIndex * ce,
     FREE(afsDir);
   }
 #endif
-  if((off_t)ntohl(ce->fileOffset) != lseek(fileHandle, 
-	                 ntohl(ce->fileOffset), 
-	                 SEEK_SET)) {
-    LOG(LOG_WARNING,
-    	"WARNING: unable to seek to %d in %s (%s)\n",
-	ntohl(ce->fileOffset),
-	fn,
-	STRERROR(errno));
+  if ((off_t)ntohl(ce->fileOffset) != lseek(fileHandle, 
+					   ntohl(ce->fileOffset), 
+					   SEEK_SET)) {
+    LOG_FILE_STRERROR(LOG_WARNING, "lseek", fn);
     FREE(fn);
     CLOSE(fileHandle);
     return SYSERR;
@@ -226,14 +220,12 @@ static int encodeOnDemand(ContentIndex * ce,
 	      iobuf,
 	      sizeof(CONTENT_Block));
   if (blen <= 0) {
-    if(blen == 0)  
+    if(blen == 0)      
       LOG(LOG_WARNING,
-     	  "WARNING: read 0 bytes from %s\n",
-  	  fn);
+     	  _("Read 0 bytes from file '%s' at %s:%d.\n"),
+  	  fn, __FILE__, __LINE__);
     else
-      LOG(LOG_ERROR,
-	  "ERROR: could not read file (%s)\n",
-	  STRERROR(errno));
+      LOG_FILE_STRERROR(LOG_ERROR, "read", fn);
     FREE(fn);
     FREE(iobuf);
     CLOSE(fileHandle);
@@ -243,7 +235,7 @@ static int encodeOnDemand(ContentIndex * ce,
 	 0,
 	 sizeof(CONTENT_Block)-blen);
   LOG(LOG_DEBUG,
-      "DEBUG: read %u bytes from %s for on-demand encoding at %u\n",      
+      "Read %u bytes from %s for on-demand encoding at %u.\n",
       blen, 
       fn,
       ntohl(ce->fileOffset));
@@ -256,30 +248,30 @@ static int encodeOnDemand(ContentIndex * ce,
   if (SYSERR == encryptContent(iobuf,
 			       &hc,
 			       *result)) 
-    errexit("ERROR: encryption of content failed\n");
+    GNUNET_ASSERT(0);
 
   FREE(iobuf);
   IFLOG(LOG_DEBUG,
 	hash(*result,
 	     sizeof(CONTENT_Block),
 	     &hc);
-	hash2hex(&hc,
-		 &hex));
+	hash2enc(&hc,
+		 &enc));
   /*LOG(LOG_DEBUG,
-      "DEBUG: on-demand encoded content has query %s\n",
-      &hex);*/
+    " on-demand encoded content has query %s\n",
+    &enc);*/
   return sizeof(CONTENT_Block);
 }
 
 static void * bindDynamicMethod_(void * libhandle,
-				 char * methodprefix,
-				 char * dsoname) {
+				 const char * methodprefix,
+				 const char * dsoname) {
   void * ret;
   ret = bindDynamicMethod(libhandle,
 			  methodprefix,
-			  dsoname);
+			  dsoname);  
   if (ret == NULL)
-    errexit("Could not find method %s in database module %s.\n",
+    errexit(_("Could not find method '%s' in database module '%s'.\n"),
 	    methodprefix,
 	    dsoname);
   return ret;
@@ -288,16 +280,17 @@ static void * bindDynamicMethod_(void * libhandle,
 /**
  * Load the high-level database as specified by
  * the given dtype.
- **/
-DatabaseAPI * initializeDatabaseAPI(char * dtype) {
+ */
+DatabaseAPI * initializeDatabaseAPI(const char * dtype) {
   DatabaseAPI * dbAPI;
   char * odtype;
   int len;
   void * lib;
   unsigned int i;
-
+    
   if (dtype == NULL)
-    errexit("AFS/DATABASETYPE not specified in config\n");
+    errexit(_("You must specify the '%s' option in section '%s' in the configuration.\n"),
+	    "DATABASETYPE", "AFS");
   odtype = NULL;
   len = stateReadContent("AFS-DATABASETYPE",
 			 (void**)&odtype);
@@ -308,14 +301,14 @@ DatabaseAPI * initializeDatabaseAPI(char * dtype) {
   } else {
     if ( ((unsigned int)len != strlen(dtype)) ||
 	 (strncmp(dtype, odtype, len)) )
-      errexit("FATAL: AFS database type was changed, run gnunet-convert\n");
+      errexit(_("AFS database type was changed, run gnunet-convert.\n"));
   }
   FREENONNULL(odtype);
   dbAPI = MALLOC(sizeof(DatabaseAPI));
   lib = loadDynamicLibrary(DSO_PREFIX,
                            dtype);
   if (lib == NULL)
-    errexit("FATAL: could not load database library %s\n",
+    errexit(_("Failed to load database library '%s'.\n"),
 	    dtype);
   dbAPI->initContentDatabase    
     = bindDynamicMethod_(lib,
@@ -366,7 +359,6 @@ DatabaseAPI * initializeDatabaseAPI(char * dtype) {
 			 "",
 			 "deleteDatabase");
   dbAPI->dynamicLibrary = lib;
-  FREE(dtype);
   dbAPI->buckets
     = 4 * getConfigurationInt("AFS",
 			      "DISKQUOTA") / 1024; /* one bucket per 250 MB */
@@ -382,7 +374,7 @@ DatabaseAPI * initializeDatabaseAPI(char * dtype) {
 				   getConfigurationInt("AFS",
 						       "DISKQUOTA"));
     if (dbAPI->dbHandles[i] == NULL)
-      errexit("FATAL: failed to initialize AFS database %u\n", 
+      errexit(_("Failed to initialize AFS database %u.\n"), 
 	      i);
     dbAPI->dbAvailableBlocks[i]
       = DB_DIRTY_AVAILABLE; /* not yet initialized */
@@ -402,8 +394,8 @@ typedef struct IterState {
   PTHREAD_T db_iterator;
 } IterState;
 
-static void iterator_helper_callback(HashCode160 * key,
-				     ContentIndex * ce,
+static void iterator_helper_callback(const HashCode160 * key,
+				     const ContentIndex * ce,
 				     void * data,
 				     int dataLen,
 				     IterState * state) {
@@ -423,7 +415,7 @@ static void iterator_helper_callback(HashCode160 * key,
  * Thread that fetches the next entry from the database.
  * The thread is created by makeDatabaseIteratorState
  * and exits once we're through the database.
- **/
+ */
 static void * iterator_helper(IterState * state) {
   unsigned int i;
 
@@ -446,7 +438,7 @@ static void * iterator_helper(IterState * state) {
  * Create the state required for a database iterator.  Calling this
  * method requires to call databaseIterator with the state returned
  * until "SYSERR" is returned.
- **/
+ */
 void * makeDatabaseIteratorState() {
   IterState * ret;
 
@@ -457,9 +449,7 @@ void * makeDatabaseIteratorState() {
 			  (PThreadMain)&iterator_helper,
 			  ret,
 			  8 * 1024))
-    errexit("could not create helper thread in %s:%d\n",
-	    __FILE__, 
-	    __LINE__);
+    DIE_STRERROR("pthread_create");
   return ret;
 }
 
@@ -481,7 +471,7 @@ void * makeDatabaseIteratorState() {
  * @param datalen length of data (set)
  * @returns OK if the iterator has filled in another element
  *  from the database, SYSERR if there are no more elements
- **/
+ */
 int databaseIterator(void * state,
 		     HashCode160 * hc,
 		     ContentIndex * ce,
@@ -516,7 +506,7 @@ int databaseIterator(void * state,
 /**
  * calculates the global available space using
  * cached bucket availability estimates
- **/
+ */
 static int estimateGlobalAvailableBlocks() {
   unsigned int i;
   int ret = 0;
@@ -536,7 +526,7 @@ static int estimateGlobalAvailableBlocks() {
 
 /**
  * Initialize the manager-module.
- **/
+ */
 void initManager() {  
   int handle;
   int delta;
@@ -548,18 +538,19 @@ void initManager() {
   dtype = getConfigurationString("AFS",
   	 	 	         "DATABASETYPE");
   dbAPI = initializeDatabaseAPI(dtype);
+  FREE(dtype);
   stat_handle_lookup_sblock
-    = statHandle("# lookup (SBlock, search results)");
+    = statHandle(_("# lookup (SBlock, search results)"));
   stat_handle_lookup_3hash
-    = statHandle("# lookup (3HASH, search results)");
+    = statHandle(_("# lookup (3HASH, search results)"));
   stat_handle_lookup_chk
-    = statHandle("# lookup (CHK, inserted or migrated content)");
+    = statHandle(_("# lookup (CHK, inserted or migrated content)"));
   stat_handle_lookup_ondemand
-    = statHandle("# lookup (ONDEMAND, indexed content)");
+    = statHandle(_("# lookup (ONDEMAND, indexed content)"));
   stat_handle_lookup_notfound
-    = statHandle("# lookup (data not found)");
+    = statHandle(_("# lookup (data not found)"));
   stat_handle_spaceleft
-    = statHandle("# blocks AFS storage left (estimate)");
+    = statHandle(_("# blocks AFS storage left (estimate)"));
   handle = getAgeFileHandle();
   MANAGER_age = 0;
   if (handle != SYSERR) {
@@ -599,8 +590,8 @@ void initManager() {
 	  delta);
   afsdir = getFileName("AFS",
 		       "AFSDIR",
-		       "Configuration file must specify directory for storing AFS data"
-		       " in section %s under %s.\n");
+		       _("Configuration file must specify directory for storing AFS data"
+		       " in section '%s' under '%s'.\n"));
   dir = MALLOC(strlen(afsdir)+
 	       strlen(VLS_DIR)+2);
   strcpy(dir, afsdir);
@@ -613,7 +604,7 @@ void initManager() {
 
 /**
  * Shutdown the manager module.
- **/
+ */
 void doneManager() {
   unsigned int i;
 
@@ -635,8 +626,8 @@ void doneManager() {
  * to be quite random as we may want the to be...  So to get evenly
  * distributed indices, we have to be a bit tricky. And no, there is
  * high science but just a bit playing with the formula here.
- **/
-unsigned int computeBucket(HashCode160 * query,
+ */
+unsigned int computeBucket(const HashCode160 * query,
                            unsigned int maxBuckets) {
 
   HashCode160 qt;
@@ -651,13 +642,13 @@ unsigned int computeBucket(HashCode160 * query,
 /**
  * Use this, if initManager() has been executed and 
  * the global dbAPI has the correct bucket count
- **/
-unsigned int computeBucketGlobal(HashCode160 * query) {
+ */
+unsigned int computeBucketGlobal(const HashCode160 * query) {
   return computeBucket(query, 
 		       dbAPI->buckets);
 }
 
-static HighDBHandle * computeHighDB(HashCode160 * query) {
+static HighDBHandle * computeHighDB(const HashCode160 * query) {
   return dbAPI->dbHandles[computeBucket(query, 
                                         dbAPI->buckets)];
 }
@@ -676,8 +667,8 @@ static HighDBHandle * computeHighDB(HashCode160 * query) {
  *        be changed (if it is found)?
  * @param isLocal is the request a local request? (YES/NO)
  * @return the length of the resulting content, SYSERR on error
- **/
-int retrieveContent(HashCode160 * query,
+ */
+int retrieveContent(const HashCode160 * query,
 		    ContentIndex * ce,
 		    void ** result,
 		    unsigned int prio,
@@ -714,8 +705,7 @@ int retrieveContent(HashCode160 * query,
     }
   }
   if ( (ret % sizeof(CONTENT_Block)) != 0) {
-    LOG(LOG_ERROR,
-	"ERROR: retrieved content but size is not multiple of 1k!\n");
+    BREAK();
     FREE(*result);
     *result = NULL;
     return SYSERR;
@@ -738,7 +728,7 @@ int retrieveContent(HashCode160 * query,
       break;
     default:
       LOG(LOG_ERROR,
-	  "ERROR: manager got unexpected content type: %d\n",
+	  _("Manager got unexpected content type %d.\n"),
 	  ntohs(ce->type));
       break;
     }
@@ -746,7 +736,7 @@ int retrieveContent(HashCode160 * query,
   } 
   if (*result != NULL) {
     LOG(LOG_ERROR,
-	"ERROR: retrieved content but index says on-demand encoded!\n");
+	_("Retrieved content but index says on-demand encoded!\n"));
     FREE(*result);
     *result = NULL;
   }
@@ -755,8 +745,8 @@ int retrieveContent(HashCode160 * query,
 			(CONTENT_Block**)result);
 }
 
-static int handleVLSResultSet(HashCode160 * query,
-			      void * data,
+static int handleVLSResultSet(const HashCode160 * query,
+			      const void * data,
 			      int * duplicate) {
   /* append to VLS */
   CONTENT_Block * blocks;
@@ -767,13 +757,13 @@ static int handleVLSResultSet(HashCode160 * query,
   ret = lfsRead(lfs, query, &blocks);
   if (ret == SYSERR) {
     LOG(LOG_WARNING,
-	"WARNING: lfs database inconsistent, trying to fix\n");
+	_("lfs database inconsistent, trying to fix\n"));
     if (OK == dbAPI->unlinkFromDB(computeHighDB(query), query)) {
       dbAPI->dbAvailableBlocks[computeBucketGlobal(query)]
 	= DB_DIRTY_AVAILABLE;
     } else
       LOG(LOG_WARNING,
-	  "WARNING: failed to fix lfs database inconsistency\n");
+	  _("Failed to fix lfs database inconsistency!\n"));
     return SYSERR;
   }
   /* check if the content is already present */
@@ -794,9 +784,9 @@ static int handleVLSResultSet(HashCode160 * query,
 
 static int migrateToVLS(void * old,
 			int oldLen,
-			HashCode160 * query,
-			void * data,
-			ContentIndex * ce) {  
+			const HashCode160 * query,
+			const void * data,
+			const ContentIndex * ce) {  
   unsigned int i;
   int ret;
   
@@ -832,9 +822,9 @@ static int migrateToVLS(void * old,
  * 3HASH and SBlock results require special treatment
  * since multiple results are possible.
  */
-static int handle3HSBInsert(HashCode160 * query,
+static int handle3HSBInsert(const HashCode160 * query,
 			    ContentIndex * ce,
-			    void * data,
+			    const void * data,
 			    int oldLen,
 			    int * duplicate,
 			    int len,
@@ -917,11 +907,11 @@ static int handle3HSBInsert(HashCode160 * query,
  *        from local client.
  * @param duplicate output param, will be YES if content was already there
  * @return OK if the block was stored, SYSERR if not
- **/
+ */
 int insertContent(ContentIndex * ce,
 		  int len,
-		  void * data,
-		  HostIdentity * sender,
+		  const void * data,
+		  const HostIdentity * sender,
 		  int * duplicate) {
   void * old;
   ContentIndex oldce;
@@ -932,15 +922,12 @@ int insertContent(ContentIndex * ce,
 
   if (ntohs(ce->fileNameIndex)>0)
     LOG(LOG_EVERYTHING, 
-	"EVERYTHING: using fileNameIndex %u\n",
+	"using fileNameIndex %u\n",
 	ntohs(ce->fileNameIndex));
 
   if ( (0 != len) &&
        (len != sizeof(CONTENT_Block)) ) {
-    LOG(LOG_WARNING,
-	"WARNING: unexpected length %d for insertContent %s:%d\n",
-	len,
-	__FILE__, __LINE__);
+    BREAK();
     return SYSERR;
   }
 
@@ -971,7 +958,7 @@ int insertContent(ContentIndex * ce,
     break;
   default:
     LOG(LOG_WARNING,
-	"WARNING: unexpected content type %d\n",
+	_("Unexpected content type %d.\n"),
 	ntohs(ce->type));
     return SYSERR;
   }
@@ -1007,10 +994,7 @@ int insertContent(ContentIndex * ce,
   switch (ntohs(ce->type)) {
   case LOOKUP_TYPE_3HASH:
     if (len != sizeof(CONTENT_Block) ) {
-      LOG(LOG_WARNING,
-	  "WARNING: unexpected length %d for insertContent %s:%d\n",
-	  len,
-	  __FILE__, __LINE__);
+      BREAK();
       return SYSERR;
     }
     return handle3HSBInsert(&query,
@@ -1023,10 +1007,7 @@ int insertContent(ContentIndex * ce,
 			    ntohl(oldce.importance));
   case LOOKUP_TYPE_SBLOCK: 
     if (len != sizeof(CONTENT_Block) ) {
-      LOG(LOG_WARNING,
-	  "WARNING: unexpected length %d for insertContent %s:%d\n",
-	  len,
-	  __FILE__, __LINE__);
+      BREAK();
       return SYSERR;
     }
     return handle3HSBInsert(&query,
@@ -1092,13 +1073,12 @@ int insertContent(ContentIndex * ce,
     break;
   default:
     LOG(LOG_WARNING,
-	"WARNING: unexpected content type %d\n",
+	_("Unexpected content type %d.\n"),
 	ntohs(ce->type));
     FREENONNULL(old);
     return SYSERR;
   }
-  LOG(LOG_ERROR,
-      "ERROR: insertContent code ended up where it never should\n");
+  BREAK();
   return SYSERR;
 }
 
@@ -1106,12 +1086,10 @@ int insertContent(ContentIndex * ce,
  * Return a random key from the database.
  * @param ce output information about the key 
  * @return SYSERR on error, OK if ok.
- **/
+ */
 int retrieveRandomContent(ContentIndex * ce) {
   int bucket = randomi(dbAPI->buckets);
-  if (dbAPI->dbHandles[bucket] == NULL)
-    errexit("dbHandle at bucket %d is NULL\n", 
-	    bucket);
+  GNUNET_ASSERT(dbAPI->dbHandles[bucket] != NULL);
   return dbAPI->getRandomContent(dbAPI->dbHandles[bucket],
 				 ce);
 }
@@ -1121,8 +1099,8 @@ int retrieveRandomContent(ContentIndex * ce) {
  *
  * @param bucket where to delete (<0 == autocompute)
  *               >=0 is used by gnunet-check. 
- **/  
-int removeContent(HashCode160 * query, 
+ */  
+int removeContent(const HashCode160 * query, 
 		  int bucket) {
   int ok;
   ContentIndex ce;
@@ -1141,12 +1119,13 @@ int removeContent(HashCode160 * query,
 			  &data,
 			  0);
   if (ok == SYSERR) {
-    HexName hex;
-    hash2hex(query,
-	     &hex);
+    EncName enc;
+    hash2enc(query,
+	     &enc);
     LOG(LOG_DEBUG,
-	"DEBUG: removeContent (%s) failed, readContent did not find content!\n",
-	(char*) &hex);
+	"%s on '%s' failed, readContent did not find content!\n",
+	__FUNCTION__,
+	&enc);
     return SYSERR; /* not found! */
   }
   if (ok == VERY_LARGE_FILE) {
@@ -1155,8 +1134,7 @@ int removeContent(HashCode160 * query,
        never happen in practice) */
     ok = lfsRemove(lfs, query);
     if (ok == SYSERR) 
-      LOG(LOG_WARNING,
-	  "WARNING: removeContent failed on LFS content?\n");    
+      BREAK();
   }
   
   ok = dbAPI->unlinkFromDB(db,

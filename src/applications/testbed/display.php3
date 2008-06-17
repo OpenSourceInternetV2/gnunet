@@ -2,7 +2,7 @@
 include("connect.php3");
 if (!$connection) {
   echo "<HTML><HEAD><TITLE>GNUnet-testbed: display</TITLE></HEAD><BODY>";
-  echo "Database is down. Can not list available peers.";
+  echo "Database is down. Cannot list available peers.";
   echo "</body></html>";
   die(-1);
 }

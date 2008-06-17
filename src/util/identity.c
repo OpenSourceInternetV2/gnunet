@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -39,14 +39,14 @@
  *
  * @author Christian Grothoff
  * @author Tzvetan Horozov
- **/
+ */
 
 #include "gnunet_util.h"
 #include "platform.h"
 
 /**
  * @brief our current IPv4 address.
- **/
+ */
 static IPaddr myAddress;
 
 static int ipv4_init = NO;
@@ -61,7 +61,7 @@ static int ipv6_init = NO;
  * Obtain the identity information for the current node
  * (connection information), conInfo.
  * @return SYSERR on failure, OK on success
- **/
+ */
 static int getAddressFromHostname(IPaddr * identity) {
   char * hostname;
   struct hostent * ip;
@@ -69,20 +69,18 @@ static int getAddressFromHostname(IPaddr * identity) {
   hostname = MALLOC(1024);
   if (0 != gethostname(hostname, 1024)) {
     FREE(hostname);
-    LOG(LOG_ERROR,
-	"ERROR: failed to get hostname (%s)\n",
-	STRERROR(errno));
+    LOG_STRERROR(LOG_ERROR, "gethostname");
     return SYSERR;
   }
   /* LOG(LOG_DEBUG,
-      "DEBUG: looking up $HOSTNAME (%s) to obtain local IP\n",
+      " looking up $HOSTNAME (%s) to obtain local IP\n",
       hostname); */
 
   ip = GETHOSTBYNAME(hostname);
 
-  if (ip == NULL) {
+  if (ip == NULL) {    
     LOG(LOG_ERROR,
-	"ERROR: Couldn't find IP for host '%s' (%s)",
+	_("Could not find IP for host '%s': %s\n"),
 	hostname, 
 	hstrerror(h_errno));
     FREE(hostname);
@@ -90,9 +88,7 @@ static int getAddressFromHostname(IPaddr * identity) {
   }
   FREE(hostname);
   if (ip->h_addrtype != AF_INET) {
-    LOG(LOG_ERROR,
-	"ERROR: getAddress: h_addrtype is not AF_INET (%d)!?\n",
-	ip->h_addrtype);
+    BREAK();
     return SYSERR;
   }
   memcpy(identity,
@@ -106,27 +102,25 @@ static int getAddressFromHostname(IPaddr * identity) {
  * Obtain the identity information for the current node
  * (connection information), conInfo.
  * @return SYSERR on failure, OK on success
- **/
+ */
 static int getAddress6FromHostname(IP6addr * identity) {
   char * hostname;
   struct hostent * ip;
   
   hostname = MALLOC(1024);
   if (0 != gethostname(hostname, 1024)) {
-    LOG(LOG_ERROR,
-	"ERROR: failed to get hostname (%s)\n",
-	STRERROR(errno));
+    LOG_STRERROR(LOG_ERROR, "gethostname");
     FREE(hostname);
     return SYSERR;
   }
   /* LOG(LOG_DEBUG,
-      "DEBUG: looking up $HOSTNAME (%s) to obtain local IP\n",
+      " looking up $HOSTNAME (%s) to obtain local IP\n",
       hostname); */
 
   ip = gethostbyname2(hostname, AF_INET6);
   if (ip == NULL) {
     LOG(LOG_ERROR,
-	"ERROR: Couldn't find IPv6 for host '%s' (%s)\n",
+	_("Could not find IP(v6) for host '%s': %s\n"),
 	hostname, 
 	hstrerror(h_errno));
     FREE(hostname);
@@ -134,15 +128,10 @@ static int getAddress6FromHostname(IP6addr * identity) {
   }
   FREE(hostname);
   if (ip->h_addrtype != AF_INET6) {
-    LOG(LOG_ERROR,
-	"ERROR: getAddress: h_addrtype is not AF_INET6 (%d)!?\n",
-	ip->h_addrtype);
+    BREAK();
     return SYSERR;
   }
-  if (sizeof(struct in6_addr) != sizeof(identity->addr))
-    errexit("assertion failed: sizeof(struct in6_addr) != %d",
-	    sizeof(identity->addr));
-    
+  GNUNET_ASSERT(sizeof(struct in6_addr) == sizeof(identity->addr));
   memcpy(&identity->addr[0],
 	 ip->h_addr_list[0],
 	 sizeof(struct in6_addr));
@@ -170,24 +159,21 @@ static int getAddressFromIOCTL(IPaddr * identity) {
 				      "INTERFACE");
   if (interfaces == NULL) {
     LOG(LOG_ERROR,
-	"ERROR: No interface specified in section NETWORK under INTERFACE!\n");
+	"No interface specified in section NETWORK under INTERFACE!\n");
     return SYSERR; /* that won't work! */
   }
 #ifndef MINGW
   sockfd = SOCKET(PF_INET, SOCK_DGRAM, 0);
   if (sockfd == -1) {
     FREE(interfaces);
-    LOG(LOG_ERROR,
-	"ERROR: failed to create socket: %s\n",
-	STRERROR(errno));
+    LOG_STRERROR(LOG_ERROR, "socket");
     return SYSERR;
   }
   ifc.ifc_len = sizeof(ifr);
   ifc.ifc_buf = (char*)&ifr;
   
   if (ioctl(sockfd, SIOCGIFCONF, &ifc) == -1) {
-    LOG(LOG_WARNING,
-	"WARNING: Could not obtain IP with ioctl\n");
+    LOG_STRERROR(LOG_WARNING, "ioctl");
     CLOSE(sockfd);
     FREE(interfaces);
     return SYSERR;
@@ -213,7 +199,8 @@ static int getAddressFromIOCTL(IPaddr * identity) {
     return OK;
   }
   LOG(LOG_WARNING,
-      "WARNING: Could not find interface %s in IOCTL, trying to find another one.\n",
+      _("Could not find interface '%s' in '%s', trying to find another interface.\n"),
+      "ioctl",
       interfaces);
   /* if no such interface exists, take any interface but loopback */
   for(i=0;i<ifCount;i++){
@@ -236,7 +223,8 @@ static int getAddressFromIOCTL(IPaddr * identity) {
 
   CLOSE(sockfd);
   LOG(LOG_WARNING,
-      "WARNING: Could not obtain IP for interface %s using ioctl.\n",
+      _("Could not obtain IP for interface '%s' using '%s'.\n"),
+      "ioctl",
       interfaces);
   FREE(interfaces);
   return SYSERR;
@@ -272,16 +260,21 @@ static int getAddressFromIOCTL(IPaddr * identity) {
     GlobalFree(pAddrTbl);
     
     if (! iAddrCount)
-    {
-      LOG(LOG_WARNING, "WARNING: Could not find an IP address specified for "
-                       "interface \"%s\".\n", interfaces);
+      {
+      LOG(LOG_WARNING,
+	  _("Could not find an IP address for "
+	    "interface '%s'.\n"), 
+	  interfaces);
       
       return SYSERR;
     }
     else if (iAddrCount > 1)
-      LOG(LOG_WARNING, "WARNING: There are more than one IP address specified"
-                       " for interface \"%s\".\nGNUnet will "
-                       "use %d.%d.%d.%d.\n", interfaces, PRIP(ntohl(dwIP)));
+      LOG(LOG_WARNING, 
+	  _("There is more than one IP address specified"
+	    " for interface '%s'.\nGNUnet will "
+	    "use %d.%d.%d.%d.\n"), 
+	  interfaces, 
+	  PRIP(ntohl(dwIP)));
 
     identity->addr = dwIP;
   }
@@ -293,10 +286,12 @@ static int getAddressFromIOCTL(IPaddr * identity) {
 
     s = SOCKET(PF_INET, SOCK_STREAM, 0);
     pHost = GETHOSTBYNAME("www.example.com");
-    if (! pHost)
-    {
-      LOG(LOG_ERROR, "ERROR: Could not resolve www.examle.com to "
-        "determine our IP address: %s\n", STRERROR(errno));
+    if (! pHost) {
+      LOG(LOG_ERROR, 
+	  _("Could not resolve '%s' to "
+	    "determine our IP address: %s\n"), 
+	  "www.example.com",
+	  STRERROR(errno));
         
       return SYSERR;
     }
@@ -304,25 +299,17 @@ static int getAddressFromIOCTL(IPaddr * identity) {
     theHost.sin_family = AF_INET;
     theHost.sin_port = htons(80);
     theHost.sin_addr.S_un.S_addr = *((unsigned long *) pHost->h_addr_list[0]);
-    if (CONNECT(s, (SOCKADDR *) &theHost, sizeof(theHost)) == SOCKET_ERROR)
-    {
-      LOG(LOG_ERROR, "ERROR: Could not establish a test connection to "
-        "determine our IP address: %s\n", STRERROR(errno));
-        
+    if (CONNECT(s, (SOCKADDR *) &theHost, sizeof(theHost)) == SOCKET_ERROR) {
+      LOG_STRERROR(LOG_ERROR, "connect");
       return SYSERR;
     }
     
     i = sizeof(theHost);
-    if (GETSOCKNAME(s, (SOCKADDR *) &theHost, &i) == SOCKET_ERROR)
-    {
-      LOG(LOG_ERROR, "ERROR: Could not determine our IP address: %s\n",
-        STRERROR(errno));
-        
+    if (GETSOCKNAME(s, (SOCKADDR *) &theHost, &i) == SOCKET_ERROR) {
+      LOG_STRERROR(LOG_ERROR, "getsockname");
       return SYSERR;
-    }
-    
-    closesocket(s);
-    
+    }    
+    closesocket(s);    
     identity->addr = theHost.sin_addr.S_un.S_addr;
   }
   
@@ -335,7 +322,7 @@ static int getAddressFromIOCTL(IPaddr * identity) {
 /**
  * Get the IP address for the local machine.
  * @return SYSERR on error, OK on success
- **/
+ */
 static int getAddress(IPaddr  * address){
   char * ipString;
   int retval;
@@ -353,19 +340,17 @@ static int getAddress(IPaddr  * address){
       retval = getAddressFromHostname(address);
   } else {
     /* LOG(LOG_DEBUG,
-	"DEBUG: obtaining local IP address from hostname %s\n",
+        "obtaining local IP address from hostname %s\n",
 	ipString); */
     ip = GETHOSTBYNAME(ipString);
-    if (ip == NULL) {
+    if (ip == NULL) {     
       LOG(LOG_ERROR,
-	  "ERROR: Couldn't resolve '%s' (%s)",
+	  _("Could not resolve '%s': %s\n"),
 	  ipString, hstrerror(h_errno));
       retval = SYSERR;
     } else {
       if (ip->h_addrtype != AF_INET) {
-	LOG(LOG_ERROR,
-	    "ERROR: getAddress: h_addrtype is not AF_INET (%d)!?",
-	    ip->h_addrtype);
+	BREAK();
 	retval = SYSERR;
       } else {
 	memcpy (address,
@@ -383,7 +368,7 @@ static int getAddress(IPaddr  * address){
 /**
  * Get the IP address for the local machine.
  * @return SYSERR on error, OK on success
- **/
+ */
 static int getAddress6(IP6addr  * address){
   char * ipString;
   int retval;
@@ -396,26 +381,22 @@ static int getAddress6(IP6addr  * address){
     retval = getAddress6FromHostname(address);
   } else {
     /* LOG(LOG_DEBUG,
-	"DEBUG: obtaining local IP address from hostname %s\n",
+	" obtaining local IP address from hostname %s\n",
 	ipString); */
     ip = gethostbyname2(ipString,
 			AF_INET6);
     if (ip == NULL) {
       LOG(LOG_ERROR,
-	  "ERROR: Couldn't resolve '%s' (%s)",
+	  _("Could not resolve '%s': %s\n"),
 	  ipString, 
 	  hstrerror(h_errno));
       retval = SYSERR;
     } else {
       if (ip->h_addrtype != AF_INET6) {
-	LOG(LOG_ERROR,
-	    "ERROR: getAddress: h_addrtype is not AF_INET6 (%d)!?",
-	    ip->h_addrtype);
+	BREAK();
 	retval = SYSERR;
       } else {
-	if (sizeof(struct in6_addr) != sizeof(address->addr))
-	  errexit("assertion failed: sizeof(struct in6_addr) != %d",
-		  sizeof(address->addr));
+	GNUNET_ASSERT(sizeof(struct in6_addr) == sizeof(address->addr));
 	memcpy(&address->addr[0],
 	       ip->h_addr_list[0],
 	       sizeof(struct in6_addr));
@@ -430,35 +411,34 @@ static int getAddress6(IP6addr  * address){
 
 static void cronRefreshAddress(void * unused) {
   LOG(LOG_CRON,
-      "CRON: enter cronRefreshAddress\n");
+      "enter cronRefreshAddress\n");
   if (SYSERR == getAddress(&myAddress))
     LOG(LOG_FAILURE,
-	"FAILURE: Could not determine IP address of the local machine!\n");
+	_("Could not determine IP address of the local machine!\n"));
   LOG(LOG_CRON,
-      "CRON: exit cronRefreshAddress\n");
+      "exit cronRefreshAddress\n");
 }
 
 #if USE_IPV6
 static void cronRefreshAddress6(void * unused) {
   LOG(LOG_CRON,
-      "CRON: enter cronRefreshAddress6\n");
+      "enter cronRefreshAddress6\n");
   if (SYSERR == getAddress6(&myAddress6))
     LOG(LOG_FAILURE,
-	"FAILURE: Could not determine IP(v6) address of the local machine!\n");
+	_("Could not determine IP(v6) address of the local machine!\n"));
   LOG(LOG_CRON,
-      "CRON: exit cronRefreshAddress6\n");
+      "exit cronRefreshAddress6\n");
 }
 #endif
 
 /** 
  * Initialize identity module. Requires configuration.
- **/
+ */
 int initAddress() {
-  int ok = OK;
   if (SYSERR == getAddress(&myAddress)) {
     LOG(LOG_ERROR,
-	"ERROR: Could not find IP(v4) for this host. Please provide the IP in the configuration file.\n");  
-    ok = SYSERR;
+	_("Could not find IP(v4) for this host. Please provide the IP in the configuration file.\n"));  
+    ipv4_init = NO;
   } else {
     ipv4_init = YES;
     addCronJob(&cronRefreshAddress, 
@@ -469,8 +449,8 @@ int initAddress() {
 #if USE_IPV6
   if (SYSERR == getAddress6(&myAddress6)) {
     LOG(LOG_ERROR,
-	"ERROR: Could not find IP(v6) for this host. Please provide the IP in the configuration file.\n");     
-    ok = SYSERR;
+	_("Could not find IP(v6) for this host. Please provide the IP in the configuration file.\n"));
+    ipv6_init = NO;
   } else {
     addCronJob(&cronRefreshAddress6, 
 	       2 * cronMINUTES,
@@ -479,12 +459,12 @@ int initAddress() {
     ipv6_init = YES;
   }
 #endif
-  return ok;
+  return OK;
 }
 
 /** 
  * Shutdown identity module.
- **/
+ */
 void doneAddress() {
   if (ipv4_init == YES) {
     delCronJob(&cronRefreshAddress, 
@@ -506,7 +486,7 @@ void doneAddress() {
 /**
  * Get the IP address for the local machine.
  * @return SYSERR on error, OK on success
- **/
+ */
 int getPublicIPAddress(IPaddr * address) {
   if (ipv4_init == NO)
     return SYSERR;
@@ -517,7 +497,7 @@ int getPublicIPAddress(IPaddr * address) {
 /**
  * Get the IPv6 address for the local machine.
  * @return SYSERR on error, OK on success
- **/
+ */
 int getPublicIP6Address(IP6addr * address) {
 #if USE_IPV6
   if (ipv6_init == NO)

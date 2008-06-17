@@ -33,7 +33,7 @@
  * -> namespace insert/update
  * -> about
  *
- **/
+ */
 
 #include "gnunet_afs_esed2.h"
 #include "helper.h"
@@ -52,30 +52,32 @@
  * This semaphore can be used to prevent the main window
  * from killing GTK at an unhealty time. It is used by
  * the un-interruptable but GUI-updating insert thread.
- **/
+ */
 Semaphore * refuseToDie;
 
 /**
  * Provides access to toggling pulldown menu shadings
- **/
+ */
 GtkItemFactory * itemFactory = NULL;
 
 static GtkWidget * main_window_input_line = NULL;
 
 /**
  * Shows the info window 
- **/
+ */
 static void show_infowindow(GtkButton * button,
   	  	  	    gpointer dummy) {
   if(infoWindow)
     gtk_widget_show(infoWindow);
   else
-    infoMessage(YES, "This window will show messages and the URIs of inserted content etc\ninfo that might require copy-pasting elsewhere to be used...\n\n");
+    infoMessage(YES, 
+		_("This window will show messages and the URIs of inserted content\n"
+		  " and other information that might be useful elsewhere.\n"));
 }
 
 /**
  * Shows the download window if some dl has been started 
- **/
+ */
 static void show_dlwindow(GtkButton * button,
 			  gpointer dummy) {
   if(dlWindow)
@@ -89,21 +91,22 @@ static void show_dlwindow(GtkButton * button,
  * 
  * @param widget not used
  * @param notebook the notebook where the opened result window will be put.
- **/
+ */
 static void search(GtkWidget * widget,
 		   GtkNotebook * notebook) {
+  const gchar * searchStringConst;
   gchar * searchString;
   gchar * searchStringStart;
   GtkWidget * tmp;
   int i; 
 
-  searchString 
+  searchStringConst
     = gtk_entry_get_text(GTK_ENTRY(main_window_input_line));
   if (searchString == NULL) {
-    guiMessage("searchString == NULL\n");
+    BREAK();
     return;
   }
-  searchString = STRDUP(searchString);
+  searchString = STRDUP(searchStringConst);
 
   /* Remove heading spaces (parsing bugs if not) */  
   i = strlen(searchString)-1;
@@ -116,7 +119,7 @@ static void search(GtkWidget * widget,
   while (*searchStringStart == ' ')
     searchStringStart++;
   if (*searchStringStart=='\0') {
-    guiMessage("No search key given!\n");
+    guiMessage(_("You must enter a non-empty search key!\n"));
     FREE(searchString);
     return;
   }
@@ -138,7 +141,7 @@ static void search(GtkWidget * widget,
 /**
  * Exit the application (called when the main window
  * is closed or the user selects File-Quit).
- **/
+ */
 static void destroyMain(GtkWidget * widget,
 			gpointer data) {
   gdk_threads_leave(); /* avoid deadlock! */
@@ -152,7 +155,7 @@ static void destroyMain(GtkWidget * widget,
     int i = 0;    
     while(gtk_notebook_get_nth_page(notebook, 0) != NULL) {
       LOG(LOG_DEBUG, 
-	  "DEBUG: Removing search page %d\n", 
+	  "Removing search page %d\n", 
 	  i++);
       gtk_notebook_remove_page(notebook, 0);
     }
@@ -169,7 +172,7 @@ static void destroyMain(GtkWidget * widget,
  *
  * @param unused GTK handle that is not used
  * @param contexts bitmask of the databases that should be emptied.
- **/ 
+ */ 
 static void emptyDirectoryDatabaseInd(GtkWidget * unused,
 				      unsigned int contexts) {
   emptyDirectoryDatabase(contexts);
@@ -180,264 +183,264 @@ static void emptyDirectoryDatabaseInd(GtkWidget * unused,
 /**
  * Method called from menu bar "File-Quit". Wrapper around
  * destroy.
- **/ 
+ */ 
 static void destroy_stub(void) {
   destroyMain(NULL, NULL);
 }
 
 /**
  * The pulldown menus.
- **/
+ */
 static GtkItemFactoryEntry menu_items[] = {
-  { "/_File",         
+  { gettext_noop("/_File"),         
     NULL, 
     NULL,
     0,
     "<Branch>" },
-  { "/File/_Insert",  
+  { gettext_noop("/File/_Insert"),  
     "<control>I", 
     openSelectFile, 
     0, 
     NULL },
-  { "/File/_Download URI",  
+  { gettext_noop( "/File/_Download URI"),  
     "<control>D", 
     fetchURI, 
     0, 
     NULL },
-  { "/File/Import di_rectory",  
+  {  gettext_noop("/File/Import di_rectory"),  
     "<control>r", 
     importDirectory, 
     0, 
     NULL },
-  { "/File/sep1",     
+  {  gettext_noop("/File/sep1"),     
     NULL, 
     NULL, 
     0,
     "<Separator>" },
-  { "/File/_Unindex file", 
+  { gettext_noop("/File/_Unindex file"), 
     "<control>U", 
     openDeleteFile, 
     0, 
     NULL },
-  { "/File/sep1",     
+  { gettext_noop("/File/sep1"),     
     NULL, 
     NULL, 
     0,
     "<Separator>" },
-  { "/File/Show downloads",      
+  { gettext_noop("/File/Show downloads"),      
     "<control>w", 
     show_dlwindow, 
     0, 
     NULL },
-  { "/File/Show messages", 
+  { gettext_noop("/File/Show messages"), 
     "<control>m", 
     show_infowindow, 
     0, 
     NULL },
-  { "/File/Show gnunetd stats", 
+  { gettext_noop("/File/Show gnunetd stats"), 
     NULL,
     showStats, 
     0, 
     NULL },
-  { "/File/_Plot gnunetd stats", 
+  { gettext_noop("/File/_Plot gnunetd stats"), 
     NULL,
     NULL,
     0,
     "<Branch>" },
-  { "/File/Plot gnunetd stats/_Connectivity", 
+  { gettext_noop("/File/Plot gnunetd stats/_Connectivity"), 
     NULL,
     displayStatistics, 
     STAT_CONNECTIVITY,
     NULL },
-  { "/File/Plot gnunetd stats/C_PU Load", 
+  { gettext_noop("/File/Plot gnunetd stats/C_PU Load"), 
     NULL,
     displayStatistics, 
     STAT_CPU_LOAD,
     NULL },
-  { "/File/Plot gnunetd stats/_Inbound Traffic", 
+  { gettext_noop("/File/Plot gnunetd stats/_Inbound Traffic"), 
     NULL,
     displayStatistics, 
     STAT_IN_TRAFFIC,
     NULL },
-  { "/File/Plot gnunetd stats/_Outbound Traffic", 
+  { gettext_noop("/File/Plot gnunetd stats/_Outbound Traffic"), 
     NULL,
     displayStatistics, 
     STAT_OUT_TRAFFIC,
     NULL },
-  { "/File/sep1",     
+  { gettext_noop("/File/sep1"),     
     NULL, 
     NULL, 
     0,
     "<Separator>" },
-  { "/File/_Quit",     
+  { gettext_noop("/File/_Quit"),     
     "<control>Q", 
     destroy_stub,
     0, 
     NULL },
-  { "/_Advanced",
+  { gettext_noop("/_Advanced"),
     NULL,
     NULL,
     0,
     "<Branch>" },
 
-  { "/Advanced/_Assemble Directory",
+  { gettext_noop("/Advanced/_Assemble Directory"),
     NULL,
     NULL,
     0,
     "<Branch>" },
-  { "/Advanced/Assemble Directory/from _search results",
+  { gettext_noop("/Advanced/Assemble Directory/from _search results"),
     NULL,
     openAssembleDirectoryDialog,
     DIR_CONTEXT_SEARCH,
     NULL },
-  { "/Advanced/Assemble Directory/from _inserted files",
+  { gettext_noop("/Advanced/Assemble Directory/from _inserted files"),
     NULL,
     openAssembleDirectoryDialog,
     DIR_CONTEXT_INSERT,
     NULL },
-  { "/Advanced/Assemble Directory/from local _namespaces",
+  { gettext_noop("/Advanced/Assemble Directory/from local _namespaces"),
     NULL,
     openAssembleDirectoryDialog,
     DIR_CONTEXT_INSERT_SB,
     NULL },
-  { "/Advanced/Assemble Directory/from file identifiers from downloaded _directories",
+  { gettext_noop("/Advanced/Assemble Directory/from file identifiers from downloaded _directories"),
     NULL,
     openAssembleDirectoryDialog,
     DIR_CONTEXT_DIRECTORY,
     NULL }, 
-  { "/Advanced/Assemble Directory/sepx1",     
+  { gettext_noop("/Advanced/Assemble Directory/sepx1"),     
     NULL, 
     NULL, 
     0,
     "<Separator>" },
-  { "/Advanced/Assemble Directory/from _all known file identifiers",
+  { gettext_noop("/Advanced/Assemble Directory/from _all known file identifiers"),
     NULL,
     openAssembleDirectoryDialog,
     DIR_CONTEXT_ALL,
     NULL },
 
-  { "/Advanced/sep1",     
+  { gettext_noop("/Advanced/sep1"),     
     NULL, 
     NULL, 
     0,
     "<Separator>" },
 
-  { "/Advanced/Manage _Pseudonyms",     
+  { gettext_noop("/Advanced/Manage _Pseudonyms"),     
     NULL,  
     NULL, 
     0,
     "<Branch>" },
-  { "/Advanced/Manage Pseudonyms/_Create new pseudonym",     
+  { gettext_noop("/Advanced/Manage Pseudonyms/_Create new pseudonym"),     
     NULL,  
     &openCreatePseudonymDialog,
     0,
     NULL },
-  { "/Advanced/Manage Pseudonyms/_Delete pseudonym",     
+  { gettext_noop("/Advanced/Manage Pseudonyms/_Delete pseudonym"),     
     NULL,  
     &openDeletePseudonymDialog,
     0,
     NULL },
-  { "/Advanced/_Insert into Namespace",     
+  { gettext_noop("/Advanced/_Insert into Namespace"),     
     NULL,  
     NULL,
     0,
     "<Branch>" },
-  { "/Advanced/Insert into Namespace/Select from _search results",     
+  { gettext_noop("/Advanced/Insert into Namespace/Select from _search results"),     
     NULL,  
     &openAssembleNamespaceDialog, 
     DIR_CONTEXT_SEARCH,
     NULL },
-  { "/Advanced/Insert into Namespace/Select from _inserted files",     
+  { gettext_noop("/Advanced/Insert into Namespace/Select from _inserted files"),     
     NULL,  
     &openAssembleNamespaceDialog, 
     DIR_CONTEXT_INSERT,
     NULL },
-  { "/Advanced/Insert into Namespace/Select from results from downloaded _directories",     
+  { gettext_noop("/Advanced/Insert into Namespace/Select from results from downloaded _directories"),     
     NULL,  
     &openAssembleNamespaceDialog, 
     DIR_CONTEXT_INSERT,
     NULL },
-  { "/Advanced/Insert into Namespace/Select from results from local _namespaces",     
+  { gettext_noop("/Advanced/Insert into Namespace/Select from results from local _namespaces"),     
     NULL,  
     &openAssembleNamespaceDialog, 
     DIR_CONTEXT_INSERT_SB,
     NULL },
-  { "/Advanced/Insert into Namespace/sepx2",     
+  { gettext_noop("/Advanced/Insert into Namespace/sepx2"),     
     NULL, 
     NULL, 
     0,
     "<Separator>" },
-  { "/Advanced/Insert into Namespace/Select from _all known file identifiers",     
+  { gettext_noop("/Advanced/Insert into Namespace/Select from _all known file identifiers"),     
     NULL,  
     &openAssembleNamespaceDialog, 
     DIR_CONTEXT_ALL,
     NULL },
-  /*  { "/Advanced/_Update content in Namespace",     
+  /*  { "/Advanced/_Update content in Namespace"),     
     NULL,  
     NULL,  
     0,
     NULL }, */
-  { "/Advanced/_Search Namespace",     
+  { gettext_noop("/Advanced/_Search Namespace"),     
     "<control>S",  
     &searchNamespace,  
     0,
     NULL }, 
 
-  { "/Advanced/sep2",     
+  { gettext_noop("/Advanced/sep2"),     
     NULL, 
     NULL, 
     0,
     "<Separator>" },
 
-  { "/Advanced/_Reset File Identifiers",
+  { gettext_noop("/Advanced/_Reset File Identifiers"),
     NULL,
     NULL,
     0,
     "<Branch>" },
-  { "/Advanced/Reset File Identifiers/List of _search results",
+  { gettext_noop("/Advanced/Reset File Identifiers/List of _search results"),
     NULL,
     emptyDirectoryDatabaseInd,
     DIR_CONTEXT_SEARCH,
     NULL },
-  { "/Advanced/Reset File Identifiers/List of _inserted files",
+  { gettext_noop("/Advanced/Reset File Identifiers/List of _inserted files"),
     NULL,
     emptyDirectoryDatabaseInd,
     DIR_CONTEXT_INSERT,
     NULL },
-  { "/Advanced/Reset File Identifiers/List of entries in local _namespaces",
+  { gettext_noop("/Advanced/Reset File Identifiers/List of entries in local _namespaces"),
     NULL,
     emptyDirectoryDatabaseInd,
     DIR_CONTEXT_INSERT_SB,
     NULL },
-  { "/Advanced/Reset File Identifiers/List of files from downloaded _directories",
+  { gettext_noop("/Advanced/Reset File Identifiers/List of files from downloaded _directories"),
     NULL,
     emptyDirectoryDatabaseInd,
     DIR_CONTEXT_DIRECTORY,
     NULL }, 
-  { "/Advanced/Reset File Identifiers/sepx3",     
+  { gettext_noop("/Advanced/Reset File Identifiers/sepx3"),     
     NULL, 
     NULL, 
     0,
     "<Separator>" },
-  { "/Advanced/Reset File Identifiers/_All known file identifiers",
+  { gettext_noop("/Advanced/Reset File Identifiers/_All known file identifiers"),
     NULL,
     emptyDirectoryDatabaseInd,
     DIR_CONTEXT_ALL,
     NULL },
   
-  { "/Advanced/sep3",     
+  { gettext_noop("/Advanced/sep3"),     
     NULL, 
     NULL, 
     0,
     "<Separator>" },
   
-  { "/Advanced/Launch gnunetd",     
+  { gettext_noop("/Advanced/Launch gnunetd"),     
     NULL, 
     launchDaemon, 
     0,
     NULL },
   
-  { "/Advanced/Kill gnunetd",     
+  { gettext_noop("/Advanced/Kill gnunetd"),     
     NULL, 
     killDaemon, 
     0,
@@ -455,12 +458,12 @@ static GtkItemFactoryEntry menu_items[] = {
     0, 
     NULL },
 */
-  { "/_Help",     
+  { gettext_noop("/_Help"),     
     NULL,  
     NULL,
     0,
     "<LastBranch>" },
-  { "/Help/_About",   
+  { gettext_noop("/Help/_About"),   
     NULL,
     about,
     0, 
@@ -622,7 +625,7 @@ void refreshMenuSensitivity() {
 
 /**
  * This creates the main window
- **/
+ */
 static void makeMainWindow() {
   GtkWidget * window;
   GtkWidget * button;
@@ -717,7 +720,7 @@ static void makeMainWindow() {
   gtk_widget_show(hbox);
  
   /* search entry label */
-  label = gtk_label_new("Keyword(s):");
+  label = gtk_label_new(_("Keyword(s):"));
   gtk_box_pack_start(GTK_BOX(hbox),
 		     label,
 		     FALSE, 
@@ -753,7 +756,7 @@ static void makeMainWindow() {
 
 /**
  * Perform option parsing from the command line. 
- **/
+ */
 static int parseOptions(int argc, 
 			char ** argv) {
   int c;
@@ -791,21 +794,19 @@ static int parseOptions(int argc,
 	HELP_END,
       };
       formatHelp("gnunet-gtk [OPTIONS]",
-		 "Start GNUnet GTK user interface.",
+		 _("Run the GNUnet GTK user interface."),
 		 help);
       return SYSERR;
     }
     default:
       LOG(LOG_FAILURE,
-	  "Unknown option %c. Aborting.\n"
-	  "Use --help to get a list of options.\n",
-	  c);
+	  _("Use --help to get a list of options.\n"));
       return SYSERR;    
     } /* end of parsing commandline */
   }
   if (GNoptind < argc) {
     fprintf(stderr,
-	    "Invalid arguments: ");
+	    _("Invalid arguments: "));
     while (GNoptind < argc)
       fprintf(stderr,
 	      "%s ", 
@@ -819,7 +820,7 @@ static int parseOptions(int argc,
 
 /**
  * The main function.
- **/
+ */
 int main(int argc,
          char * argv[]) {
 
@@ -856,7 +857,7 @@ int main(int argc,
   gtkDoneSaveCalls();
   stopCron();
   stopAFSPriorityTracker();
-  LOG(LOG_DEBUG, "DEBUG: GUI leaving...\n");
+  LOG(LOG_DEBUG, "GUI leaving...\n");
   SEMAPHORE_FREE(refuseToDie);
 
   doneGTKStatistics();

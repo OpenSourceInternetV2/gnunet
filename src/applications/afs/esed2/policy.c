@@ -24,47 +24,47 @@
  *
  * The code in this module is responsible for enforcing
  * the anonymity policy set by the user.
- **/ 
+ */ 
 
 #include "gnunet_afs_esed2.h"
 #include "platform.h"
 
 /**
  * Socket to communicate with gnunetd.
- **/
+ */
 static GNUNET_TCP_SOCKET * sock = NULL;
 
 /**
  * CoreAPI, null if we are using the socket!
- **/
+ */
 static CoreAPIForApplication * coreAPI;
 
 /**
  * Which value did the user specify for the sendPolicy?
- **/
+ */
 static int sendPolicy;
 
 /**
  * Which value did the user specify for the receivePolicy?
- **/
+ */
 static int receivePolicy;
 
 /* ************* traffic information from the core ********* */
 
 /**
  * Last time traffic information was obtained.
- **/ 
+ */ 
 static cron_t lastPoll = 0;
 
 /**
  * Mutex for synchronizing access.
- **/
+ */
 static Mutex lock;
 
 /**
  * Number of peers that were active at the last poll (since this is
  * always type sensitive, not totals).
- **/
+ */
 static unsigned int chkPeers = 0;
 static unsigned int hashPeers = 0;
 static unsigned int queryPeers = 0;
@@ -72,7 +72,7 @@ static unsigned int queryPeers = 0;
 /**
  * Number of bytes of unmatched bytes of traffic at the last poll
  * (totals and separate for the 3 message types).
- **/
+ */
 static unsigned int totalReceiveBytes = 0;
 static unsigned int totalCHKBytes = 0;
 static unsigned int total3HASHBytes = 0;
@@ -82,7 +82,7 @@ static unsigned int totalQueryBytes = 0;
  * Poll gnunetd via TCP about traffic information.
  * Note that we only send the request if we would
  * otherwise potentially have to refuse messages.
- **/
+ */
 static void pollSocket() {
   cron_t now;
   CS_TRAFFIC_INFO * info;
@@ -106,7 +106,7 @@ static void pollSocket() {
 			      &req.header)) {
     MUTEX_UNLOCK(&lock);
     LOG(LOG_WARNING,
-	"WARNING: could not query gnunetd about traffic conditions\n");
+	_("Failed to query gnunetd about traffic conditions.\n"));
     return; 
   }
   info = NULL;
@@ -114,7 +114,7 @@ static void pollSocket() {
 			       (CS_HEADER**)&info)) {
     MUTEX_UNLOCK(&lock); 
     LOG(LOG_WARNING,
-	"WARNING: did not receive reply from gnunetd about traffic conditions\n");
+	_("Did not receive reply from gnunetd about traffic conditions.\n"));
     return; 
   }
   if ( (ntohs(info->header.tcpType) != 
@@ -122,8 +122,7 @@ static void pollSocket() {
        (ntohs(info->header.size) != 
 	sizeof(CS_TRAFFIC_INFO) + ntohl(info->count)*sizeof(TRAFFIC_COUNTER)) ) {
     MUTEX_UNLOCK(&lock); 
-    LOG(LOG_WARNING,
-	"WARNING: traffic info reply from gnunetd malformed\n");
+    BREAK();
     return;
   }
 
@@ -156,7 +155,7 @@ static void pollSocket() {
 
 /**
  * Poll gnunet core via coreapi about traffic information.
- **/
+ */
 static void pollCAPI() {
   cron_t now;
   unsigned short avgMessageSize;
@@ -208,7 +207,7 @@ static void pollCAPI() {
  * @param port which protocol are we interested in
  * @param peerCount how many peers are required
  * @return YES if we had sufficient amounts of traffic, NO if not
- **/
+ */
 static int checkPeerPolicy(unsigned short port,
 			   unsigned int peerCount) {
   switch (port) {
@@ -241,7 +240,7 @@ static int checkPeerPolicy(unsigned short port,
  * @param strictMatch does only traffic of exactly the same
  *        type (port) count?
  * @return YES if enough cover traffic was be found, NO if not.
- **/
+ */
 static int checkRatioPolicy(unsigned short port,
 			    unsigned short size,
 			    unsigned int byteRatio,
@@ -281,7 +280,7 @@ static int checkRatioPolicy(unsigned short port,
  * Initialize the module.
  *
  * @param capi the GNUnet core API (NULL if we are a client)
- **/
+ */
 void initAnonymityPolicy(CoreAPIForApplication * capi) {
   receivePolicy = getConfigurationInt("AFS",
 				   "ANONYMITY-RECEIVE");
@@ -295,14 +294,14 @@ void initAnonymityPolicy(CoreAPIForApplication * capi) {
   if (capi == NULL) {
     sock = getClientSocket();
     if (sock == NULL)
-      errexit("FATAL: could not connect to gnunetd\n");
+      errexit(" could not connect to gnunetd\n");
   }
   MUTEX_CREATE(&lock);
 }
 
 /**
  * Shutdown the module.
- **/
+ */
 void doneAnonymityPolicy() {
   if (sock != NULL) {
     MUTEX_DESTROY(&lock);
@@ -321,7 +320,7 @@ void doneAnonymityPolicy() {
  * @param type the message type
  * @param size the size of the message
  * @return YES if this isok for the policy, NO if not.
- **/
+ */
 static int checkPolicy(int policyValue,
 		       unsigned short type,
 		       unsigned short size) {
@@ -358,7 +357,7 @@ static int checkPolicy(int policyValue,
  * @param size the size of the message that will be
  *        transmitted
  * @return YES if this is ok for the policy, NO if not
- **/
+ */
 int checkAnonymityPolicy(unsigned short type,
 			 unsigned short size) {
   if ( (sock == NULL) &&

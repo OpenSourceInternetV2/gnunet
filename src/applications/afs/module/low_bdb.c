@@ -22,7 +22,7 @@
  * @file applications/afs/module/low_bdb.c
  * @brief bdb based implementation of low database API
  * @author Nils Durner
- **/
+ */
 
 #include "low_backend.h"
 #include "platform.h"
@@ -30,44 +30,44 @@
 
 /**
  * Extension for the Berkeley DB.
- **/
+ */
 #define BDB_EXT ".bdb"
 
 /**
  * Log DEBUG-Info?
- **/
+ */
 #define BDB_DEBUG NO
 
 /**
  * A bdb wrapper
- **/
+ */
 typedef struct {
 
   /**
    * BDB handle.
-   **/
+   */
   DB *dbf;
   
   /**
    * Database environment
-   **/
+   */
   DB_ENV *dbenv;
 
   int deleteSize;
 
   /**
    * Name of the database file.
-   **/
+   */
   char * filename;
   
   /**
    * The database environment's home directory
-   **/
+   */
   char * home;
   
   /**
    * Synchronized access
-   **/
+   */
   Mutex DATABASE_Lock_;
 
 } bdbHandle;
@@ -75,56 +75,98 @@ typedef struct {
 /* declared in logging.c */
 extern FILE *logfile;
 
-void handleError(int err, bdbHandle *dbh);
 
+
+/**
+ * Die with an error message that indicates
+ * a failure of the command 'cmd' with the message given
+ * by strerror(errno).
+ */
+#define DIE_BDB(cmd, dbh, err) do { errexit(_("'%s' failed on file '%s' at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, dbh->filename, db_strerror(err)); } while(0);
+
+/**
+ * Log an error message at log-level 'level' that indicates
+ * a failure of the command 'cmd' on file 'filename'
+ * with the message given by strerror(errno).
+ */
+#define LOG_BDB(level, cmd, dbh, err) do { LOG(level, _("'%s' failed on file '%s' at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, dbh->filename, db_strerror(err)); } while(0);
+
+
+/**
+ * Handle BDB errors (aborts if error is fatal).
+ *
+ * @param err the error code
+ * @param dbh the BDB handle
+ */
+static void handleError(int err, 
+			bdbHandle *dbh) {
+  if ((err == DB_NOSERVER) || (err == DB_RUNRECOVERY)) {
+    LOG(LOG_FATAL,
+	_("BDB panic (%s), aborting.\n"),
+	db_strerror(err));
+    dbh->dbf->close(dbh->dbf, 0); /* try shutdown */
+    dbh->dbenv->close(dbh->dbenv, 0);
+    errexit(_("BDB panic (%s), aborting.\n"),
+	    db_strerror(err));  
+  }
+}
 
 /**
  * Close BDB environment and database
  * @param dbh the BDB handle
- **/
-int bdbClose(bdbHandle *dbh)
-{
+ */
+static int bdbClose(bdbHandle *dbh) {
   int ret;
   
   ret = dbh->dbf->close(dbh->dbf, 0);
   if (ret != 0)
-    return ret;
-  
+    return ret;  
   return dbh->dbenv->close(dbh->dbenv, 0);
 }
 
 /**
  * Open BDB environment and database
  * @param dbh the BDB handle
- **/
-int bdbOpen(bdbHandle *dbh)
-{
+ */
+static int bdbOpen(bdbHandle *dbh) {
   int ret;
+#ifdef WINDOWS
+  int winflags;
+#endif
   
 #if BDB_DEBUG
   LOG(LOG_DEBUG, 
       "BDB: Initializing the database environment\n");
 #endif
 
+#ifdef WINDOWS
+  winflags = IsWinNT() ? 0 : DB_PRIVATE;
+#endif
+
   ret = db_env_create(&dbh->dbenv, 0);
-  if (ret != 0)
-  {
-    LOG(LOG_ERROR, 
-        "ERROR: Unable to init the database environment: %s\n",
-        db_strerror(ret));
+  if (ret != 0) {
+    LOG_BDB(LOG_ERROR, 
+	    "db_env_create",
+	    dbh,
+	    ret);
     handleError(ret, dbh);
     return ret;
   }
-
-  dbh->dbenv->set_errfile(dbh->dbenv, (FILE *) getLogfile());
-
-  ret = dbh->dbenv->open(dbh->dbenv, dbh->home, DB_CREATE |
-    DB_THREAD | DB_INIT_MPOOL, 0);
-  if (ret != 0)
-  {
-    LOG(LOG_ERROR, 
-        "ERROR: Unable to open the database environment: %s\n",
-        db_strerror(ret));
+  dbh->dbenv->set_errfile(dbh->dbenv, 
+			  (FILE *) getLogfile());
+  ret = dbh->dbenv->open(dbh->dbenv, 
+			 dbh->home, 
+			 DB_CREATE | DB_THREAD | DB_INIT_MPOOL
+#ifdef WINDOWS
+			  | winflags
+#endif
+			 , 
+			 0);
+  if (ret != 0) {
+    LOG_BDB(LOG_ERROR, 
+	    "dbenv->open",
+	    dbh,
+	    ret);
     handleError(ret, dbh);
     return ret;
   }
@@ -135,12 +177,13 @@ int bdbOpen(bdbHandle *dbh)
 #endif
 
   ret = db_create(&dbh->dbf, dbh->dbenv, 0);
-  if (ret != 0) 
-  {
-    LOG(LOG_ERROR, 
-        "ERROR: Unable to init the Berkeley DB: %s\n",
-        db_strerror(ret));
+  if (ret != 0)  {
+    LOG_BDB(LOG_ERROR, 
+	    "db_create",
+	    dbh,
+	    ret);
     handleError(ret, dbh);
+    dbh->dbenv->close(dbh->dbenv, 0);
     return ret;
   }
 
@@ -148,30 +191,40 @@ int bdbOpen(bdbHandle *dbh)
 
 #if BDB_DEBUG
  LOG(LOG_DEBUG, 
-     "BDB: Opening datafile %s\n", 
+     "BDB: Opening datafile '%s'.\n", 
      dbh->filename);
 #endif
 
 #if DB_VERSION_MAJOR * 10 + DB_VERSION_MINOR >= 41
-  ret = dbh->dbf->open(dbh->dbf, NULL, dbh->filename,
-                      "data", DB_HASH, DB_CREATE | DB_THREAD,
-                      S_IRUSR | S_IWUSR);
+  ret = dbh->dbf->open(dbh->dbf, 
+		       NULL, 
+		       dbh->filename,
+		       "data", 
+		       DB_HASH, 
+		       DB_CREATE | DB_THREAD,
+		       S_IRUSR | S_IWUSR);
 #else
-  ret = dbh->dbf->open(dbh->dbf, dbh->filename,
-                       "data", DB_HASH, DB_CREATE | DB_THREAD,
+  ret = dbh->dbf->open(dbh->dbf,
+		       dbh->filename,
+                       "data",
+		       DB_HASH, 
+		       DB_CREATE | DB_THREAD,
                        S_IRUSR | S_IWUSR);
 #endif
   if (ret != 0) {
-    LOG(LOG_ERROR, 
-        "ERROR: Unable to open the Berkeley DB: %s\n",
-        db_strerror(ret));
+    LOG_BDB(LOG_ERROR, 
+	    "dbf->open",
+	    dbh,
+	    ret);
     handleError(ret, dbh);
+    dbh->dbf->close(dbh->dbf, 0);
+    dbh->dbenv->close(dbh->dbenv, 0);
     return ret;
   }
 
 #if BDB_DEBUG
  LOG(LOG_DEBUG, 
-     "BDB: Datafile opened\n");
+     "BDB: Datafile opened.\n");
 #endif
 
   dbh->deleteSize = 0;
@@ -180,34 +233,22 @@ int bdbOpen(bdbHandle *dbh)
 }
 
 /**
- * Handle BDB errors
- * @param err the error code
- * @param dbh the BDB handle
- **/
-void handleError(int err, bdbHandle *dbh)
-{
-  if (err == DB_NOSERVER || err == DB_RUNRECOVERY)
-  {
-    LOG(LOG_FATAL, "BDB panic, that's the end\n");
-    FREE(dbh->filename);
-    FREE(dbh->home);
-    MUTEX_DESTROY(&dbh->DATABASE_Lock_);
-    FREE(dbh);
-    exit(1);
-  }
-}
-
-/**
  * Open a bdb database (for content)
  * @param dir the directory where content is configured
  *         to be stored (e.g. data/content). A file 
  *         called ${dir}.bdb is used instead
- **/
-static bdbHandle * getDatabase(char * dir)
+ */
+static bdbHandle * getDatabase(const char * dir)
 {
   char *ff;
   bdbHandle * result;
   int len;
+
+#if HAVE_BDB_DLL
+  if (!LoadBDB())
+    errexit(_("Cannot load '%s'.\n"), 
+	    "libdb.dll");  
+#endif
 
   result = MALLOC(sizeof(bdbHandle));
   ff = MALLOC(strlen(dir)+strlen(BDB_EXT)+1);
@@ -229,8 +270,7 @@ static bdbHandle * getDatabase(char * dir)
   strncpy(result->home, result->filename, len);
   result->home[len] = 0;
   
-  if (bdbOpen(result) != 0)
-  {
+  if (bdbOpen(result) != 0) {
     FREE(result->filename);
     FREE(result->home);
     FREE(result);
@@ -240,13 +280,14 @@ static bdbHandle * getDatabase(char * dir)
   return result;
 }
 
-void * lowInitContentDatabase(char * dir)
+void * lowInitContentDatabase(const char * dir)
 {  
   bdbHandle * dbh;
   
   dbh = getDatabase(dir);
   if (dbh == NULL) 
-    errexit("FATAL: could not open database!\n");  
+    errexit(_("Could not open BDB database '%s'!\n"),
+	    dir);  
   MUTEX_CREATE_RECURSIVE(&dbh->DATABASE_Lock_);
   return dbh;
 }
@@ -255,17 +296,21 @@ void * lowInitContentDatabase(char * dir)
  * Normal shutdown of the storage module.
  *
  * @param handle the database
- **/
+ */
 void lowDoneContentDatabase(void * handle)
 {
   bdbHandle * dbh = handle;
 
 #if BDB_DEBUG
- LOG(LOG_DEBUG, 
+  LOG(LOG_DEBUG, 
      "BDB: Shutting down\n");
 #endif
-  
+
   bdbClose(dbh);
+
+#if HAVE_BDB_DLL
+  UnloadBDB();
+#endif
   
   FREE(dbh->filename);
   FREE(dbh->home);
@@ -277,7 +322,7 @@ void lowDoneContentDatabase(void * handle)
  * Delete the BDB database.
  *
  * @param handle the database
- **/
+ */
 void lowDeleteContentDatabase(void * handle)
 {
   bdbHandle * dbh = handle;
@@ -289,13 +334,8 @@ void lowDeleteContentDatabase(void * handle)
   
   bdbClose(dbh);
 
-  if (REMOVE(dbh->filename) != 0)
-  {
-    LOG(LOG_ERROR,
-        "ERROR: could not remove %s: %s\n",
-        dbh->filename,
-        db_strerror(errno));
-  }
+  if (REMOVE(dbh->filename) != 0) 
+    LOG_FILE_STRERROR(LOG_ERROR, "remove", dbh->filename);
   FREE(dbh->filename);
   FREE(dbh->home);
   MUTEX_DESTROY(&dbh->DATABASE_Lock_);
@@ -310,7 +350,7 @@ void lowDeleteContentDatabase(void * handle)
  * @param callback the function to call for each entry
  * @param data extra argument to callback
  * @return the number of items stored in the content database
- **/
+ */
 int lowForEachEntryInDatabase(void * handle,
 			      LowEntryCallback callback,
 			      void * data)
@@ -336,10 +376,10 @@ int lowForEachEntryInDatabase(void * handle,
      if not already present */
   ret = dbh->dbf->cursor(dbh->dbf, NULL, &cursor, 0);
   if (ret) {
-    LOG(LOG_ERROR,
-        "BDB: Can't create cursor: %d (%s)\n", 
-        ret,
-        db_strerror(ret));
+    LOG_BDB(LOG_ERROR,
+	    "dbf->cursor",
+	    dbh, 
+	    ret);
     handleError(ret, dbh);
     return 0;
   }
@@ -348,9 +388,10 @@ int lowForEachEntryInDatabase(void * handle,
   {
     if (ret != 0)
     {
-      LOG(LOG_ERROR, 
-	        "BDB: Unable to get next entry: %s\n",
-          db_strerror(ret));
+      LOG_BDB(LOG_ERROR, 
+	      "cursor->c_get",
+	      dbh,
+	      ret);
       handleError(ret, dbh);
       break;
     }
@@ -394,7 +435,7 @@ int lowForEachEntryInDatabase(void * handle,
 /**
  * @param dbh the database
  * @param count the number to store
- **/
+ */
 static void storeCount(bdbHandle * dbh,
 		       int count)
 {
@@ -419,9 +460,10 @@ static void storeCount(bdbHandle * dbh,
   MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
   if (ret != 0)
   {
-    LOG(LOG_ERROR, 
-	      "BDB: Unable to store the row counter: %s\n",
-        db_strerror(ret));
+    LOG_BDB(LOG_ERROR, 
+	    "dbf->put",
+	    dbh,
+	    ret);
     handleError(ret, dbh);
   }
 }
@@ -430,7 +472,7 @@ static void storeCount(bdbHandle * dbh,
  * Get the number of entries in the database.
  *
  * @param handle the database
- **/
+ */
 int lowCountContentEntries(void * handle)
 {
   bdbHandle * dbh = handle;
@@ -474,9 +516,9 @@ int lowCountContentEntries(void * handle)
  * @param result the buffer to write the result to 
  *        (*result should be NULL, sufficient space is allocated)
  * @return the number of bytes read on success, SYSERR on failure
- **/ 
+ */ 
 int lowReadContent(void * handle,
-	     	   HashCode160 * name,
+	     	   const HashCode160 * name,
 		   void ** result)
 {
   bdbHandle * dbh = handle;
@@ -497,7 +539,8 @@ int lowReadContent(void * handle,
 
 #if BDB_DEBUG
  LOG(LOG_DEBUG,
-     "BDB: Retrieving data for key %s\n",
+     "BDB: Retrieving data for key '%*.s'.\n",
+     key.size,
      key.data);
 #endif
 
@@ -527,15 +570,16 @@ int lowReadContent(void * handle,
  * @param len the size of the block
  * @param block the data to store
  * @return SYSERR on error, OK if ok.
- **/
+ */
 int lowWriteContent(void * handle,
-		    HashCode160 * name, 
+		    const HashCode160 * name, 
 		    int len,
-		    void * block)
+		    const void * block)
 {
   bdbHandle * dbh = handle;
   HexName fn;
-  DBT buffer, key, old;
+  DBT buffer;
+  DBT key, old;
   int count, ret;
 
   hash2hex(name, &fn);
@@ -544,7 +588,7 @@ int lowWriteContent(void * handle,
   memset(&buffer, 0, sizeof(DBT));
   key.data = fn.data;
   key.size = strlen(key.data) + 1;
-  buffer.data = block;
+  buffer.data = (void*) block;
   buffer.size = len;
   count = lowCountContentEntries(dbh);
 #if BDB_DEBUG
@@ -593,9 +637,9 @@ int lowWriteContent(void * handle,
  * @param handle the database
  * @param name hashcode representing the name of the file (without directory)
  * @return SYSERR on error, OK if ok.
- **/
+ */
 int lowUnlinkFromDB(void * handle,
-		    HashCode160 * name)
+		    const HashCode160 * name)
 {
   bdbHandle *dbh = handle;
   DBT key, buffer;
@@ -635,10 +679,10 @@ int lowUnlinkFromDB(void * handle,
     storeCount(dbh, cnt - 1);
   } else {
     MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
-    LOG(LOG_WARNING,
-	    "WARNING: bdb_delete failed for key %s (%s)\n",
-	    &fn,
-	    db_strerror(ret));
+    LOG_BDB(LOG_WARNING,
+	    "dbf->del",
+	    dbh,
+	    ret);
     return SYSERR;
   }
 
@@ -650,7 +694,7 @@ int lowUnlinkFromDB(void * handle,
  *
  * @param handle the database
  * @return the number of kb that the DB is assumed to use at the moment.
- **/
+ */
 int lowEstimateSize(LowDBHandle handle) {
   bdbHandle * dbh = handle;
 

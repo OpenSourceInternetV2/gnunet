@@ -25,7 +25,7 @@
  *
  * AFS CORE. This is the code that is plugged into the GNUnet core to
  * enable Anonymous File Sharing.
- **/
+ */
 
 #include "afs.h"
 #include "routing.h"
@@ -38,20 +38,42 @@
 
 /**
  * Global core API.
- **/
+ */
 CoreAPIForApplication * coreAPI = NULL;
 
 /**
  * Initialize the AFS module. This method name must match
  * the library name (libgnunet_XXX => initialize_XXX).
  * @return SYSERR on errors
- **/
+ */
 int initialize_afs_protocol(CoreAPIForApplication * capi) {
   int ok = OK;
+  int * sbit;
+  int version;
 
   if (getConfigurationInt("AFS",
 			  "DISKQUOTA") <= 0)
-    errexit("FATAL: you must specify a postive number for the DISKQUOTA in section AFS\n");
+    errexit(_("You must specify a postive number for '%s' in the configuration in section '%s'.\n"),
+	    "DISKQUOTA", "AFS");
+
+  /* AFS version check; current AFS version is 0.6.2
+     (we only bump this version number if the DB changes!) */
+  sbit = NULL;
+  if (sizeof(int) == stateReadContent("VERSION",
+				      (void**)&sbit)) {
+    version = *sbit;
+    FREE(sbit);
+    if (ntohl(version) != 0x0620)
+      errexit(_("Please run \"gnunet-check -u\" first!\n"));
+  } else {
+    FREENONNULL(sbit);  
+    /* first start (or garbled version number), just write version tag */
+    version = htonl(0x0620);  
+    stateWriteContent("VERSION",
+		      sizeof(int),
+		      &version);
+  }
+
 
   coreAPI = capi;  
   initFileIndex();
@@ -63,7 +85,7 @@ int initialize_afs_protocol(CoreAPIForApplication * capi) {
   initAFSHandler();
   initMigration();
   LOG(LOG_DEBUG,
-      "DEBUG: AFS registering handlers %d %d %d and %d %d %d %d %d %d %d %d %d %d %d %d\n",
+      "AFS registering handlers %d %d %d and %d %d %d %d %d %d %d %d %d %d %d %d\n",
       AFS_p2p_PROTO_QUERY,
       AFS_p2p_PROTO_3HASH_RESULT,
       AFS_p2p_PROTO_CHK_RESULT,

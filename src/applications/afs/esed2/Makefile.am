@@ -11,6 +11,7 @@ libgnunet_afs_esed2_la_SOURCES = \
   downloadutil.c \
   insertutil.c \
   keywords.c \
+  nblock.c \
   policy.c \
   pseudonym.c \
   requestmanager.c \
@@ -27,5 +28,22 @@ else
 libgnunet_afs_esed2_la_LIBADD = \
   $(top_builddir)/src/util/libgnunetutil.la 
 endif
+
+################################
+# TESTCASES 
+################################
+
+check_PROGRAMS = \
+ uritest
+
+TESTS = $(check_PROGRAMS)
+
+uritest_SOURCES = \
+ uritest.c 
+uritest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la \
+ $(top_builddir)/src/applications/afs/esed2/libgnunet_afs_esed2.la
+
+
 
 

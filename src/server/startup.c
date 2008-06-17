@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -30,7 +30,7 @@
  * - command line parsing
  *
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_util.h"
 #include "transport.h"
@@ -44,27 +44,27 @@ extern SERVICE_STATUS_HANDLE hService;
 
 /**
  * This flag is set if gnunetd is shutting down.
- **/
+ */
 static Semaphore * doShutdown;
 
 /* ************* SIGNAL HANDLING *********** */
 
 /**
  * Cron job that triggers re-reading of the configuration.
- **/
+ */
 static void reread_config_helper(void * unused) {
   LOG(LOG_DEBUG,
-      "DEBUG: Re-reading configuration\n");
+      "Re-reading configuration file.\n");
   readConfiguration();
   triggerGlobalConfigurationRefresh();
   LOG(LOG_DEBUG,
-      "DEBUG: Re-reading configuration done.\n");
+      "New configuration active.\n");
 }
 
 /**
  * Signal handler for SIGHUP.
  * Re-reads the configuration file. 
- **/
+ */
 static void reread_config(int signum) {
   addCronJob(&reread_config_helper,
 	     1 * cronSECONDS, 
@@ -74,7 +74,7 @@ static void reread_config(int signum) {
 
 /**
  * Try a propper shutdown of gnunetd.
- **/
+ */
 static void shutdown_gnunetd(int signum) {
   
 #ifdef MINGW
@@ -115,25 +115,24 @@ if (win_service)
 }
 
 static int shutdownHandler(ClientHandle client,
-                           CS_HEADER * msg) {
+                           const CS_HEADER * msg) {
   int ret;
   
   if (ntohs(msg->size) != sizeof(CS_HEADER)) {
     LOG(LOG_WARNING,
-        "WARNING: shutdown request received from TCP has wrong size %d\n",
-	ntohs(msg->size));
+        _("The '%s' request received from client is malformed.\n"),
+	"shutdown");
     return SYSERR;
   }
   LOG(LOG_INFO, 
-      "INFO: shutdown request accepted from client\n");
+      "shutdown request accepted from client\n");
   
   if (SYSERR == unregisterCSHandler(CS_PROTO_SHUTDOWN_REQUEST,
                                     &shutdownHandler))
-    errexit("FATAL: shutdownHandler failed, unregisterCSHandler returned SYSERR!\n");
+    GNUNET_ASSERT(0);
   ret = sendTCPResultToClient(client,
 			      OK);
   shutdown_gnunetd(0);
-
   return ret;
 }
 
@@ -156,7 +155,7 @@ BOOL WINAPI win_shutdown_gnunetd(DWORD dwCtrlType)
 
 /**
  * Initialize signal handlers
- **/
+ */
 void initSignalHandlers() {
 #ifndef MINGW
   struct sigaction sig;
@@ -185,7 +184,7 @@ void initSignalHandlers() {
 
   if (SYSERR == registerCSHandler(CS_PROTO_SHUTDOWN_REQUEST,
                                   &shutdownHandler))
-    errexit("FATAL: initSignalHandlers failed, registerCSHandler returned SYSERR!\n");
+    GNUNET_ASSERT(0);
 }
 
 void doneSignalHandlers() {
@@ -211,7 +210,7 @@ void doneSignalHandlers() {
 
 /**
  * Cron job to timeout gnunetd.
- **/
+ */
 static void semaphore_up(void * sem) {
   SEMAPHORE_UP((Semaphore*)sem);
 }
@@ -255,7 +254,7 @@ void waitForSignalHandler() {
 
 /**
  * Check if the compiler did a decent job aligning the structs...
- **/
+ */
 void checkCompiler() {
   if (sizeof(HELO_Message) != 556)
     errexit("sizeof HELO Message wrong! (%d != 556)",
@@ -270,13 +269,13 @@ void checkCompiler() {
 static char * getPIDFile() {
   return getFileName("GNUNETD",
 		     "PIDFILE",
-		     "You must specify a name for the PID file in section"\
-		     " %s under %s\n");
+		     _("You must specify a name for the PID file in section"
+		       " '%s' under '%s'.\n"));
 }
 
 /**
  * Write our process ID to the pid file.
- **/
+ */
 void writePIDFile() {
   FILE * pidfd;
   char * pif;
@@ -285,8 +284,9 @@ void writePIDFile() {
   pidfd = FOPEN(pif, "w");
   if (pidfd == NULL) {
     LOG(LOG_WARNING, 
-	"WARNING: Could not write PID to file %s\n", 
-	pif);
+	_("Could not write PID to file '%s': %s.\n"), 
+	pif,
+	STRERROR(errno));
   } else {
     fprintf(pidfd, "%u", (unsigned int) getpid());
     fclose(pidfd);
@@ -308,14 +308,14 @@ void deletePIDFile() {
  *
  * @param filedes pointer to an array of 2 file descriptors
  *        to complete the detachment protocol (handshake)
- **/
+ */
 void detachFromTerminal(int * filedes) {
 #ifndef MINGW
   pid_t pid;
   int nullfd;
 #endif
   
-   /* Don't hold the wrong FS mounted */
+  /* Don't hold the wrong FS mounted */
   if (CHDIR("/") < 0) {
     perror("chdir");
     exit(1);
@@ -383,30 +383,30 @@ static void printDot(void * unused) {
 
 /**
  * Print a list of the options we offer.
- **/
+ */
 static void printhelp() {
   static Help help[] = {
     HELP_CONFIG,
     { 'd', "debug", NULL,
-      "run in debug mode; gnunetd will "
-      "not daemonize and error messages will "
-      "be written to stderr instead of a logfile" },
+      gettext_noop("run in debug mode; gnunetd will "
+		   "not daemonize and error messages will "
+		   "be written to stderr instead of a logfile") },
     HELP_HELP,
     HELP_LOGLEVEL,
-    { 'u', "user", "USER",
-      "run as user USER" },
+    { 'u', "user", "LOGIN",
+      gettext_noop("run as user LOGIN") },
     HELP_VERSION,
     HELP_END,
   };
   formatHelp("gnunetd [OPTIONS]",
-	     "Start gnunetd daemon.",
+	     _("Starts the gnunetd daemon."),
 	     help);
 }
 
 
 /**
  * Perform option parsing from the command line. 
- **/
+ */
 int parseCommandLine(int argc, 
 		     char * argv[]) {
   int cont = OK;
@@ -428,7 +428,7 @@ int parseCommandLine(int argc,
     static struct GNoption long_options[] = {
       { "loglevel",1, 0, 'L' },
       { "config",  1, 0, 'c' },
-      { "version", 0, 0, 'v' },
+      { "version", 0, 0, 'v' },      
       { "help",    0, 0, 'h' },
       { "user",    1, 0, 'u' },
       { "debug",   0, 0, 'd' },
@@ -489,15 +489,16 @@ int parseCommandLine(int argc,
       pws = getpwnam(GNoptarg);
       if (pws == NULL) {
         LOG(LOG_WARNING, 
-	    "WARNING: User %s not known, can not change UID to it. Will continue...",
+	    _("User '%s' not known, cannot change UID to it."),
 	    GNoptarg);
         break;
       }
       if ( (0 != setregid(pws->pw_gid, pws->pw_gid)) || 
 	   (0 != setreuid(pws->pw_uid, pws->pw_uid)) )
 	LOG(LOG_WARNING, 
-	    "WARNING: Can not change user/group to %s. Will continue...",
-	    GNoptarg);
+	    _("Cannot change user/group to '%s': %s"),
+	    GNoptarg,
+	    STRERROR(errno));
       break;
 #endif
 #ifdef MINGW
@@ -507,20 +508,22 @@ int parseCommandLine(int argc,
 #endif
     default:
       LOG(LOG_FAILURE, 
-	  "FAILURE: Unknown option %c. Aborting.\n"\
-	  "Use --help to get a list of options.\n",
-	  c);
+	  _("Use --help to get a list of options.\n"));
       cont = SYSERR;    
     } /* end of parsing commandline */
   }
   if (GNoptind < argc) {
     LOG(LOG_WARNING, 
-	"WARNING: Invalid arguments: ");
-    while (GNoptind < argc)
+	_("Invalid command-line arguments:\n"));
+    while (GNoptind < argc) {
       LOG(LOG_WARNING, 
-	  "%s ", argv[GNoptind++]);
+	  _("Argument %d: '%s'\n"), 
+	  GNoptind+1,
+	  argv[GNoptind]);
+      GNoptind++;
+    }    
     LOG(LOG_FATAL,
-	"FATAL: Invalid arguments. Exiting.\n");
+	_("Invalid command-line arguments.\n"));
     return SYSERR;
   }
   return cont;

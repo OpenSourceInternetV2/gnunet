@@ -136,7 +136,8 @@
 #include <ctype.h>
 #endif
 
-
+#include <locale.h>
+#include "gettext.h"
 
 
 #ifdef CYGWIN

@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -29,7 +29,7 @@
  * strictly speaking).  But libgcrypt does sometimes require locking in
  * unexpected places, so the safe solution is to always lock even if it
  * is not required.  The performance impact is minimal anyway.
- **/
+ */
 
 #include "gnunet_util.h"
 #include "platform.h"
@@ -43,11 +43,28 @@
 #define HOSTKEY_LEN 2048
 #define EXTRA_CHECKS YES
 
+
+/**
+ * Log an error message at log-level 'level' that indicates
+ * a failure of the command 'cmd' with the message given
+ * by gcry_strerror(rc).
+ */
+#define LOG_GCRY(level, cmd, rc) do { LOG(level, _("'%s' failed at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, gcry_strerror(rc)); } while(0);
+
+/**
+ * Die with an error message that indicates
+ * a failure of the command 'cmd' with the message given
+ * by gcry_strerror(rc).
+ */
+#define DIE_GCRY(cmd, rc) do { errexit(_("'%s' failed at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, gcry_strerror(rc)); } while(0);
+
+
+
 /**
  * If target != size, move target bytes to the
  * end of the size-sized buffer and zero out the
  * first target-size bytes.
- **/
+ */
 static void adjust(char * buf,
 		   int size,
 		   int target) {
@@ -63,11 +80,11 @@ static void adjust(char * buf,
 
 /**
  * Initialize Random number generator.
- **/
+ */
 void initRAND() {
   gcry_control(GCRYCTL_DISABLE_SECMEM, 0);
   if (! gcry_check_version(GCRYPT_VERSION))
-    errexit("FATAL: libgcrypt has not the exptected version %s\n",
+    errexit(_("libgcrypt has not the expected version (version %s is required).\n"),
 	    GCRYPT_VERSION);
   srand((unsigned int)time(NULL));
 #ifdef gcry_fast_random_poll
@@ -77,7 +94,7 @@ void initRAND() {
 
 /**
  * This HostKey implementation uses RSA.
- **/
+ */
 Hostkey makeHostkey() {
   Hostkey ret;
   gcry_sexp_t s_key;
@@ -90,9 +107,7 @@ Hostkey makeHostkey() {
 		       "(genkey(rsa(nbits %d)(rsa-use-e 3:257)))",
 		       HOSTKEY_LEN);
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: failed to convert keyparam: %s\n", 
-	gcry_strerror (rc));
+    LOG_GCRY(LOG_ERROR, "gcry_sexp_build", rc);
     unlockGcrypt();
     return NULL;
   }
@@ -100,17 +115,14 @@ Hostkey makeHostkey() {
 		      s_keyparam);
   gcry_sexp_release(s_keyparam);
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: key generation failed: %s\n", 
-	gcry_strerror (rc));
+    LOG_GCRY(LOG_ERROR, "gcry_pk_genkey", rc);
     unlockGcrypt();
     return NULL;
   }
 
 #if EXTRA_CHECKS
-  if (gcry_pk_testkey(s_key)) {
-    LOG(LOG_ERROR,
-	"ERROR: freshly created hostkey is not sane!\n");
+  if ((rc=gcry_pk_testkey(s_key))) {
+    LOG_GCRY(LOG_ERROR, "gcry_pk_testkey", rc);
     unlockGcrypt();
     return NULL;
   }
@@ -123,7 +135,7 @@ Hostkey makeHostkey() {
 
 /**
  * Free memory occupied by hostkey
- **/
+ */
 void freeHostkey(Hostkey hostkey) {
   lockGcrypt();
   gcry_sexp_release(HOSTKEY(hostkey));
@@ -186,7 +198,7 @@ static int key_from_sexp( gcry_mpi_t *array,
  * Extract the public key of the host.
  * @param hostkey the hostkey to extract into the result.
  * @param result where to write the result.
- **/
+ */
 void getPublicKey(Hostkey hostkey,
 		  PublicKey * result) {
   gcry_mpi_t skey[2];
@@ -209,8 +221,7 @@ void getPublicKey(Hostkey hostkey,
 		       "rsa", 
 		       "ne");    
   if (rc) 
-    errexit("FATAL: getPublicKey: key_from_sexp failed: %d\n", 
-	    rc);
+    DIE_GCRY("key_from_sexp", rc);
   
   result->len = htons(sizeof(PublicKey) - sizeof(result->padding));
   result->sizen = htons(RSA_ENC_LEN);
@@ -222,8 +233,7 @@ void getPublicKey(Hostkey hostkey,
 		      &size, 
 		      skey[0]);
   if (rc) 
-    errexit("FATAL: gcry_mpi_print of n failed: %s\n",
-	    gcry_strerror(rc));
+    DIE_GCRY("gcry_mpi_print", rc);
   adjust(&result->key[0], size, RSA_ENC_LEN);
   size = RSA_KEY_LEN - RSA_ENC_LEN; 
   rc = gcry_mpi_print(GCRYMPI_FMT_USG, 
@@ -232,8 +242,7 @@ void getPublicKey(Hostkey hostkey,
 		      &size, 
 		      skey[1]);
   if (rc) 
-    errexit("FATAL: gcry_mpi_print of e failed: %s\n",
-	    gcry_strerror(rc));
+    DIE_GCRY("gcry_mpi_print", rc);
   adjust(&result->key[RSA_ENC_LEN], 
 	 size,
 	 RSA_KEY_LEN - RSA_ENC_LEN);
@@ -243,8 +252,8 @@ void getPublicKey(Hostkey hostkey,
 
 /**
  * Internal: publicKey => RSA-Key
- **/
-static Hostkey public2Hostkey(PublicKey * publicKey) {
+ */
+static Hostkey public2Hostkey(const PublicKey * publicKey) {
   Hostkey ret;
   gcry_sexp_t result;
   gcry_mpi_t n;
@@ -255,10 +264,7 @@ static Hostkey public2Hostkey(PublicKey * publicKey) {
 
   if ( ( ntohs(publicKey->sizen) != RSA_ENC_LEN ) ||
        ( ntohs(publicKey->len) != sizeof(PublicKey) - sizeof(publicKey->padding)) ) {
-    LOG(LOG_ERROR,
-	"ERROR: public2Hostkey: received invalid publicKey (%d, %d)\n",
-	ntohs(publicKey->len),
-	ntohs(publicKey->sizen)); 
+    BREAK();
     return NULL;
   }
   size = RSA_ENC_LEN;
@@ -269,9 +275,7 @@ static Hostkey public2Hostkey(PublicKey * publicKey) {
 		     size,
 		     &size);
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: gcry_mpi_scan of n failed (%s)\n",
-	gcry_strerror(rc));
+    LOG_GCRY(LOG_ERROR, "gcry_mpi_scan", rc);
     unlockGcrypt();
     return NULL;
   }
@@ -282,9 +286,7 @@ static Hostkey public2Hostkey(PublicKey * publicKey) {
 		     size,
 		     &size);
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: gcry_mpi_scan of e failed (%s)\n",
-	gcry_strerror(rc));
+    LOG_GCRY(LOG_ERROR, "gcry_mpi_scan", rc);
     gcry_mpi_release(n);
     unlockGcrypt();
     return NULL;
@@ -297,10 +299,7 @@ static Hostkey public2Hostkey(PublicKey * publicKey) {
   gcry_mpi_release(n);
   gcry_mpi_release(e);
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: gcry_sexp_build of public key failed (%s at position %d)\n",
-	gcry_strerror(rc),
-	erroff);
+    LOG_GCRY(LOG_ERROR, "gcry_sexp_build", rc); /* erroff gives more info */
     unlockGcrypt();
     return NULL;
   }  
@@ -315,7 +314,7 @@ static Hostkey public2Hostkey(PublicKey * publicKey) {
  * storing it into a file.
  * @returns encoding of the private key.
  *    The first 4 bytes give the size of the array, as usual.
- **/
+ */
 HostKeyEncoded * encodeHostkey(Hostkey hostkey) {
   /* libgcrypt */
 
@@ -330,8 +329,7 @@ HostKeyEncoded * encodeHostkey(Hostkey hostkey) {
   lockGcrypt();    
 #if EXTRA_CHECKS
   if (gcry_pk_testkey(HOSTKEY(hostkey))) {
-    LOG(LOG_ERROR,
-	"ERROR: encodeHostkey: hostkey is not sane!\n");
+    BREAK();
     unlockGcrypt();
     return NULL;
   }
@@ -368,9 +366,7 @@ HostKeyEncoded * encodeHostkey(Hostkey hostkey) {
 		       "rsa",
 		       "ned");
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: encodeHostkey: key_from_sexp failed: %d\n", 
-	rc);
+    LOG_GCRY(LOG_ERROR, "key_from_sexp", rc);
     unlockGcrypt();
     return NULL;
   }
@@ -383,9 +379,7 @@ HostKeyEncoded * encodeHostkey(Hostkey hostkey) {
 			   pkv[i]);
       size += sizes[i];
       if (rc) {
-	LOG(LOG_ERROR,
-	    "ERROR: gcry_mpi_aprint failed: %s\n", 
-	    gcry_strerror (rc));
+	LOG_GCRY(LOG_ERROR, "gcry_mpi_aprint", rc);
 	while (i>0) 
 	  if (pbu[i] != NULL)
 	    free(pbu[--i]);	
@@ -400,8 +394,7 @@ HostKeyEncoded * encodeHostkey(Hostkey hostkey) {
       sizes[i] = 0;
     }
   }
-  if (size >= 65536) 
-    errexit("FATAL: size of serialized private key >= 64k\n");  
+  GNUNET_ASSERT(size < 65536);
   retval = MALLOC(size);
   retval->len = htons(size);
   i = 0;
@@ -449,8 +442,8 @@ HostKeyEncoded * encodeHostkey(Hostkey hostkey) {
 /**
  * Decode the private key from the file-format back
  * to the "normal", internal format.
- **/
-Hostkey decodeHostkey(HostKeyEncoded * encoding) {
+ */
+Hostkey decodeHostkey(const HostKeyEncoded * encoding) {
   Hostkey ret;
   gcry_sexp_t res;
   gcry_mpi_t n,e,d,p,q,u;
@@ -468,9 +461,7 @@ Hostkey decodeHostkey(HostKeyEncoded * encoding) {
 		     &size);
   pos += ntohs(encoding->sizen);
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: could not decode hostkey (%s)\n",
-	gcry_strerror(rc));
+    LOG_GCRY(LOG_ERROR, "gcry_mpi_scan", rc);
     unlockGcrypt();
     return NULL;
   }
@@ -482,9 +473,7 @@ Hostkey decodeHostkey(HostKeyEncoded * encoding) {
 		     &size);
   pos += ntohs(encoding->sizee);
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: could not decode hostkey (%s)\n",
-	gcry_strerror(rc));
+    LOG_GCRY(LOG_ERROR, "gcry_mpi_scan", rc);
     gcry_mpi_release(n);
     unlockGcrypt();
     return NULL;
@@ -497,9 +486,7 @@ Hostkey decodeHostkey(HostKeyEncoded * encoding) {
 		     &size);
   pos += ntohs(encoding->sized);
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: could not decode hostkey (%s)\n",
-	gcry_strerror(rc));
+    LOG_GCRY(LOG_ERROR, "gcry_mpi_scan", rc);
     gcry_mpi_release(n);
     gcry_mpi_release(e);
     unlockGcrypt();
@@ -515,9 +502,7 @@ Hostkey decodeHostkey(HostKeyEncoded * encoding) {
 		       &size);
     pos += ntohs(encoding->sizep);
     if (rc) {
-      LOG(LOG_ERROR,
-	  "ERROR: could not decode hostkey (%s)\n",
-	  gcry_strerror(rc));
+      LOG_GCRY(LOG_ERROR, "gcry_mpi_scan", rc);
       gcry_mpi_release(n);
       gcry_mpi_release(e);
       gcry_mpi_release(d);
@@ -535,9 +520,7 @@ Hostkey decodeHostkey(HostKeyEncoded * encoding) {
 		       &size);
     pos += ntohs(encoding->sizeq);
     if (rc) {
-      LOG(LOG_ERROR,
-	  "ERROR: could not decode hostkey (%s)\n",
-	  gcry_strerror(rc));
+      LOG_GCRY(LOG_ERROR, "gcry_mpi_scan", rc);
       gcry_mpi_release(n);
       gcry_mpi_release(e);
       gcry_mpi_release(d);
@@ -559,9 +542,7 @@ Hostkey decodeHostkey(HostKeyEncoded * encoding) {
 		       size,
 		       &size);
     if (rc) {
-      LOG(LOG_ERROR,
-	  "ERROR: could not decode hostkey (%s)\n",
-	  gcry_strerror(rc));
+      LOG_GCRY(LOG_ERROR, "gcry_mpi_scan", rc);
       gcry_mpi_release(n);
       gcry_mpi_release(e);
       gcry_mpi_release(d);
@@ -606,16 +587,11 @@ Hostkey decodeHostkey(HostKeyEncoded * encoding) {
   if (u != NULL)
     gcry_mpi_release(u);
 
-  if (rc) {
-     LOG(LOG_ERROR,
-	  "ERROR: could not decode hostkey (%s at %d)\n",
-	  gcry_strerror(rc),
-	 size);
-  }
+  if (rc) 
+    LOG_GCRY(LOG_ERROR, "gcry_sexp_build", rc);
 #if EXTRA_CHECKS
   if (gcry_pk_testkey(res)) {
-    LOG(LOG_ERROR,
-	"ERROR: decodeHostkey: hostkey is not sane!\n");
+    LOG_GCRY(LOG_ERROR, "gcry_pk_testkey", rc);
     unlockGcrypt();
     return NULL;
   }
@@ -635,10 +611,10 @@ Hostkey decodeHostkey(HostKeyEncoded * encoding) {
  * @param publicKey the encoded public key used to encrypt
  * @param target where to store the encrypted block
  * @returns SYSERR on error, OK if ok
- **/
-int encryptHostkey(void * block, 
+ */
+int encryptHostkey(const void * block, 
 		   unsigned short size,
-		   PublicKey * publicKey,
+		   const PublicKey * publicKey,
 		   RSAEncryptedData * target) {
   gcry_sexp_t result;
   gcry_sexp_t data;
@@ -658,9 +634,7 @@ int encryptHostkey(void * block,
 		     isize,
 		     &isize);
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: encryptHostkey - gcry_mpi_scan failed (%s)\n", 
-	gcry_strerror (rc));
+    LOG_GCRY(LOG_ERROR, "gcry_mpi_scan", rc);
     freeHostkey(pubkey);
     unlockGcrypt();
     return SYSERR;
@@ -671,10 +645,7 @@ int encryptHostkey(void * block,
 		       val);
   gcry_mpi_release(val);
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: encryptHostkey - gcry_sexp_build failed (%s at offset %d)\n", 
-	gcry_strerror (rc),
-	erroff);
+    LOG_GCRY(LOG_ERROR, "gcry_sexp_build", rc); /* more info in erroff */
     freeHostkey(pubkey);
     unlockGcrypt();
     return SYSERR;
@@ -682,10 +653,7 @@ int encryptHostkey(void * block,
   
   rc = gcry_pk_encrypt(&result, data, HOSTKEY(pubkey));
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: encryptHostkey - gcry_pk_encrypt failed (%s)\n", 
-	gcry_strerror (rc),
-	erroff);
+    LOG_GCRY(LOG_ERROR, "gcry_pk_encrypt", rc); 
     gcry_sexp_release(data);
     freeHostkey(pubkey);
     unlockGcrypt();
@@ -700,9 +668,7 @@ int encryptHostkey(void * block,
 		     "a");
   gcry_sexp_release(result);
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: hostkeyEncrypt: key_from_sexp failed (%d)\n",
-	rc);
+    LOG_GCRY(LOG_ERROR, "key_from_sexp", rc);
     unlockGcrypt();
     return SYSERR;
   }
@@ -714,9 +680,7 @@ int encryptHostkey(void * block,
 		      rval);
   gcry_mpi_release(rval);
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: encryptHostkey - gcry_mpi_print failed (%s)\n", 
-	gcry_strerror (rc));
+    LOG_GCRY(LOG_ERROR, "gcry_mpi_print", rc);
     unlockGcrypt();
     return SYSERR;
   }
@@ -736,9 +700,9 @@ int encryptHostkey(void * block,
  * @param max the maximum number of bits to store for the result, if
  *        the decrypted block is bigger, an error is returned
  * @returns the size of the decrypted block, -1 on error
- **/
-int decryptHostkey(Hostkey hostkey, 
-		   RSAEncryptedData * block,
+ */
+int decryptHostkey(const Hostkey hostkey, 
+		   const RSAEncryptedData * block,
 		   void * result,
 		   unsigned int max) {
   gcry_sexp_t resultsexp;
@@ -753,8 +717,7 @@ int decryptHostkey(Hostkey hostkey,
   lockGcrypt();
 #if EXTRA_CHECKS
   if (gcry_pk_testkey(HOSTKEY(hostkey))) {
-    LOG(LOG_ERROR,
-	"ERROR: decrypt: hostkey is not sane!\n");
+    LOG_GCRY(LOG_ERROR, "gcry_pk_testkey", rc);
     unlockGcrypt();
     return -1;
   }
@@ -766,9 +729,7 @@ int decryptHostkey(Hostkey hostkey,
 		     size,
 		     &size);
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: hostkeyDecrypt: gcry_mpi_scan failed (%s)\n",
-	gcry_strerror(rc));
+    LOG_GCRY(LOG_ERROR, "gcry_mpi_scan", rc);
     unlockGcrypt();
     return SYSERR;
   }
@@ -778,10 +739,7 @@ int decryptHostkey(Hostkey hostkey,
 		       val);
   gcry_mpi_release(val);
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: hostkeyDecrypt: gcry_sexp_build failed (%s at %d)\n",
-	gcry_strerror(rc),
-	erroff);
+    LOG_GCRY(LOG_ERROR, "gcry_sexp_build", rc); /* more info in erroff */
     unlockGcrypt();
     return SYSERR;
   }
@@ -790,9 +748,7 @@ int decryptHostkey(Hostkey hostkey,
 		       HOSTKEY(hostkey));
   gcry_sexp_release(data);
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: hostkeyDecrypt: gcry_pk_decrypt failed (%s)\n",
-	gcry_strerror(rc));
+    LOG_GCRY(LOG_ERROR, "gcry_pk_decrypt", rc);
     unlockGcrypt();
     return SYSERR;
   }
@@ -801,9 +757,7 @@ int decryptHostkey(Hostkey hostkey,
   val = gcry_sexp_nth_mpi(resultsexp, 1, GCRYMPI_FMT_USG);
   gcry_sexp_release(resultsexp);
   if (val == NULL) {
-    LOG(LOG_ERROR,
-	"ERROR: gcry_sexp_nth_mpi failed (%s)\n",
-	gcry_strerror(rc));
+    LOG_GCRY(LOG_ERROR, "gcry_sexp_nth_mpi", rc);
     unlockGcrypt();
     return SYSERR;
   }
@@ -816,9 +770,7 @@ int decryptHostkey(Hostkey hostkey,
 		      val);
   gcry_mpi_release(val);
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: gcry_mpi_print failed (%s)\n",
-	gcry_strerror(rc));
+    LOG_GCRY(LOG_ERROR, "gcry_mpi_print", rc);
     FREE(tmp);
     unlockGcrypt();
     return SYSERR;
@@ -832,7 +784,7 @@ int decryptHostkey(Hostkey hostkey,
   if ( (!size) || 
        (*endp != 0x02 )) {
     LOG(LOG_ERROR,
-	"ERROR: not a pkcs-1 block type 2 (size=%d, *tmp=%d)!\n",
+	_("Received plaintext not in pkcs-1 block type 2 format (size=%d, *tmp=%d)!\n"),
 	size, (int)*tmp);
     FREE(tmp);
     unlockGcrypt();
@@ -847,7 +799,7 @@ int decryptHostkey(Hostkey hostkey,
   if ( (size == 0) || 
        (*endp != 0x0) ) {
     LOG(LOG_ERROR,
-	"ERROR: not a pkcs-1 block type 2 (size=%d, *endp=%d)\n",
+	_("Received plaintext not in pkcs-1 block type 2 format (size=%d, *endp=%d)!\n"),
 	size, (int) *endp);
     FREE(tmp);
     unlockGcrypt();
@@ -874,10 +826,10 @@ int decryptHostkey(Hostkey hostkey,
  * @param block the data to sign
  * @param sig where to write the signature
  * @return SYSERR on error, OK on success
- **/
-int sign(Hostkey hostkey, 
+ */
+int sign(const Hostkey hostkey, 
 	 unsigned short size,
-	 void * block,
+	 const void * block,
 	 Signature * sig) {
   gcry_sexp_t result;
   gcry_sexp_t data;
@@ -905,18 +857,14 @@ int sign(Hostkey hostkey,
 		     0);
   FREE(buff);
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: sign: gcry_sexp_new failed (%s)\n",
-	gcry_strerror(rc));
+    LOG_GCRY(LOG_ERROR, "gcry_sexp_new", rc);
     unlockGcrypt();
     return SYSERR;
   }
   rc = gcry_pk_sign(&result, data, HOSTKEY(hostkey));
   gcry_sexp_release(data);
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: sign: gcry_pk_sign failed (%s)\n",
-	gcry_strerror(rc));
+    LOG_GCRY(LOG_ERROR, "gcry_pk_sign", rc);
     unlockGcrypt();
     return SYSERR;
   }
@@ -926,9 +874,7 @@ int sign(Hostkey hostkey,
 		     "s");
   gcry_sexp_release(result);
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: sign: key_from_sexp failed (%d)\n",
-	rc);
+    LOG_GCRY(LOG_ERROR, "key_from_sexp", rc);
     unlockGcrypt();
     return SYSERR;
   }
@@ -940,9 +886,7 @@ int sign(Hostkey hostkey,
 		      rval);
   gcry_mpi_release(rval);
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: sign: gcry_mpi_print failed (%s)\n",
-	gcry_strerror(rc));
+    LOG_GCRY(LOG_ERROR, "gcry_mpi_print", rc);
     unlockGcrypt();
     return SYSERR;
   }
@@ -961,11 +905,11 @@ int sign(Hostkey hostkey,
  * @param sig signature
  * @param publicKey public key of the signer
  * @returns OK if ok, SYSERR if invalid
- **/
-int verifySig(void * block,
+ */
+int verifySig(const void * block,
 	      unsigned short len,
-	      Signature * sig,	      
-	      PublicKey * publicKey) {
+	      const Signature * sig,	      
+	      const PublicKey * publicKey) {
   gcry_sexp_t data;
   gcry_sexp_t sigdata;
   size_t size;
@@ -985,9 +929,7 @@ int verifySig(void * block,
 		     size,
 		     &size);
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: sign: gcry_mpi_scan failed (%s)\n",
-	gcry_strerror(rc));
+    LOG_GCRY(LOG_ERROR, "gcry_mpi_scan", rc);
     unlockGcrypt();
     return SYSERR;
   }
@@ -997,9 +939,7 @@ int verifySig(void * block,
 		       val);
   gcry_mpi_release(val);
   if (rc) {
-    LOG(LOG_ERROR,
-	"ERROR: sign: gcry_sexp_build failed (%s)\n",
-	gcry_strerror(rc));
+    LOG_GCRY(LOG_ERROR, "gcry_sexp_build", rc);
     unlockGcrypt();
     return SYSERR;
   }  
@@ -1026,7 +966,8 @@ int verifySig(void * block,
   gcry_sexp_release(sigdata);
   if (rc) {
     LOG(LOG_WARNING,
-	"WARNING: signature verification failed (%s)\n",
+	_("RSA signature verification failed at %s:%d: %s\n"),
+	__FILE__, __LINE__,
 	gcry_strerror(rc));
     unlockGcrypt();
     return SYSERR;

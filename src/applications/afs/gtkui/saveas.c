@@ -21,7 +21,7 @@
  * @brief open a save-as window.
  * @author Christian Grothoff
  * @author Igor Wronsky
- **/
+ */
 
 #include "gnunet_afs_esed2.h"
 #include "helper.h"
@@ -30,7 +30,7 @@
 
 /**
  * @brief state of the SaveAs window
- **/
+ */
 typedef struct {
   RootNode root;
   GtkWidget * w;
@@ -43,11 +43,11 @@ typedef struct {
  *
  * @param widget not used
  * @param saveas state associated with the SaveAs window
- **/
+ */
 static gint destroySaveAs(GtkWidget * widget,
 			  SaveAs * saveas) {
   LOG(LOG_DEBUG, 
-      "DEBUG: destroying saveas window (%x)\n", 
+      "Destroying saveas window (%p).\n", 
       saveas);
   FREENONNULL(saveas->filename);
   FREE(saveas);
@@ -59,14 +59,11 @@ static gint destroySaveAs(GtkWidget * widget,
  *
  * @param okButton not used
  * @param saveas state of the saveas window
- **/
+ */
 static gint file_ok_sel(GtkWidget * okButton,
 			SaveAs * saveas) {
-  gchar * filename;
+  const gchar * filename;
 
-  LOG(LOG_DEBUG, 
-      "DEBUG: file_ok_sel (%x)\n", 
-      saveas);
   filename
     = gtk_file_selection_get_filename(GTK_FILE_SELECTION(saveas->w));
   startDownload(filename, &saveas->root);
@@ -83,7 +80,7 @@ static gint file_ok_sel(GtkWidget * okButton,
  * signal handler, so a GTK lock is not required to to GUI operations.
  * 
  * @param root search result of the file to download
- **/
+ */
 void openSaveAs(RootNode * root) {
   SaveAs * saveas;
   int i;
@@ -112,9 +109,12 @@ void openSaveAs(RootNode * root) {
     } else 
       saveas->filename = STRDUP(((SBlock*)root)->filename);
     break;
+  case NBLOCK_MAJOR_VERSION:
+    BREAK(); /* should never be downloaded! */
+    break;
   default:
     LOG(LOG_WARNING,
-	"WARNING: unknown format version: %d\n",
+	_("Unknown format version: %d.\n"),
 	ntohs(root->header.major_formatVersion));
     /* how did we get here!? */
     break;
@@ -171,10 +171,8 @@ void openSaveAs(RootNode * root) {
       char * expanded;
   
       expanded = expandFileName(downloadDir);
-      if((SYSERR == mkdirp(expanded)))
-        LOG(LOG_WARNING, 
-        	  "WARNING: Unable to create %s\n", 
-  	  expanded);
+      if ((SYSERR == mkdirp(expanded)))
+        LOG_FILE_STRERROR(LOG_WARNING, "mkdirp", expanded);
       CHDIR(expanded);
       FREE(expanded);
     }

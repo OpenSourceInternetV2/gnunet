@@ -21,8 +21,8 @@
 #
 #
 AC_PREREQ(2.57)
-AC_INIT([GNUnet], [0.6.2b],[bug-gnunet@gnu.org])
-AM_INIT_AUTOMAKE([GNUnet], [0.6.2b])
+AC_INIT([GNUnet], [0.6.4],[bug-gnunet@gnu.org])
+AM_INIT_AUTOMAKE([GNUnet], [0.6.4])
 AM_CONFIG_HEADER([config.h])
 
 AH_TOP([#define _GNU_SOURCE  1])
@@ -67,63 +67,40 @@ case "$host_os" in
      AC_DEFINE_UNQUOTED(OSX,1,[This is an OS X system])
      CFLAGS="-no-cpp-precomp $CFLAGS"
      LDFLAGS="-flat_namespace -undefined suppress $LDFLAGS"
-     NAME_OF_DEV_RANDOM="/dev/urandom"
-     NAME_OF_DEV_URANDOM="/dev/urandom"
-     random_modules="rndlinux"
      ;;
 linux*)
      AC_DEFINE_UNQUOTED(LINUX,1,[This is a Linux system])
-     NAME_OF_DEV_RANDOM="/dev/random"
-     NAME_OF_DEV_URANDOM="/dev/urandom"
-     random_modules="rndlinux"
      ;;
 freebsd*)
      AC_DEFINE_UNQUOTED(SOMEBSD,1,[This is a BSD system])
      AC_DEFINE_UNQUOTED(FREEBSD,1,[This is a FreeBSD system])
      CFLAGS="-D_THREAD_SAFE $CFLAGS"
-     NAME_OF_DEV_RANDOM="/dev/urandom"
-     NAME_OF_DEV_URANDOM="/dev/urandom"
-     random_modules="rndlinux"
      ;;
 openbsd*)
      AC_DEFINE_UNQUOTED(SOMEBSD,1,[This is a BSD system])
      AC_DEFINE_UNQUOTED(OPENBSD,1,[This is an OpenBSD system])
-     NAME_OF_DEV_RANDOM="/dev/urandom"
-     NAME_OF_DEV_URANDOM="/dev/urandom"
-     random_modules="rndlinux"     
      ;;
 netbsd*)
      AC_DEFINE_UNQUOTED(SOMEBSD,1,[This is a BSD system])
      AC_DEFINE_UNQUOTED(NETBSD,1,[This is a NetBSD system])
-     NAME_OF_DEV_RANDOM="/dev/urandom"
-     NAME_OF_DEV_URANDOM="/dev/urandom"
-     random_modules="rndlinux"
      ;;
 *solaris*)
      AC_DEFINE_UNQUOTED(SOLARIS,1,[This is a Solaris system])
      AC_DEFINE_UNQUOTED(_REENTRANT,1,[Need with solaris or errno doesnt work])
      AC_CHECK_LIB(resolv, res_init)
      AC_CHECK_LIB(rt, nanosleep)
-     NAME_OF_DEV_RANDOM="/dev/random"
-     NAME_OF_DEV_URANDOM="/dev/random"
-     random_modules="rndlinux"
      build_target="solaris"
      ;;
 *arm-linux*)
      AC_DEFINE_UNQUOTED(LINUX,1,[This is a Linux system])
      CFLAGS="-D_REENTRANT -fPIC -pipe $CFLAGS"
-     NAME_OF_DEV_RANDOM="/dev/random"
-     NAME_OF_DEV_URANDOM="/dev/urandom"
-     random_modules="rndlinux"
      ;;
 *cygwin*)
      AC_DEFINE_UNQUOTED(CYGWIN,1,[This is a Cygwin system])
      AC_DEFINE_UNQUOTED(WINDOWS,1,[This is a Windows system])
      AC_CHECK_LIB(intl, gettext)
      LDFLAGS="$LDFLAGS -no-undefined"
-     NAME_OF_DEV_RANDOM="/dev/random"
-     NAME_OF_DEV_URANDOM="/dev/urandom"
-     random_modules="rndw32"
+     CFLAGS="-mms-bitfields $CFLAGS"
      build_target="cygwin"
      AC_PROG_CXX
      ;;
@@ -132,18 +109,13 @@ netbsd*)
      AC_DEFINE_UNQUOTED(WINDOWS,1,[This is a Windows system])
      AC_CHECK_LIB(intl, gettext)
      LDFLAGS="$LDFLAGS -no-undefined -Wl,--export-all-symbols -lws2_32"
-     NAME_OF_DEV_RANDOM="/dev/random"
-     NAME_OF_DEV_URANDOM="/dev/urandom"
-     random_modules="rndw32"
+     CFLAGS="-mms-bitfields $CFLAGS"
      build_target="mingw"
      AC_PROG_CXX
      ;;
 *)
      AC_MSG_RESULT(Unrecognised OS $host_os)
      AC_DEFINE_UNQUOTED(OTHEROS,1,[Some strange OS])
-     NAME_OF_DEV_RANDOM="/dev/random"
-     NAME_OF_DEV_URANDOM="/dev/urandom"
-     random_modules="rndlinux"
 ;;
 esac
 
@@ -159,31 +131,24 @@ AM_CONDITIONAL(MINGW, test "$build_target" = "mingw")
 AM_CONDITIONAL(SOLARIS, test "$build_target" = "solaris")
 AC_MSG_RESULT([$build_target])
 
-# We have three choices for the crypto stuff.  
+# We have two choices for the crypto stuff.  
 # 1) We use OpenSSL if it is present and the user specified
 #    --with-crypto or we're building Windows executables.
 # 2) We use libgcrypt if it is present and the user specified
 #    --with-gcrypt.
-# 3) If 1) and 2)  are wrong, we use our NEW, build-in crypto
-#    code (which was adapted from libgcrypt).
 
 # gcrypt
 gcrypt=0
 AC_MSG_CHECKING(for libgcrypt) 
-if test "x$with_gcrypt" != "x"
+AM_PATH_LIBGCRYPT(1.2.0, gcrypt=1)
+if test "x$LIBGCRYPT_LIBS" != "x"
 then
-	AM_PATH_LIBGCRYPT(1.1.43, gcrypt=1)
-	if test "x$LIBGCRYPT_LIBS" != "x"
-	then
-   	      LDFLAGS="$LDFLAGS $LIBGCRYPT_LIBS"
-	fi
-	if test "x$LIBGCRYPT_CFLAGS" != "x"
-	then
-		CPPFLAGS="$CPPFLAGS $LIBGCRYPT_CFLAGS"
-	fi
+    LDFLAGS="$LDFLAGS $LIBGCRYPT_LIBS"
 fi
-AM_CONDITIONAL(USE_GCRYPT, test x$gcrypt = x1)
-AC_DEFINE_UNQUOTED(USE_GCRYPT, $gcrypt, [gcrypt available])
+if test "x$LIBGCRYPT_CFLAGS" != "x"
+then
+	CPPFLAGS="$CPPFLAGS $LIBGCRYPT_CFLAGS"
+fi
 
 # openssl
 AC_MSG_CHECKING(for openssl)
@@ -222,8 +187,32 @@ then
       ;;
   esac
 fi
+
+
+if test $openssl == 0 
+then
+if test $gcrypt == 0
+then
+  AC_MSG_ERROR([GNUnet needs libgcrypt or OpenSSL])
+fi
+fi
+
+# Given the choice, the preference is libgcrypt
+if test $openssl == 1
+then
+if test $gcrypt == 1
+then
+openssl=0
+fi
+fi
+
+AM_CONDITIONAL(USE_GCRYPT, test x$gcrypt = x1)
+AC_DEFINE_UNQUOTED(USE_GCRYPT, $gcrypt, [gcrypt available])
+
 AM_CONDITIONAL(USE_OPENSSL, test x$openssl = x1)
 AC_DEFINE_UNQUOTED(USE_OPENSSL, $openssl, [openssl available])
+
+
 
 # test for kvm and kstat (for CPU stats under BSD/Solaris)
 AC_CHECK_LIB([kvm],[kvm_open])
@@ -234,7 +223,7 @@ AC_CHECK_LIB([kstat],[kstat_open])
 extractor=0
 AC_MSG_CHECKING(for libextractor)
 AC_ARG_WITH(extractor,
-   [  --with-extractor=PFX    Base of libextractor Directory],
+   [  --with-extractor=PFX    Base of libextractor installation],
    [AC_MSG_RESULT("$with_extractor")
     case $with_extractor in
       no)
@@ -242,7 +231,6 @@ AC_ARG_WITH(extractor,
       yes)
         AC_CHECK_HEADERS(extractor.h,
           AC_CHECK_LIB([extractor], [EXTRACTOR_loadDefaultLibraries],
-            EXT_LIB_PATH="-L$with_extractor/lib $EXT_LIB_PATH"
             extractor=1))
         ;;
       *)
@@ -270,19 +258,28 @@ AC_MSG_CHECKING(for gdbm)
 AC_ARG_WITH(gdbm,
   [  --with-gdbm=PFX   Base of gdbm installation],
   [AC_MSG_RESULT("$with_gdbm")
-   if test "$with_gdbm" != "no"
-   then
+   case $with_gdbm in
+   no) 
+     ;;
+   yes)
+    AC_CHECK_HEADERS(gdbm.h,
+     AC_CHECK_LIB(gdbm, gdbm_open,
+      gdb=true))   
+     ;;
+   *)
     LDFLAGS="-L$with_gdbm/lib $LDFLAGS"
     CPPFLAGS="-I$with_gdbm/include $CPPFLAGS"
     AC_CHECK_HEADERS(gdbm.h,
      AC_CHECK_LIB(gdbm, gdbm_open,
       EXT_LIB_PATH="-L$with_gdbm/lib $EXT_LIB_PATH"
       gdb=true))
-   fi
+    ;;
+   esac
   ],
   [AC_MSG_RESULT([--with-gdbm not specified])
    AC_CHECK_LIB(gdbm, gdbm_open,
     [AC_CHECK_HEADERS(gdbm.h, gdb=true)])])
+AC_CHECK_DECLS([GDBM_CENTFREE, GDBM_COALESCEBLKS])
 AM_CONDITIONAL(HAVE_GDBM, test x$gdb = xtrue)
 
 # test for tdb
@@ -327,7 +324,32 @@ AC_ARG_WITH(bdb,
    AC_CHECK_HEADERS(db.h, bdb=true)])
 AM_CONDITIONAL(HAVE_BDB, test x$bdb = xtrue)
 
+bdb_dll=false
+if test x$bdb = xtrue -a "$build_target" = "mingw"
+then
+ AC_MSG_CHECKING(for bdb DLL)
+ AC_LANG_CONFTEST(
+   [AC_LANG_SOURCE([[int main(){return 0;}]])])
+ $CC $CFLAGS conftest.c /usr/local/lib/libdb.dll -o conftest.exe 2> /dev/null
+ if test $? = 0
+ then
+  AC_MSG_RESULT([yes])
+  bdb_dll=true
+  AC_DEFINE(HAVE_BDB_DLL, 1, [Define if you have the shared Berkeley DB library.])
+ else
+  AC_MSG_RESULT([no])
+ fi
+fi
+AM_CONDITIONAL(HAVE_BDB_DLL, test x$bdb_dll = xtrue)
 
+
+# test for libz (maybe required for linking mysql)
+saveLIBS=$LIBS
+zlib=1
+AC_CHECK_LIB(z, compress,,zlib=0)
+ZLIBS=$LIBS
+LIBS=$saveLIBS
+AM_CONDITIONAL(HAVE_ZLIB, test x$zlib = x1)
 
 # test for mysql
 mysql=false
@@ -338,17 +360,21 @@ AC_ARG_WITH(mysql,
   [AC_MSG_RESULT("$with_mysql")
    if test "$with_mysql" != "no"
    then
-    LDFLAGS="-L$with_mysql/lib -L$with_mysql/lib/mysql $LDFLAGS"
+    LDFLAGS="-L$with_mysql/lib -L$with_mysql/lib/mysql $LDFLAGS $ZLIBS"
     CPPFLAGS="-I$with_mysql/include $CPPFLAGS"
     AC_CHECK_HEADERS(mysql/mysql.h,
      AC_CHECK_LIB(mysqlclient, mysql_init,
-      EXT_LIB_PATH="-L$with_mysql/lib -L$with_mysql/lib/mysql"
+      EXT_LIB_PATH="-L$with_mysql/lib -L$with_mysql/lib/mysql $EXT_LIB_PATH"
       mysql=true))
    fi
   ],
   [AC_MSG_RESULT([--with-mysql not specified])
+   LDFLAGS="-L/usr/lib/mysql $LDFLAGS $ZLIBS"
    AC_CHECK_LIB(mysqlclient, mysql_init,
-    [AC_CHECK_HEADERS(mysql/mysql.h,mysql=true)])])
+    [AC_CHECK_HEADERS(mysql/mysql.h,
+      EXT_LIB_PATH="-L/usr/lib/mysql $EXT_LIB_PATH"
+      mysql=true
+     )])])
 
 # additional version check for mysql
 if test "$mysql" = "true"
@@ -397,174 +423,22 @@ AC_CHECK_LIB(nsl, gethostbyname)
 AC_CHECK_LIB(socket, socket)
 AC_CHECK_LIB(m, log)
 AC_CHECK_LIB(c, getloadavg, AC_DEFINE(HAVE_GETLOADAVG,1,[getloadavg supported]))
+AC_CHECK_LIB(gmp, __gmpz_set)
 
-# do gpg/libgcrypt/mpi checks only if we
-# are in fact linking against our own crypto
-# code and not against openssl/libgcrypt
-# set am_conditionals to "false" otherwise
-AM_CONDITIONAL(USE_RNDLINUX, test "n" = "y")
-AM_CONDITIONAL(USE_RNDUNIX, test "n" = "y")
-AM_CONDITIONAL(USE_RNDEGD, test "n" = "y")
-AM_CONDITIONAL(USE_RNDW32, test "n" = "y")
-
-if test $openssl == 0 
-then
-if test $gcrypt == 0
-then
-
-# GNUPG checks
-GNUPG_CHECK_ENDIAN
-GNUPG_CHECK_TYPEDEF(byte, HAVE_BYTE_TYPEDEF)
-GNUPG_CHECK_TYPEDEF(ushort, HAVE_USHORT_TYPEDEF)
-GNUPG_CHECK_TYPEDEF(ulong, HAVE_ULONG_TYPEDEF)
-GNUPG_CHECK_TYPEDEF(u16, HAVE_U16_TYPEDEF)
-GNUPG_CHECK_TYPEDEF(u32, HAVE_U32_TYPEDEF)
-
-# MPI checks
-MPI_OPT_FLAGS=""
-AC_SUBST(MPI_OPT_FLAGS)
-
-# Define conditionals and config.h symbols depending on the enabled
-# random modules.
-AC_DEFINE_UNQUOTED(NAME_OF_DEV_RANDOM, "$NAME_OF_DEV_RANDOM",
-                   [defined to the name of the strong random device])
-AC_DEFINE_UNQUOTED(NAME_OF_DEV_URANDOM, "$NAME_OF_DEV_URANDOM",
-                   [defined to the name of the weaker random device])
-
-LIST_MEMBER(rndlinux, $random_modules)
-AM_CONDITIONAL(USE_RNDLINUX, test "$found" = "1")
-AC_DEFINE_UNQUOTED(USE_RNDLINUX, $found, [Defined if the /dev/random based RNG should be used.])
-
-LIST_MEMBER(rndunix, $random_modules)
-AM_CONDITIONAL(USE_RNDUNIX, test "$found" = "1")
-AC_DEFINE_UNQUOTED(USE_RNDUNIX, $found, [Defined if the default Unix RNG should be used.])
-if test "$found" = "1"; then
-   print_egd_notice=yes
-fi
-
-LIST_MEMBER(rndegd, $random_modules)
-AM_CONDITIONAL(USE_RNDEGD, test "$found" = "1")
-AC_DEFINE_UNQUOTED(USE_RNDEGD, $found, [Defined if the EGD based RNG should be used.])
-if test "$found" = "1"; then
-   EGDLIBS=$NETLIBS
-   AC_SUBST(EGDLIBS)
-fi
-
-LIST_MEMBER(rndw32, $random_modules)
-AM_CONDITIONAL(USE_RNDW32, test "$found" = "1")
-AC_DEFINE_UNQUOTED(USE_RNDW32, $found, [Defined if the Windows specific RNG should be used.])
-
-
-# end of libgcrypt specific checks
-fi
-fi
-
-
-# check for gtk
+# check for gtk >= 2.0.0 (which version do we truely need? I use 2.4)
 AC_MSG_CHECKING(for gtk)
-AC_ARG_WITH(gtk,
-    [  --with-gtk=PFX	          Base of GTK installation],
-    [AC_MSG_RESULT("$with_gtk")
-     if test "$with_gtk" != "no"
-     then
-      without_gtk=false
-      LDFLAGS="-L$with_gtk/lib $LDFLAGS"
-      CPPFLAGS="-I$with_gtk/include $CPPFLAGS"     
-      AM_GNUNET_PATH_GLIB(1.2.0,,AC_MSG_ERROR(Could not find glib),gthread)
-      AM_GNUNET_PATH_GTK(1.2.0,,AC_MSG_ERROR(Could not find gtk),)
-     else
-      without_gtk=true
-     fi],
-    [AC_MSG_RESULT([--with-gtk not specified])
-     without_gtk=false
-     
-     if test "$build_target" = "mingw"
-     then
-      AC_CHECK_LIB(gtk, gtk_window_new, , AC_MSG_ERROR(Could not find gtk))
-      AC_CHECK_LIB(gdk, [gdk_init], , AC_MSG_ERROR(Could not find gdk))
-      AC_CHECK_LIB(glib-2.0, [g_log], , AC_MSG_ERROR(Could not find glib-win32-2.0))
-      AC_CHECK_LIB(gobject-2.0, [g_signal_new], , AC_MSG_ERROR(Could not find gobject-2.0))
-      AC_CHECK_LIB(gthread-2.0, [g_thread_init], , AC_MSG_ERROR(Could not find gthread-2.0))
-      AC_CHECK_LIB(iconv, [libiconv_open], , AC_MSG_ERROR(Could not find libiconv))       
-     else
-      if test "$build_target" = "cygwin"
-      then
-       AC_MSG_CHECKING(for gtk-win32-2.0)
-       AC_CHECK_LIB(gtk-win32-2.0, gtk_window_new, AC_MSG_RESULT(yes), AC_MSG_ERROR(Could not find gtk-win32-2.0))
-       AC_MSG_CHECKING(for gdk-win-2.0)
-       AC_CHECK_LIB(gdk-win32-2.0, [gdk_init], AC_MSG_RESULT(yes), AC_MSG_ERROR(Could not find gdk-win32-2.0))
-       AC_MSG_CHECKING(for glib-2.0)
-       AC_CHECK_LIB(glib-2.0, [g_log], AC_MSG_RESULT(yes), AC_MSG_ERROR(Could not find glib-win32-2.0))
-       AC_MSG_CHECKING(for gobject-2.0)
-       AC_CHECK_LIB(gobject-2.0, [g_signal_new], AC_MSG_RESULT(yes), AC_MSG_ERROR(Could not find gobject-2.0))
-       AC_MSG_CHECKING(for gthread-2.0)
-       AC_CHECK_LIB(gthread-2.0, [g_thread_init], AC_MSG_RESULT(yes), AC_MSG_ERROR(Could not find gthread-2.0))
-       AC_MSG_CHECKING(for libintl)
-       AC_CHECK_LIB(libintl, [gettext], AC_MSG_RESULT(yes), AC_MSG_ERROR(Could not find libintl))
-       AC_MSG_CHECKING(for libiconv)
-       AC_CHECK_LIB(libiconv, [libiconv_open], AC_MSG_RESULT(yes), AC_MSG_ERROR(Could not find libiconv))
-      else
-       AM_GNUNET_PATH_GLIB(1.2.0,,[without_gtk=true; AC_MSG_RESULT(glib not found)],gthread)
-       AM_GNUNET_PATH_GTK(1.2.0,,[without_gtk=true; AC_MSG_RESULT(gtk not found)],)]
-      fi
-     fi
-)
+AM_PATH_GTK_2_0(2.0.0,without_gtk=false,without_gtk=true)
 AM_CONDITIONAL(HAVE_GTK, test x$without_gtk != xtrue)
 
-
-
-
-# memory debugger: electric fence?
-AC_MSG_CHECKING(whether to link against efence)
-AC_ARG_WITH(efence,
-    [  --with-efence=PFX       Debug using efence (default is no)],
-    [AC_MSG_RESULT("$with_efence")
-     if test "$with_efence" != "no"
-     then
-      LDFLAGS="$with_efence/libefence.a $LDFLAGS"
-     fi
-    ],
-    [AC_MSG_RESULT(no)]
-)
-
-
-
-
-# memory debugger: dmalloc? (defunct with GNUnet, do not use)
-AC_MSG_CHECKING(wether to link against dmalloc)
-AC_ARG_WITH(dmalloc,
-    [  --with-dmalloc=PFX      Debug using dmalloc (default is no)],
-    [AC_MSG_RESULT("$with_dmalloc")
-     LDFLAGS="$with_dmalloc/libdmallocth.a $LDFLAGS"],
-    [AC_MSG_RESULT(no)]
-)
-
-
-
-# right, like we would make use of that already...
-AC_MSG_CHECKING(wether to link against gettext)
-AC_ARG_WITH(gettext,
-    [  --with-gettext=PFX      Use gettext (default is no)],
-    [AC_MSG_RESULT("$with_gettext")
-     if test "$with_gettext" != "no"
-     then
-      AC_CHECK_HEADER(libintl.h)
-      AC_CHECK_LIB([gettextlib], [libintl_gettext],,
-        AC_MSG_RESULT(Could not find gettextlib)) 
-     fi
-    ],
-    [AC_MSG_RESULT(no)
-     AC_CHECK_HEADER(libintl.h)
-     AC_CHECK_LIB([gettextlib], [libintl_gettext],,,)]
-)
-
-
+# check for gettext
+AM_GNU_GETTEXT_VERSION(0.14)
+AM_GNU_GETTEXT([external])
 
 
 # Checks for standard header files.
 AC_HEADER_DIRENT
 AC_HEADER_STDC
-AC_CHECK_HEADERS([sys/mount.h sys/param.h sys/statvfs.h sys/vfs.h arpa/inet.h fcntl.h libintl.h limits.h netdb.h netinet/in.h stdlib.h string.h sys/ioctl.h sys/socket.h sys/time.h unistd.h kstat.h sys/sysinfo.h kvm.h])
+AC_CHECK_HEADERS([sys/mount.h sys/param.h sys/statvfs.h sys/vfs.h arpa/inet.h fcntl.h libintl.h limits.h netdb.h netinet/in.h stdlib.h string.h sys/ioctl.h sys/socket.h sys/time.h unistd.h kstat.h sys/sysinfo.h kvm.h gmp.h locale.h sys/file.h])
 
 
 
@@ -588,11 +462,10 @@ AC_TYPE_SIGNAL
 AC_FUNC_STAT
 AC_FUNC_STRFTIME
 AC_FUNC_VPRINTF
-AC_FUNC_WAIT3
 AC_HEADER_SYS_WAIT
 AC_TYPE_OFF_T
 AC_TYPE_UID_T
-AC_CHECK_FUNCS([floor gethostname memmove rmdir strncasecmp strrchr strtol atoll dup2 fdatasync ftruncate gethostbyname gettimeofday memset mkdir mkfifo select socket strcasecmp strchr strdup strerror strstr clock_gettime getrusage rand uname])
+AC_CHECK_FUNCS([floor gethostname memmove rmdir strncasecmp strrchr strtol atoll dup2 fdatasync ftruncate gethostbyname gettimeofday memset mkdir mkfifo select socket strcasecmp strchr strdup strerror strstr clock_gettime getrusage rand uname setlocale getcwd mktime])
 
 AC_SUBST(CPPFLAGS)
 AC_SUBST(LIBS)
@@ -697,7 +570,7 @@ then
 fi # enable_guile
 AM_CONDITIONAL(HAVE_GUILE, test x$guile != x0)
 
-AC_CONFIG_FILES([
+AC_CONFIG_FILES([ po/Makefile.in m4/Makefile 
 Makefile
 doc/Makefile
 doc/man/Makefile
@@ -714,15 +587,16 @@ src/applications/stats/Makefile
 src/applications/tbench/Makefile
 src/applications/testbed/Makefile
 src/applications/tracekit/Makefile
+src/applications/rpc/Makefile
+src/applications/dht/Makefile
+src/applications/dht/tools/Makefile
+src/applications/dht/module/Makefile
 src/server/Makefile
-src/test/Makefile
 src/transports/Makefile
 src/util/Makefile
 src/conf/Makefile
 contrib/Makefile
 src/util/win/Makefile
-src/util/gcry/Makefile
-src/util/gcry/mpi/Makefile
 ])
 AC_OUTPUT
 
@@ -745,3 +619,13 @@ then
 fi
 
 AC_MSG_NOTICE([NOTICE: Database support is set to GDBM: $gdb, TDB: $tdb, BDB: $bdb, MySQL: $mysql])
+
+if test $openssl == 1
+then
+  AC_MSG_NOTICE([NOTICE: Using OpenSSL for cryptographic primitives.])
+fi
+
+if test $gcrypt == 1
+then
+  AC_MSG_NOTICE([NOTICE: Using libgcrypt for cryptographic primitives.])
+fi

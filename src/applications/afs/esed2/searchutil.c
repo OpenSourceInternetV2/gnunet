@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -22,38 +22,38 @@
  * @file applications/afs/esed2/searchutil.c 
  * @brief Helper functions for searching.
  * @author Christian Grothoff
- **/
+ */
 
 #include "gnunet_afs_esed2.h"
 #include "platform.h"
 
 /**
  * Context of the sendQueries cron-job.
- **/
+ */
 typedef struct {
   /**
    * Time when the cron-job was first started.
-   **/
+   */
   cron_t start;
 
   /**
    * How many cron-units may we run (total)?
-   **/
+   */
   cron_t timeout;
 
   /**
    * Socket for communication with gnunetd
-   **/
+   */
   GNUNET_TCP_SOCKET * sock;
 
   /**
    * Number of queries.
-   **/
+   */
   unsigned int queryCount;
 
   /**
    * queryCount query messages
-   **/
+   */
   AFS_CS_QUERY ** messages;
 } SendQueriesContext;
 
@@ -61,44 +61,44 @@ typedef struct {
 typedef struct {
   /**
    * the results we've got so far (hash of root-node) 
-   **/
+   */
   HashCode160 * resultsReceived;
 
   /**
    * the number of valid entries in resultsReceived 
-   **/
+   */
   unsigned int countResultsReceived;
 
   /**
    * size of the resultsReceived array 
-   **/
+   */
   unsigned int sizeRR;
 
   /**
    * unmatched ("AND") results so far, list of root-node hashes that
    * were received for each keyword
-   **/
+   */
   HashCode160 ** key2hash;  
 
   /**
    * number of entries in the key2hash (for each dimension) 
-   **/
+   */
   unsigned int * key2hashCount;
 
   /**
    * allocated space in the key2hash (for each dimension) 
-   **/
+   */
   unsigned int * key2hashSize;
 
   /**
    * which method should be called for each result (print method),
    * called with the root-node as the argument 
-   **/
+   */
   SearchResultCallback resultHandler;
 
   /**
    * argument to the result handler 
-   **/
+   */
   void * resultHandlerArgs;
 
 } ResultContext;
@@ -106,7 +106,7 @@ typedef struct {
 /**
  * Display the result, but make sure that
  * every file is only displayed once.
- **/
+ */
 static void processResult(RootNode * rootNode,
 			  ResultContext * rc) {
   unsigned int i;
@@ -116,7 +116,7 @@ static void processResult(RootNode * rootNode,
     if (equalsHashCode160(&rc->resultsReceived[i],
 			  &rootNode->header.fileIdentifier.chk.query)) {
       LOG(LOG_DEBUG,
-	  "DEBUG: we have seen this result before (processResult)\n");
+	  " we have seen this result before (processResult)\n");
       return; /* seen before */
     }
   }
@@ -139,7 +139,7 @@ static void processResult(RootNode * rootNode,
  * @param keyIndex for which key this result matches
  * @param keyCount the number of keys that are ANDed
  * @param rc the context to keep track of which replies we got so far
- **/
+ */
 static void filterResult(RootNode * rootNode,
 			 unsigned int keyIndex,
 			 unsigned int keyCount,
@@ -151,7 +151,7 @@ static void filterResult(RootNode * rootNode,
     if (equalsHashCode160(&rc->key2hash[keyIndex][i],
 			  &rootNode->header.fileIdentifier.chk.query)) {
       LOG(LOG_DEBUG,
-	  "DEBUG: we have seen this result before (filterResult)\n");
+	  "We have seen this result before (filterResult).\n");
       return; /* seen before */
     }
   /* maybe we have to grow key2hash */
@@ -171,7 +171,7 @@ static void filterResult(RootNode * rootNode,
 	break; /* break inner for-loop */
     if (j == rc->key2hashCount[i]) {
       LOG(LOG_DEBUG,
-	  "DEBUG: not enough results for the AND query\n");
+	  "Not (yet) enough results for the AND query.\n");
       return; /* not found, exit! */
     }
   }
@@ -185,7 +185,7 @@ static void filterResult(RootNode * rootNode,
  * @param keyCount the number of keywords
  * @param handler the method to call for results
  * @param handlerArgs the arguments to the result handler method
- **/
+ */
 static void initResultContext(ResultContext * rc,
 			      unsigned int keyCount,
 			      void * handler,
@@ -211,7 +211,7 @@ static void initResultContext(ResultContext * rc,
  * Destroy a result context.
  * @param rc the context to destroy
  * @param keyCount the number of keywords
- **/
+ */
 static void destroyResultContext(ResultContext * rc,
 				 unsigned int keyCount) {
   unsigned int i;
@@ -237,7 +237,7 @@ static void destroyResultContext(ResultContext * rc,
  * @param handlerArgs the arguments to the result handler method
  * @param testTerminate method used to check if we should termiante
  * @param ttContext argument for testTerminate
- **/
+ */
 static void receiveResults(GNUNET_TCP_SOCKET * sock,
 			   unsigned int keyCount,
 			   HashCode160 * keywords,
@@ -269,18 +269,16 @@ static void receiveResults(GNUNET_TCP_SOCKET * sock,
       continue;
     }
     LOG(LOG_DEBUG,
-	"DEBUG: received message from gnunetd\n");
+	"Received message from gnunetd.\n");
     switch (ntohs(buffer->tcpType)) {
     case CS_PROTO_RETURN_VALUE:
       /* ignore: confirmation of gnunetd that it received
 	 a search request from the other thread */
       break;
     case AFS_CS_PROTO_RESULT_3HASH:
-      if (ntohs(buffer->size) != 
-	  sizeof(AFS_CS_RESULT_3HASH)) {
+      if (ntohs(buffer->size) != sizeof(AFS_CS_RESULT_3HASH)) {
 	closeSocketTemporarily(sock);
-	LOG(LOG_WARNING,
-	    "WARNING: received invalid reply from gnunetd, retrying\n");
+	BREAK();
 	break;
       }
       reply = (AFS_CS_RESULT_3HASH*)buffer;
@@ -294,24 +292,40 @@ static void receiveResults(GNUNET_TCP_SOCKET * sock,
 	  if (SYSERR == decryptContent((CONTENT_Block*)&reply->result,
 				       &keywords[i],
 				       result)) {
-	    LOG(LOG_ERROR, 
-		"ERROR: decryptContent failed!?\n");
+	    BREAK();
 	    continue;
 	  }
 	  rootNode = (RootNode*) result;
-	  if ( (htons(rootNode->header.major_formatVersion) != 
-		ROOT_MAJOR_VERSION) ||
-	       (htons(rootNode->header.minor_formatVersion) != 
-		ROOT_MINOR_VERSION) ) {
+	  switch (htons(rootNode->header.major_formatVersion)) {
+	  case ROOT_MAJOR_VERSION:
+	    if (htons(rootNode->header.minor_formatVersion) != ROOT_MINOR_VERSION) {
+	      LOG(LOG_WARNING, 
+		  _("Received RBlock has unsupported minor version %d.\n"),
+		  htons(rootNode->header.minor_formatVersion));
+	      continue;
+	    }
+	    break;
+	  case SBLOCK_MAJOR_VERSION:
+	    LOG(LOG_WARNING, 
+		_("Received SBlock in keyword search, that is not unsupported.\n"));
+	    continue; /* bah! */	    
+	  case NBLOCK_MAJOR_VERSION:
+	    if (htons(rootNode->header.minor_formatVersion) != NBLOCK_MINOR_VERSION) {
+	      LOG(LOG_WARNING, 
+		  _("Received NBlock has unsupported minor version %d.\n"),
+		  htons(rootNode->header.minor_formatVersion));
+	      continue;
+	    }
+	    break;
+	  default:
 	    LOG(LOG_INFO, 
-		"INFO: content has unsupported version: %d.%d"\
-		" (or is pre-GNUnet 0.4.9)\n",
-		rootNode->header.major_formatVersion,
-		rootNode->header.minor_formatVersion);
-	    continue; /* bah! broken! */
+		_("Received reply has unsupported version %d.%d.\n"),
+		htons(rootNode->header.major_formatVersion),
+		htons(rootNode->header.minor_formatVersion));
+	    continue; /* bah! */
 	  }
 	  LOG(LOG_DEBUG,
-	      "DEBUG: received result from gnunetd, filtering\n");
+	      "Received result from gnunetd, filtering\n");
 	  filterResult(rootNode, 
 		       i,
 		       keyCount,
@@ -324,16 +338,17 @@ static void receiveResults(GNUNET_TCP_SOCKET * sock,
 		   &got);
 	  hash2hex(&((AFS_CS_QUERY_GENERIC*)messages[i])->queries[0],
 		   &expect);
-	  LOG(LOG_DEBUG,
-	      "DEBUG: reply %s does not match expected hash %s\n",
+	  LOG(LOG_WARNING,
+	      _("Reply '%s' does not match expected hash '%s'.\n"),
 	      &got, &expect);
 	}
       }
       break;
-    default:
+    default:     
       LOG(LOG_WARNING,
-	  "WARNING: message from server is of unexpected type\n");
-      /* ignore */
+	  _("Message from server is of unexpected type %d.\n"),
+	  ntohs(buffer->tcpType));
+      closeSocketTemporarily(sock); /* protocol violation! */
       break;
     }
     FREE(buffer);
@@ -347,7 +362,7 @@ static void receiveResults(GNUNET_TCP_SOCKET * sock,
  * Repeatedly send out the queries to GNUnet.
  *
  * @param sqc the context
- **/
+ */
 static void sendQueries(SendQueriesContext * sqc) {
   cron_t now;
   unsigned int i;  
@@ -367,7 +382,7 @@ static void sendQueries(SendQueriesContext * sqc) {
   ttl = 0;
   for (i=0;i<sqc->queryCount;i++) {
     LOG(LOG_DEBUG,
-	"DEBUG: sending query with ttl %d\n",
+	" sending query with ttl %d\n",
 	ntohl(sqc->messages[i]->ttl));
     ttl = 1+randomi(TTL_DECREMENT);
     if (NO == checkAnonymityPolicy(AFS_CS_PROTO_QUERY,
@@ -400,7 +415,7 @@ static void sendQueries(SendQueriesContext * sqc) {
     ttl = TTL_DECREMENT;
 
   LOG(LOG_DEBUG,
-      "DEBUG: will wait for min(%d, %d) ms\n",
+      "Will wait for min(%d, %d) ms\n",
       ttl, 
       remTime);
 
@@ -423,7 +438,7 @@ static void sendQueries(SendQueriesContext * sqc) {
  * @param keyCount the number of keywords
  * @param keywords the keywords (or keys)
  * @param messages the resulting query messages
- **/
+ */
 static void buildMessages(unsigned int keyCount,
 			  HashCode160 * keywords,
 			  AFS_CS_QUERY *** messages) {
@@ -456,7 +471,7 @@ static void buildMessages(unsigned int keyCount,
  * @param keywords the list of ascii-keywords
  * @param keys the hashs of the keywords to set (= the keys, not the queries!)
  * @return -1 on error, 0 if we should exit without error, number of keys if we actually are going to do something
- **/
+ */
 static int parseKeywords(unsigned int num_keywords,
 			 char ** keywords,
 			 HashCode160 ** keys) { 

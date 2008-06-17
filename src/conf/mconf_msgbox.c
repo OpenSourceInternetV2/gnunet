@@ -24,7 +24,7 @@
  * @file conf/mconf_msgbox.c
  * @author Savio Lam
  * @author Nils Durner
- **/
+ */
 
 #include "mconf_dialog.h"
 

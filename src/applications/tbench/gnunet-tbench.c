@@ -22,7 +22,7 @@
  * @file applications/tbench/gnunet-tbench.c 
  * @brief Transport mechanism benchmarking tool
  * @author Paul Ruth
- **/
+ */
 
 #include "tbench.h"
 #include "platform.h"
@@ -38,7 +38,7 @@
 
 static int  messageSize = DEFAULT_MESSAGE_SIZE;
 static int  messageCnt  = 1;
-static char messageReceiver[256];
+static char * messageReceiver;
 static int  messageIterations = 1;
 static int  messageTrainSize = 1;
 static int  messageTimeOut = DEFAULT_TIMEOUT;
@@ -50,7 +50,7 @@ static int outputFormat = OF_HUMAN_READABLE;
  * @param argc the number of options
  * @param argv the option list (including keywords)
  * @return OK on error, SYSERR if we should exit 
- **/
+ */
 static int parseOptions(int argc,
 			char ** argv) {
   int option_index;
@@ -100,7 +100,7 @@ static int parseOptions(int argc,
 	{ 'n', "msg", "MESSAGES",
 	  "number of messages to use per iteration"},
 	{ 'r', "rec", "RECEIVER",
-	  "receiver host identifier (HEX file name)" },
+	  "receiver host identifier (ENC file name)" },
 	{ 's', "size", "SIZE",
 	  "message size" },
 	{ 'S', "space", "SPACE",
@@ -140,7 +140,7 @@ static int parseOptions(int argc,
       break;
 
     case 'r': 
-      strncpy(messageReceiver, GNoptarg, strlen(GNoptarg));
+      messageReceiver = STRDUP(GNoptarg);
       break;
 
     case 'i': 
@@ -166,7 +166,7 @@ static int parseOptions(int argc,
 
     default: 
       LOG(LOG_FAILURE,
-	  "FAILURE: Unknown option %c. Aborting.\n"\
+	  " Unknown option %c. Aborting.\n"\
 	  "Use --help to get a list of options.\n",
 	  c);
       return -1;
@@ -181,7 +181,7 @@ static int parseOptions(int argc,
  * @param argc number of arguments from the command line
  * @param argv command line arguments
  * @return return value from gnunetsearch: 0: ok, -1: error
- **/   
+ */   
 int main(int argc, char ** argv) {
   GNUNET_TCP_SOCKET * sock;
   TBENCH_CS_MESSAGE msg;
@@ -192,7 +192,7 @@ int main(int argc, char ** argv) {
     return 0; /* parse error, --help, etc. */ 
   sock = getClientSocket();
   if (sock == NULL)
-    errexit("FATAL: could not connect to gnunetd.\n");
+    errexit(" could not connect to gnunetd.\n");
 
   memset(&msg,
 	 0,
@@ -203,12 +203,14 @@ int main(int argc, char ** argv) {
   msg.intPktSpace =htons(messageSpacing);
   msg.trainSize   =htons(messageTrainSize);
   msg.timeOut     =htonl(messageTimeOut);
-  if (strlen(messageReceiver) != 2*sizeof(HashCode160))
-    errexit("Invalid receiver peer ID specified (%s is not %d character hex name)\n",
-	    messageReceiver,
-	    2*sizeof(HashCode160));
-  hex2hash((HexName*)messageReceiver,
-	   &msg.receiverId.hashPubKey);
+  if (messageReceiver == NULL)
+    errexit("You must specify a receiver!\n");
+  if (OK != enc2hash(messageReceiver,
+		     &msg.receiverId.hashPubKey))		     
+    errexit("Invalid receiver peer ID specified (%s is not valid enc name)\n",
+	    messageReceiver);
+  FREE(messageReceiver);
+
   msg.header.size = htons(sizeof(TBENCH_CS_MESSAGE));
   msg.header.tcpType = htons(TBENCH_CS_PROTO_REQUEST);
 
@@ -218,7 +220,7 @@ int main(int argc, char ** argv) {
   
   buffer = MALLOC(MAX_BUFFER_SIZE);
   LOG(LOG_DEBUG,
-      "DEBUG: reading from readFromSocket\n");
+      " reading from readFromSocket\n");
   if (OK == readFromSocket(sock, (CS_HEADER**)&buffer)) {
     if((float)buffer->mean_loss <= 0){
       messagesPercentLoss = 0.0;
@@ -253,7 +255,7 @@ int main(int argc, char ** argv) {
 	     1.0-messagesPercentLoss);
       break;
     default:
-      printf("WARNING: output format not known, this should not happen.\n");
+      printf(" output format not known, this should not happen.\n");
     }
   } else 
     printf("\nDid not receive the message from gnunetd. Is gnunetd running?\n");  

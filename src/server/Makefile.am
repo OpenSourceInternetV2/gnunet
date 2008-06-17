@@ -2,6 +2,7 @@ INCLUDES = -I$(top_srcdir)/src/include
 
 bin_PROGRAMS = \
  gnunetd \
+ gnunet-update \
  gnunet-peer-info \
  gnunet-transport-check
 
@@ -37,6 +38,13 @@ gnunetd_SOURCES = \
  httphelo.c 
 
 gnunetd_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la
+
+
+gnunet_update_SOURCES = \
+ gnunet-update.c 
+
+gnunet_update_LDADD = \
  $(top_builddir)/src/util/libgnunetutil.la
 
 

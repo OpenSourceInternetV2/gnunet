@@ -185,7 +185,7 @@ way to manage content updates.
 
 .TP
 \fB\-S\fR, \fB\-\-sporadic\fR
-This option specifies that the file will be updated sporadically but not periodically.  It is only valid in conjunction with the \-s option.  It is implied if  \-N is specified but not \-i.  It can not be used together with the \-i option.  Use \-S if you intend to publish an update at an unknown point in the future and if you want gnunet\-insert to pick a random  identifier for that future content.  
+This option specifies that the file will be updated sporadically but not periodically.  It is only valid in conjunction with the \-s option.  It is implied if  \-N is specified but not \-i.  It cannot be used together with the \-i option.  Use \-S if you intend to publish an update at an unknown point in the future and if you want gnunet\-insert to pick a random  identifier for that future content.  
 
 If you use \-s but not \-S, \-N or \-i, the content will not be updateable.
 
@@ -246,10 +246,9 @@ Index a file COPYING with the keywords \fBgpl\fR and \fBtest\fR:
 
 # gnunet\-insert \-k gpl \-k test COPYING
 
-Index a file COPYING with description "GNU License"
-and keywords \fBgpl\fR and \fBtest\fR:
+Index a file COPYING with description "GNU License", mime-type "text/plain" and keywords \fBgpl\fR and \fBtest\fR:
 
-# gnunet\-insert \-D "GNU License" \-k gpl \-k test COPYING
+# gnunet\-insert \-D "GNU License" \-k gpl \-k test -m "text/plain" COPYING
 
 \fBUsing directories\fR
 

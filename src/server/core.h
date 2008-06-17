@@ -43,4 +43,10 @@ CoreAPIForApplication * getCoreAPIForApplication();
 
 void loadApplicationModules();
 
+/**
+ * Processing of a message from the transport layer
+ * (receive implementation).
+ */
+void core_receive(MessagePack * mp);
+
 #endif
