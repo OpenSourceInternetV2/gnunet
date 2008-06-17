@@ -1,3 +1,15 @@
+gnunet (0.7.3-5) unstable; urgency=medium
+
+  * Added patch to fix FTBFS with gcc-4.3 (Closes: #466830).
+
+ -- Daniel Baumann <daniel@debian.org>  Tue, 24 Mar 2008 11:14:00 +0100
+
+gnunet (0.8.0~pre0-1) experimental; urgency=low
+
+  * New upstream release.
+
+ -- Daniel Baumann <daniel@debian.org>  Fri,  7 Mar 2008 16:19:00 +0100
+
 gnunet (0.7.3-4) unstable; urgency=medium
 
   * Adding updated Dutch debconf translation from Bart Cornelis

@@ -1,0 +1,18 @@
+#!/bin/sh /usr/share/dpatch/dpatch-run
+## 01-gcc-4.3.dpatch
+##
+## DP: Fix FTBFS with gcc-4.3 (Closes: #466830).
+
+@DPATCH@
+
+diff -Naurp GNUnet-0.7.3.orig/src/setup/qt/gstring.cc GNUnet-0.7.3/src/setup/qt/gstring.cc
+--- GNUnet-0.7.3.orig/src/setup/qt/gstring.cc	2007-12-18 01:02:02.000000000 +0000
++++ GNUnet-0.7.3/src/setup/qt/gstring.cc	2008-03-25 10:17:39.000000000 +0000
+@@ -26,6 +26,7 @@
+ #include <QtCore/QByteArray>
+ 
+ #include "gstring.h"
++#include <cstdlib>
+ 
+ GString::GString(const char *str) : QString(str)
+ {
