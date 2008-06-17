@@ -1,3 +1,10 @@
+gnunet (0.7.2b-4) unstable; urgency=low
+
+  * Added netbase dependency to gnunet-daemon as found out by Kurt Roeckx
+    <kurt@roeckx.be> (Closes: #437922, #437984).
+
+ -- Daniel Baumann <daniel@debian.org>  Wed, 15 Aug 2007 14:25:00 +0200
+
 gnunet (0.7.2b-3) unstable; urgency=low
 
   * Fixed broken gnunet-daemon.postinst on new installations.
