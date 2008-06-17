@@ -3,7 +3,7 @@
 # This file is distributed under the same license as the gnunet package.
 # Rui Branco <ruipb@debianpt.org>, 2006.
 # 2007-06-11 - Rui Branco <ruipb@debianpt.org> - 3u8f
-# 
+#
 msgid ""
 msgstr ""
 "Project-Id-Version: gnunet 0.7.0e-1\n"

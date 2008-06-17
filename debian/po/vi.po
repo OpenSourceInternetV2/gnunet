@@ -1,7 +1,7 @@
 # Vietnamese translation for gnunet.
 # Copyright © 2007 Free Software Foundation, Inc.
 # Clytie Siddall <clytie@riverland.net.au>, 2005-2007.
-# 
+#
 msgid ""
 msgstr ""
 "Project-Id-Version: gnunet 0.7.1c-2\n"

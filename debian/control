@@ -3,8 +3,9 @@ Section: net
 Priority: optional
 Maintainer: Arnaud Kyheng <Arnaud.Kyheng@free.fr>
 Uploaders: Daniel Baumann <daniel@debian.org>
-Build-Depends: debhelper (>= 5), autotools-dev, dialog, gettext, guile-1.8-dev, libadns1-dev, libcurl4-gnutls-dev, libextractor-dev, libgcrypt11-dev, libglade2-dev, libgmp3-dev, libgtk2.0-dev, libmicrohttpd-dev, libltdl3-dev, libmysqlclient15-dev, libncurses5-dev, libsqlite3-dev, libxml2-dev, po-debconf, zlib1g-dev
-Standards-Version: 3.7.2
+Build-Depends: debhelper (>= 5), autotools-dev, dialog, gettext, guile-1.8-dev, libadns1-dev, libcurl4-gnutls-dev, libextractor-dev (>= 0.5.18), libgcrypt11-dev, libglade2-dev, libgmp3-dev, libgtk2.0-dev, libmicrohttpd-dev, libltdl3-dev, libmysqlclient15-dev, libncurses5-dev, libsqlite3-dev, libxml2-dev, po-debconf, zlib1g-dev
+Standards-Version: 3.7.3
+Homepage: http://www.gnunet.org/
 
 Package: gnunet
 Architecture: all
@@ -14,8 +15,6 @@ Description: secure, trust-based peer-to-peer framework (meta)
  link-to-link messages in the network are confidential and authenticated. The
  framework provides a transport abstraction layer and can currently encapsulate
  the peer-to-peer traffic in UDP, TCP, or SMTP messages.
- .
-  Homepage: <http://www.gnunet.org/>
  .
  This package is a meta-package depending on gnunet-client, gnunet-server and
  gnunet-tools.
@@ -30,8 +29,6 @@ Description: secure, trust-based peer-to-peer framework (client)
  framework provides a transport abstraction layer and can currently encapsulate
  the peer-to-peer traffic in UDP, TCP, or SMTP messages.
  .
-  Homepage: <http://www.gnunet.org/>
- .
  This package contains the command line client applications, such as
  gnunet-search and gnunet-download.
 
@@ -43,8 +40,6 @@ Description: secure, trust-based peer-to-peer framework (common)
  link-to-link messages in the network are confidential and authenticated. The
  framework provides a transport abstraction layer and can currently encapsulate
  the peer-to-peer traffic in UDP, TCP, or SMTP messages.
- .
-  Homepage: <http://www.gnunet.org/>
  .
  This package contains the common files.
 
@@ -59,8 +54,6 @@ Description: secure, trust-based peer-to-peer framework (debug)
  framework provides a transport abstraction layer and can currently encapsulate
  the peer-to-peer traffic in UDP, TCP, or SMTP messages.
  .
-  Homepage: <http://www.gnunet.org/>
- .
  This package contains the debugging symbols.
 
 Package: gnunet-server
@@ -74,21 +67,17 @@ Description: secure, trust-based peer-to-peer framework (server)
  framework provides a transport abstraction layer and can currently encapsulate
  the peer-to-peer traffic in UDP, TCP, or SMTP messages.
  .
-  Homepage: <http://www.gnunet.org/>
- .
  This package contains the server, needed to run a GNUnet node.
 
 Package: gnunet-dev
 Section: libdevel
 Architecture: any
-Depends: gnunet-server (>= ${binary:Version}), gnunet-client (>= ${binary:Version}), gnunet-tools (>= ${binary:Version})
+Depends: gnunet-server (>= ${binary:Version}), gnunet-client (>= ${binary:Version}), gnunet-tools (>= ${binary:Version}), libextractor-dev (>= 0.5.18)
 Description: secure, trust-based peer-to-peer framework (development)
  GNUnet is a peer-to-peer framework which focuses on providing security. All
  link-to-link messages in the network are confidential and authenticated. The
  framework provides a transport abstraction layer and can currently encapsulate
  the peer-to-peer traffic in UDP, TCP, or SMTP messages.
- .
-  Homepage: <http://www.gnunet.org/>
  .
  This package contains the development files.
 
@@ -100,7 +89,5 @@ Description: secure, trust-based peer-to-peer framework (tools)
  link-to-link messages in the network are confidential and authenticated. The
  framework provides a transport abstraction layer and can currently encapsulate
  the peer-to-peer traffic in UDP, TCP, or SMTP messages.
- .
-  Homepage: <http://www.gnunet.org/>
  .
  This package contains additional tools such as the gnunet-setup graphical tool.
