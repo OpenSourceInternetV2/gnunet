@@ -1,3 +1,10 @@
+gnunet (0.7.0c-1) unstable; urgency=low
+
+  * New upstream release (Closes: #350472). Thanks to Nicolas Francois for the patch.
+  * debian/po/sv.po: Added swedish translation. Thanks to Daniel Nylander (Closes: #347664).
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Tue, 21 Mar 2006 19:01:36 +0100
+
 gnunet (0.7.0b-1) unstable; urgency=low
 
   * New upstream release (Closes: #342108).

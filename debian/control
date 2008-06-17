@@ -3,12 +3,12 @@ Section: net
 Priority: optional
 Maintainer: Arnaud Kyheng <Arnaud.Kyheng@free.fr>
 Uploaders: Daniel Baumann <daniel.baumann@panthera-systems.net>
-Build-Depends: debhelper (>= 4.1.16), libltdl3-dev, libsqlite3-dev, libmysqlclient15-dev, libgcrypt11-dev, guile-1.6, libgmp3-dev (>= 4.0.0), libextractor-dev (>= 0.5.8-1), libgtk2.0-dev (>= 2.6.0-1), libncurses5-dev, gettext (>=0.14.1-1)
+Build-Depends: debhelper (>= 4.1.16), libltdl3-dev, libsqlite3-dev, libmysqlclient15-dev, libgcrypt11-dev, guile-1.6, libgmp3-dev (>= 4.0.0), libextractor-dev (>= 0.5.9-1), libgtk2.0-dev (>= 2.6.0-1), libncurses5-dev, gettext (>=0.14.1-1)
 Standards-Version: 3.6.2
 
 Package: gnunet
 Architecture: any
-Depends: adduser, libgcrypt11, libgmp3c2, libsqlite3-0, debconf (>= 1.2.0) | debconf-2.0, libextractor1c2a (>= 0.5.8-1), gettext (>=0.14.1-1)
+Depends: adduser, libgcrypt11, libgmp3c2, libsqlite3-0, debconf (>= 1.2.0) | debconf-2.0, libextractor1c2a (>= 0.5.9-1), gettext (>=0.14.1-1)
 Suggests: libgtk2.0-0 (>= 2.6.0-1), libncurses5, gnunet-gtk (>= 0.7.0b-1)
 Description: Secure, trust-based peer-to-peer framework
  GNUnet is a peer-to-peer framework which focuses on providing security.
