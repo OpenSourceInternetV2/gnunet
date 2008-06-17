@@ -1,3 +1,11 @@
+gnunet (0.7.0b-1) unstable; urgency=low
+
+  * New upstream release (Closes: #342108).
+  * debian/control: upgraded build depend from libmysqlclient14-dev to
+    libmysqlclient15-dev (Closes: #343814).
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Sat, 24 Dec 2005 14:09:43 +0100
+
 gnunet (0.7.0a-1) unstable; urgency=low
 
   * New upstream release.
