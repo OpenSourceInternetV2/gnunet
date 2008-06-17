@@ -1,3 +1,12 @@
+gnunet (0.7.2c-5) unstable; urgency=low
+
+  * Building against transitioned libmicrohttpd.
+  * Added Finnish debconf translation from Esko Arajaervi <edu@iki.fi>
+    (Closes: #457419).
+  * Replacing msgid contact address in *.po files with packages address.
+
+ -- Daniel Baumann <daniel@debian.org>  Sat, 22 Dec 2007 10:58:00 +0100
+
 gnunet (0.7.2c-4) unstable; urgency=medium
 
   * Added missing build-dependency against libncursesw5-dev,

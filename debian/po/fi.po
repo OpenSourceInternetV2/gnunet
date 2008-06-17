@@ -1,28 +1,22 @@
-# Translation of gnunet debconf templates to French
-# This file is distributed under the same license as the gnunet package
-#
-# Christian Perrier <bubulle@debian.org>, 2007.
-# Copyright information:
-# 2001-2006 Eric Madesclair <eric-m@wanadoo.fr>
-# 2007- Christian Perrier <bubulle@debian.org>
 msgid ""
 msgstr ""
-"Project-Id-Version: fr\n"
+"Project-Id-Version: gnunet_0.7.2c-4\n"
 "Report-Msgid-Bugs-To: Arnaud.Kyheng@free.fr\n"
 "POT-Creation-Date: 2007-06-26 17:52+0200\n"
-"PO-Revision-Date: 2007-06-25 07:38+0200\n"
-"Last-Translator: Christian Perrier <bubulle@debian.org>\n"
-"Language-Team: French <debian-l10n-french@lists.debian.org>\n"
+"PO-Revision-Date: 2007-12-22 11:18+0200\n"
+"Last-Translator: Esko Arajärvi <edu@iki.fi>\n"
+"Language-Team: Finnish <debian-l10n-finnish@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=ISO-8859-1\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: KBabel 1.11.4\n"
+"X-Poedit-Language: Finnish\n"
+"X-Poedit-Country: Finland\n"
 
 #. Type: note
 #. Description
 #: ../gnunet-server.templates:2001
 msgid "Former installation of GNUnet detected"
-msgstr "Ancienne installation de GNUnet détectée"
+msgstr "Aiempi GNUnet-asennus löydetty"
 
 #. Type: note
 #. Description
@@ -31,9 +25,8 @@ msgid ""
 "Since there are important changes in this version, the installer will need "
 "to modify the GNUnet configuration file (/etc/gnunet.conf)."
 msgstr ""
-"Comme la nouvelle version comporte beaucoup de modifications, l'outil "
-"d'installation va modifier le fichier de configuration (/etc/gnunet.conf) en "
-"conséquence."
+"Koska tähän versioon on tehty tärkeitä muutoksia, asennusohjelman tarvitsee "
+"muokata GNUnetin asetustiedostoa (/etc/gnunet.conf)."
 
 #. Type: note
 #. Description
@@ -42,22 +35,20 @@ msgid ""
 "The installation process will backup /etc/gnunet.conf to /etc/gnunet.conf."
 "old, and will automatically build a new configuration file."
 msgstr ""
-"Le processus d'installation sauvegardera le fichier /etc/gnunet.conf dans /"
-"etc/gnunet.conf.old et créera un nouveau fichier de configuration."
+"Asennusprosessi tekee varmuuskopion tiedostosta /etc/gnunet.conf nimelle /"
+"etc/gnunet.conf.old ja automaattisesti rakentaa uuden asetustiedoston."
 
 #. Type: note
 #. Description
 #: ../gnunet-server.templates:2001
 msgid "Every personal settings will be preserved as much as possible."
-msgstr ""
-"Les paramètres de configuration personnalisés seront préservés autant "
-"que possible."
+msgstr "Kaikki omat asetukset säilytetään, jos vain mahdollista."
 
 #. Type: note
 #. Description
 #: ../gnunet-server.templates:3001
 msgid "Warning"
-msgstr "Impossible de déterminer les paramètres de configuration"
+msgstr "Varoitus"
 
 #. Type: note
 #. Description
@@ -66,15 +57,14 @@ msgid ""
 "For some obscure reason, the installer have failed to discover the "
 "configuration settings in /etc/gnunet.conf."
 msgstr ""
-"Pour une raison indéterminée, le processus d'installation n'a pas pu "
-"déterminer les paramètres de configuration dans /etc/gnunet.conf."
+"Jostain oudosta syystä asennusohjelma ei onnistunut löytämään asetuksia "
+"tiedostosta /etc/gnunet.conf."
 
 #. Type: note
 #. Description
 #: ../gnunet-server.templates:3001
 msgid "The old configuration file will be moved to /etc/gnunet.conf.old."
-msgstr ""
-"L'ancien fichier de configuration sera déplacé dans /etc/gnunet.conf.old."
+msgstr "Vanha asetustiedosto siirretään nimelle /etc/gnunet.conf.old."
 
 #. Type: note
 #. Description
@@ -83,8 +73,8 @@ msgid ""
 "Since some changes are *mandatory* in this file, a fresh default "
 "configuration file will now be installed"
 msgstr ""
-"Certains réglages sont devenus *obligatoires* et un nouveau fichier de "
-"configuration va donc être installé."
+"Koska joidenkin muutosten tekeminen tiedostoon on pakollista, tuore "
+"oletusasetustiedosto asennetaan nyt."
 
 #. Type: note
 #. Description
@@ -92,15 +82,13 @@ msgstr ""
 msgid ""
 "Please take a look and make necessary changes in it if needed after "
 "installation."
-msgstr ""
-"Veuillez vérifier ce fichier de configuration et faire les modifications "
-"nécessaires, si besoin, après l'installation."
+msgstr "Tarkista se ja tee tarvittavat muutokset asennuksen jälkeen."
 
 #. Type: note
 #. Description
 #: ../gnunet-server.templates:4001
 msgid "Upgrade from a version prior to 0.7.0"
-msgstr "Mise à jour depuis une version antérieure à la 0.7.0"
+msgstr "Päivitys versiota 0.7.0 aiemmasta versiosta."
 
 #. Type: note
 #. Description
@@ -110,19 +98,15 @@ msgid ""
 "0.7.x introduced new configuration files and a new database storage format "
 "which is not compatible with versions prior to 0.7.x."
 msgstr ""
-"Il semble que vous mettiez à jour GNUnet depuis une version antérieure à "
-"la 0.7.x. Avec GNUnet 0.7.x, de nouveaux fichiers de configuration ont été "
-"ajoutés et le format des données de la base a été modifié. Ces "
-"modifications ne sont pas compatibles avec les versions antérieures à la "
-"0.7.x."
+"Näyttää siltä, että olet päivittämässä GNUnetiä vanhemmasta kuin 0.7.x "
+"versiosta. Versioissa 0.7.x GNUnetiin tuli uusia asetustiedostoja ja uusi "
+"tietokantamuoto, joka ei ole yhteensopiva aiempien versioiden kanssa."
 
 #. Type: note
 #. Description
 #: ../gnunet-server.templates:4001
 msgid "GNUnet cannot convert your database format to the new format."
-msgstr ""
-"GNUnet ne peut pas convertir le format de la base de données dans le "
-"nouveau format."
+msgstr "GNUnet ei pysty muuntamaan tietokantamuotoa uuteen muotoon."
 
 #. Type: note
 #. Description
@@ -131,8 +115,8 @@ msgid ""
 "Your database storage will be automatically moved to /var/lib/GNUnet."
 "prior07, and the gnunet package will build a new empty storage for you."
 msgstr ""
-"Votre base de données sera déplacée automatiquement dans /var/lib/GNUnet."
-"prior07 et une nouvelle base vide sera créée pour vous."
+"Tietokantavarasto siirretään automaattisesti nimelle /var/lib/GNUnet.prior07 "
+"ja gnunet-paketti luo uuden tyhjän varaston käyttöön."
 
 #. Type: note
 #. Description
@@ -142,16 +126,16 @@ msgid ""
 "and replaced by /etc/gnunetd.conf which you can modify later by running "
 "\"gnunet-setup -d -c /etc/gnunetd.conf\", as root."
 msgstr ""
-"Le fichier /etc/gnunet.conf a été renommé en /etc/gnunet.conf.prior07 et "
-"remplacé par un nouveau fichier /etc/gnunetd.conf que vous pourrez modifier "
-"plus tard en lançant la commande « gnunet-setup -d -c /etc/gnunetd.conf » "
-"en tant que superutilisateur (« root »)."
+"Lisäksi tiedosto /etc/gnunet.conf siirretään nimelle /etc/gnunet.conf."
+"prior07 ja korvataan tiedostolla /etc/gnunetd.conf, jota voit muokata "
+"myöhemmin ajamalla pääkäyttäjänä komennon ”gnunet-setup -d -c /etc/gnunetd."
+"conf”."
 
 #. Type: boolean
 #. Description
 #: ../gnunet-server.templates:5001
 msgid "Should the GNUnet server be launched on boot?"
-msgstr "Faut-il lancer le démon GNUnet au démarrage du système ?"
+msgstr "Tulisiko GNUnet-palvelin käynnistää käynnistettäessä tietokone?"
 
 #. Type: boolean
 #. Description
@@ -161,23 +145,21 @@ msgid ""
 "system is started. Otherwise, you will need to launch GNUnet each time you "
 "want to use it."
 msgstr ""
-"Si vous choisissez cette option, le serveur GNUnet sera lancé à chaque "
-"démarrage de votre machine. Dans le cas contraire, vous devrez lancer vous-"
-"même GNUnet chaque fois que vous souhaiterez l'utiliser."
+"Jos valitset tämän, GNUnet-palvelin käynnistetään aina, kun järjestelmä "
+"käynnistetään. Muussa tapauksessa GNUnet tulee käynnistää erikseen aina, kun "
+"sitä halutaan käyttää."
 
 #. Type: string
 #. Description
 #: ../gnunet-server.templates:6001
 msgid "GNUnet user:"
-msgstr "Utilisateur GNUnet :"
+msgstr "GNUnet-käyttäjä:"
 
 #. Type: string
 #. Description
 #: ../gnunet-server.templates:6001
 msgid "Please choose the user that the GNUnet server process will run as."
-msgstr ""
-"Veuillez indiquer l'identifiant qu'utilisera le démon GNUnet pendant son "
-"fonctionnement."
+msgstr "Valitse käyttäjä, jota käytetään GNUnet-palvelinprosessin ajamiseen."
 
 #. Type: string
 #. Description
@@ -186,22 +168,20 @@ msgid ""
 "This should be a dedicated account. If the specified account does not "
 "already exist, it will automatically be created, with no login shell."
 msgstr ""
-"Il est conseillé d'utiliser un identifiant dédié. S'il n'existe pas, il "
-"sera créé sans connexion interactive possible (pas de « shell »)."
+"Tämän tulisi olla tehtävälle omistettu tunnus. Jos annettua tunnusta ei ole "
+"vielä olemassa, se luodaan automaattisesti ilman kirjautumiskuorta."
 
 #. Type: string
 #. Description
 #: ../gnunet-server.templates:7001
 msgid "GNUnet group:"
-msgstr "Groupe de GNUnet :"
+msgstr "GNUnet-ryhmä:"
 
 #. Type: string
 #. Description
 #: ../gnunet-server.templates:7001
 msgid "Please choose the group that the GNUnet server process will run as."
-msgstr ""
-"Veuillez indiquer le groupe sous l'identité duquel s'exécutera le démon "
-"GNUnet."
+msgstr "Valitse ryhmä, jota käytetään GNUnet-palvelinprosessin ajamiseen."
 
 #. Type: string
 #. Description
@@ -211,6 +191,6 @@ msgid ""
 "members of this group will have access to GNUnet data, and be allowed to "
 "start and stop the GNUnet server."
 msgstr ""
-"Il est conseillé d'utiliser un groupe dédié, qui ne possède pas déjà "
-"de données. Seuls les membres de ce groupe auront accès aux données de "
-"GNUnet et seront autorisés à démarrer et arrêter le serveur GNUnet."
+"Tämän tulisi olla tehtävälle omistettu ryhmä; ei mikään ryhmä, joka jo "
+"omistaa tietoja. Vain tämän ryhmän jäsenet pääsevät käsiksi GNUnetin "
+"tietoihin ja voivat käynnistää tai pysäyttää GNUnet-palvelimen."

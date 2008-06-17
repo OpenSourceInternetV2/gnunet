@@ -61,8 +61,8 @@ msgid ""
 "For some obscure reason, the installer have failed to discover the "
 "configuration settings in /etc/gnunet.conf."
 msgstr ""
-"Vì lý do lạ nào, trình cài đặt không tìm thấy thiết lập cấu hình trong « /"
-"etc/gnunet.conf »."
+"Vì lý do lạ nào, trình cài đặt không tìm thấy thiết lập cấu hình trong « /etc/"
+"gnunet.conf »."
 
 #. Type: note
 #. Description
@@ -134,8 +134,8 @@ msgid ""
 msgstr ""
 "Tập tin «  /etc/gnunet.conf » của bạn sẽ cũng được di chuyển sang « /etc/"
 "gnunet.conf.prior07 » và được thay thế bằng « /etc/gnunetd.conf » mà bạn có "
-"thể sửa đổi về sau bằng cách chạy lệnh « gnunet-setup -d -c /etc/gnunetd."
-"conf » với tư cách người chủ."
+"thể sửa đổi về sau bằng cách chạy lệnh « gnunet-setup -d -c /etc/gnunetd.conf "
+"» với tư cách người chủ."
 
 #. Type: boolean
 #. Description
