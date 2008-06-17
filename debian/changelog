@@ -1,3 +1,19 @@
+gnunet (0.6.4a-6) unstable; urgency=low
+
+  * Backport gnunet-update.c from CVS (fix the "cannot get LOGFILE" bug). Now
+    we can use it in scripts to provide a much more elegant and reliable
+    migration script.
+
+  * debian/gnunet.postinst: use new gnunet-update instead of complex shell
+    script.
+    Changed compared version for the upgrade to 0.6.4a-6.
+    
+  * debian/gnunet.config: use new gnunet-update instead of complex shell
+    script.
+    Changed compared version for the upgrade to 0.6.4a-6.
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Mon, 25 Oct 2004 01:29:32 +0200
+
 gnunet (0.6.4a-5) unstable; urgency=low
 
   * debian/control: Note: awk is, by dependency, essential, so there is no

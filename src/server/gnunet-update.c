@@ -66,9 +66,6 @@ static int parseCommandLine(int argc,
   FREENONNULL(setConfigurationString("GNUNETD",
 				     "_MAGIC_",
 				     "YES"));
-  FREENONNULL(setConfigurationString("GNUNETD",
-				     "LOGFILE",
-				     NULL));
   while (1) {
     int option_index = 0;
     static struct GNoption long_options[] = {
@@ -132,6 +129,14 @@ static int parseCommandLine(int argc,
       printf("%s ", argv[GNoptind++]);
     printf(_("\nExiting.\n"));
     return SYSERR;
+  }
+  if (get == NO) {
+    /* if we do not run in 'get' mode,
+       make sure we send error messages 
+       to the console... */
+    FREENONNULL(setConfigurationString("GNUNETD",
+				       "LOGFILE",
+				       NULL));
   }
   return OK;
 }
