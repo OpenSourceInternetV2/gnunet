@@ -1,8 +1,33 @@
+gnunet (0.8.0~pre1-1) experimental; urgency=low
+
+  * New upstream release.
+
+ -- Daniel Baumann <daniel@debian.org>  Tue, 17 Jun 2008 11:44:00 +0200
+
+gnunet (0.7.3-7) unstable; urgency=medium
+
+  * Excluding ia64 manually from architectures.
+
+ -- Daniel Baumann <daniel@debian.org>  Tue, 29 Apr 2008 16:13:00 +0200
+
+gnunet (0.7.3-6) unstable; urgency=medium
+
+  * Removing watch file.
+  * Tightened gnunet inter depends.
+
+ -- Daniel Baumann <daniel@debian.org>  Wed,  9 Apr 2008 07:44:00 +0200
+
 gnunet (0.8.0~pre0-2) experimental; urgency=low
 
   * Tightened gnunet inter depends (Closes: #470180).
 
  -- Daniel Baumann <daniel@debian.org>  Tue, 25 Mar 2008 11:49:00 +0100
+
+gnunet (0.7.3-5) unstable; urgency=medium
+
+  * Added patch to fix FTBFS with gcc-4.3 (Closes: #466830).
+
+ -- Daniel Baumann <daniel@debian.org>  Tue, 24 Mar 2008 11:14:00 +0100
 
 gnunet (0.8.0~pre0-1) experimental; urgency=low
 
