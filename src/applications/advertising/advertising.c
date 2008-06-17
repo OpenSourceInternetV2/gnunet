@@ -167,14 +167,14 @@ receivedhello (const PeerIdentity * sender, const MESSAGE_HEADER * message)
   if ((ntohs (msg->header.size) < sizeof (P2P_hello_MESSAGE)) ||
       (ntohs (msg->header.size) != P2P_hello_MESSAGE_size (msg)))
     {
-      GE_BREAK (ectx, 0);
+      GE_BREAK_OP (ectx, 0);
       return SYSERR;
     }
   identity->getPeerIdentity (&msg->publicKey, &foreignId);
   if (!equalsHashCode512 (&msg->senderIdentity.hashPubKey,
                           &foreignId.hashPubKey))
     {
-      GE_BREAK (ectx, 0);
+      GE_BREAK_OP (ectx, 0);
       return SYSERR;            /* public key and host hash do not match */
     }
   if (SYSERR == verifySig (&msg->senderIdentity,
@@ -192,7 +192,7 @@ receivedhello (const PeerIdentity * sender, const MESSAGE_HEADER * message)
               _
               ("HELLO message from `%s' has an invalid signature. Dropping.\n"),
               (char *) &enc);
-      GE_BREAK (ectx, 0);
+      GE_BREAK_OP (ectx, 0);
       return SYSERR;            /* message invalid */
     }
   if ((TIME_T) ntohl (msg->expirationTime) > TIME (NULL) + MAX_HELLO_EXPIRES)
@@ -201,7 +201,7 @@ receivedhello (const PeerIdentity * sender, const MESSAGE_HEADER * message)
               GE_WARNING | GE_BULK | GE_USER,
               _
               ("HELLO message has expiration too far in the future. Dropping.\n"));
-      GE_BREAK (ectx, 0);
+      GE_BREAK_OP (ectx, 0);
       return SYSERR;
     }
   if (SYSERR == transport->verifyhello (msg))
@@ -243,6 +243,15 @@ receivedhello (const PeerIdentity * sender, const MESSAGE_HEADER * message)
       identity->addHost (msg);
       if (stats != NULL)
         stats->change (stat_hello_nat_in, 1);
+#if DEBUG_ADVERTISING
+      IF_GELOG (ectx,
+		GE_INFO | GE_REQUEST | GE_USER,
+		hash2enc (&msg->senderIdentity.hashPubKey, &enc));
+      GE_LOG (ectx,
+	      GE_INFO | GE_REQUEST | GE_USER,
+	      "HELLO advertisement from `%s' for NAT, no verification required.\n",
+	      &enc);
+#endif
       return OK;
     }
 
@@ -266,6 +275,15 @@ receivedhello (const PeerIdentity * sender, const MESSAGE_HEADER * message)
           if (stats != NULL)
             stats->change (stat_hello_update, 1);
           FREE (copy);
+#if DEBUG_ADVERTISING
+	  IF_GELOG (ectx,
+		    GE_INFO | GE_REQUEST | GE_USER,
+		    hash2enc (&msg->senderIdentity.hashPubKey, &enc));
+	  GE_LOG (ectx,
+		  GE_INFO | GE_REQUEST | GE_USER,
+		  "HELLO advertisement from `%s' for protocol %d updates old advertisement, no verification required.\n",
+		  &enc, ntohs (msg->protocol));
+#endif
           return OK;
         }
 #if DEBUG_ADVERTISING
@@ -347,6 +365,15 @@ receivedhello (const PeerIdentity * sender, const MESSAGE_HEADER * message)
     {
       if (stats != NULL)
         stats->change (stat_hello_no_transport, 1);
+#if DEBUG_ADVERTISING
+      IF_GELOG (ectx,
+		GE_INFO | GE_REQUEST | GE_USER,
+		hash2enc (&msg->senderIdentity.hashPubKey, &enc));
+      GE_LOG (ectx,
+	      GE_INFO | GE_REQUEST | GE_USER,
+	      "Failed to connect to `%s'.  Verification failed.\n",
+	      &enc);
+#endif
       return SYSERR;            /* could not connect */
     }
 
@@ -398,6 +425,15 @@ receivedhello (const PeerIdentity * sender, const MESSAGE_HEADER * message)
       if (stats != NULL)
         stats->change (stat_hello_noselfad, 1);
       transport->disconnect (tsession, __FILE__);
+#if DEBUG_ADVERTISING
+      IF_GELOG (ectx,
+		GE_INFO | GE_REQUEST | GE_USER,
+		hash2enc (&msg->senderIdentity.hashPubKey, &enc));
+      GE_LOG (ectx,
+	      GE_INFO | GE_REQUEST | GE_USER,
+	      "Failed to connect advertisement for myself.  Verification failed.\n",
+	      &enc);
+#endif
       return SYSERR;
     }
   res = OK;
@@ -412,6 +448,15 @@ receivedhello (const PeerIdentity * sender, const MESSAGE_HEADER * message)
 
       if (stats != NULL)
         stats->change (stat_hello_send_error, 1);
+#if DEBUG_ADVERTISING
+      IF_GELOG (ectx,
+		GE_INFO | GE_REQUEST | GE_USER,
+		hash2enc (&msg->senderIdentity.hashPubKey, &enc));
+      GE_LOG (ectx,
+	      GE_INFO | GE_REQUEST | GE_USER,
+	      "Failed to transmit advertisement for myself.  Verification failed.\n",
+	      &enc);
+#endif
       res = SYSERR;
     }
   if (res == OK)

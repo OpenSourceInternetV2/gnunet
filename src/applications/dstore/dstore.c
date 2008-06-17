@@ -89,7 +89,14 @@ sq_prepare (sqlite3 * dbh, const char *zSql,    /* SQL statement, UTF-8 encoded 
                           strlen (zSql), ppStmt, (const char **) &dummy);
 }
 
-#define SQLITE3_EXEC(db, cmd) do { if (SQLITE_OK != sqlite3_exec(db, cmd, NULL, NULL, &emsg)) { GE_LOG(coreAPI->ectx, GE_ERROR | GE_ADMIN | GE_BULK, _("`%s' failed at %s:%d with error: %s\n"), "sqlite3_exec", __FILE__, __LINE__, emsg); sqlite3_free(emsg); } } while(0);
+#define SQLITE3_EXEC(db, cmd) do { if (SQLITE_OK != sqlite3_exec(db, cmd, NULL, NULL, &emsg)) { GE_LOG(coreAPI->ectx, GE_ERROR | GE_ADMIN | GE_BULK, _("`%s' failed at %s:%d with error: %s\n"), "sqlite3_exec", __FILE__, __LINE__, emsg); sqlite3_free(emsg); } } while(0)
+
+/**
+ * Log an error message at log-level 'level' that indicates
+ * a failure of the command 'cmd' on file 'filename'
+ * with the message given by strerror(errno).
+ */
+#define LOG_SQLITE(db, level, cmd) do { GE_LOG(coreAPI->ectx, level, _("`%s' failed at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, sqlite3_errmsg(db)); } while(0)
 
 static void
 db_init (sqlite3 * dbh)
@@ -117,13 +124,21 @@ db_reset ()
 {
   int fd;
   sqlite3 *dbh;
+  char *tmpl;
 
   if (fn != NULL)
     {
       UNLINK (fn);
       FREE (fn);
     }
-  fn = STRDUP ("/tmp/dstoreXXXXXX");
+  tmpl = "/tmp/dstoreXXXXXX";
+
+#ifdef MINGW
+  fn = (char *) MALLOC (MAX_PATH + 1);
+  plibc_conv_to_win_path (tmpl, fn);
+#else
+  fn = STRDUP (tmpl);
+#endif
   fd = mkstemp (fn);
   if (fd == -1)
     {
@@ -296,13 +311,36 @@ d_put (const HashCode512 * key,
       MUTEX_UNLOCK (lock);
       return SYSERR;
     }
-  sqlite3_bind_int64 (stmt, 1, get_time ());
-  sqlite3_bind_int64 (stmt, 2, discard_time);
-  sqlite3_bind_blob (stmt, 3, key, sizeof (HashCode512), SQLITE_TRANSIENT);
-  sqlite3_bind_int (stmt, 4, type);
-  sqlite3_bind_int (stmt, 5, size);
-  sqlite3_bind_blob (stmt, 6, data, size, SQLITE_TRANSIENT);
-  sqlite3_step (stmt);
+  if ((SQLITE_OK != sqlite3_bind_int64 (stmt, 1, get_time ())) ||
+      (SQLITE_OK != sqlite3_bind_int64 (stmt, 2, discard_time)) ||
+      (SQLITE_OK !=
+       sqlite3_bind_blob (stmt, 3, key, sizeof (HashCode512),
+                          SQLITE_TRANSIENT))
+      || (SQLITE_OK != sqlite3_bind_int (stmt, 4, type))
+      || (SQLITE_OK != sqlite3_bind_int (stmt, 5, size))
+      || (SQLITE_OK !=
+          sqlite3_bind_blob (stmt, 6, data, size, SQLITE_TRANSIENT)))
+    {
+      GE_LOG (coreAPI->ectx,
+              GE_ERROR | GE_ADMIN | GE_BULK,
+              _("`%s' failed at %s:%d with error: %s\n"),
+              "sqlite3_bind_xxx", __FILE__, __LINE__, sqlite3_errmsg (dbh));
+      sqlite3_finalize (stmt);
+      sqlite3_close (dbh);
+      MUTEX_UNLOCK (lock);
+      return SYSERR;
+    }
+  if (SQLITE_DONE != sqlite3_step (stmt))
+    {
+      GE_LOG (coreAPI->ectx,
+              GE_ERROR | GE_ADMIN | GE_BULK,
+              _("`%s' failed at %s:%d with error: %s\n"),
+              "sqlite3_step", __FILE__, __LINE__, sqlite3_errmsg (dbh));
+      sqlite3_finalize (stmt);
+      sqlite3_close (dbh);
+      MUTEX_UNLOCK (lock);
+      return SYSERR;
+    }
   ret = sqlite3_changes (dbh);
   sqlite3_finalize (stmt);
   if (ret > 0)
@@ -333,15 +371,33 @@ d_put (const HashCode512 * key,
       MUTEX_UNLOCK (lock);
       return SYSERR;
     }
-  sqlite3_bind_int (stmt, 1, size);
-  sqlite3_bind_int (stmt, 2, type);
-  sqlite3_bind_int64 (stmt, 3, get_time ());
-  sqlite3_bind_int64 (stmt, 4, discard_time);
-  sqlite3_bind_blob (stmt, 5, key, sizeof (HashCode512), SQLITE_TRANSIENT);
-  sqlite3_bind_blob (stmt, 6, data, size, SQLITE_TRANSIENT);
-  sqlite3_step (stmt);
-  sqlite3_finalize (stmt);
-  payload += size + OVERHEAD;
+  if ((SQLITE_OK == sqlite3_bind_int (stmt, 1, size)) &&
+      (SQLITE_OK == sqlite3_bind_int (stmt, 2, type)) &&
+      (SQLITE_OK == sqlite3_bind_int64 (stmt, 3, get_time ())) &&
+      (SQLITE_OK == sqlite3_bind_int64 (stmt, 4, discard_time)) &&
+      (SQLITE_OK ==
+       sqlite3_bind_blob (stmt, 5, key, sizeof (HashCode512),
+                          SQLITE_TRANSIENT))
+      && (SQLITE_OK ==
+          sqlite3_bind_blob (stmt, 6, data, size, SQLITE_TRANSIENT)))
+    {
+      if (SQLITE_DONE != sqlite3_step (stmt))
+        LOG_SQLITE (dbh,
+                    GE_ERROR | GE_DEVELOPER | GE_ADMIN | GE_BULK,
+                    "sqlite3_step");
+      else
+        payload += size + OVERHEAD;
+      if (SQLITE_OK != sqlite3_finalize (stmt))
+        LOG_SQLITE (dbh,
+                    GE_ERROR | GE_DEVELOPER | GE_ADMIN | GE_BULK,
+                    "sqlite3_finalize");
+    }
+  else
+    {
+      LOG_SQLITE (dbh,
+                  GE_ERROR | GE_DEVELOPER | GE_ADMIN | GE_BULK,
+                  "sqlite3_bind_xxx");
+    }
 #if DEBUG_DSTORE
   GE_LOG (coreAPI->ectx,
           GE_DEBUG | GE_REQUEST | GE_DEVELOPER,
@@ -440,7 +496,10 @@ provide_module_dstore (CoreAPIForApplication * capi)
           "SQLite Dstore: initializing database\n");
 #endif
   if (OK != db_reset ())
-    return NULL;
+    {
+      GE_BREAK (capi->ectx, 0);
+      return NULL;
+    }
   lock = MUTEX_CREATE (NO);
 
 

@@ -20,10 +20,10 @@
 # Process this file with autoconf to produce a configure script.
 #
 #
-AC_PREREQ(2.57)
-AC_INIT([GNUnet], [0.7.2b],[bug-gnunet@gnu.org])
-AM_INIT_AUTOMAKE([GNUnet], [0.7.2b])
-AM_CONFIG_HEADER([config.h])
+AC_PREREQ(2.61)
+AC_INIT([GNUnet], [0.7.2c],[bug-gnunet@gnu.org])
+AM_INIT_AUTOMAKE([GNUnet], [0.7.2c])
+AC_CONFIG_HEADERS([config.h])
 
 AH_TOP([#define _GNU_SOURCE  1])
 
@@ -34,20 +34,17 @@ AC_PROG_CPP
 AC_PROG_INSTALL
 AC_PROG_LN_S
 AC_PROG_MAKE_SET
-AC_PROG_MKDIR_P
-AC_LIBTOOL_WIN32_DLL
-AC_CANONICAL_HOST
-
-
-# dynamic libraries/plugins
 AC_LIBTOOL_DLOPEN
+AC_DISABLE_STATIC
+AC_LIBTOOL_WIN32_DLL
 AC_LIBLTDL_INSTALLABLE
+AC_PROG_LIBTOOL
+AC_CONFIG_SUBDIRS(libltdl)
+AC_CANONICAL_HOST
+AC_LIB_LTDL
 AC_SUBST(LTDLINCL)
 AC_SUBST(LIBLTDL)
-AC_DISABLE_STATIC
-AC_PROG_LIBTOOL
-AC_LIB_LTDL
-AC_CONFIG_SUBDIRS(libltdl)
+AC_SUBST(MKDIR_P)
 
 # large file support
 AC_SYS_LARGEFILE
@@ -178,7 +175,7 @@ fi
 
 
 # libcurl
-LIBCURL_CHECK_CONFIG(,,,AC_MSG_ERROR([GNUnet requires libcurl]))
+LIBCURL_CHECK_CONFIG(,7.15.4,,AC_MSG_ERROR([GNUnet requires libcurl >= 7.15.4]))
 
 # libxml2
 AM_PATH_XML2(,xml=1,xml=0)
@@ -414,7 +411,6 @@ AC_DEFINE_UNQUOTED([HAVE_DIALOG], $dialog, [We have dialog])
 
 # libmicrohttpd
 lmhd=0
-AC_CHECK_LIB([microhttpd],[MHD_start_daemon])
 AC_MSG_CHECKING([for libmicrohttpd])
 AC_ARG_WITH(microhttpd,
    [  --with-microhttpd=PFX    Base of libmicrohttpd installation],
@@ -441,8 +437,6 @@ AC_ARG_WITH(microhttpd,
     AC_CHECK_HEADERS(microhttpd.h,
       AC_CHECK_LIB([microhttpd], [MHD_start_daemon],
           lmhd=1))])
-# NO libmicrohttpd/http support for 0.7.2 release!
-lmhd=0
 AM_CONDITIONAL(HAVE_MHD, test x$lmhd = x1)
 AC_DEFINE_UNQUOTED([HAVE_MHD], $lmhd, [We have libmicrohttpd])
 
@@ -510,7 +504,7 @@ AC_HEADER_STDC
 AC_CHECK_HEADERS([fcntl.h math.h errno.h limits.h stdio.h locale.h sys/stat.h sys/types.h pthread.h],,AC_MSG_ERROR([Compiling GNUnet requires standard UNIX headers files]))
 
 # Checks for headers that are only required on some systems or opional (and where we do NOT abort if they are not there)
-AC_CHECK_HEADERS([langinfo.h sys/param.h sys/mount.h sys/statvfs.h sys/vfs.h arpa/inet.h fcntl.h libintl.h netdb.h netinet/in.h sys/ioctl.h sys/socket.h sys/time.h unistd.h kstat.h sys/sysinfo.h kvm.h sys/file.h sys/resource.h iconv.h ifaddrs.h])
+AC_CHECK_HEADERS([langinfo.h sys/param.h sys/mount.h sys/statvfs.h sys/vfs.h arpa/inet.h fcntl.h libintl.h netdb.h netinet/in.h sys/ioctl.h sys/socket.h sys/time.h unistd.h kstat.h sys/sysinfo.h kvm.h sys/file.h sys/resource.h iconv.h ifaddrs.h mach/mach.h stddef.h sys/timeb.h terminos.h])
 
 # Check for GMP header (and abort if not present)
 AC_CHECK_HEADERS([gmp.h],,AC_MSG_ERROR([Compiling GNUnet requires gmp.h (from the GNU MP library, libgmp)]))
@@ -520,7 +514,10 @@ AC_CHECK_HEADERS([gmp.h],,AC_MSG_ERROR([Compiling GNUnet requires gmp.h (from th
 AC_C_CONST
 AC_TYPE_PID_T
 AC_TYPE_SIZE_T
+AC_TYPE_MODE_T
 AC_HEADER_TIME
+AC_HEADER_STAT
+AC_HEADER_STDBOOL
 AC_STRUCT_TM
 
 
@@ -532,6 +529,8 @@ AC_FUNC_FORK
 AC_PROG_GCC_TRADITIONAL
 AC_FUNC_MEMCMP
 AC_FUNC_SELECT_ARGTYPES
+AC_FUNC_CHOWN
+
 AC_TYPE_SIGNAL
 AC_FUNC_STAT
 AC_FUNC_STRFTIME
@@ -539,7 +538,7 @@ AC_FUNC_VPRINTF
 AC_HEADER_SYS_WAIT
 AC_TYPE_OFF_T
 AC_TYPE_UID_T
-AC_CHECK_FUNCS([floor gethostname memmove rmdir strncasecmp strrchr strtol atoll dup2 fdatasync ftruncate gethostbyname gettimeofday memset mkdir mkfifo select socket strcasecmp strchr strdup strerror strstr clock_gettime getrusage rand uname setlocale getcwd mktime gmtime_r gmtime strlcpy strlcat ftruncate stat64 sbrk mmap mremap setrlimit gethostbyaddr initgroups getifaddrs freeifaddrs getnameinfo])
+AC_CHECK_FUNCS([floor gethostname memmove rmdir strncasecmp strrchr strtol atoll dup2 fdatasync ftruncate gethostbyname gettimeofday memset mkdir mkfifo select socket strcasecmp strchr strdup strerror strstr clock_gettime getrusage rand uname setlocale getcwd mktime gmtime_r gmtime strlcpy strlcat ftruncate stat64 sbrk mmap mremap setrlimit gethostbyaddr initgroups getifaddrs freeifaddrs getnameinfo inet_ntoa localtime_r nl_langinfo putenv realpath strndup])
 
 # restore LIBS
 LIBS=$SAVE_LIBS
@@ -580,14 +579,14 @@ AC_ARG_WITH(guile,
         ;;
       yes)
         AC_CHECK_HEADERS(libguile.h,
-          AC_CHECK_LIB([guile], [scm_sigaction_for_thread],
+          AC_CHECK_LIB([guile], [scm_c_define_gsubr],
             guile=1))
         ;;
       *)
         LDFLAGS="-L$with_guile/lib $LDFLAGS"
         CPPFLAGS="-I$with_guile/include $CPPFLAGS"
         AC_CHECK_HEADERS(libguile.h,
-          AC_CHECK_LIB([guile], [scm_sigaction_for_thread],
+          AC_CHECK_LIB([guile], [scm_c_define_gsubr],
             EXT_LIB_PATH="-L$with_guile/lib $EXT_LIB_PATH"
             guile=1))
         ;;
@@ -595,7 +594,7 @@ AC_ARG_WITH(guile,
    ],
    [AC_MSG_RESULT([--with-guile not specified])
     AC_CHECK_HEADERS(libguile.h,
-     AC_CHECK_LIB([guile], [scm_sigaction_for_thread],
+     AC_CHECK_LIB([guile], [scm_c_define_gsubr],
       guile=1))])
 
 if test "$guile" = 1
@@ -694,10 +693,10 @@ then
  AC_MSG_NOTICE([NOTICE: curses based gnunet-setup frontends will not be installed.])
 fi
 
-#if test "$lmhd" != 1
-#then
-# AC_MSG_NOTICE([NOTICE: libmicrohttpd not found, http transport will not be installed.])
-#fi
+if test "$lmhd" != 1
+then
+ AC_MSG_NOTICE([NOTICE: libmicrohttpd not found, http transport will not be installed.])
+fi
 
 if test "$ipv6" = "0"
 then

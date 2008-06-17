@@ -51,6 +51,9 @@
 /* Define to 1 if you have the `bcopy' function. */
 #undef HAVE_BCOPY
 
+/* Define to 1 if your system has a working `chown' function. */
+#undef HAVE_CHOWN
+
 /* Define to 1 if you have the `clock_gettime' function. */
 #undef HAVE_CLOCK_GETTIME
 
@@ -185,6 +188,9 @@
 /* Define to 1 if you have the `index' function. */
 #undef HAVE_INDEX
 
+/* Define to 1 if you have the `inet_ntoa' function. */
+#undef HAVE_INET_NTOA
+
 /* Define to 1 if you have the `initgroups' function. */
 #undef HAVE_INITGROUPS
 
@@ -230,9 +236,6 @@
 /* Define to 1 if you have the `m' library (-lm). */
 #undef HAVE_LIBM
 
-/* Define to 1 if you have the `microhttpd' library (-lmicrohttpd). */
-#undef HAVE_LIBMICROHTTPD
-
 /* Define to 1 if you have the `ncursesw' library (-lncursesw). */
 #undef HAVE_LIBNCURSESW
 
@@ -256,6 +259,12 @@
 
 /* Define to 1 if you have the <locale.h> header file. */
 #undef HAVE_LOCALE_H
+
+/* Define to 1 if you have the `localtime_r' function. */
+#undef HAVE_LOCALTIME_R
+
+/* Define to 1 if you have the <mach/mach.h> header file. */
+#undef HAVE_MACH_MACH_H
 
 /* Define to 1 if you have the <mach-o/dyld.h> header file. */
 #undef HAVE_MACH_O_DYLD_H
@@ -314,6 +323,9 @@
 /* Define if you have a post 11/2004 pthread library */
 #undef HAVE_NEW_PTHREAD_T
 
+/* Define to 1 if you have the `nl_langinfo' function. */
+#undef HAVE_NL_LANGINFO
+
 /* Define to 1 if the system has the type `off_t'. */
 #undef HAVE_OFF_T
 
@@ -329,11 +341,17 @@
 /* Define to 1 if you have the <pthread.h> header file. */
 #undef HAVE_PTHREAD_H
 
+/* Define to 1 if you have the `putenv' function. */
+#undef HAVE_PUTENV
+
 /* Define to 1 if you have the `rand' function. */
 #undef HAVE_RAND
 
 /* Define to 1 if you have the `readdir' function. */
 #undef HAVE_READDIR
+
+/* Define to 1 if you have the `realpath' function. */
+#undef HAVE_REALPATH
 
 /* Define to 1 if you have the `rindex' function. */
 #undef HAVE_RINDEX
@@ -374,6 +392,12 @@
 /* Define to 1 if `stat' has the bug that it succeeds when given the
    zero-length file name argument. */
 #undef HAVE_STAT_EMPTY_STRING_BUG
+
+/* Define to 1 if stdbool.h conforms to C99. */
+#undef HAVE_STDBOOL_H
+
+/* Define to 1 if you have the <stddef.h> header file. */
+#undef HAVE_STDDEF_H
 
 /* Define to 1 if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H
@@ -416,6 +440,9 @@
 
 /* Define to 1 if you have the `strncasecmp' function. */
 #undef HAVE_STRNCASECMP
+
+/* Define to 1 if you have the `strndup' function. */
+#undef HAVE_STRNDUP
 
 /* Define to 1 if you have the `strrchr' function. */
 #undef HAVE_STRRCHR
@@ -467,6 +494,9 @@
 /* Define to 1 if you have the <sys/sysinfo.h> header file. */
 #undef HAVE_SYS_SYSINFO_H
 
+/* Define to 1 if you have the <sys/timeb.h> header file. */
+#undef HAVE_SYS_TIMEB_H
+
 /* Define to 1 if you have the <sys/time.h> header file. */
 #undef HAVE_SYS_TIME_H
 
@@ -478,6 +508,9 @@
 
 /* Define to 1 if you have <sys/wait.h> that is POSIX.1 compatible. */
 #undef HAVE_SYS_WAIT_H
+
+/* Define to 1 if you have the <terminos.h> header file. */
+#undef HAVE_TERMINOS_H
 
 /* Define to 1 if you have the `uname' function. */
 #undef HAVE_UNAME
@@ -499,6 +532,9 @@
 
 /* Define to 1 if `vfork' works. */
 #undef HAVE_WORKING_VFORK
+
+/* Define to 1 if the system has the type `_Bool'. */
+#undef HAVE__BOOL
 
 /* Define as const if the declaration of iconv() needs const. */
 #undef ICONV_CONST
@@ -632,6 +668,9 @@
 /* This is a BSD system */
 #undef SOMEBSD
 
+/* Define to 1 if the `S_IS*' macros in <sys/stat.h> do not work properly. */
+#undef STAT_MACROS_BROKEN
+
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS
 
@@ -676,6 +715,9 @@
 
 /* Define to `int' if <sys/types.h> doesn't define. */
 #undef gid_t
+
+/* Define to `int' if <sys/types.h> does not define. */
+#undef mode_t
 
 /* Define to `long int' if <sys/types.h> does not define. */
 #undef off_t

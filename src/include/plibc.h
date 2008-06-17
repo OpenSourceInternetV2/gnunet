@@ -2,19 +2,19 @@
      This file is part of PlibC.
      (C) 2005, 2006, 2007 Nils Durner (and other contributing authors)
 
-	   This library is free software; you can redistribute it and/or
-	   modify it under the terms of the GNU Lesser General Public
-	   License as published by the Free Software Foundation; either
-	   version 2.1 of the License, or (at your option) any later version.
-	
-	   This library is distributed in the hope that it will be useful,
-	   but WITHOUT ANY WARRANTY; without even the implied warranty of
-	   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-	   Lesser General Public License for more details.
-	
-	   You should have received a copy of the GNU Lesser General Public
-	   License along with this library; if not, write to the Free Software
-	   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+     This library is free software; you can redistribute it and/or
+     modify it under the terms of the GNU Lesser General Public
+     License as published by the Free Software Foundation; either
+     version 2.1 of the License, or (at your option) any later version.
+  
+     This library is distributed in the hope that it will be useful,
+     but WITHOUT ANY WARRANTY; without even the implied warranty of
+     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+     Lesser General Public License for more details.
+  
+     You should have received a copy of the GNU Lesser General Public
+     License along with this library; if not, write to the Free Software
+     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
 /**
@@ -22,7 +22,7 @@
  * @brief PlibC header
  * @attention This file is usually not installed under Unix,
  *            so ship it with your application
- * @version $Revision: 1.39 $
+ * @version $Revision: 1.40.2.2 $
  */
 
 #ifndef _PLIBC_H_
@@ -40,6 +40,8 @@ extern "C"
 #ifdef Q_OS_WIN32
 #define WINDOWS 1
 #endif
+
+#define HAVE_PLIBC_FD 0
 
 #ifdef WINDOWS
 
@@ -453,10 +455,12 @@ extern "C"
 #define CREAT(p, m) creat(p, m)
 #undef FOPEN
 #define FOPEN(f, m) fopen(f, m)
+#define FTRUNCATE(f, l) ftruncate(f, l)
 #define OPENDIR(d) opendir(d)
-#define OPEN(f) open(f)
+#define OPEN open
 #define CHDIR(d) chdir(d)
 #define CLOSE(f) close(f)
+#define LSEEK(f, o, w) lseek(f, o, w)
 #define RMDIR(f) rmdir(f)
 #define ACCESS(p, m) access(p, m)
 #define CHMOD(f, p) chmod(f, p)
@@ -523,10 +527,12 @@ extern "C"
 #endif
 #define CREAT(p, m) _win_creat(p, m)
 #define FOPEN(f, m) _win_fopen(f, m)
+#define FTRUNCATE(f, l) ftruncate(f, l)
 #define OPENDIR(d) _win_opendir(d)
-#define OPEN(f) _win_open(f)
+#define OPEN _win_open
 #define CHDIR(d) _win_chdir(d)
 #define CLOSE(f) _win_close(f)
+#define LSEEK(f, o, w) lseek(f, o, w)
 #define FSTAT(h, b) _win_fstat(h, b)
 #define RMDIR(f) _win_rmdir(f)
 #define ACCESS(p, m) _win_access(p, m)

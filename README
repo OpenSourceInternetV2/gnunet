@@ -29,7 +29,7 @@ running GNUnet:
 - libextractor >= 0.5.18
 - libgcrypt    >= 1.2
 - libgmp       >= 4.0
-- libcurl      >= 7.x
+- libcurl      >= 7.15.4
 - sqlite       >= 3.0
 - libltdl      >= 1.5 (part of GNU libtool)
 - libguile     >= 1.8 (strongly recommended)
@@ -194,6 +194,20 @@ If any testcases fail to pass on your system, run "contrib/report.sh"
 and report the output together with information about the failing
 testcase to the Mantis bugtracking system at
 https://gnunet.org/mantis/.
+
+
+Running http on port 80
+=======================
+
+In order to hide GNUnet's HTTP traffic perfectly, you might consider
+running GNUnet's HTTP transport on port 80.  However, you should not
+run GNUnet as root.  Instead, forward port 80 to say 8080 with this
+command (as root, in your startup scripts):
+
+# iptables -t nat -A PREROUTING -p tcp -m tcp --dport 80 -j REDIRECT --to-ports 8080
+
+Then set in the HTTP section of gnunetd.conf the "ADVERTISED-PORT"
+to "80" and "PORT" to 8080. 
 
 
 

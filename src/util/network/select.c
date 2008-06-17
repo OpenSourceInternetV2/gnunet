@@ -551,7 +551,10 @@ selectThread (void *ctx)
               if (sh->socket_quota <= 0)
                 {
                   SHUTDOWN (s, SHUT_WR);
-                  CLOSE (s);
+                  if (0 != CLOSE (s))
+                    GE_LOG_STRERROR (sh->ectx,
+                                     GE_WARNING | GE_ADMIN | GE_BULK,
+                                     "close");
                   s = -1;
                   continue;
                 }
@@ -762,8 +765,8 @@ selectThread (void *ctx)
   return NULL;
 }
 
-static int
-makePipeNonblocking (struct GE_Context *ectx, int handle)
+int
+network_make_pipe_nonblocking (struct GE_Context *ectx, int handle)
 {
 #if MINGW
   DWORD mode;
@@ -771,7 +774,11 @@ makePipeNonblocking (struct GE_Context *ectx, int handle)
   mode = PIPE_NOWAIT;
 
   if (SetNamedPipeHandleState ((HANDLE) handle, &mode, NULL, NULL))
+#if HAVE_PLIBC_FD
+    plibc_fd_set_blocking (handle, 0);
+#else
     __win_SetHandleBlockingMode (handle, 0);
+#endif
   /* don't report errors because Win9x doesn't support SetNamedPipeHandleState() */
 #else
   int flags = fcntl (handle, F_GETFL);
@@ -833,7 +840,7 @@ select_create (const char *description,
       FREE (sh);
       return NULL;
     }
-  if (OK != makePipeNonblocking (sh->ectx, sh->signal_pipe[0]))
+  if (OK != network_make_pipe_nonblocking (sh->ectx, sh->signal_pipe[0]))
     {
       if ((0 != CLOSE (sh->signal_pipe[0])) ||
           (0 != CLOSE (sh->signal_pipe[1])))

@@ -70,14 +70,9 @@
 #define DEBUG_COLLECT_PRIO NO
 
 /**
- * Until which load do we consider the peer overly idle
- * (which means that we would like to use more resources).<p>
- *
- * Note that we use 70 to leave some room for applications
- * to consume resources "idly" (i.e. up to 85%) and then
- * still have some room for "paid for" resource consumption.
+ * strictly mark TSessions as down
  */
-#define IDLE_LOAD_THRESHOLD 70
+#define STRICT_STAT_DOWN YES
 
 /**
  * If an attempt to establish a connection is not answered
@@ -131,8 +126,9 @@
 
 /**
  * Expected MTU for a streaming connection.
+ * (one bit of content plus 1k header overhead)
  */
-#define EXPECTED_MTU 32768
+#define EXPECTED_MTU (32768 + 1024)
 
 /**
  * How many ping/pong messages to we want to transmit
@@ -403,10 +399,16 @@ typedef struct BufferEntry_
 
   /**
    * is this host alive? timestamp of the time of the last-active
-  * point (as witnessed by some higher-level application, typically
+   * point (as witnessed by some higher-level application, typically
    * topology+pingpong)
    */
   cron_t isAlive;
+
+  /**
+   * At what time did we initially establish (STAT_UP) this connection?
+   * Should be zero if status != STAT_UP.
+   */
+  cron_t time_established;
 
   /**
    * Status of the connection (STAT_XXX)
@@ -507,6 +509,18 @@ typedef struct BufferEntry_
    * are we currently in "sendBuffer" for this entry?
    */
   int inSendBuffer;
+
+  /**
+   * Did we already select this entry for bandwidth
+   * assignment due to high uptime this round?
+   */
+  int tes_selected;
+
+  /**
+   * Should we consider switching to a non-fragmenting
+   * transport?
+   */
+  int consider_transport_switch;
 
 } BufferEntry;
 
@@ -619,6 +633,8 @@ static int stat_sizeMessagesDropped;
 
 static int stat_hangupSent;
 
+static int stat_closedTransport;
+
 static int stat_encrypted;
 
 static int stat_transmitted;
@@ -640,6 +656,8 @@ static int stat_total_lost_sent;
 static int stat_total_allowed_recv;
 
 static int stat_total_send_buffer_size;
+
+static int stat_transport_switches;
 
 /* ******************** CODE ********************* */
 
@@ -943,22 +961,12 @@ outgoingCheck (unsigned int priority, unsigned int overhead)
     {
       if (priority >= EXTREME_PRIORITY)
         return OK;              /* allow administrative msgs */
-      else
-        return SYSERR;          /* but nothing else */
+      return SYSERR;            /* but nothing else */
     }
-  if (overhead > 50)
-    overhead = 50;              /* bound */
-  if (load <= overhead)
+  if (load <= 75 + overhead)
     return OK;
-  /* Suppose overhead = 50, then:
-     Now load in [51, 100].  Between 51% and 100% load:
-     at 51% require priority >= 1 = (load-50)^3
-     at 52% require priority >= 8 = (load-50)^3
-     at 75% require priority >= 15626 = (load-50)^3
-     at 100% require priority >= 125000 = (load-50)^3
-     (cubic function)
-   */
-  delta = load - overhead;      /* now delta is in [1,50] with 50 == 100% load */
+  delta = load - overhead - 75;
+  /* Now delta in [0, 25] */
   if (delta * delta * delta > priority)
     {
 #if DEBUG_POLICY
@@ -1019,10 +1027,16 @@ checkSendFrequency (BufferEntry * be)
   load = os_cpu_get_load (ectx, cfg);
   if (load == -1)
     load = 50;
+  /* adjust frequency based on send buffer size */
+  i = be->sendBufferSize;
+  if (i > 100)
+    i = 100;
+  if (i <= 25)
+    i = 25;
   /* adjust send frequency; if load is smaller
-     than 25%, decrease frequency, otherwise
+     than i%, decrease frequency, otherwise
      increase it (quadratically)! */
-  msf = msf * load * load / 25 / 25;
+  msf = msf * load * load / i / i;
   if (be->lastSendAttempt + msf > get_time ())
     {
 #if DEBUG_CONNECTION
@@ -1248,7 +1262,7 @@ expireSendBufferEntries (BufferEntry * be)
     msgCap = EXPECTED_MTU;      /* have at least one MTU */
   if (msgCap > max_bpm_up)
     msgCap = max_bpm_up;        /* have no more than max-bpm for entire daemon */
-  if (load < 50)
+  if (load < IDLE_LOAD_THRESHOLD)
     {                           /* afford more if CPU load is low */
       if (load == 0)
         load = 1;               /* avoid division by zero */
@@ -1502,6 +1516,7 @@ fragmentIfNecessary (BufferEntry * be)
           GROW (be->sendBuffer, be->sendBufferSize, ret);
           /* calling fragment will change be->sendBuffer;
              thus we need to restart from the beginning afterwards... */
+          be->consider_transport_switch = YES;
           fragmentation->fragment (&be->session.sender,
                                    be->session.mtu -
                                    sizeof (P2P_PACKET_HEADER), entry->pri,
@@ -1530,7 +1545,11 @@ ensureTransportConnected (BufferEntry * be)
   be->session.tsession =
     transport->connectFreely (&be->session.sender, NO, __FILE__);
   if (be->session.tsession == NULL)
-    return NO;
+    {
+      be->status = STAT_DOWN;
+      be->time_established = 0;
+      return NO;
+    }
   be->session.mtu = transport->getMTU (be->session.tsession->ttype);
   fragmentIfNecessary (be);
   return OK;
@@ -1587,12 +1606,16 @@ sendBuffer (BufferEntry * be)
   /* test if receiver has enough bandwidth available!  */
   updateCurBPS (be);
   totalMessageSize = selectMessagesToSend (be, &priority);
-  if (totalMessageSize == 0)
+  if ((totalMessageSize == 0) && ((be->sendBufferSize != 0) || (be->session.mtu != 0) ||        /* only if transport has congestion control! */
+                                  (be->available_send_window <
+                                   2 * EXPECTED_MTU)))
     {
       expireSendBufferEntries (be);
       be->inSendBuffer = NO;
       return NO;                /* deferr further */
     }
+  if (totalMessageSize == 0)
+    totalMessageSize = EXPECTED_MTU + sizeof (P2P_PACKET_HEADER);
   GE_ASSERT (ectx, totalMessageSize > sizeof (P2P_PACKET_HEADER));
   if ((be->session.mtu != 0) && (totalMessageSize > be->session.mtu))
     {
@@ -1610,8 +1633,34 @@ sendBuffer (BufferEntry * be)
       /* transport session is gone! re-establish! */
       tsession = be->session.tsession;
       be->session.tsession = NULL;
-      transport->disconnect (tsession, __FILE__);
+      if (tsession != NULL)
+        transport->disconnect (tsession, __FILE__);
       ensureTransportConnected (be);
+      if (be->session.tsession == NULL)
+        {
+#if DEBUG_CONNECTION
+          EncName enc;
+          IF_GELOG (ectx,
+                    GE_DEBUG | GE_REQUEST | GE_DEVELOPER,
+                    hash2enc (&be->session.sender.hashPubKey, &enc));
+          GE_LOG (ectx,
+                  GE_DEBUG | GE_REQUEST | GE_DEVELOPER,
+                  "Session is DOWN for `%s' due to transport disconnect\n",
+                  &enc);
+#endif
+#if STRICT_STAT_DOWN
+          be->status = STAT_DOWN;
+          be->time_established = 0;
+#endif
+          if (stats != NULL)
+            stats->change (stat_closedTransport, 1);
+          for (i = 0; i < be->sendBufferSize; i++)
+            {
+              FREENONNULL (be->sendBuffer[i]->closure);
+              FREE (be->sendBuffer[i]);
+            }
+          GROW (be->sendBuffer, be->sendBufferSize, 0);
+        }
       /* This may have changed the MTU => need to re-do
          everything.  Since we don't want to possibly
          loop forever, give it another shot later;
@@ -1629,25 +1678,32 @@ sendBuffer (BufferEntry * be)
   /* check if we (sender) have enough bandwidth available
      if so, trigger callbacks on selected entries; if either
      fails, return (but clean up garbage) */
-  if ((SYSERR == outgoingCheck (priority,
-                                totalMessageSize /
-                                sizeof (P2P_PACKET_HEADER)))
-      || (0 == prepareSelectedMessages (be)))
+  if (SYSERR == outgoingCheck (priority,
+                               totalMessageSize / sizeof (P2P_PACKET_HEADER)))
     {
       expireSendBufferEntries (be);
       be->inSendBuffer = NO;
       return NO;                /* deferr further */
     }
+
   /* get permutation of SendBuffer Entries
      such that SE_FLAGS are obeyed */
-  entries = permuteSendBuffer (be, &stotal);
-  if ((stotal == 0) || (entries == NULL))
+  if (0 != prepareSelectedMessages (be))
     {
-      /* no messages selected!? */
-      GE_BREAK (ectx, 0);
-      be->inSendBuffer = NO;
-      FREE (entries);
-      return NO;
+      entries = permuteSendBuffer (be, &stotal);
+      if ((stotal == 0) || (entries == NULL))
+        {
+          /* no messages selected!? */
+          GE_BREAK (ectx, 0);
+          be->inSendBuffer = NO;
+          FREE (entries);
+          return NO;
+        }
+    }
+  else
+    {
+      entries = NULL;
+      stotal = 0;
     }
 
   /* build message */
@@ -1669,7 +1725,7 @@ sendBuffer (BufferEntry * be)
       memcpy (&plaintextMsg[p], entry->closure, entry->len);
       p += entry->len;
     }
-  FREE (entries);
+  FREENONNULL (entries);
   entries = NULL;
   if (p > totalMessageSize)
     {
@@ -1779,9 +1835,30 @@ sendBuffer (BufferEntry * be)
     }
   if ((ret == SYSERR) && (be->session.tsession != NULL))
     {
+#if DEBUG_CONNECTION
+      EncName enc;
+      IF_GELOG (ectx,
+                GE_DEBUG | GE_REQUEST | GE_DEVELOPER,
+                hash2enc (&be->session.sender.hashPubKey, &enc));
+      GE_LOG (ectx,
+              GE_DEBUG | GE_REQUEST | GE_DEVELOPER,
+              "Session is DOWN for `%s' due to transmission error\n", &enc);
+#endif
       tsession = be->session.tsession;
       be->session.tsession = NULL;
+#if STRICT_STAT_DOWN
+      be->status = STAT_DOWN;
+      be->time_established = 0;
+#endif
+      if (stats != NULL)
+        stats->change (stat_closedTransport, 1);
       transport->disconnect (tsession, __FILE__);
+      for (i = 0; i < be->sendBufferSize; i++)
+        {
+          FREENONNULL (be->sendBuffer[i]->closure);
+          FREE (be->sendBuffer[i]);
+        }
+      GROW (be->sendBuffer, be->sendBufferSize, 0);
     }
 
   FREE (encryptedMsg);
@@ -1819,6 +1896,7 @@ appendToBuffer (BufferEntry * be, SendEntry * se)
   if ((be->session.mtu != 0) &&
       (se->len > be->session.mtu - sizeof (P2P_PACKET_HEADER)))
     {
+      be->consider_transport_switch = YES;
       /* this message is so big that it must be fragmented! */
       fragmentation->fragment (&be->session.sender,
                                be->session.mtu - sizeof (P2P_PACKET_HEADER),
@@ -2049,7 +2127,15 @@ shutdownConnection (BufferEntry * be)
   if (be->status == STAT_UP)
     {
       SendEntry *se;
-
+#if DEBUG_CONNECTION
+      EncName enc;
+      IF_GELOG (ectx,
+                GE_DEBUG | GE_REQUEST | GE_DEVELOPER,
+                hash2enc (&be->session.sender.hashPubKey, &enc));
+      GE_LOG (ectx,
+              GE_DEBUG | GE_REQUEST | GE_DEVELOPER,
+              "Session DOWN for `%s' due to HANGUP received\n", &enc);
+#endif
       hangup.header.type = htons (P2P_PROTO_hangup);
       hangup.header.size = htons (sizeof (P2P_hangup_MESSAGE));
       identity->getPeerIdentity (identity->getPublicPrivateKey (),
@@ -2074,6 +2160,7 @@ shutdownConnection (BufferEntry * be)
     }
   be->skey_remote_created = 0;
   be->status = STAT_DOWN;
+  be->time_established = 0;
   be->idealized_limit = MIN_BPM_PER_PEER;
   be->max_transmitted_limit = MIN_BPM_PER_PEER;
   if (be->session.tsession != NULL)
@@ -2149,6 +2236,7 @@ scheduleInboundTraffic ()
   double *shares;
   double shareSum;
   unsigned int u;
+  unsigned int v;
   unsigned int minCon;
   long long schedulableBandwidth;
   long long decrementSB;
@@ -2158,6 +2246,8 @@ scheduleInboundTraffic ()
   int earlyRun;
   int load;
   int *perm;
+  cron_t min_uptime;
+  unsigned int min_uptime_slot;
 #if DEBUG_CONNECTION
   EncName enc;
 #endif
@@ -2191,7 +2281,7 @@ scheduleInboundTraffic ()
   if (timeDifference < MIN_SAMPLE_TIME)
     {
       earlyRun = 1;
-      if (activePeerCount > CONNECTION_MAX_HOSTS_ / 16)
+      if (activePeerCount > CONNECTION_MAX_HOSTS_ / 8)
         {
           MUTEX_UNLOCK (lock);
           return;               /* don't update too frequently, we need at least some
@@ -2453,13 +2543,47 @@ scheduleInboundTraffic ()
       perm = NULL;
     }
 
-  /* randomly add the remaining MIN_BPM_PER_PEER to minCon peers; yes, this will
-     yield some fluctuation, but some amount of fluctuation should be
-     good since it creates opportunities. */
+  /* add the remaining MIN_BPM_PER_PEER to the minCon peers
+     with the highest connection uptimes; by linking this with
+     connection uptime, we reduce fluctuation */
   if (activePeerCount > 0)
-    for (u = 0; u < minCon; u++)
-      entries[weak_randomi (activePeerCount)]->idealized_limit
-        += MIN_BPM_PER_PEER;
+    {
+      if (minCon >= activePeerCount)
+        {
+          /* in this case, just add to all peers */
+          for (u = 0; u < minCon; u++)
+            {
+              entries[u % activePeerCount]->idealized_limit
+                += MIN_BPM_PER_PEER;
+            }
+        }
+      else
+        {                       /* minCon < activePeerCount */
+          min_uptime = get_time ();
+          min_uptime_slot = -1;
+          for (v = 0; v < activePeerCount; v++)
+            entries[v]->tes_selected = NO;
+          for (u = 0; u < minCon; u++)
+            {
+              for (v = 0; v < activePeerCount; v++)
+                {
+                  if ((entries[v]->time_established != 0) &&
+                      (entries[v]->time_established < min_uptime) &&
+                      (entries[v]->tes_selected == NO))
+                    {
+                      min_uptime_slot = v;
+                      min_uptime = entries[v]->time_established;
+                    }
+                }
+              if (min_uptime_slot != -1)
+                {
+                  entries[min_uptime_slot]->tes_selected = YES;
+                  entries[min_uptime_slot]->idealized_limit
+                    += MIN_BPM_PER_PEER;
+                }
+            }                   /* for minCon */
+        }                       /* if minCon < activePeerCount */
+    }                           /* if we had active peers */
 
   /* prepare for next round */
   lastRoundStart = now;
@@ -2471,8 +2595,11 @@ scheduleInboundTraffic ()
                 hash2enc (&entries[u]->session.sender.hashPubKey, &enc));
       GE_LOG (ectx,
               GE_DEBUG | GE_BULK | GE_USER,
-              "inbound limit for peer %u: %s set to %u bpm\n",
-              u, &enc, entries[u]->idealized_limit);
+              "inbound limit for peer %u: %4s set to %u bpm (ARR: %lld, uptime: %llus, value: %lf)\n",
+              u, &enc, entries[u]->idealized_limit,
+              adjustedRR[u],
+              (get_time () - entries[u]->time_established) / cronSECONDS,
+              entries[u]->current_connection_value);
 #endif
       if ((timeDifference > 50) && (weak_randomi (timeDifference + 1) > 50))
         entries[u]->current_connection_value *= 0.9;    /* age */
@@ -2557,6 +2684,7 @@ cronDecreaseLiveness (void *unused)
   unsigned long long total_send_buffer_size;
   int load_nup;
   int load_cpu;
+  TSession *tsession;
 
   ENTRY ();
   load_cpu = os_cpu_get_load (ectx, cfg);
@@ -2614,6 +2742,31 @@ cronDecreaseLiveness (void *unused)
                                            SECONDS_BLACKLIST_AFTER_DISCONNECT,
                                            YES);
                   shutdownConnection (root);
+                }
+              if ((root->consider_transport_switch == YES)
+                  && (load_cpu < IDLE_LOAD_THRESHOLD))
+                {
+                  TSession *alternative;
+
+                  GE_BREAK (NULL, root->session.mtu != 0);
+                  alternative =
+                    transport->connectFreely (&root->session.sender, NO,
+                                              __FILE__);
+                  if ((alternative != NULL)
+                      && (transport->getMTU (alternative->ttype) == 0))
+                    {
+                      tsession = root->session.tsession;
+                      root->session.mtu = 0;
+                      root->session.tsession = alternative;
+                      alternative = NULL;
+                      root->consider_transport_switch = NO;
+                      if (tsession != NULL)
+                        transport->disconnect (tsession, __FILE__);
+                      if (stats != NULL)
+                        stats->change (stat_transport_switches, 1);
+                    }
+                  if (alternative != NULL)
+                    transport->disconnect (alternative, __FILE__);
                 }
               if ((root->available_send_window > 35 * 1024) &&
                   (root->sendBufferSize < 4) &&
@@ -2998,6 +3151,7 @@ confirmSessionUp (const PeerIdentity * peer)
                   "Received confirmation that session is UP for `%s'\n",
                   &enc);
 #endif
+          be->time_established = get_time ();
           be->status = STAT_UP;
           be->lastSequenceNumberReceived = 0;
           be->lastSequenceNumberSend = 1;
@@ -3106,8 +3260,10 @@ getCurrentSessionKey (const PeerIdentity * peer,
         {
           if ((be->status & STAT_SETKEY_SENT) > 0)
             {
-              *key = be->skey_local;
-              *age = be->skey_local_created;
+              if (key != NULL)
+                *key = be->skey_local;
+              if (age != NULL)
+                *age = be->skey_local_created;
               ret = OK;
             }
         }
@@ -3115,8 +3271,10 @@ getCurrentSessionKey (const PeerIdentity * peer,
         {                       /* for receiving */
           if ((be->status & STAT_SETKEY_RECEIVED) > 0)
             {
-              *key = be->skey_remote;
-              *age = be->skey_remote_created;
+              if (key != NULL)
+                *key = be->skey_remote;
+              if (age != NULL)
+                *age = be->skey_remote_created;
               ret = OK;
             }
         }
@@ -3177,7 +3335,9 @@ considerTakeover (const PeerIdentity * sender, TSession * tsession)
      to get to know each other). See also transport paper and the
      data on throughput. - CG
    */
-  if ((transport->getCost (tsession->ttype) < cost) &&
+  if (((transport->getCost (tsession->ttype) < cost) ||
+       ((be->consider_transport_switch == YES) &&
+        (transport->getMTU (tsession->ttype) == 0))) &&
       (OK == transport->associate (tsession, __FILE__)))
     {
       GE_ASSERT (NULL,
@@ -3190,6 +3350,9 @@ considerTakeover (const PeerIdentity * sender, TSession * tsession)
         }
       be->session.tsession = tsession;
       be->session.mtu = transport->getMTU (tsession->ttype);
+      if ((be->consider_transport_switch == YES) &&
+          (transport->getMTU (tsession->ttype) == 0))
+        be->consider_transport_switch = NO;
       check_invariants ();
       fragmentIfNecessary (be);
     }
@@ -3230,8 +3393,8 @@ connectionConfigChangeCallback (void *ctx,
       max_bpm = new_max_bpm;
       newMAXHOSTS = max_bpm / (MIN_BPM_PER_PEER * 4);
       /* => for 1000 bps, we get 12 (rounded DOWN to 8) connections! */
-      if (newMAXHOSTS < 4)
-        newMAXHOSTS = 4;        /* strict minimum is 4 (must match bootstrap.c!) */
+      if (newMAXHOSTS < MIN_CONNECTION_TARGET * 2)
+        newMAXHOSTS = MIN_CONNECTION_TARGET * 2;
       if (newMAXHOSTS > 256)
         newMAXHOSTS = 256;      /* limit, otherwise we run out of sockets! */
 
@@ -3340,6 +3503,10 @@ initConnection (struct GE_Context *e,
                                                                "# bytes of outgoing messages dropped"));
       stat_hangupSent
         = stats->create (gettext_noop ("# connections closed (HANGUP sent)"));
+      stat_closedTransport
+        =
+        stats->
+        create (gettext_noop ("# connections closed (transport issue)"));
       stat_encrypted = stats->create (gettext_noop (    /* includes encrypted but then
                                                            not transmitted data */
                                                      "# bytes encrypted"));
@@ -3375,6 +3542,9 @@ initConnection (struct GE_Context *e,
         stats->
         create (gettext_noop
                 ("# total number of bytes we are currently allowed to send"));
+      stat_transport_switches =
+        stats->
+        create (gettext_noop ("# transports switched to stream transport"));
     }
   transport->start (&core_receive);
   EXIT ();
@@ -3658,7 +3828,7 @@ sendPlaintext (TSession * tsession, const char *msg, unsigned int size)
   hash (&hdr->sequenceNumber,
         size + sizeof (P2P_PACKET_HEADER) - sizeof (HashCode512), &hdr->hash);
   ret = transport->send (tsession,
-                         buf, size + sizeof (P2P_PACKET_HEADER), NO);
+                         buf, size + sizeof (P2P_PACKET_HEADER), YES);
   FREE (buf);
   EXIT ();
   return ret;
@@ -3727,8 +3897,7 @@ unicast (const PeerIdentity * receiver,
   unsigned short len;
 
   ENTRY ();
-  if ((getBandwidthAssignedTo (receiver, NULL, NULL) != OK) &&
-      (identity->isBlacklistedStrict (receiver) == NO))
+  if (getBandwidthAssignedTo (receiver, NULL, NULL) != OK)
     session->tryConnect (receiver);
   if (msg == NULL)
     {

@@ -77,7 +77,7 @@ processhellos (HelloListClosure * hcq)
       /* select hellos in random order */
       rndidx = weak_randomi (hcq->hellosCount);
 #if DEBUG_BOOTSTRAP
-      GE_LOG (ectx,
+      GE_LOG (coreAPI->ectx,
               GE_DEBUG | GE_REQUEST | GE_USER,
               "%s chose hello %d of %d\n",
               __FUNCTION__, rndidx, hcq->hellosCount);
@@ -141,10 +141,10 @@ needBootstrap ()
   char *data;
 
   now = get_time ();
-  if (coreAPI->forAllConnectedNodes (NULL, NULL) >= 3)
+  if (coreAPI->forAllConnectedNodes (NULL, NULL) >= MIN_CONNECTION_TARGET)
     {
       /* still change delta and lastTest; even
-         if the peer _briefly_ drops below 3
+         if the peer _briefly_ drops below MCT
          connections, we don't want it to immediately
          go for the hostlist... */
       delta = 5 * cronMINUTES;
@@ -197,7 +197,8 @@ processThread (void *unused)
       if (YES == hlc.do_shutdown)
         break;
 #if DEBUG_BOOTSTRAP
-      GE_LOG (ectx, GE_DEBUG | GE_REQUEST | GE_USER, "Starting bootstrap.\n");
+      GE_LOG (coreAPI->ectx, GE_DEBUG | GE_REQUEST | GE_USER,
+              "Starting bootstrap.\n");
 #endif
       hlc.hellosLen = 0;
       hlc.hellosCount = 0;
