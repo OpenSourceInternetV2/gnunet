@@ -12,6 +12,15 @@
 # Additions:	Modified for Debian GNUnet package
 #			by Arnaud Kyheng <Arnaud.Kyheng@free.fr>
 
+### BEGIN INIT INFO
+# Provides:          gnunet-daemon
+# Required-Start:    $syslog $network $local_fs
+# Required-Stop:     $syslog $network $local_fs
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Launch the GNUnet daemon at boot time
+### END INIT INFO
+
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 DAEMON=/usr/bin/gnunetd
 NAME=gnunetd
@@ -24,8 +33,8 @@ test -x $DAEMON || exit 0
 set -e
 
 # Get configuration
-if [ -r /etc/default/gnunet ]; then
-	. /etc/default/gnunet
+if [ -r /etc/default/gnunet-daemon ]; then
+	. /etc/default/gnunet-daemon
 fi
 
 case "$1" in

@@ -1,7 +1,7 @@
 This package was debianized by Arnaud Kyheng <Arnaud.Kyheng@free.fr> on
 Sun, 29 Aug 2004 23:07:45 +0200.
 
-It was downloaded from http://www.ovmj.org/GNUnet/download.php3 
+It was downloaded from http://gnunet.org/download.php3 
 
 Upstream Author:  
  Primary developers:
@@ -23,8 +23,8 @@ Copyright: GPL
 
   You should have received a copy of the GNU General Public License
   along with this package; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-  02111-1307, USA.
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+  02110-1301  USA
 
 On Debian GNU/Linux systems, the complete text of the GNU General
 Public License can be found in `/usr/share/common-licenses/GPL'.

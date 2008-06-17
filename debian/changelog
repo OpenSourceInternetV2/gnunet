@@ -1,3 +1,12 @@
+gnunet (0.7.1c-1) unstable; urgency=low
+
+  * New upstream release (Closes: #420538).
+  * Package splitted into common, tools, daemon, client and dev (Closes: #394740).
+  * Added LSB section in init script.
+  * Enable IPv6 (Closes: #405763).
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Tue, 10 Apr 2007 12:49:11 +0200
+
 gnunet (0.7.0e-5) unstable; urgency=medium
 
   * Added German debconf translation from Helge Kreutzmann
@@ -199,7 +208,7 @@ gnunet (0.6.5-2) unstable; urgency=low
     - update the style to the best current practice.
 
   * Applied Andreas Jochens patch to fix build process on AMD64 with gcc 4.0
-    (Closes #289496). 
+    (Closes: #289496). 
 
   * debian/control: Fixed dependencies.
 
@@ -502,7 +511,7 @@ gnunet (0.5.4a-1) unstable; urgency=low
     crypto library based on the CVS branch of libgcrypt.
   * Change build dependcy from libgdbmg1-dev to libgdbm-dev
   * After 1 year and 39 days in preparation, its now eligable to be
-    uploaded to  unstable (Closes #147380)
+    uploaded to  unstable (Closes: #147380)
 
  -- Glenn McGrath <bug1@debian.org>  Fri, 27 Jun 2003 16:47:54 +0000
 
