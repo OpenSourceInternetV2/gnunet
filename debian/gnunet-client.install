@@ -22,7 +22,6 @@
 /usr/lib/libgnunetgetoption_api.so.*
 /usr/lib/libgnunetidentity_api.so.*
 /usr/lib/libgnunetnamespace.so.*
-/usr/lib/libgnunetpseudonym.so.*
 /usr/lib/libgnunetremote_api.so.*
 /usr/lib/libgnunetrpc_util.so.*
 /usr/lib/libgnunetstats_api.so.*
