@@ -2,3 +2,6 @@
 /usr/lib/*.so
 /usr/lib/*.la
 /usr/lib/GNUnet/*.la
+/usr/share/GNUnet/gnunet-testing.conf
+/usr/share/man/man1/gnunet-testbed.1
+/usr/lib/libgnunettesting_api.so.*
