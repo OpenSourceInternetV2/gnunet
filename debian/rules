@@ -3,8 +3,6 @@
 # Uncomment this to turn on verbose mode.
 #export DH_VERBOSE=1
 
-include /usr/share/dpatch/dpatch.make
-
 # These are used for cross-compiling and for saving the configure script
 # from having to guess our platform (since we know it already)
 DEB_HOST_GNU_TYPE   ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
@@ -18,7 +16,7 @@ else
 	CFLAGS += -O2
 endif
 
-config.status: configure patch
+config.status: configure
 	dh_testdir
 
 	# Configuring package
@@ -33,7 +31,7 @@ build-stamp: config.status
 
 	touch build-stamp
 
-clean: unpatch
+clean:
 	dh_testdir
 	dh_testroot
 	rm -f build-stamp
@@ -60,6 +58,8 @@ install: build
 	$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp
 
 	install -D -m 0644 debian/config/gnunetd.conf debian/gnunet-server/etc/gnunetd.conf
+
+	mv debian/tmp/usr/bin/remotetest debian/tmp/usr/bin/gnunet-remotetest
 
 	# Installing lintian overrides
 	for LINTIAN in debian/lintian/*; \
