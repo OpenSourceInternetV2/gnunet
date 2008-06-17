@@ -20,9 +20,11 @@ set -e
 case "$1" in
     configure)
     	# This is need to migrate data from 0.6.1b or later
-	# (changed to -a since AFS-Quota changed from 0.6.4
-	echo "Migrating previous GNUnet data (gnunet-check -a)"
-	gnunet-check -a
+	echo "Migrating previous GNUnet data (gnunet-update)"
+	gnunet-update
+	# Needed to migrate AFS-Quota changed from 0.6.4
+	echo "Migrating to new AFS-Quota (gnunet-check -u)"
+	gnunet-check -u || true
 
     ;;
 
