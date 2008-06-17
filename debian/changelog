@@ -1,3 +1,18 @@
+gnunet (0.6.6b-2) unstable; urgency=low
+
+  * debian/docs: Added the file UPDATING.
+  * debian/gnunet.postinst: Secured access to the data directory with 0700 mask.
+  * debian/control: Set libextractor required instead of recommended (Closes: #305138)
+  * debian/README.Debian: Changed filename UPGRADING to UPDATING (Closes:
+    #305136).
+  
+  * debian/po/pt_BR.po: Added new Brazilian Portuguese translation, thanks to
+    Rodrigo Tadeu Claro (Closes: #306350).
+
+  
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Sun,  1 May 2005 12:31:50 +0200
+
 gnunet (0.6.6b-1) unstable; urgency=low
 
   * New Upstream release.

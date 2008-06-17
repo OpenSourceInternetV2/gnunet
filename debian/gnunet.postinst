@@ -180,6 +180,10 @@ EOF
 
 	cp -f $CONFIG_NEW $CONFIG_FILE
 	echo " [done]"
+	
+	# Secure access to the data directory
+	/bin/chmod 0700 $GNUNETD_HOME || true
+	
 	# Cleaning
 	rm -f $CONFIG_NEW
 	echo "All done."

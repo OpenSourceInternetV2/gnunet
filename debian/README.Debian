@@ -8,7 +8,7 @@ In order to start, stop or restart manually the daemon, use
 /etc/init.d/gnunet with the parameter start, stop or restart
 
 You cannot upgrade GNUnet directly from versions earlier than 0.6.1b,
-refer to the file UPGRADING for information on how to migrate your data.
+refer to the file UPDATING for information on how to migrate your data.
 
 GNUnet has a global config file, /etc/gnunet.conf, for some programs
 (e.g. gnunet-stats) it may also need a per user config file, a sample of
