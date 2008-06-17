@@ -120,7 +120,7 @@ binary-common:
 	dh_fixperms
 	dh_makeshlibs --version-info
 	dh_installdeb
-	dh_shlibdeps
+#	dh_shlibdeps
 	dh_gencontrol
 	dh_md5sums
 	dh_builddeb

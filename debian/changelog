@@ -1,3 +1,10 @@
+gnunet (0.7.0e-1) unstable; urgency=high
+
+  * New uptream release.
+  * Set urgency to high since this release fix the remote DOS CVE-2006-2413 (Closes: #368159)
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Sun, 21 May 2006 11:24:28 +0200
+
 gnunet (0.7.0d-1) unstable; urgency=low
 
   * New upstream release.
