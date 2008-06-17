@@ -1,0 +1,7 @@
+#!/bin/sh
+
+# This is need to migrate data from 0.6.1b or later 
+echo "Migrating previous GNUnet data (gnunet-check -u)"
+gnunet-check -u
+
+#DEBHELPER#

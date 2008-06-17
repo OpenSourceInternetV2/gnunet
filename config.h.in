@@ -53,6 +53,9 @@
 /* Define to 1 if you have the `clock_gettime' function. */
 #undef HAVE_CLOCK_GETTIME
 
+/* Define to 1 if you have the `closedir' function. */
+#undef HAVE_CLOSEDIR
+
 /* Define to 1 if you have the <ctype.h> header file. */
 #undef HAVE_CTYPE_H
 
@@ -86,6 +89,9 @@
 
 /* Define to 1 if you have the `dup2' function. */
 #undef HAVE_DUP2
+
+/* Define if you have the _dyld_func_lookup function. */
+#undef HAVE_DYLD
 
 /* Define to 1 if you have the <errno.h> header file. */
 #undef HAVE_ERRNO_H
@@ -198,6 +204,9 @@
 /* Define to 1 if you have the <limits.h> header file. */
 #undef HAVE_LIMITS_H
 
+/* Define to 1 if you have the <mach-o/dyld.h> header file. */
+#undef HAVE_MACH_O_DYLD_H
+
 /* Define to 1 if you have the <malloc.h> header file. */
 #undef HAVE_MALLOC_H
 
@@ -231,6 +240,9 @@
 /* Define to 1 if you have the <netinet/in.h> header file. */
 #undef HAVE_NETINET_IN_H
 
+/* Define to 1 if you have the `opendir' function. */
+#undef HAVE_OPENDIR
+
 /* Define to 1 if you have the <openssl/blowfish.h> header file. */
 #undef HAVE_OPENSSL_BLOWFISH_H
 
@@ -242,6 +254,9 @@
 
 /* Define to 1 if you have the `rand' function. */
 #undef HAVE_RAND
+
+/* Define to 1 if you have the `readdir' function. */
+#undef HAVE_READDIR
 
 /* Define to 1 if you have the `rindex' function. */
 #undef HAVE_RINDEX
@@ -535,7 +550,7 @@
 /* Define to empty if `const' does not conform to ANSI C. */
 #undef const
 
-/* Define to a type to use for \`error_t' if it is not otherwise available. */
+/* Define to a type to use for `error_t' if it is not otherwise available. */
 #undef error_t
 
 /* Define to `int' if <sys/types.h> doesn't define. */

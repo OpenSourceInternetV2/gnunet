@@ -1,0 +1,203 @@
+gnunet (0.6.2b-1) unstable; urgency=low
+
+  * New upstream release (Closes: #249894 #254258)
+  * Add missingok to logrotate entry (Closes: #254874)
+  * Including missing gnunet-download-manager.scm from cvs
+
+ -- Glenn McGrath <bug1@debian.org>  Sat, 26 Jun 2004 20:53:43 +1000
+
+gnunet (0.6.2a-2) unstable; urgency=low
+
+  * Build depend on guile-1.6, not guile-1.6-dev
+
+ -- Glenn McGrath <bug1@debian.org>  Sat,  8 May 2004 00:08:49 +1000
+
+gnunet (0.6.2a-1) unstable; urgency=low
+
+  * New upstream release
+  * Build depends on guile 
+
+ -- Glenn McGrath <bug1@debian.org>  Thu,  6 May 2004 20:31:51 +1000
+
+gnunet (0.6.2-1) unstable; urgency=low
+
+  * New upstream release
+  * Enable tdb, bdb
+
+ -- Glenn McGrath <bug1@debian.org>  Sun,  2 May 2004 13:31:49 +1000
+
+gnunet (0.6.1d-4) unstable; urgency=low
+
+  * Build against new libgcrypt
+
+ -- Glenn McGrath <bug1@debian.org>  Tue, 20 Apr 2004 22:14:41 +1000
+
+gnunet (0.6.1d-3) unstable; urgency=low
+
+  * Disable STAT_MALLOC to fix hostkey generatation bug. 
+
+ -- Glenn McGrath <bug1@debian.org>  Tue, 13 Apr 2004 17:51:07 +1000
+
+gnunet (0.6.1d-2) unstable; urgency=low
+
+  * Include .la files (Closes: #243229)
+
+ -- Glenn McGrath <bug1@debian.org>  Mon, 12 Apr 2004 21:22:02 +1000
+
+gnunet (0.6.1d-1) unstable; urgency=low
+
+  * New upstream release
+
+ -- Glenn McGrath <bug1@debian.org>  Sat,  3 Apr 2004 21:14:04 +1000
+
+gnunet (0.6.1b-1) unstable; urgency=low
+
+  * New upstream release
+  * Run "gnunet-check -ra" in postinst for compatability
+
+ -- Glenn McGrath <bug1@debian.org>  Sat, 31 Jan 2004 21:39:33 +1100
+
+gnunet (0.6.1a-2) unstable; urgency=low
+
+  * Dont include gnunet-setup (fix build problem)
+  * Include a sample ~/.gnunet/gnunet.conf file
+  * Remove GNUNET_HOME from /etc/gnunet.conf, it is defined in a per
+    user config file
+  * Include randomi and bloomfilter bugfixes from upstream cvs.
+
+ -- Glenn McGrath <bug1@debian.org>  Sat, 17 Jan 2004 08:57:52 +1100
+
+gnunet (0.6.1a-1) unstable; urgency=low
+
+  * New upstream release
+  * Build depends on libgcrypt7-dev
+  * Remove stale gcrypt macros from acinclude.m4 and regenerate Makefiles
+
+ -- Glenn McGrath <bug1@debian.org>  Thu, 15 Jan 2004 19:28:29 +1100
+
+gnunet (0.6.0a-1) unstable; urgency=low
+
+  * New upstream release
+  * Dont use file globs for .so, it missed some.
+  * Dont include .la files, its not a -dev package.
+
+ -- Glenn McGrath <bug1@debian.org>  Fri, 10 Oct 2003 00:41:14 +0000
+
+gnunet (0.6.0-1) unstable; urgency=low
+
+  * New upstream release
+  * Undefined symbols problem fixed by upstream (Closes: #201002)  
+  * Remove gnunet-convert in this release as its broken.
+  * Regenerate build files with autoreconf -if
+  * Dont mention internal shared libraries in .shlibs file
+
+ -- Glenn McGrath <bug1@debian.org>  Mon,  6 Oct 2003 13:56:55 +0000
+
+gnunet (0.5.5-2) unstable; urgency=low
+
+  * Fix internal key generation bug iwhen using internal crypto with
+    patch from upstream, patch-gnunet-0.5.5-rndlinux.c[.diff]
+    (Closes: #207677)
+  * Rephrase gnunet-gtk description (Closes: #209643) 
+  * Update standards version to 3.6.1.0 
+
+ -- Glenn McGrath <bug1@debian.org>  Tue,  9 Sep 2003 23:41:50 +0000
+
+gnunet (0.5.5-1) unstable; urgency=low
+
+  * New upstream release
+
+ -- Glenn McGrath <bug1@debian.org>  Fri, 22 Aug 2003 21:57:27 +0000
+
+gnunet (0.5.4a-5) unstable; urgency=low
+
+  * Declare the build dependency on libtool in the control file as
+    well as this changelog (Closes: #202280)
+  * Make note in README.Debian about upgrading from 0.5.4a-1
+
+ -- Glenn McGrath <bug1@debian.org>  Tue, 22 Jul 2003 01:01:16 +0000
+
+gnunet (0.5.4a-4) unstable; urgency=low
+
+  * Declare build depenency on libtool as well, grrrr
+
+ -- Glenn McGrath <bug1@debian.org>  Mon, 21 Jul 2003 15:02:20 +0000
+
+gnunet (0.5.4a-3) unstable; urgency=low
+
+  * Declare build dependency on automake1.7 
+
+ -- Glenn McGrath <bug1@debian.org>  Mon, 21 Jul 2003 13:30:07 +0000
+
+gnunet (0.5.4a-2) unstable; urgency=low
+
+  * Fix removal of package when daemon not running (Closes: #201647) 
+  * Build depends on libltdl3-dev (Closes: #201316)
+  * Run autoreconf to avoid libtool problem
+  * Bump standards version to 3.6.0
+  * Sync gnunet-peer-info man page with upstream
+
+ -- Glenn McGrath <bug1@debian.org>  Sun, 20 Jul 2003 13:59:20 +0000
+
+gnunet (0.5.4a-1) unstable; urgency=low
+
+  * New upstream release.
+  * Remove build dependency on libgcrypt, gnunet now uses an internal
+    crypto library based on the CVS branch of libgcrypt.
+  * Change build dependcy from libgdbmg1-dev to libgdbm-dev
+  * After 1 year and 39 days in preparation, its now eligable to be
+    uploaded to  unstable (Closes #147380)
+
+ -- Glenn McGrath <bug1@debian.org>  Fri, 27 Jun 2003 16:47:54 +0000
+
+gnunet (0.5.4-1) unstable; urgency=low
+
+  * New upsteam release
+  * Declare shared libraries within gnunet, dependency now detected
+    in gnunet-gtk
+
+ -- Glenn McGrath <bug1@debian.org>  Sun, 18 May 2003 12:45:27 +0000
+
+gnunet (0.5.3-3) unstable; urgency=low
+
+  * Change src/utils/dso.c to load .so.0 modules rather than .so
+
+ -- Glenn McGrath <bug1@debian.org>  Wed, 30 Apr 2003 12:57:00 +1000
+
+gnunet (0.5.3-2) unstable; urgency=low
+
+  * Fix rpath warning.
+  * Fix dev-symlink warning.
+  * Add missing man pages for gnunet-peer-ingo and gnunet-stats
+
+ -- Glenn McGrath <bug1@debian.org>  Wed, 30 Apr 2003 00:08:41 +1000
+
+gnunet (0.5.3-1) unstable; urgency=low
+
+  * New upstream release
+
+ -- Glenn McGrath <bug1@debian.org>  Sat, 19 Apr 2003 22:39:30 +1000
+
+gnunet (0.5.2a-1) unstable; urgency=low
+
+  * New upstream release
+  * Use copytruncate with logrotation
+
+ -- Glenn McGrath <bug1@debian.org>  Tue, 18 Mar 2003 22:26:21 +1100
+
+gnunet (0.5.2-1) unstable; urgency=low
+
+  * New release includes gnunet-tracekit
+  * Use /etc/default/gnunet to set default init behaviour
+  * Set logfile to /var/log/gnunetd.log, and use logrotate.
+  * Set default pid to /var/run/gnunetd
+  * Specify extractors in config file
+
+ -- Glenn McGrath <bug1@debian.org>  Fri, 28 Feb 2003 02:51:19 +1100
+
+gnunet (0.5.1a-1) unstable; urgency=low
+
+  * Initial Release.
+
+ -- Glenn McGrath <bug1@debian.org>  Thu,  6 Feb 2003 23:32:06 +1100
+

@@ -1,0 +1,13 @@
+#
+#	Logrotate fragment for frox.
+#
+/var/log/gnunetd.log {
+	weekly
+	size=100k
+	rotate 7 
+	compress
+	copytruncate
+	delaycompress
+	notifempty
+	missingok
+}
