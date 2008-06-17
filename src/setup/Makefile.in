@@ -57,16 +57,11 @@ am_gnunet_setup_OBJECTS = gnunet-setup.$(OBJEXT)
 gnunet_setup_OBJECTS = $(am_gnunet_setup_OBJECTS)
 gnunet_setup_DEPENDENCIES =  \
 	$(top_builddir)/src/setup/lib/libgnunetsetup.la \
-	$(top_builddir)/src/util/libgnunetutil.la \
-	$(top_builddir)/src/util/loggers/libgnunetutil_logging.la \
-	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la
+	$(top_builddir)/src/util/libgnunetutil.la
 gnunet_win_tool_SOURCES = gnunet-win-tool.c
 gnunet_win_tool_OBJECTS = gnunet-win-tool.$(OBJEXT)
 gnunet_win_tool_DEPENDENCIES =  \
-	$(top_builddir)/src/util/libgnunetutil.la \
-	$(top_builddir)/src/util/loggers/libgnunetutil_logging.la \
-	$(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
-	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la
+	$(top_builddir)/src/util/libgnunetutil.la
 DEFAULT_INCLUDES = -I. -I$(top_builddir)@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -92,7 +87,7 @@ RECURSIVE_CLEAN_TARGETS = mostlyclean-recursive clean-recursive	\
   distclean-recursive maintainer-clean-recursive
 ETAGS = etags
 CTAGS = ctags
-DIST_SUBDIRS = lib text . ncurses gtk
+DIST_SUBDIRS = lib text . ncurses gtk qt
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
@@ -114,6 +109,7 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DLLDIR = @DLLDIR@
 DLLTOOL = @DLLTOOL@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
@@ -148,6 +144,7 @@ LIBICONV = @LIBICONV@
 LIBINTL = @LIBINTL@
 LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
+LIBPREFIX = @LIBPREFIX@
 
 # GNU Gettext support
 LIBS = @LIBINTL@ @LIBS@
@@ -175,6 +172,8 @@ PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PKG_CONFIG = @PKG_CONFIG@
 POSUB = @POSUB@
+QTINC = @QTINC@
+QTLIBS = @QTLIBS@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -185,9 +184,14 @@ STRIP = @STRIP@
 USE_NLS = @USE_NLS@
 VERSION = @VERSION@
 XGETTEXT = @XGETTEXT@
+XMKMF = @XMKMF@
 XML2_CONFIG = @XML2_CONFIG@
 XML_CPPFLAGS = @XML_CPPFLAGS@
 XML_LIBS = @XML_LIBS@
+X_CFLAGS = @X_CFLAGS@
+X_EXTRA_LIBS = @X_EXTRA_LIBS@
+X_LIBS = @X_LIBS@
+X_PRE_LIBS = @X_PRE_LIBS@
 _libcurl_config = @_libcurl_config@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
@@ -206,6 +210,7 @@ build = @build@
 build_alias = @build_alias@
 build_cpu = @build_cpu@
 build_os = @build_os@
+build_target = @build_target@
 build_vendor = @build_vendor@
 builddir = @builddir@
 datadir = @datadir@
@@ -243,9 +248,10 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 INCLUDES = -I$(top_srcdir)/src/include
 @HAVE_GTK_TRUE@gtk_dir = gtk
+@HAVE_QT_TRUE@qt_dir = qt
 @HAVE_DIALOG_TRUE@curses_dir = ncurses
-@MINGW_FALSE@textdir = text
-SUBDIRS = lib $(textdir) . $(curses_dir) $(gtk_dir) .
+@HAVE_GUILE_TRUE@@MINGW_FALSE@textdir = text
+SUBDIRS = lib $(textdir) . $(curses_dir) $(gtk_dir) $(qt_dir) .
 plugindir = $(libdir)/GNUnet
 @MINGW_TRUE@WINTOOL = gnunet-win-tool
 gnunet_setup_SOURCES = \
@@ -253,18 +259,13 @@ gnunet_setup_SOURCES = \
 
 gnunet_setup_LDADD = \
  $(top_builddir)/src/setup/lib/libgnunetsetup.la \
- $(top_builddir)/src/util/libgnunetutil.la \
- $(top_builddir)/src/util/loggers/libgnunetutil_logging.la \
- $(top_builddir)/src/util/config_impl/libgnunetutil_config.la 
+ $(top_builddir)/src/util/libgnunetutil.la 
 
 gnunet_win_tool_SOURCE = \
  gnunet-win-tool.c
 
 gnunet_win_tool_LDADD = \
- $(top_builddir)/src/util/libgnunetutil.la \
- $(top_builddir)/src/util/loggers/libgnunetutil_logging.la \
- $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
- $(top_builddir)/src/util/config_impl/libgnunetutil_config.la 
+ $(top_builddir)/src/util/libgnunetutil.la 
 
 all: all-recursive
 

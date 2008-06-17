@@ -40,9 +40,9 @@ extern "C"
 #endif
 #endif
 
-struct GC_Configuration;
+struct GNUNET_GC_Configuration;
 
-void GC_free (struct GC_Configuration *cfg);
+void GNUNET_GC_free (struct GNUNET_GC_Configuration *cfg);
 
 /**
  * Set the context for reporting configuration IO errors
@@ -56,30 +56,30 @@ void GC_free (struct GC_Configuration *cfg);
  * @param ectx may be NULL, in that case errors will no longer
  *        be reported
  */
-void GC_set_error_context (struct GC_Configuration *cfg,
-                           struct GE_Context *ectx);
+void GNUNET_GC_set_error_context (struct GNUNET_GC_Configuration *cfg,
+                                  struct GNUNET_GE_Context *ectx);
 
 /**
  * Parse a configuration file, add all of the options in the
  * file to the configuration environment.
  * @return 0 on success, -1 on error
  */
-int GC_parse_configuration (struct GC_Configuration *cfg,
-                            const char *filename);
+int GNUNET_GC_parse_configuration (struct GNUNET_GC_Configuration *cfg,
+                                   const char *filename);
 
 /**
  * Test if there are configuration options that were
  * changed since the last save.
  * @return 0 if clean, 1 if dirty, -1 on error (i.e. last save failed)
  */
-int GC_test_dirty (struct GC_Configuration *cfg);
+int GNUNET_GC_test_dirty (struct GNUNET_GC_Configuration *cfg);
 
 /**
  * Write configuration file.
  * @return 0 on success, -1 on error
  */
-int GC_write_configuration (struct GC_Configuration *cfg,
-                            const char *filename);
+int GNUNET_GC_write_configuration (struct GNUNET_GC_Configuration *cfg,
+                                   const char *filename);
 
 /**
  * Get a configuration value that should be a number.
@@ -88,20 +88,21 @@ int GC_write_configuration (struct GC_Configuration *cfg,
  * @param default default value (use indicated by return value)
  * @return 0 on success, -1 on error, 1 for default
  */
-int GC_get_configuration_value_number (struct GC_Configuration *cfg,
-                                       const char *section,
-                                       const char *option,
-                                       unsigned long long min,
-                                       unsigned long long max,
-                                       unsigned long long def,
-                                       unsigned long long *number);
+int GNUNET_GC_get_configuration_value_number (struct GNUNET_GC_Configuration
+                                              *cfg, const char *section,
+                                              const char *option,
+                                              unsigned long long min,
+                                              unsigned long long max,
+                                              unsigned long long def,
+                                              unsigned long long *number);
 
 /**
  * Test if we have a value for a particular option
- * @return YES if so, NO if not.
+ * @return GNUNET_YES if so, GNUNET_NO if not.
  */
-int GC_have_configuration_value (struct GC_Configuration *cfg,
-                                 const char *section, const char *option);
+int GNUNET_GC_have_configuration_value (struct GNUNET_GC_Configuration *cfg,
+                                        const char *section,
+                                        const char *option);
 
 /**
  * Get a configuration value that should be a string.
@@ -111,10 +112,10 @@ int GC_have_configuration_value (struct GC_Configuration *cfg,
  *        value, or NULL if option is not specified and no default given
  * @return 0 on success, -1 on error, 1 for default
  */
-int GC_get_configuration_value_string (struct GC_Configuration *cfg,
-                                       const char *section,
-                                       const char *option,
-                                       const char *def, char **value);
+int GNUNET_GC_get_configuration_value_string (struct GNUNET_GC_Configuration
+                                              *cfg, const char *section,
+                                              const char *option,
+                                              const char *def, char **value);
 
 /**
  * Get a configuration value that should be the name of a file
@@ -126,14 +127,16 @@ int GC_get_configuration_value_string (struct GC_Configuration *cfg,
  *        value, or NULL if option is not specified and no default given
  * @return 0 on success, -1 on error, 1 for default
  */
-int GC_get_configuration_value_filename (struct GC_Configuration *cfg,
-                                         const char *section,
-                                         const char *option,
-                                         const char *def, char **value);
+int GNUNET_GC_get_configuration_value_filename (struct GNUNET_GC_Configuration
+                                                *cfg, const char *section,
+                                                const char *option,
+                                                const char *def,
+                                                char **value);
 
 /**
  * Get a configuration value that should be in a set of
  * predefined strings
+ *
  * @param choices NULL-terminated list of legal values
  * @param default default value (use indicated by return value;
  *        will NOT be aliased, maybe NULL), must be reference
@@ -142,23 +145,24 @@ int GC_get_configuration_value_filename (struct GC_Configuration *cfg,
  *        or NULL if option is not specified and no default given
  * @return 0 on success, -1 on error, 1 for default
  */
-int GC_get_configuration_value_choice (struct GC_Configuration *cfg,
-                                       const char *section,
-                                       const char *option,
-                                       const char **choices,
-                                       const char *def, const char **value);
+int GNUNET_GC_get_configuration_value_choice (struct GNUNET_GC_Configuration
+                                              *cfg, const char *section,
+                                              const char *option,
+                                              const char **choices,
+                                              const char *def,
+                                              const char **value);
 
 /**
  * Get a configuration value that should be in a set of
- * "YES" or "NO".
+ * "GNUNET_YES" or "GNUNET_NO".
  *
  * @param def default value (use indicated by return value;
  *        will NOT be aliased, maybe NULL)
- * @return YES, NO or SYSERR
+ * @return GNUNET_YES, GNUNET_NO or GNUNET_SYSERR
  */
-int GC_get_configuration_value_yesno (struct GC_Configuration *cfg,
-                                      const char *section,
-                                      const char *option, int def);
+int GNUNET_GC_get_configuration_value_yesno (struct GNUNET_GC_Configuration
+                                             *cfg, const char *section,
+                                             const char *option, int def);
 
 /**
  * Expand an expression of the form "$FOO/BAR" to "DIRECTORY/BAR"
@@ -168,19 +172,20 @@ int GC_get_configuration_value_yesno (struct GC_Configuration *cfg,
  * @param old string to $-expand (will be freed!)
  * @return $-expanded string
  */
-char *GC_configuration_expand_dollar (struct GC_Configuration *cfg,
-                                      char *old);
+char *GNUNET_GC_configuration_expand_dollar (struct GNUNET_GC_Configuration
+                                             *cfg, char *old);
 
 /**
  * Set a configuration value that should be a number.
  * @return 0 on success, -1 on error (i.e. out of memory,
  *   or update refused by registered callback)
  */
-int GC_set_configuration_value_number (struct GC_Configuration *cfg,
-                                       struct GE_Context *ectx,
-                                       const char *section,
-                                       const char *option,
-                                       unsigned long long number);
+int GNUNET_GC_set_configuration_value_number (struct GNUNET_GC_Configuration
+                                              *cfg,
+                                              struct GNUNET_GE_Context *ectx,
+                                              const char *section,
+                                              const char *option,
+                                              unsigned long long number);
 
 
 /**
@@ -189,10 +194,12 @@ int GC_set_configuration_value_number (struct GC_Configuration *cfg,
  * @return 0 on success, -1 on error (i.e. out of memory,
  *   or update refused by registered callback)
  */
-int GC_set_configuration_value_string (struct GC_Configuration *cfg,
-                                       struct GE_Context *ectx,
-                                       const char *section,
-                                       const char *option, const char *value);
+int GNUNET_GC_set_configuration_value_string (struct GNUNET_GC_Configuration
+                                              *cfg,
+                                              struct GNUNET_GE_Context *ectx,
+                                              const char *section,
+                                              const char *option,
+                                              const char *value);
 
 /**
  * Set a configuration value that should be in a set of
@@ -201,11 +208,12 @@ int GC_set_configuration_value_string (struct GC_Configuration *cfg,
  * @return 0 on success, -1 on error (i.e. out of memory,
  *   or update refused by registered callback)
  */
-int GC_set_configuration_value_choice (struct GC_Configuration *cfg,
-                                       struct GE_Context *ectx,
-                                       const char *section,
-                                       const char *option,
-                                       const char *choice);
+int GNUNET_GC_set_configuration_value_choice (struct GNUNET_GC_Configuration
+                                              *cfg,
+                                              struct GNUNET_GE_Context *ectx,
+                                              const char *section,
+                                              const char *option,
+                                              const char *choice);
 
 /**
  * Callback function that is called if a configuration option
@@ -216,10 +224,11 @@ int GC_set_configuration_value_choice (struct GC_Configuration *cfg,
  * @return 0 if the change is ok, -1 if the change must be
  *         refused
  */
-typedef int (*GC_ChangeListener) (void *ctx,
-                                  struct GC_Configuration * cfg,
-                                  struct GE_Context * ectx,
-                                  const char *section, const char *option);
+typedef int (*GNUNET_GC_ChangeListener) (void *ctx,
+                                         struct GNUNET_GC_Configuration * cfg,
+                                         struct GNUNET_GE_Context * ectx,
+                                         const char *section,
+                                         const char *option);
 
 /**
  * Attach a callback that is notified whenever a
@@ -227,16 +236,23 @@ typedef int (*GC_ChangeListener) (void *ctx,
  *
  * @return 0 on success, -1 on error
  */
-int GC_attach_change_listener (struct GC_Configuration *cfg,
-                               GC_ChangeListener callback, void *ctx);
+int GNUNET_GC_attach_change_listener (struct GNUNET_GC_Configuration *cfg,
+                                      GNUNET_GC_ChangeListener callback,
+                                      void *ctx);
 
 /**
  * Attach a callback that is notified whenever a
  * configuration option changes.
  * @return 0 on success, -1 on error, 1 for no such handler registered
  */
-int GC_detach_change_listener (struct GC_Configuration *cfg,
-                               GC_ChangeListener callback, void *ctx);
+int GNUNET_GC_detach_change_listener (struct GNUNET_GC_Configuration *cfg,
+                                      GNUNET_GC_ChangeListener callback,
+                                      void *ctx);
+
+/**
+ * Create a GNUNET_GC_Configuration
+ */
+struct GNUNET_GC_Configuration *GNUNET_GC_create (void);
 
 
 #if 0                           /* keep Emacsens' auto-indent happy */

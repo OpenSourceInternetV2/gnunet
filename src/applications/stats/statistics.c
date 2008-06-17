@@ -43,17 +43,17 @@
 
 /**
  * Should we generate *very* costly statistics about
- * the SQStore?  Only set to YES for debugging, never
+ * the SQStore?  Only set to GNUNET_YES for debugging, never
  * in production!
  */
-#define HAVE_SQSTATS NO
+#define HAVE_SQSTATS GNUNET_NO
 
 /* *************** service *************** */
 
 /**
  * When did the module start?
  */
-static cron_t startTime;
+static GNUNET_CronTime startTime;
 
 struct StatEntry
 {
@@ -72,12 +72,12 @@ static unsigned int statCounters;
 /**
  * lock for the stat module
  */
-static struct MUTEX *statLock;
+static struct GNUNET_Mutex *statLock;
 
 /**
  * The core API.
  */
-static CoreAPIForApplication *coreAPI;
+static GNUNET_CoreAPIForPlugins *coreAPI;
 
 /**
  * Get a handle to a statistical entity.
@@ -89,19 +89,19 @@ static int
 statHandle (const char *name)
 {
   int i;
-  GE_ASSERT (NULL, name != NULL);
-  MUTEX_LOCK (statLock);
+  GNUNET_GE_ASSERT (NULL, name != NULL);
+  GNUNET_mutex_lock (statLock);
   for (i = 0; i < statCounters; i++)
     if (0 == strcmp (entries[i].description, name))
       {
-        MUTEX_UNLOCK (statLock);
+        GNUNET_mutex_unlock (statLock);
         return i;
       }
-  GROW (entries, statCounters, statCounters + 1);
-  entries[statCounters - 1].description = STRDUP (name);
+  GNUNET_array_grow (entries, statCounters, statCounters + 1);
+  entries[statCounters - 1].description = GNUNET_strdup (name);
   entries[statCounters - 1].descStrLen = strlen (name);
   entries[statCounters - 1].value = 0;
-  MUTEX_UNLOCK (statLock);
+  GNUNET_mutex_unlock (statLock);
   return statCounters - 1;
 }
 
@@ -115,30 +115,30 @@ statHandle (const char *name)
 static void
 statSet (const int handle, const unsigned long long value)
 {
-  MUTEX_LOCK (statLock);
+  GNUNET_mutex_lock (statLock);
   if ((handle < 0) || (handle >= statCounters))
     {
-      GE_BREAK (NULL, 0);
-      MUTEX_UNLOCK (statLock);
+      GNUNET_GE_BREAK (NULL, 0);
+      GNUNET_mutex_unlock (statLock);
       return;
     }
   entries[handle].value = value;
-  MUTEX_UNLOCK (statLock);
+  GNUNET_mutex_unlock (statLock);
 }
 
 static unsigned long long
 statGet (const int handle)
 {
   unsigned long long ret;
-  MUTEX_LOCK (statLock);
+  GNUNET_mutex_lock (statLock);
   if ((handle < 0) || (handle >= statCounters))
     {
-      GE_BREAK (NULL, 0);
-      MUTEX_UNLOCK (statLock);
+      GNUNET_GE_BREAK (NULL, 0);
+      GNUNET_mutex_unlock (statLock);
       return -1;
     }
   ret = entries[handle].value;
-  MUTEX_UNLOCK (statLock);
+  GNUNET_mutex_unlock (statLock);
   return ret;
 }
 
@@ -152,15 +152,15 @@ statGet (const int handle)
 static void
 statChange (const int handle, const int delta)
 {
-  MUTEX_LOCK (statLock);
+  GNUNET_mutex_lock (statLock);
   if ((handle < 0) || (handle >= statCounters))
     {
-      GE_BREAK (NULL, 0);
-      MUTEX_UNLOCK (statLock);
+      GNUNET_GE_BREAK (NULL, 0);
+      GNUNET_mutex_unlock (statLock);
       return;
     }
   entries[handle].value += delta;
-  MUTEX_UNLOCK (statLock);
+  GNUNET_mutex_unlock (statLock);
 }
 
 
@@ -172,28 +172,28 @@ release_module_stats ()
 {
   int i;
 
-  MUTEX_DESTROY (statLock);
+  GNUNET_mutex_destroy (statLock);
   for (i = 0; i < statCounters; i++)
-    FREE (entries[i].description);
-  GROW (entries, statCounters, 0);
+    GNUNET_free (entries[i].description);
+  GNUNET_array_grow (entries, statCounters, 0);
 }
 
 
 /**
  * Initialize the statistics module.
  */
-Stats_ServiceAPI *
-provide_module_stats (CoreAPIForApplication * capi)
+GNUNET_Stats_ServiceAPI *
+provide_module_stats (GNUNET_CoreAPIForPlugins * capi)
 {
-  static Stats_ServiceAPI api;
+  static GNUNET_Stats_ServiceAPI api;
 
   coreAPI = capi;
   api.create = &statHandle;
   api.set = &statSet;
   api.change = &statChange;
   api.get = &statGet;
-  startTime = get_time ();
-  statLock = MUTEX_CREATE (YES);
+  startTime = GNUNET_get_time ();
+  statLock = GNUNET_mutex_create (GNUNET_YES);
   return &api;
 }
 
@@ -209,12 +209,17 @@ static int stat_handle_cpu_load;
 static int stat_handle_io_load;
 static int stat_bytes_noise_received;
 static int stat_connected;
-static Stats_ServiceAPI *stats;
-static CoreAPIForApplication *myCoreAPI;
+#ifdef MINGW
+static int stat_handles;
+#endif
+static GNUNET_Stats_ServiceAPI *stats;
+static GNUNET_CoreAPIForPlugins *myCoreAPI;
 
 #if HAVE_SQSTATS
 #include "sqstats.c"
 #endif
+
+extern unsigned int uiHandleCount;
 
 static void
 initializeStats ()
@@ -228,6 +233,9 @@ initializeStats ()
   stat_connected = statHandle (gettext_noop ("# of connected peers"));
   stat_bytes_noise_received
     = statHandle (gettext_noop ("# bytes of noise received"));
+#ifdef MINGW
+  stat_handles = statHandle (gettext_noop ("# plibc handles"));
+#endif
 }
 
 static void
@@ -238,23 +246,29 @@ immediateUpdates ()
 #if HAVE_SQSTATS
   update_sqstore_stats ();
 #endif
-  load = os_cpu_get_load (coreAPI->ectx, coreAPI->cfg);
+  load = GNUNET_cpu_get_load (coreAPI->ectx, coreAPI->cfg);
   if (load == -1)
     load = 0;
   statSet (stat_handle_cpu_load, load);
-  load = os_disk_get_load (coreAPI->ectx, coreAPI->cfg);
+  load = GNUNET_disk_get_load (coreAPI->ectx, coreAPI->cfg);
   if (load == -1)
     load = 0;
   statSet (stat_handle_io_load, load);
-  load = os_network_monitor_get_load (coreAPI->load_monitor, Upload);
+  load =
+    GNUNET_network_monitor_get_load (coreAPI->load_monitor, GNUNET_ND_UPLOAD);
   if (load == -1)
     load = 0;
   statSet (stat_handle_network_load_up, load);
-  load = os_network_monitor_get_load (coreAPI->load_monitor, Download);
+  load =
+    GNUNET_network_monitor_get_load (coreAPI->load_monitor,
+                                     GNUNET_ND_DOWNLOAD);
   if (load == -1)
     load = 0;
   statSet (stat_handle_network_load_down, load);
   statSet (stat_connected, coreAPI->forAllConnectedNodes (NULL, NULL));
+#ifdef MINGW
+  statSet (stat_handles, plibc_get_handle_count ());
+#endif
 }
 
 
@@ -265,8 +279,8 @@ immediateUpdates ()
  * @param originalRequestMessage ignored at this point.
  */
 static int
-sendStatistics (struct ClientHandle *sock,
-                const MESSAGE_HEADER * originalRequestMessage)
+sendStatistics (struct GNUNET_ClientHandle *sock,
+                const GNUNET_MessageHeader * originalRequestMessage)
 {
   CS_stats_reply_MESSAGE *statMsg;
   int pos;                      /* position in the values-descriptions */
@@ -275,11 +289,11 @@ sendStatistics (struct ClientHandle *sock,
   int mpos;                     /* postion in the message */
 
   immediateUpdates ();
-  statMsg = MALLOC (MAX_BUFFER_SIZE);
-  statMsg->header.type = htons (CS_PROTO_stats_STATISTICS);
+  statMsg = GNUNET_malloc (GNUNET_MAX_BUFFER_SIZE);
+  statMsg->header.type = htons (GNUNET_CS_PROTO_STATS_STATISTICS);
   statMsg->totalCounters = htonl (statCounters);
   statMsg->statCounters = htons (0);
-  statMsg->startTime = htonll (startTime);
+  statMsg->startTime = GNUNET_htonll (startTime);
 
   start = 0;
   while (start < statCounters)
@@ -291,7 +305,7 @@ sendStatistics (struct ClientHandle *sock,
       while ((pos < statCounters) &&
              (mpos + sizeof (unsigned long long)
               + entries[pos].descStrLen + 1
-              < MAX_BUFFER_SIZE - sizeof (CS_stats_reply_MESSAGE)))
+              < GNUNET_MAX_BUFFER_SIZE - sizeof (CS_stats_reply_MESSAGE)))
         {
           mpos += sizeof (unsigned long long);  /* value */
           mpos += entries[pos].descStrLen + 1;
@@ -300,39 +314,43 @@ sendStatistics (struct ClientHandle *sock,
       end = pos;
       /* second pass: copy values and messages to message */
       for (pos = start; pos < end; pos++)
-        ((CS_stats_reply_MESSAGE_GENERIC *) statMsg)->values[pos - start] =
-          htonll (entries[pos].value);
+        ((CS_stats_reply_MESSAGE_GENERIC *) statMsg)->values[pos -
+                                                             start] =
+          GNUNET_htonll (entries[pos].value);
       mpos = sizeof (unsigned long long) * (end - start);
       for (pos = start; pos < end; pos++)
         {
           memcpy (&
-                  ((char *) (((CS_stats_reply_MESSAGE_GENERIC *) statMsg))->
+                  ((char
+                    *) (((CS_stats_reply_MESSAGE_GENERIC *) statMsg))->
                    values)[mpos], entries[pos].description,
                   entries[pos].descStrLen + 1);
           mpos += entries[pos].descStrLen + 1;
         }
       statMsg->statCounters = htonl (end - start);
-      GE_ASSERT (NULL,
-                 mpos + sizeof (CS_stats_reply_MESSAGE) < MAX_BUFFER_SIZE);
+      GNUNET_GE_ASSERT (NULL,
+                        mpos + sizeof (CS_stats_reply_MESSAGE) <
+                        GNUNET_MAX_BUFFER_SIZE);
 
       statMsg->header.size = htons (mpos + sizeof (CS_stats_reply_MESSAGE));
       /* printf("writing message of size %d with stats %d to %d out of %d to socket\n",
          ntohs(statMsg->header.size),
          start, end, statCounters); */
-      if (SYSERR == coreAPI->sendToClient (sock, &statMsg->header, YES))
+      if (GNUNET_SYSERR ==
+          coreAPI->cs_send_to_client (sock, &statMsg->header, GNUNET_YES))
         break;                  /* abort, socket error! */
       start = end;
     }
-  FREE (statMsg);
-  return OK;
+  GNUNET_free (statMsg);
+  return GNUNET_OK;
 }
 
 /**
  * Handle a request to see if a particular p2p message is supported.
  */
 static int
-handleMessageSupported (struct ClientHandle *sock,
-                        const MESSAGE_HEADER * message)
+handleMessageSupported (struct GNUNET_ClientHandle *sock,
+                        const GNUNET_MessageHeader * message)
 {
   unsigned short type;
   unsigned short htype;
@@ -341,13 +359,13 @@ handleMessageSupported (struct ClientHandle *sock,
 
   if (ntohs (message->size) != sizeof (CS_stats_get_supported_MESSAGE))
     {
-      GE_BREAK (NULL, 0);
-      return SYSERR;
+      GNUNET_GE_BREAK (NULL, 0);
+      return GNUNET_SYSERR;
     }
   cmsg = (CS_stats_get_supported_MESSAGE *) message;
   type = ntohs (cmsg->type);
   htype = ntohs (cmsg->handlerType);
-  supported = coreAPI->isHandlerRegistered (type, htype);
+  supported = coreAPI->p2p_test_handler_registered (type, htype);
   return coreAPI->sendValueToClient (sock, supported);
 }
 
@@ -357,16 +375,16 @@ handleMessageSupported (struct ClientHandle *sock,
  *
  * @param client the socket connecting to the client
  * @param msg the request from the client
- * @returns OK if ok, SYSERR if not.
+ * @returns GNUNET_OK if ok, GNUNET_SYSERR if not.
  */
 static int
-processGetConnectionCountRequest (struct ClientHandle *client,
-                                  const MESSAGE_HEADER * msg)
+processGetConnectionCountRequest (struct GNUNET_ClientHandle *client,
+                                  const GNUNET_MessageHeader * msg)
 {
-  if (ntohs (msg->size) != sizeof (MESSAGE_HEADER))
+  if (ntohs (msg->size) != sizeof (GNUNET_MessageHeader))
     {
-      GE_BREAK (NULL, 0);
-      return SYSERR;
+      GNUNET_GE_BREAK (NULL, 0);
+      return GNUNET_SYSERR;
     }
   return coreAPI->sendValueToClient
     (client, coreAPI->forAllConnectedNodes (NULL, NULL));
@@ -376,54 +394,59 @@ processGetConnectionCountRequest (struct ClientHandle *client,
  * Handler for processing noise.
  */
 static int
-processNoise (const PeerIdentity * sender, const MESSAGE_HEADER * msg)
+processNoise (const GNUNET_PeerIdentity * sender,
+              const GNUNET_MessageHeader * msg)
 {
   statChange (stat_bytes_noise_received, ntohs (msg->size));
-  return OK;
+  return GNUNET_OK;
 }
 
 
 int
-initialize_module_stats (CoreAPIForApplication * capi)
+initialize_module_stats (GNUNET_CoreAPIForPlugins * capi)
 {
-  GE_ASSERT (capi->ectx, myCoreAPI == NULL);
+  GNUNET_GE_ASSERT (capi->ectx, myCoreAPI == NULL);
   myCoreAPI = capi;
-  stats = capi->requestService ("stats");
+  stats = capi->request_service ("stats");
   if (stats == NULL)
     {
-      GE_BREAK (capi->ectx, 0);
+      GNUNET_GE_BREAK (capi->ectx, 0);
       myCoreAPI = NULL;
-      return SYSERR;
+      return GNUNET_SYSERR;
     }
   initializeStats ();
-  GE_LOG (capi->ectx,
-          GE_INFO | GE_USER | GE_REQUEST,
-          _("`%s' registering client handlers %d %d %d and p2p handler %d\n"),
-          "stats",
-          CS_PROTO_traffic_COUNT,
-          CS_PROTO_stats_GET_STATISTICS,
-          CS_PROTO_stats_GET_P2P_MESSAGE_SUPPORTED, P2P_PROTO_noise);
-  capi->registerClientHandler (CS_PROTO_stats_GET_STATISTICS,
+  GNUNET_GE_LOG (capi->ectx,
+                 GNUNET_GE_INFO | GNUNET_GE_USER | GNUNET_GE_REQUEST,
+                 _
+                 ("`%s' registering client handlers %d %d %d and p2p handler %d\n"),
+                 "stats", GNUNET_CS_PROTO_TRAFFIC_COUNT,
+                 GNUNET_CS_PROTO_STATS_GET_STATISTICS,
+                 GNUNET_CS_PROTO_STATS_GET_P2P_MESSAGE_SUPPORTED,
+                 GNUNET_P2P_PROTO_NOISE);
+  capi->registerClientHandler (GNUNET_CS_PROTO_STATS_GET_STATISTICS,
                                &sendStatistics);
-  capi->registerClientHandler (CS_PROTO_stats_GET_P2P_MESSAGE_SUPPORTED,
-                               &handleMessageSupported);
-  capi->registerClientHandler (CS_PROTO_stats_GET_CS_MESSAGE_SUPPORTED,
-                               &handleMessageSupported);
-  capi->registerClientHandler (CS_PROTO_traffic_COUNT,
+  capi->
+    registerClientHandler
+    (GNUNET_CS_PROTO_STATS_GET_P2P_MESSAGE_SUPPORTED,
+     &handleMessageSupported);
+  capi->
+    registerClientHandler
+    (GNUNET_CS_PROTO_STATS_GET_CS_MESSAGE_SUPPORTED, &handleMessageSupported);
+  capi->registerClientHandler (GNUNET_CS_PROTO_TRAFFIC_COUNT,
                                &processGetConnectionCountRequest);
-  capi->registerHandler (P2P_PROTO_noise, &processNoise);
-  GE_ASSERT (capi->ectx,
-             0 == GC_set_configuration_value_string (capi->cfg,
-                                                     capi->ectx,
-                                                     "ABOUT",
-                                                     "stats",
-                                                     gettext_noop
-                                                     ("keeps statistics about gnunetd's operation")));
+  capi->registerHandler (GNUNET_P2P_PROTO_NOISE, &processNoise);
+  GNUNET_GE_ASSERT (capi->ectx,
+                    0 == GNUNET_GC_set_configuration_value_string (capi->cfg,
+                                                                   capi->ectx,
+                                                                   "ABOUT",
+                                                                   "stats",
+                                                                   gettext_noop
+                                                                   ("keeps statistics about gnunetd's operation")));
 #if HAVE_SQSTATS
   init_sqstore_stats ();
 #endif
   immediateUpdates ();
-  return OK;
+  return GNUNET_OK;
 }
 
 int
@@ -432,20 +455,23 @@ done_module_stats ()
 #if HAVE_SQSTATS
   done_sqstore_stats ();
 #endif
-  GE_ASSERT (NULL, myCoreAPI != NULL);
-  coreAPI->unregisterClientHandler (CS_PROTO_stats_GET_STATISTICS,
+  GNUNET_GE_ASSERT (NULL, myCoreAPI != NULL);
+  coreAPI->unregisterClientHandler (GNUNET_CS_PROTO_STATS_GET_STATISTICS,
                                     &sendStatistics);
-  coreAPI->unregisterClientHandler (CS_PROTO_stats_GET_P2P_MESSAGE_SUPPORTED,
-                                    &handleMessageSupported);
-  coreAPI->unregisterClientHandler (CS_PROTO_stats_GET_CS_MESSAGE_SUPPORTED,
-                                    &handleMessageSupported);
-  coreAPI->unregisterClientHandler (CS_PROTO_traffic_COUNT,
+  coreAPI->
+    unregisterClientHandler
+    (GNUNET_CS_PROTO_STATS_GET_P2P_MESSAGE_SUPPORTED,
+     &handleMessageSupported);
+  coreAPI->
+    unregisterClientHandler
+    (GNUNET_CS_PROTO_STATS_GET_CS_MESSAGE_SUPPORTED, &handleMessageSupported);
+  coreAPI->unregisterClientHandler (GNUNET_CS_PROTO_TRAFFIC_COUNT,
                                     &processGetConnectionCountRequest);
-  coreAPI->unregisterHandler (P2P_PROTO_noise, &processNoise);
-  myCoreAPI->releaseService (stats);
+  coreAPI->unregisterHandler (GNUNET_P2P_PROTO_NOISE, &processNoise);
+  myCoreAPI->release_service (stats);
   stats = NULL;
   myCoreAPI = NULL;
-  return OK;
+  return GNUNET_OK;
 }
 
 

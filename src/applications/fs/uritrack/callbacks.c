@@ -34,42 +34,42 @@
  */
 typedef struct
 {
-  struct GE_Context *ectx;
+  struct GNUNET_GE_Context *ectx;
 
-  struct GC_Configuration *cfg;
+  struct GNUNET_GC_Configuration *cfg;
 
-  ECRS_SearchProgressCallback iterator;
+  GNUNET_ECRS_SearchResultProcessor iterator;
 
   void *closure;
 
-  struct PTHREAD *init;
+  struct GNUNET_ThreadHandle *init;
 
   int abort_init;
 } Callback;
 
-static struct MUTEX *lock;
+static struct GNUNET_Mutex *lock;
 
 static Callback **callbacks;
 
 static unsigned int callbacks_size;
 
 static int
-init_iterator (const ECRS_FileInfo * fi,
-               const HashCode512 * key, int isRoot, void *closure)
+init_iterator (const GNUNET_ECRS_FileInfo * fi,
+               const GNUNET_HashCode * key, int isRoot, void *closure)
 {
   Callback *c = closure;
 
   c->iterator (fi, key, isRoot, c->closure);
   if (c->abort_init)
-    return SYSERR;
-  return OK;
+    return GNUNET_SYSERR;
+  return GNUNET_OK;
 }
 
 static void *
 init_thread (void *arg)
 {
   Callback *c = arg;
-  URITRACK_listURIs (c->ectx, c->cfg, YES, &init_iterator, arg);
+  GNUNET_URITRACK_list (c->ectx, c->cfg, GNUNET_YES, &init_iterator, arg);
   return NULL;
 }
 
@@ -80,79 +80,79 @@ init_thread (void *arg)
  * for all existing URIs as well.
  */
 int
-URITRACK_registerTrackCallback (struct GE_Context *ectx,
-                                struct GC_Configuration *cfg,
-                                ECRS_SearchProgressCallback iterator,
-                                void *closure)
+GNUNET_URITRACK_register_track_callback (struct GNUNET_GE_Context *ectx,
+                                         struct GNUNET_GC_Configuration *cfg,
+                                         GNUNET_ECRS_SearchResultProcessor
+                                         iterator, void *closure)
 {
   Callback *c;
 
-  c = MALLOC (sizeof (Callback));
+  c = GNUNET_malloc (sizeof (Callback));
   c->ectx = ectx;
   c->cfg = cfg;
   c->iterator = iterator;
   c->closure = closure;
-  c->abort_init = NO;
-  c->init = PTHREAD_CREATE (&init_thread, c, 16 * 1024);
-  MUTEX_LOCK (lock);
-  GROW (callbacks, callbacks_size, callbacks_size + 1);
+  c->abort_init = GNUNET_NO;
+  c->init = GNUNET_thread_create (&init_thread, c, 16 * 1024);
+  GNUNET_mutex_lock (lock);
+  GNUNET_array_grow (callbacks, callbacks_size, callbacks_size + 1);
   callbacks[callbacks_size - 1] = c;
-  MUTEX_UNLOCK (lock);
-  return OK;
+  GNUNET_mutex_unlock (lock);
+  return GNUNET_OK;
 }
 
 /**
  * Unregister a URI callback.
  */
 int
-URITRACK_unregisterTrackCallback (ECRS_SearchProgressCallback iterator,
-                                  void *closure)
+GNUNET_URITRACK_unregister_track_callback (GNUNET_ECRS_SearchResultProcessor
+                                           iterator, void *closure)
 {
   int i;
   void *unused;
   Callback *c;
 
-  MUTEX_LOCK (lock);
+  GNUNET_mutex_lock (lock);
   for (i = 0; i < callbacks_size; i++)
     {
       c = callbacks[i];
       if ((c->iterator == iterator) && (c->closure == closure))
         {
-          c->abort_init = YES;
-          PTHREAD_JOIN (c->init, &unused);
+          c->abort_init = GNUNET_YES;
+          GNUNET_thread_join (c->init, &unused);
           callbacks[i] = callbacks[callbacks_size - 1];
-          GROW (callbacks, callbacks_size, callbacks_size - 1);
-          FREE (c);
-          MUTEX_UNLOCK (lock);
-          return OK;
+          GNUNET_array_grow (callbacks, callbacks_size, callbacks_size - 1);
+          GNUNET_free (c);
+          GNUNET_mutex_unlock (lock);
+          return GNUNET_OK;
         }
     }
-  MUTEX_UNLOCK (lock);
-  return SYSERR;
+  GNUNET_mutex_unlock (lock);
+  return GNUNET_SYSERR;
 }
 
 /**
  * Internal notification about new tracked URI.
  */
 void
-URITRACK_internal_notify (const ECRS_FileInfo * fi)
+GNUNET_URITRACK_internal_notify (const GNUNET_ECRS_FileInfo * fi)
 {
   int i;
 
-  MUTEX_LOCK (lock);
+  GNUNET_mutex_lock (lock);
   for (i = 0; i < callbacks_size; i++)
-    callbacks[i]->iterator (fi, NULL, NO, callbacks[i]->closure);
-  MUTEX_UNLOCK (lock);
+    callbacks[i]->iterator (fi, NULL, GNUNET_NO, callbacks[i]->closure);
+  GNUNET_mutex_unlock (lock);
 }
 
-void __attribute__ ((constructor)) gnunet_uritrack_ltdl_init ()
+void __attribute__ ((constructor)) GNUNET_URITRACK_ltdl_init ()
 {
-  lock = MUTEX_CREATE (NO);
+  lock = GNUNET_mutex_create (GNUNET_NO);
 }
 
-void __attribute__ ((destructor)) gnunet_uritrack_ltdl_fini ()
+void __attribute__ ((destructor)) GNUNET_URITRACK_ltdl_fini ()
 {
-  MUTEX_DESTROY (lock);
+  GNUNET_mutex_destroy (lock);
   lock = NULL;
 }
 

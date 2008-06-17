@@ -26,18 +26,20 @@
 
 #include "platform.h"
 #include "gnunet_util_os.h"
+#include "gnunet_util_threads.h"
 #include "gnunet_util_string.h"
 
 #if LINUX || OSX || SOLARIS || SOMEBSD || MINGW
 /**
  * Fork a gnunetd process
  *
- * @param daemonize YES if gnunetd should be daemonized
+ * @param daemonize GNUNET_YES if gnunetd should be daemonized
  * @return pid_t of gnunetd if NOT daemonized, 0 if
  *  daemonized sucessfully, -1 on error
  */
 static pid_t
-launchWithExec (struct GE_Context *ectx, const char *cfgFile, int daemonize)
+launchWithExec (struct GNUNET_GE_Context *ectx, const char *cfgFile,
+                int daemonize)
 {
   pid_t pid;
 
@@ -52,9 +54,9 @@ launchWithExec (struct GE_Context *ectx, const char *cfgFile, int daemonize)
       int i;
 
       path = NULL;
-      cp = os_get_installation_path (IPK_BINDIR);
+      cp = GNUNET_get_installation_path (GNUNET_IPK_BINDIR);
       i = strlen (cp);
-      path = MALLOC (i + 2 + strlen ("gnunetd.exe"));
+      path = GNUNET_malloc (i + 2 + strlen ("gnunetd.exe"));
       strcpy (path, cp);
       strcat (path, "gnunetd");
 #ifdef MINGW
@@ -66,16 +68,16 @@ launchWithExec (struct GE_Context *ectx, const char *cfgFile, int daemonize)
         }
       else
         {
-          FREE (path);
+          GNUNET_free (path);
           path = NULL;
           args[0] = "gnunetd";
         }
-      FREE (cp);
+      GNUNET_free (cp);
       if (cfgFile != NULL)
         {
           args[1] = "-c";
           args[2] = cfgFile;
-          if (NO == daemonize)
+          if (GNUNET_NO == daemonize)
             {
               args[3] = "-d";
               args[4] = NULL;
@@ -85,7 +87,7 @@ launchWithExec (struct GE_Context *ectx, const char *cfgFile, int daemonize)
         }
       else
         {
-          if (NO == daemonize)
+          if (GNUNET_NO == daemonize)
             {
               args[1] = "-d";
               args[2] = NULL;
@@ -97,7 +99,9 @@ launchWithExec (struct GE_Context *ectx, const char *cfgFile, int daemonize)
 #ifndef MINGW
       nice (10);                /* return value is not well-defined */
       if (errno != 0)
-        GE_LOG_STRERROR (ectx, GE_WARNING | GE_USER | GE_BULK, "nice");
+        GNUNET_GE_LOG_STRERROR (ectx,
+                                GNUNET_GE_WARNING | GNUNET_GE_USER |
+                                GNUNET_GE_BULK, "nice");
 
       if (path != NULL)
         i = execv (path, (char **) args);
@@ -109,11 +113,12 @@ launchWithExec (struct GE_Context *ectx, const char *cfgFile, int daemonize)
       else
         pid = i = spawnvp (_P_NOWAIT, "gnunetd", (const char *const *) args);
 #endif
-      FREENONNULL (path);
+      GNUNET_free_non_null (path);
       if (i == -1)
-        GE_LOG_STRERROR_FILE (ectx,
-                              GE_ERROR | GE_USER | GE_BULK,
-                              "exec", path == NULL ? "gnunetd" : path);
+        GNUNET_GE_LOG_STRERROR_FILE (ectx,
+                                     GNUNET_GE_ERROR | GNUNET_GE_USER |
+                                     GNUNET_GE_BULK, "exec",
+                                     path == NULL ? "gnunetd" : path);
 #ifndef MINGW
       _exit (-1);
 #endif
@@ -124,25 +129,31 @@ launchWithExec (struct GE_Context *ectx, const char *cfgFile, int daemonize)
       pid_t ret;
       int status;
 
-      ret = waitpid (pid, &status, 0);
+      do
+        {
+          ret = waitpid (pid, &status, 0);
+        }
+      while ((errno == EINTR) && (GNUNET_shutdown_test () == GNUNET_NO));
       if (ret == -1)
         {
-          GE_LOG_STRERROR (ectx, GE_ERROR | GE_USER | GE_BULK, "waitpid");
-          return SYSERR;
+          GNUNET_GE_LOG_STRERROR (ectx,
+                                  GNUNET_GE_ERROR | GNUNET_GE_USER |
+                                  GNUNET_GE_BULK, "waitpid");
+          return GNUNET_SYSERR;
         }
       if ((WIFEXITED (status) && (0 != WEXITSTATUS (status))))
         {
-          return SYSERR;
+          return GNUNET_SYSERR;
         }
 #ifdef WCOREDUMP
       if (WCOREDUMP (status))
         {
-          return SYSERR;
+          return GNUNET_SYSERR;
         }
 #endif
       if (WIFSIGNALED (status) || WTERMSIG (status))
         {
-          return SYSERR;
+          return GNUNET_SYSERR;
         }
       return 0;
     }
@@ -154,14 +165,14 @@ launchWithExec (struct GE_Context *ectx, const char *cfgFile, int daemonize)
 /**
  * Start gnunetd process
  *
- * @param daemonize YES if gnunetd should be daemonized
+ * @param daemonize GNUNET_YES if gnunetd should be daemonized
  * @return pid_t of gnunetd if NOT daemonized, 0 if
  *  daemonized sucessfully, -1 on error
  */
 int
-os_daemon_start (struct GE_Context *ectx,
-                 struct GC_Configuration *cfg,
-                 const char *cfgFile, int daemonize)
+GNUNET_daemon_start (struct GNUNET_GE_Context *ectx,
+                     struct GNUNET_GC_Configuration *cfg,
+                     const char *cfgFile, int daemonize)
 {
 #if LINUX || OSX || SOLARIS || SOMEBSD || MINGW
   return launchWithExec (ectx, cfgFile, daemonize);
@@ -210,13 +221,13 @@ termProcess (int pid)
  * the daemon was started with startGNUnetDaemon in no-daemonize mode.
  * On arbitrary PIDs, this function may fail unexpectedly.
  *
- * @return YES if gnunetd shutdown with
- *  return value 0, SYSERR if waitpid
- *  failed, NO if gnunetd shutdown with
+ * @return GNUNET_YES if gnunetd shutdown with
+ *  return value 0, GNUNET_SYSERR if waitpid
+ *  failed, GNUNET_NO if gnunetd shutdown with
  *  some error
  */
 int
-os_daemon_stop (struct GE_Context *ectx, int pid)
+GNUNET_daemon_stop (struct GNUNET_GE_Context *ectx, int pid)
 {
   pid_t p;
   int status;
@@ -225,13 +236,15 @@ os_daemon_stop (struct GE_Context *ectx, int pid)
   p = pid;
   if (p != WAITPID (p, &status, 0))
     {
-      GE_LOG_STRERROR (ectx, GE_ERROR | GE_USER | GE_BULK, "waitpid");
-      return SYSERR;
+      GNUNET_GE_LOG_STRERROR (ectx,
+                              GNUNET_GE_ERROR | GNUNET_GE_USER |
+                              GNUNET_GE_BULK, "waitpid");
+      return GNUNET_SYSERR;
     }
   if (WEXITSTATUS (status) == 0)
-    return YES;
+    return GNUNET_YES;
   else
-    return NO;
+    return GNUNET_NO;
 }
 
 /* end of daemon.c */

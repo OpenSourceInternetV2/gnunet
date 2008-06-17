@@ -25,61 +25,59 @@
 
 #include "platform.h"
 #include "gnunet_util.h"
-#include "gnunet_util_cron.h"
-#include "gnunet_util_config_impl.h"
 #include "gnunet_protocols.h"
 #include "gnunet_sqstore_service.h"
 #include "core.h"
 
 #define ASSERT(x) do { if (! (x)) { printf("Error at %s:%d\n", __FILE__, __LINE__); goto FAILURE;} } while (0)
 
-static cron_t now;
+static GNUNET_CronTime now;
 
-static Datastore_Value *
+static GNUNET_DatastoreValue *
 initValue (int i)
 {
-  Datastore_Value *value;
+  GNUNET_DatastoreValue *value;
 
-  value = MALLOC (sizeof (Datastore_Value) + 8 * i);
-  value->size = htonl (sizeof (Datastore_Value) + 8 * i);
+  value = GNUNET_malloc (sizeof (GNUNET_DatastoreValue) + 8 * i);
+  value->size = htonl (sizeof (GNUNET_DatastoreValue) + 8 * i);
   value->type = htonl (i);
   value->prio = htonl (i + 1);
   value->anonymityLevel = htonl (i);
-  value->expirationTime = htonll (now - i * cronSECONDS);
+  value->expirationTime = GNUNET_htonll (now - i * GNUNET_CRON_SECONDS);
   memset (&value[1], i, 8 * i);
   return value;
 }
 
 static int
-checkValue (const HashCode512 * key,
-            const Datastore_Value * val, void *closure,
+checkValue (const GNUNET_HashCode * key,
+            const GNUNET_DatastoreValue * val, void *closure,
             unsigned long long uid)
 {
   int i;
   int ret;
-  Datastore_Value *value;
+  GNUNET_DatastoreValue *value;
 
   i = *(int *) closure;
   value = initValue (i);
   if ((value->size == val->size) &&
       (0 == memcmp (val, value, ntohl (val->size))))
-    ret = OK;
+    ret = GNUNET_OK;
   else
     {
       /*
          printf("Wanted: %u, %llu; got %u, %llu - %d\n",
-         ntohl(value->size), ntohll(value->expirationTime),
-         ntohl(val->size), ntohll(val->expirationTime),
+         ntohl(value->size), GNUNET_ntohll(value->expirationTime),
+         ntohl(val->size), GNUNET_ntohll(val->expirationTime),
          memcmp(val, value, ntohl(val->size))); */
-      ret = SYSERR;
+      ret = GNUNET_SYSERR;
     }
-  FREE (value);
+  GNUNET_free (value);
   return ret;
 }
 
 static int
-iterateUp (const HashCode512 * key, const Datastore_Value * val, int *closure,
-           unsigned long long uid)
+iterateUp (const GNUNET_HashCode * key, const GNUNET_DatastoreValue * val,
+           int *closure, unsigned long long uid)
 {
   int ret;
 
@@ -89,8 +87,8 @@ iterateUp (const HashCode512 * key, const Datastore_Value * val, int *closure,
 }
 
 static int
-iterateDown (const HashCode512 * key,
-             const Datastore_Value * val, int *closure,
+iterateDown (const GNUNET_HashCode * key,
+             const GNUNET_DatastoreValue * val, int *closure,
              unsigned long long uid)
 {
   int ret;
@@ -101,51 +99,52 @@ iterateDown (const HashCode512 * key,
 }
 
 static int
-iterateDelete (const HashCode512 * key,
-               const Datastore_Value * val, void *closure,
+iterateDelete (const GNUNET_HashCode * key,
+               const GNUNET_DatastoreValue * val, void *closure,
                unsigned long long uid)
 {
-  return NO;
+  return GNUNET_NO;
 }
 
 static int
-iteratePriority (const HashCode512 * key,
-                 const Datastore_Value * val, SQstore_ServiceAPI * api,
-                 unsigned long long uid)
+iteratePriority (const GNUNET_HashCode * key,
+                 const GNUNET_DatastoreValue * val,
+                 GNUNET_SQstore_ServiceAPI * api, unsigned long long uid)
 {
   api->update (uid, 4, 0);
-  return OK;
+  return GNUNET_OK;
 }
 
 static int
-priorityCheck (const HashCode512 * key,
-               const Datastore_Value * val, int *closure,
+priorityCheck (const GNUNET_HashCode * key,
+               const GNUNET_DatastoreValue * val, int *closure,
                unsigned long long uid)
 {
   int id;
 
   id = (*closure);
   if (id + 1 == ntohl (val->prio))
-    return OK;
-  else
-    return SYSERR;
+    return GNUNET_OK;
+  fprintf (stderr,
+           "Wrong priority, wanted %u got %u\n", id + 1, ntohl (val->prio));
+  return GNUNET_SYSERR;
 }
 
 static int
-multipleCheck (const HashCode512 * key,
-               const Datastore_Value * val, Datastore_Value ** last,
-               unsigned long long uid)
+multipleCheck (const GNUNET_HashCode * key,
+               const GNUNET_DatastoreValue * val,
+               GNUNET_DatastoreValue ** last, unsigned long long uid)
 {
   if (*last != NULL)
     {
       if (((*last)->size == val->size) &&
           (0 == memcmp (*last, val, ntohl (val->size))))
-        return SYSERR;          /* duplicate! */
-      FREE (*last);
+        return GNUNET_SYSERR;   /* duplicate! */
+      GNUNET_free (*last);
     }
-  *last = MALLOC (ntohl (val->size));
+  *last = GNUNET_malloc (ntohl (val->size));
   memcpy (*last, val, ntohl (val->size));
-  return OK;
+  return GNUNET_OK;
 }
 
 
@@ -153,10 +152,10 @@ multipleCheck (const HashCode512 * key,
  * Add testcode here!
  */
 static int
-test (SQstore_ServiceAPI * api)
+test (GNUNET_SQstore_ServiceAPI * api)
 {
-  Datastore_Value *value;
-  HashCode512 key;
+  GNUNET_DatastoreValue *value;
+  GNUNET_HashCode key;
   unsigned long long oldSize;
   int i;
 
@@ -165,106 +164,124 @@ test (SQstore_ServiceAPI * api)
   for (i = 0; i < 256; i++)
     {
       value = initValue (i);
-      memset (&key, 256 - i, sizeof (HashCode512));
-      ASSERT (OK == api->put (&key, value));
-      FREE (value);
+      memset (&key, 256 - i, sizeof (GNUNET_HashCode));
+      ASSERT (GNUNET_OK == api->put (&key, value));
+      GNUNET_free (value);
     }
   ASSERT (oldSize < api->getSize ());
-  ASSERT (256 == api->iterateLowPriority (ANY_BLOCK, NULL, NULL));
-  ASSERT (256 == api->iterateExpirationTime (ANY_BLOCK, NULL, NULL));
   for (i = 255; i >= 0; i--)
     {
-      memset (&key, 256 - i, sizeof (HashCode512));
+      memset (&key, 256 - i, sizeof (GNUNET_HashCode));
+      ASSERT (1 == api->get (&key, i, &checkValue, (void *) &i));
+    }
+  ASSERT (256 ==
+          api->iterateLowPriority (GNUNET_ECRS_BLOCKTYPE_ANY, NULL, NULL));
+  ASSERT (256 ==
+          api->iterateExpirationTime (GNUNET_ECRS_BLOCKTYPE_ANY, NULL, NULL));
+  for (i = 255; i >= 0; i--)
+    {
+      memset (&key, 256 - i, sizeof (GNUNET_HashCode));
       ASSERT (1 == api->get (&key, i, &checkValue, (void *) &i));
     }
 
   oldSize = api->getSize ();
   for (i = 255; i >= 0; i -= 2)
     {
-      memset (&key, 256 - i, sizeof (HashCode512));
+      memset (&key, 256 - i, sizeof (GNUNET_HashCode));
       value = initValue (i);
       ASSERT (1 == api->get (&key, 0, &iterateDelete, NULL));
-      FREE (value);
+      GNUNET_free (value);
     }
   ASSERT (oldSize > api->getSize ());
   i = 0;
-  ASSERT (128 == api->iterateLowPriority (ANY_BLOCK,
-                                          (Datum_Iterator) & iterateUp, &i));
+  ASSERT (128 == api->iterateLowPriority (GNUNET_ECRS_BLOCKTYPE_ANY,
+                                          (GNUNET_DatastoreValueIterator) &
+                                          iterateUp, &i));
   ASSERT (256 == i);
-  ASSERT (128 == api->iterateExpirationTime (ANY_BLOCK,
-                                             (Datum_Iterator) & iterateDown,
-                                             &i));
+  ASSERT (128 == api->iterateExpirationTime (GNUNET_ECRS_BLOCKTYPE_ANY,
+                                             (GNUNET_DatastoreValueIterator) &
+                                             iterateDown, &i));
   ASSERT (0 == i);
-  ASSERT (128 == api->iterateExpirationTime (ANY_BLOCK,
-                                             (Datum_Iterator) & iterateDelete,
-                                             api));
-  ASSERT (0 == api->iterateExpirationTime (ANY_BLOCK,
-                                           (Datum_Iterator) & iterateDown,
-                                           &i));
-
+  ASSERT (128 == api->iterateExpirationTime (GNUNET_ECRS_BLOCKTYPE_ANY,
+                                             (GNUNET_DatastoreValueIterator) &
+                                             iterateDelete, api));
+  i = 0;
+  ASSERT (0 ==
+          api->iterateExpirationTime (GNUNET_ECRS_BLOCKTYPE_ANY,
+                                      (GNUNET_DatastoreValueIterator) &
+                                      iterateDown, &i));
   i = 42;
   value = initValue (i);
-  memset (&key, 256 - i, sizeof (HashCode512));
+  memset (&key, 256 - i, sizeof (GNUNET_HashCode));
   api->put (&key, value);
-  ASSERT (1 == api->iterateExpirationTime (ANY_BLOCK,
-                                           (Datum_Iterator) & priorityCheck,
-                                           &i));
-  ASSERT (1 == api->iterateAllNow ((Datum_Iterator) & iteratePriority, api));
+  ASSERT (1 == api->iterateExpirationTime (GNUNET_ECRS_BLOCKTYPE_ANY,
+                                           (GNUNET_DatastoreValueIterator) &
+                                           priorityCheck, &i));
+  ASSERT (1 == api->iterateExpirationTime (GNUNET_ECRS_BLOCKTYPE_ANY,
+                                           (GNUNET_DatastoreValueIterator) &
+                                           priorityCheck, &i));
+  ASSERT (1 ==
+          api->
+          iterateAllNow ((GNUNET_DatastoreValueIterator) & iteratePriority,
+                         api));
   i += 4;
-  ASSERT (1 == api->iterateExpirationTime (ANY_BLOCK,
-                                           (Datum_Iterator) & priorityCheck,
-                                           &i));
-  FREE (value);
+  ASSERT (1 == api->iterateExpirationTime (GNUNET_ECRS_BLOCKTYPE_ANY,
+                                           (GNUNET_DatastoreValueIterator) &
+                                           priorityCheck, &i));
+  GNUNET_free (value);
 
   /* test multiple results */
   value = initValue (i + 1);
   api->put (&key, value);
-  FREE (value);
+  GNUNET_free (value);
 
   value = NULL;
-  ASSERT (2 == api->iterateExpirationTime (ANY_BLOCK,
-                                           (Datum_Iterator) & multipleCheck,
-                                           &value));
-  FREE (value);
-  ASSERT (2 == api->iterateAllNow ((Datum_Iterator) & iterateDelete, api));
-  ASSERT (0 == api->iterateExpirationTime (ANY_BLOCK, NULL, NULL));
+  ASSERT (2 == api->iterateExpirationTime (GNUNET_ECRS_BLOCKTYPE_ANY,
+                                           (GNUNET_DatastoreValueIterator) &
+                                           multipleCheck, &value));
+  GNUNET_free (value);
+  ASSERT (2 ==
+          api->iterateAllNow ((GNUNET_DatastoreValueIterator) & iterateDelete,
+                              api));
+  ASSERT (0 ==
+          api->iterateExpirationTime (GNUNET_ECRS_BLOCKTYPE_ANY, NULL, NULL));
   api->drop ();
 
-  return OK;
+  return GNUNET_OK;
 
 FAILURE:
   api->drop ();
-  return SYSERR;
+  return GNUNET_SYSERR;
 }
 
 int
 main (int argc, char *argv[])
 {
-  SQstore_ServiceAPI *api;
+  GNUNET_SQstore_ServiceAPI *api;
   int ok;
-  struct GC_Configuration *cfg;
-  struct CronManager *cron;
+  struct GNUNET_GC_Configuration *cfg;
+  struct GNUNET_CronManager *cron;
 
-  cfg = GC_create_C_impl ();
-  if (-1 == GC_parse_configuration (cfg, "check.conf"))
+  cfg = GNUNET_GC_create ();
+  if (-1 == GNUNET_GC_parse_configuration (cfg, "check.conf"))
     {
-      GC_free (cfg);
+      GNUNET_GC_free (cfg);
       return -1;
     }
-  cron = cron_create (NULL);
-  initCore (NULL, cfg, cron, NULL);
-  api = requestService ("sqstore");
+  cron = GNUNET_cron_create (NULL);
+  GNUNET_CORE_init (NULL, cfg, cron, NULL);
+  api = GNUNET_CORE_request_service ("sqstore");
   if (api != NULL)
     {
       ok = test (api);
-      releaseService (api);
+      GNUNET_CORE_release_service (api);
     }
   else
-    ok = SYSERR;
-  doneCore ();
-  cron_destroy (cron);
-  GC_free (cfg);
-  if (ok == SYSERR)
+    ok = GNUNET_SYSERR;
+  GNUNET_CORE_done ();
+  GNUNET_cron_destroy (cron);
+  GNUNET_GC_free (cfg);
+  if (ok == GNUNET_SYSERR)
     return 1;
   return 0;
 }

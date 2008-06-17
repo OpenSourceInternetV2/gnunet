@@ -62,11 +62,11 @@ bin2enc (const void *data, size_t size)
   unsigned int hbits;
   char *ret;
 
-  GE_ASSERT (NULL, strlen (encTable__) == 64);
+  GNUNET_GE_ASSERT (NULL, strlen (encTable__) == 64);
   len = size * 8 / 6;
   if (((size * 8) % 6) != 0)
     len++;
-  ret = MALLOC (len + 1);
+  ret = GNUNET_malloc (len + 1);
   ret[len] = '\0';
   len = 0;
   bits = 0;

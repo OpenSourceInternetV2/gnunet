@@ -34,6 +34,7 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 bin_PROGRAMS = gnunet-tracekit$(EXEEXT)
+check_PROGRAMS = tracekittest$(EXEEXT)
 subdir = src/applications/tracekit
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -56,9 +57,11 @@ am__vpath_adj = case $$p in \
     *) f=$$p;; \
   esac;
 am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
-am__installdirs = "$(DESTDIR)$(plugindir)" "$(DESTDIR)$(bindir)"
+am__installdirs = "$(DESTDIR)$(libdir)" "$(DESTDIR)$(plugindir)" \
+	"$(DESTDIR)$(bindir)"
+libLTLIBRARIES_INSTALL = $(INSTALL)
 pluginLTLIBRARIES_INSTALL = $(INSTALL)
-LTLIBRARIES = $(plugin_LTLIBRARIES)
+LTLIBRARIES = $(lib_LTLIBRARIES) $(plugin_LTLIBRARIES)
 libgnunetmodule_tracekit_la_DEPENDENCIES = $(LDADD)
 am_libgnunetmodule_tracekit_la_OBJECTS = tracekit.lo
 libgnunetmodule_tracekit_la_OBJECTS =  \
@@ -67,17 +70,24 @@ libgnunetmodule_tracekit_la_LINK = $(LIBTOOL) --tag=CC \
 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CCLD) \
 	$(AM_CFLAGS) $(CFLAGS) $(libgnunetmodule_tracekit_la_LDFLAGS) \
 	$(LDFLAGS) -o $@
+libgnunettracekit_api_la_DEPENDENCIES =  \
+	$(top_builddir)/src/util/libgnunetutil.la
+am_libgnunettracekit_api_la_OBJECTS = clientapi.lo
+libgnunettracekit_api_la_OBJECTS =  \
+	$(am_libgnunettracekit_api_la_OBJECTS)
 binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(bin_PROGRAMS)
 am_gnunet_tracekit_OBJECTS = gnunet-tracekit.$(OBJEXT)
 gnunet_tracekit_OBJECTS = $(am_gnunet_tracekit_OBJECTS)
-gnunet_tracekit_LDADD = $(LDADD)
 gnunet_tracekit_DEPENDENCIES =  \
 	$(top_builddir)/src/util/libgnunetutil.la \
-	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
-	$(top_builddir)/src/util/boot/libgnunetutil_boot.la \
-	$(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
-	$(top_builddir)/src/util/cron/libgnunetutil_cron.la
+	$(top_builddir)/src/applications/tracekit/libgnunettracekit_api.la
+am_tracekittest_OBJECTS = tracekittest.$(OBJEXT)
+tracekittest_OBJECTS = $(am_tracekittest_OBJECTS)
+tracekittest_DEPENDENCIES = $(top_builddir)/src/applications/testing/libgnunettesting_api.la \
+	$(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+	$(top_builddir)/src/applications/tracekit/libgnunettracekit_api.la \
+	$(top_builddir)/src/util/libgnunetutil.la
 DEFAULT_INCLUDES = -I. -I$(top_builddir)@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -91,9 +101,11 @@ LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
 SOURCES = $(libgnunetmodule_tracekit_la_SOURCES) \
-	$(gnunet_tracekit_SOURCES)
+	$(libgnunettracekit_api_la_SOURCES) $(gnunet_tracekit_SOURCES) \
+	$(tracekittest_SOURCES)
 DIST_SOURCES = $(libgnunetmodule_tracekit_la_SOURCES) \
-	$(gnunet_tracekit_SOURCES)
+	$(libgnunettracekit_api_la_SOURCES) $(gnunet_tracekit_SOURCES) \
+	$(tracekittest_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -117,6 +129,7 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DLLDIR = @DLLDIR@
 DLLTOOL = @DLLTOOL@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
@@ -151,6 +164,7 @@ LIBICONV = @LIBICONV@
 LIBINTL = @LIBINTL@
 LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
+LIBPREFIX = @LIBPREFIX@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
@@ -176,6 +190,8 @@ PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PKG_CONFIG = @PKG_CONFIG@
 POSUB = @POSUB@
+QTINC = @QTINC@
+QTLIBS = @QTLIBS@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -186,9 +202,14 @@ STRIP = @STRIP@
 USE_NLS = @USE_NLS@
 VERSION = @VERSION@
 XGETTEXT = @XGETTEXT@
+XMKMF = @XMKMF@
 XML2_CONFIG = @XML2_CONFIG@
 XML_CPPFLAGS = @XML_CPPFLAGS@
 XML_LIBS = @XML_LIBS@
+X_CFLAGS = @X_CFLAGS@
+X_EXTRA_LIBS = @X_EXTRA_LIBS@
+X_LIBS = @X_LIBS@
+X_PRE_LIBS = @X_PRE_LIBS@
 _libcurl_config = @_libcurl_config@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
@@ -207,6 +228,7 @@ build = @build@
 build_alias = @build_alias@
 build_cpu = @build_cpu@
 build_os = @build_os@
+build_target = @build_target@
 build_vendor = @build_vendor@
 builddir = @builddir@
 datadir = @datadir@
@@ -245,18 +267,21 @@ top_srcdir = @top_srcdir@
 INCLUDES = -I$(top_srcdir)/src/include
 plugindir = $(libdir)/GNUnet
 LDADD = \
-  $(top_builddir)/src/util/libgnunetutil.la \
-  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
-  $(top_builddir)/src/util/boot/libgnunetutil_boot.la \
-  $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
-  $(top_builddir)/src/util/cron/libgnunetutil_cron.la 
+  $(top_builddir)/src/util/libgnunetutil.la 
 
 plugin_LTLIBRARIES = \
   libgnunetmodule_tracekit.la
 
+lib_LTLIBRARIES = \
+  libgnunettracekit_api.la
+
 gnunet_tracekit_SOURCES = \
   gnunet-tracekit.c \
   tracekit.h
+
+gnunet_tracekit_LDADD = \
+  $(top_builddir)/src/util/libgnunetutil.la \
+  $(top_builddir)/src/applications/tracekit/libgnunettracekit_api.la 
 
 libgnunetmodule_tracekit_la_SOURCES = \
   tracekit.c \
@@ -267,6 +292,23 @@ libgnunetmodule_tracekit_la_LIBADD = \
 
 libgnunetmodule_tracekit_la_LDFLAGS = \
   -export-dynamic -avoid-version -module
+
+libgnunettracekit_api_la_SOURCES = \
+  clientapi.c 
+
+libgnunettracekit_api_la_LIBADD = \
+  $(top_builddir)/src/util/libgnunetutil.la 
+
+EXTRA_DIST = check.conf
+TESTS = $(check_PROGRAMS)
+tracekittest_SOURCES = \
+  tracekittest.c 
+
+tracekittest_LDADD = \
+  $(top_builddir)/src/applications/testing/libgnunettesting_api.la \
+  $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+  $(top_builddir)/src/applications/tracekit/libgnunettracekit_api.la \
+  $(top_builddir)/src/util/libgnunetutil.la 
 
 all: all-am
 
@@ -301,6 +343,33 @@ $(top_srcdir)/configure:  $(am__configure_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
+install-libLTLIBRARIES: $(lib_LTLIBRARIES)
+	@$(NORMAL_INSTALL)
+	test -z "$(libdir)" || $(MKDIR_P) "$(DESTDIR)$(libdir)"
+	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	  if test -f $$p; then \
+	    f=$(am__strip_dir) \
+	    echo " $(LIBTOOL) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) '$$p' '$(DESTDIR)$(libdir)/$$f'"; \
+	    $(LIBTOOL) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) "$$p" "$(DESTDIR)$(libdir)/$$f"; \
+	  else :; fi; \
+	done
+
+uninstall-libLTLIBRARIES:
+	@$(NORMAL_UNINSTALL)
+	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	  p=$(am__strip_dir) \
+	  echo " $(LIBTOOL) --mode=uninstall rm -f '$(DESTDIR)$(libdir)/$$p'"; \
+	  $(LIBTOOL) --mode=uninstall rm -f "$(DESTDIR)$(libdir)/$$p"; \
+	done
+
+clean-libLTLIBRARIES:
+	-test -z "$(lib_LTLIBRARIES)" || rm -f $(lib_LTLIBRARIES)
+	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+	  dir="`echo $$p | sed -e 's|/[^/]*$$||'`"; \
+	  test "$$dir" != "$$p" || dir=.; \
+	  echo "rm -f \"$${dir}/so_locations\""; \
+	  rm -f "$${dir}/so_locations"; \
+	done
 install-pluginLTLIBRARIES: $(plugin_LTLIBRARIES)
 	@$(NORMAL_INSTALL)
 	test -z "$(plugindir)" || $(MKDIR_P) "$(DESTDIR)$(plugindir)"
@@ -330,6 +399,8 @@ clean-pluginLTLIBRARIES:
 	done
 libgnunetmodule_tracekit.la: $(libgnunetmodule_tracekit_la_OBJECTS) $(libgnunetmodule_tracekit_la_DEPENDENCIES) 
 	$(libgnunetmodule_tracekit_la_LINK) -rpath $(plugindir) $(libgnunetmodule_tracekit_la_OBJECTS) $(libgnunetmodule_tracekit_la_LIBADD) $(LIBS)
+libgnunettracekit_api.la: $(libgnunettracekit_api_la_OBJECTS) $(libgnunettracekit_api_la_DEPENDENCIES) 
+	$(LINK) -rpath $(libdir) $(libgnunettracekit_api_la_OBJECTS) $(libgnunettracekit_api_la_LIBADD) $(LIBS)
 install-binPROGRAMS: $(bin_PROGRAMS)
 	@$(NORMAL_INSTALL)
 	test -z "$(bindir)" || $(MKDIR_P) "$(DESTDIR)$(bindir)"
@@ -358,9 +429,19 @@ clean-binPROGRAMS:
 	  echo " rm -f $$p $$f"; \
 	  rm -f $$p $$f ; \
 	done
+
+clean-checkPROGRAMS:
+	@list='$(check_PROGRAMS)'; for p in $$list; do \
+	  f=`echo $$p|sed 's/$(EXEEXT)$$//'`; \
+	  echo " rm -f $$p $$f"; \
+	  rm -f $$p $$f ; \
+	done
 gnunet-tracekit$(EXEEXT): $(gnunet_tracekit_OBJECTS) $(gnunet_tracekit_DEPENDENCIES) 
 	@rm -f gnunet-tracekit$(EXEEXT)
 	$(LINK) $(gnunet_tracekit_OBJECTS) $(gnunet_tracekit_LDADD) $(LIBS)
+tracekittest$(EXEEXT): $(tracekittest_OBJECTS) $(tracekittest_DEPENDENCIES) 
+	@rm -f tracekittest$(EXEEXT)
+	$(LINK) $(tracekittest_OBJECTS) $(tracekittest_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -368,8 +449,10 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/clientapi.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gnunet-tracekit.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tracekit.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tracekittest.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -446,6 +529,79 @@ GTAGS:
 distclean-tags:
 	-rm -f TAGS ID GTAGS GRTAGS GSYMS GPATH tags
 
+check-TESTS: $(TESTS)
+	@failed=0; all=0; xfail=0; xpass=0; skip=0; ws='[	 ]'; \
+	srcdir=$(srcdir); export srcdir; \
+	list=' $(TESTS) '; \
+	if test -n "$$list"; then \
+	  for tst in $$list; do \
+	    if test -f ./$$tst; then dir=./; \
+	    elif test -f $$tst; then dir=; \
+	    else dir="$(srcdir)/"; fi; \
+	    if $(TESTS_ENVIRONMENT) $${dir}$$tst; then \
+	      all=`expr $$all + 1`; \
+	      case " $(XFAIL_TESTS) " in \
+	      *$$ws$$tst$$ws*) \
+		xpass=`expr $$xpass + 1`; \
+		failed=`expr $$failed + 1`; \
+		echo "XPASS: $$tst"; \
+	      ;; \
+	      *) \
+		echo "PASS: $$tst"; \
+	      ;; \
+	      esac; \
+	    elif test $$? -ne 77; then \
+	      all=`expr $$all + 1`; \
+	      case " $(XFAIL_TESTS) " in \
+	      *$$ws$$tst$$ws*) \
+		xfail=`expr $$xfail + 1`; \
+		echo "XFAIL: $$tst"; \
+	      ;; \
+	      *) \
+		failed=`expr $$failed + 1`; \
+		echo "FAIL: $$tst"; \
+	      ;; \
+	      esac; \
+	    else \
+	      skip=`expr $$skip + 1`; \
+	      echo "SKIP: $$tst"; \
+	    fi; \
+	  done; \
+	  if test "$$failed" -eq 0; then \
+	    if test "$$xfail" -eq 0; then \
+	      banner="All $$all tests passed"; \
+	    else \
+	      banner="All $$all tests behaved as expected ($$xfail expected failures)"; \
+	    fi; \
+	  else \
+	    if test "$$xpass" -eq 0; then \
+	      banner="$$failed of $$all tests failed"; \
+	    else \
+	      banner="$$failed of $$all tests did not behave as expected ($$xpass unexpected passes)"; \
+	    fi; \
+	  fi; \
+	  dashes="$$banner"; \
+	  skipped=""; \
+	  if test "$$skip" -ne 0; then \
+	    skipped="($$skip tests were not run)"; \
+	    test `echo "$$skipped" | wc -c` -le `echo "$$banner" | wc -c` || \
+	      dashes="$$skipped"; \
+	  fi; \
+	  report=""; \
+	  if test "$$failed" -ne 0 && test -n "$(PACKAGE_BUGREPORT)"; then \
+	    report="Please report to $(PACKAGE_BUGREPORT)"; \
+	    test `echo "$$report" | wc -c` -le `echo "$$banner" | wc -c` || \
+	      dashes="$$report"; \
+	  fi; \
+	  dashes=`echo "$$dashes" | sed s/./=/g`; \
+	  echo "$$dashes"; \
+	  echo "$$banner"; \
+	  test -z "$$skipped" || echo "$$skipped"; \
+	  test -z "$$report" || echo "$$report"; \
+	  echo "$$dashes"; \
+	  test "$$failed" -eq 0; \
+	else :; fi
+
 distdir: $(DISTFILES)
 	@srcdirstrip=`echo "$(srcdir)" | sed 's/[].[^$$\\*]/\\\\&/g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's/[].[^$$\\*]/\\\\&/g'`; \
@@ -473,10 +629,14 @@ distdir: $(DISTFILES)
 	  fi; \
 	done
 check-am: all-am
+	$(MAKE) $(AM_MAKEFLAGS) $(check_PROGRAMS)
+	$(MAKE) $(AM_MAKEFLAGS) check-TESTS
 check: check-am
 all-am: Makefile $(LTLIBRARIES) $(PROGRAMS)
+install-binPROGRAMS: install-libLTLIBRARIES
+
 installdirs:
-	for dir in "$(DESTDIR)$(plugindir)" "$(DESTDIR)$(bindir)"; do \
+	for dir in "$(DESTDIR)$(libdir)" "$(DESTDIR)$(plugindir)" "$(DESTDIR)$(bindir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
 install: install-am
@@ -505,8 +665,9 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-am
 
-clean-am: clean-binPROGRAMS clean-generic clean-libtool \
-	clean-pluginLTLIBRARIES mostlyclean-am
+clean-am: clean-binPROGRAMS clean-checkPROGRAMS clean-generic \
+	clean-libLTLIBRARIES clean-libtool clean-pluginLTLIBRARIES \
+	mostlyclean-am
 
 distclean: distclean-am
 	-rm -rf ./$(DEPDIR)
@@ -528,7 +689,7 @@ install-data-am: install-pluginLTLIBRARIES
 
 install-dvi: install-dvi-am
 
-install-exec-am: install-binPROGRAMS
+install-exec-am: install-binPROGRAMS install-libLTLIBRARIES
 
 install-html: install-html-am
 
@@ -560,24 +721,28 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-binPROGRAMS uninstall-pluginLTLIBRARIES
+uninstall-am: uninstall-binPROGRAMS uninstall-libLTLIBRARIES \
+	uninstall-pluginLTLIBRARIES
 
 .MAKE: install-am install-strip
 
-.PHONY: CTAGS GTAGS all all-am check check-am clean clean-binPROGRAMS \
-	clean-generic clean-libtool clean-pluginLTLIBRARIES ctags \
-	distclean distclean-compile distclean-generic \
+.PHONY: CTAGS GTAGS all all-am check check-TESTS check-am clean \
+	clean-binPROGRAMS clean-checkPROGRAMS clean-generic \
+	clean-libLTLIBRARIES clean-libtool clean-pluginLTLIBRARIES \
+	ctags distclean distclean-compile distclean-generic \
 	distclean-libtool distclean-tags distdir dvi dvi-am html \
 	html-am info info-am install install-am install-binPROGRAMS \
 	install-data install-data-am install-dvi install-dvi-am \
 	install-exec install-exec-am install-html install-html-am \
-	install-info install-info-am install-man install-pdf \
-	install-pdf-am install-pluginLTLIBRARIES install-ps \
-	install-ps-am install-strip installcheck installcheck-am \
-	installdirs maintainer-clean maintainer-clean-generic \
-	mostlyclean mostlyclean-compile mostlyclean-generic \
-	mostlyclean-libtool pdf pdf-am ps ps-am tags uninstall \
-	uninstall-am uninstall-binPROGRAMS uninstall-pluginLTLIBRARIES
+	install-info install-info-am install-libLTLIBRARIES \
+	install-man install-pdf install-pdf-am \
+	install-pluginLTLIBRARIES install-ps install-ps-am \
+	install-strip installcheck installcheck-am installdirs \
+	maintainer-clean maintainer-clean-generic mostlyclean \
+	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
+	pdf pdf-am ps ps-am tags uninstall uninstall-am \
+	uninstall-binPROGRAMS uninstall-libLTLIBRARIES \
+	uninstall-pluginLTLIBRARIES
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

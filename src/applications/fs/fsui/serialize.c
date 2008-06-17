@@ -43,57 +43,60 @@ static void
 WRITELONG (int fd, long long val)
 {
   long long big;
-  big = htonll (val);
+  big = GNUNET_htonll (val);
   WRITE (fd, &big, sizeof (long long));
 }
 
 static void
-writeURI (int fd, const struct ECRS_URI *uri)
+writeURI (int fd, const struct GNUNET_ECRS_URI *uri)
 {
   char *buf;
   unsigned int size;
 
-  buf = ECRS_uriToString (uri);
+  buf = GNUNET_ECRS_uri_to_string (uri);
   size = strlen (buf);
   WRITEINT (fd, size);
   WRITE (fd, buf, size);
-  FREE (buf);
+  GNUNET_free (buf);
 }
 
 static void
 WRITESTRING (int fd, const char *name)
 {
-  GE_BREAK (NULL, name != NULL);
+  GNUNET_GE_BREAK (NULL, name != NULL);
   WRITEINT (fd, strlen (name));
   WRITE (fd, name, strlen (name));
 }
 
 static void
-writeMetaData (struct GE_Context *ectx,
-               int fd, const struct ECRS_MetaData *meta)
+writeMetaData (struct GNUNET_GE_Context *ectx,
+               int fd, const struct GNUNET_ECRS_MetaData *meta)
 {
   unsigned int size;
   char *buf;
 
-  size = ECRS_sizeofMetaData (meta,
-                              ECRS_SERIALIZE_FULL |
-                              ECRS_SERIALIZE_NO_COMPRESS);
+  size = GNUNET_ECRS_meta_data_get_serialized_size (meta,
+                                                    GNUNET_ECRS_SERIALIZE_FULL
+                                                    |
+                                                    GNUNET_ECRS_SERIALIZE_NO_COMPRESS);
   if (size > 1024 * 1024)
     size = 1024 * 1024;
-  buf = MALLOC (size);
-  ECRS_serializeMetaData (ectx,
-                          meta,
-                          buf,
-                          size,
-                          ECRS_SERIALIZE_PART | ECRS_SERIALIZE_NO_COMPRESS);
+  buf = GNUNET_malloc (size);
+  GNUNET_ECRS_meta_data_serialize (ectx,
+                                   meta,
+                                   buf,
+                                   size,
+                                   GNUNET_ECRS_SERIALIZE_PART |
+                                   GNUNET_ECRS_SERIALIZE_NO_COMPRESS);
   WRITEINT (fd, size);
   WRITE (fd, buf, size);
-  FREE (buf);
+  GNUNET_free (buf);
 }
 
 
 static void
-writeFileInfo (struct GE_Context *ectx, int fd, const ECRS_FileInfo * fi)
+writeFileInfo (struct GNUNET_GE_Context *ectx, int fd,
+               const GNUNET_ECRS_FileInfo * fi)
 {
   writeMetaData (ectx, fd, fi->meta);
   writeURI (fd, fi->uri);
@@ -104,11 +107,12 @@ writeFileInfo (struct GE_Context *ectx, int fd, const ECRS_FileInfo * fi)
  * (recursively) write a download list.
  */
 static void
-writeDownloadList (struct GE_Context *ectx,
-                   int fd, FSUI_Context * ctx, FSUI_DownloadList * list)
+writeDownloadList (struct GNUNET_GE_Context *ectx,
+                   int fd, GNUNET_FSUI_Context * ctx,
+                   GNUNET_FSUI_DownloadList * list)
 {
   int i;
-  FSUI_SearchList *pos;
+  GNUNET_FSUI_SearchList *pos;
 
   if (list == NULL)
     {
@@ -116,10 +120,10 @@ writeDownloadList (struct GE_Context *ectx,
       return;
     }
 #if DEBUG_PERSISTENCE
-  GE_LOG (ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER,
-          "Serializing download state of download `%s': (%llu, %llu)\n",
-          list->filename, list->completed, list->total);
+  GNUNET_GE_LOG (ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 "Serializing download state of download `%s': (%llu, %llu)\n",
+                 list->filename, list->completed, list->total);
 #endif
   WRITEINT (fd, 1);
   if (list->search == NULL)
@@ -138,7 +142,7 @@ writeDownloadList (struct GE_Context *ectx,
           pos = pos->next;
           if (pos == NULL)
             {
-              GE_BREAK (ectx, 0);
+              GNUNET_GE_BREAK (ectx, 0);
               i = 0;
               break;
             }
@@ -156,7 +160,7 @@ writeDownloadList (struct GE_Context *ectx,
   WRITEINT (fd, list->completedDownloadsCount);
   WRITELONG (fd, list->total);
   WRITELONG (fd, list->completed);
-  WRITELONG (fd, get_time () - list->startTime);
+  WRITELONG (fd, GNUNET_get_time () - list->startTime);
 
   WRITESTRING (fd, list->filename);
   writeFileInfo (ectx, fd, &list->fi);
@@ -167,7 +171,7 @@ writeDownloadList (struct GE_Context *ectx,
 }
 
 static void
-writeCollection (int fd, struct FSUI_Context *ctx)
+writeCollection (int fd, struct GNUNET_FSUI_Context *ctx)
 {
   if ((ctx->collectionData == NULL) ||
       (ctx->collectionData->size > 16 * 1024 * 1024))
@@ -180,9 +184,9 @@ writeCollection (int fd, struct FSUI_Context *ctx)
 }
 
 static void
-writeSearches (int fd, struct FSUI_Context *ctx)
+writeSearches (int fd, struct GNUNET_FSUI_Context *ctx)
 {
-  FSUI_SearchList *spos;
+  GNUNET_FSUI_SearchList *spos;
   int i;
 
   spos = ctx->activeSearches;
@@ -195,15 +199,15 @@ writeSearches (int fd, struct FSUI_Context *ctx)
           spos = spos->next;
           continue;
         }
-      GE_ASSERT (ctx->ectx,
-                 ECRS_isKeywordUri (spos->uri) ||
-                 ECRS_isNamespaceUri (spos->uri));
+      GNUNET_GE_ASSERT (ctx->ectx,
+                        GNUNET_ECRS_uri_test_ksk (spos->uri) ||
+                        GNUNET_ECRS_uri_test_sks (spos->uri));
       WRITEINT (fd, 1);
       WRITEINT (fd, spos->state);
       WRITEINT (fd, spos->maxResults);
       WRITELONG (fd, spos->timeout);
       WRITELONG (fd, spos->start_time);
-      WRITELONG (fd, get_time ());
+      WRITELONG (fd, GNUNET_get_time ());
       WRITEINT (fd, spos->anonymityLevel);
       WRITEINT (fd, spos->sizeResultsReceived);
       WRITEINT (fd, spos->sizeUnmatchedResultsReceived);
@@ -216,7 +220,8 @@ writeSearches (int fd, struct FSUI_Context *ctx)
 
           rp = &spos->unmatchedResultsReceived[i];
           writeFileInfo (ctx->ectx, fd, &rp->fi);
-          GE_ASSERT (ctx->ectx, rp->matchingKeyCount < spos->numberOfURIKeys);
+          GNUNET_GE_ASSERT (ctx->ectx,
+                            rp->matchingKeyCount < spos->numberOfURIKeys);
           if (rp->matchingKeyCount > 1024)
             {
               WRITEINT (fd, 0); /* too large to serialize */
@@ -225,7 +230,7 @@ writeSearches (int fd, struct FSUI_Context *ctx)
           WRITEINT (fd, rp->matchingKeyCount);
           WRITE (fd,
                  rp->matchingKeys,
-                 sizeof (HashCode512) * rp->matchingKeyCount);
+                 sizeof (GNUNET_HashCode) * rp->matchingKeyCount);
         }
       spos = spos->next;
     }
@@ -233,9 +238,9 @@ writeSearches (int fd, struct FSUI_Context *ctx)
 }
 
 static void
-writeUnindexing (int fd, struct FSUI_Context *ctx)
+writeUnindexing (int fd, struct GNUNET_FSUI_Context *ctx)
 {
-  FSUI_UnindexList *xpos;
+  GNUNET_FSUI_UnindexList *xpos;
 
 
   xpos = ctx->unindexOperations;
@@ -252,8 +257,8 @@ writeUnindexing (int fd, struct FSUI_Context *ctx)
 
 static void
 writeUploadList (int fd,
-                 struct FSUI_Context *ctx,
-                 struct FSUI_UploadList *upos, int top)
+                 struct GNUNET_FSUI_Context *ctx,
+                 struct GNUNET_FSUI_UploadList *upos, int top)
 {
   int bits;
 
@@ -271,7 +276,7 @@ writeUploadList (int fd,
       WRITEINT (fd, upos->state);
       WRITELONG (fd, upos->completed);
       WRITELONG (fd, upos->total);
-      WRITELONG (fd, get_time ());
+      WRITELONG (fd, GNUNET_get_time ());
       WRITELONG (fd, upos->start_time);
       if (upos->uri != NULL)
         writeURI (fd, upos->uri);
@@ -280,8 +285,8 @@ writeUploadList (int fd,
       if (upos->meta != NULL)
         writeMetaData (ctx->ectx, fd, upos->meta);
       WRITESTRING (fd, upos->filename);
-      writeUploadList (fd, ctx, upos->child, NO);
-      if (top == YES)
+      writeUploadList (fd, ctx, upos->child, GNUNET_NO);
+      if (top == GNUNET_YES)
         break;
       upos = upos->next;
     }
@@ -289,9 +294,10 @@ writeUploadList (int fd,
 }
 
 static void
-writeUploads (int fd, struct FSUI_Context *ctx, struct FSUI_UploadList *upos)
+writeUploads (int fd, struct GNUNET_FSUI_Context *ctx,
+              struct GNUNET_FSUI_UploadList *upos)
 {
-  struct FSUI_UploadShared *shared;
+  struct GNUNET_FSUI_UploadShared *shared;
   int bits;
 
   while (upos != NULL)
@@ -313,20 +319,21 @@ writeUploads (int fd, struct FSUI_Context *ctx, struct FSUI_UploadList *upos)
         WRITESTRING (fd, shared->extractor_config);
       if (shared->global_keywords != NULL)
         writeURI (fd, shared->global_keywords);
-      writeUploadList (fd, ctx, upos, YES);
+      writeUploadList (fd, ctx, upos, GNUNET_YES);
       upos = upos->next;
     }
   WRITEINT (fd, 0);
 }
 
 void
-FSUI_serialize (struct FSUI_Context *ctx)
+GNUNET_FSUI_serialize (struct GNUNET_FSUI_Context *ctx)
 {
   int fd;
 
-  fd = disk_file_open (ctx->ectx,
-                       ctx->name,
-                       O_CREAT | O_TRUNC | O_WRONLY, S_IRUSR | S_IWUSR);
+  fd = GNUNET_disk_file_open (ctx->ectx,
+                              ctx->name,
+                              O_CREAT | O_TRUNC | O_WRONLY,
+                              S_IRUSR | S_IWUSR);
   if (fd == -1)
     return;
   WRITE (fd, "FSUI01\n\0", 8);  /* magic */

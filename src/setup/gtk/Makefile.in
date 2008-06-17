@@ -62,8 +62,11 @@ am__DEPENDENCIES_1 =
 libgnunetsetup_gtk_la_DEPENDENCIES = $(am__DEPENDENCIES_1) \
 	$(top_builddir)/src/util/libgnunetutil.la \
 	$(top_builddir)/src/setup/lib/libgnunetsetup.la
-am_libgnunetsetup_gtk_la_OBJECTS = libgnunetsetup_gtk_la-about.lo \
-	libgnunetsetup_gtk_la-ngconf.lo \
+am__libgnunetsetup_gtk_la_SOURCES_DIST = about.c ngconf.c gconf.h \
+	glade_support.h glade_support.c wizard_gtk.c wizard_gtk.h
+@HAVE_GUILE_TRUE@am__objects_1 = libgnunetsetup_gtk_la-about.lo \
+@HAVE_GUILE_TRUE@	libgnunetsetup_gtk_la-ngconf.lo
+am_libgnunetsetup_gtk_la_OBJECTS = $(am__objects_1) \
 	libgnunetsetup_gtk_la-glade_support.lo \
 	libgnunetsetup_gtk_la-wizard_gtk.lo
 libgnunetsetup_gtk_la_OBJECTS = $(am_libgnunetsetup_gtk_la_OBJECTS)
@@ -84,7 +87,7 @@ LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
 SOURCES = $(libgnunetsetup_gtk_la_SOURCES)
-DIST_SOURCES = $(libgnunetsetup_gtk_la_SOURCES)
+DIST_SOURCES = $(am__libgnunetsetup_gtk_la_SOURCES_DIST)
 pkgdataDATA_INSTALL = $(INSTALL_DATA)
 DATA = $(pkgdata_DATA)
 ETAGS = etags
@@ -110,6 +113,7 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DLLDIR = @DLLDIR@
 DLLTOOL = @DLLTOOL@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
@@ -144,6 +148,7 @@ LIBICONV = @LIBICONV@
 LIBINTL = @LIBINTL@
 LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
+LIBPREFIX = @LIBPREFIX@
 
 # GNU Gettext support
 LIBS = @LIBINTL@ @LIBS@
@@ -171,6 +176,8 @@ PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PKG_CONFIG = @PKG_CONFIG@
 POSUB = @POSUB@
+QTINC = @QTINC@
+QTLIBS = @QTLIBS@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -181,9 +188,14 @@ STRIP = @STRIP@
 USE_NLS = @USE_NLS@
 VERSION = @VERSION@
 XGETTEXT = @XGETTEXT@
+XMKMF = @XMKMF@
 XML2_CONFIG = @XML2_CONFIG@
 XML_CPPFLAGS = @XML_CPPFLAGS@
 XML_LIBS = @XML_LIBS@
+X_CFLAGS = @X_CFLAGS@
+X_EXTRA_LIBS = @X_EXTRA_LIBS@
+X_LIBS = @X_LIBS@
+X_PRE_LIBS = @X_PRE_LIBS@
 _libcurl_config = @_libcurl_config@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
@@ -202,6 +214,7 @@ build = @build@
 build_alias = @build_alias@
 build_cpu = @build_cpu@
 build_os = @build_os@
+build_target = @build_target@
 build_vendor = @build_vendor@
 builddir = @builddir@
 datadir = @datadir@
@@ -247,11 +260,15 @@ pkgdata_DATA = \
   gnunet-setup.glade
 
 EXTRA_DIST = \
-	$(pkgdata_DATA)
+	$(pkgdata_DATA) \
+        about.c ngconf.c gconf.h
+
+@HAVE_GUILE_TRUE@GUILE_SRC = \
+@HAVE_GUILE_TRUE@	 about.c \
+@HAVE_GUILE_TRUE@	 ngconf.c gconf.h
 
 libgnunetsetup_gtk_la_SOURCES = \
- about.c \
- ngconf.c gconf.h \
+ $(GUILE_SRC) \
  glade_support.h glade_support.c \
  wizard_gtk.c wizard_gtk.h
 

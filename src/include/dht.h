@@ -52,13 +52,11 @@ extern "C"
 typedef struct
 {
 
-  MESSAGE_HEADER header;
+  GNUNET_MessageHeader header;
 
   unsigned int type;            /* nbo */
 
-  HashCode512 key;
-
-  unsigned long long expire;    /* nbo */
+  GNUNET_HashCode key;
 
 } CS_dht_request_put_MESSAGE;
 
@@ -70,13 +68,11 @@ typedef struct
 typedef struct
 {
 
-  MESSAGE_HEADER header;
+  GNUNET_MessageHeader header;
 
   unsigned int type;            /* nbo */
 
-  HashCode512 key;
-
-  unsigned long long timeout;   /* nbo */
+  GNUNET_HashCode key;
 
 } CS_dht_request_get_MESSAGE;
 

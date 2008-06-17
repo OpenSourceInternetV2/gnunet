@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2005, 2006 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2005, 2006, 2007 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -27,45 +27,102 @@
 #include "gnunet_util.h"
 #include "gnunet_directories.h"
 #include "gnunet_setup_lib.h"
-#include "gnunet_util_config_impl.h"
-#include "gnunet_util_error_loggers.h"
 
 #include "platform.h"
 
 typedef int (*ConfigurationPluginMain) (int argc,
                                         char *const *argv,
-                                        struct PluginHandle * self,
-                                        struct GE_Context * ectx,
-                                        struct GC_Configuration * cfg,
-                                        struct GNS_Context * gns,
+                                        struct GNUNET_PluginHandle * self,
+                                        struct GNUNET_GE_Context * ectx,
+                                        struct GNUNET_GC_Configuration * cfg,
+                                        struct GNUNET_GNS_Context * gns,
                                         const char *filename, int is_daemon);
 
 static int config_daemon;
 
-static struct GE_Context *ectx;
+static struct GNUNET_GE_Context *ectx;
 
-static struct GC_Configuration *cfg;
+static struct GNUNET_GC_Configuration *cfg;
 
-static struct GNS_Context *gns;
+#if HAVE_GUILE
+static struct GNUNET_GNS_Context *gns;
+#endif
 
 static char *cfgFilename;
+
+static int option_processing;
+
+static char *get_option;
+
+static char *set_option;
+
+static int
+set_option_helper (GNUNET_CommandLineProcessorContext * ctx,
+                   void *unused, const char *cmdLineOption, const char *value)
+{
+  option_processing = GNUNET_YES;
+  if (set_option != NULL)
+    {
+      fprintf (stderr, _("Can only set one option per invocation.\n"));
+      return GNUNET_SYSERR;
+    }
+  if ((NULL == strstr (value, ":")) ||
+      (NULL == strstr (strstr (value, ":"), "=")))
+    {
+      fprintf (stderr,
+               _
+               ("Invalid synatx, argument to 'set' must have the format SECTION:OPTION=VALUE.\n"));
+      return GNUNET_SYSERR;
+    }
+  set_option = GNUNET_strdup (value);
+  return GNUNET_OK;
+}
+
+static int
+get_option_helper (GNUNET_CommandLineProcessorContext * ctx,
+                   void *unused, const char *cmdLineOption, const char *value)
+{
+  option_processing = GNUNET_YES;
+  if (get_option != NULL)
+    {
+      fprintf (stderr, _("Can only display one option per invocation.\n"));
+      return GNUNET_SYSERR;
+    }
+  if (NULL == strstr (value, ":"))
+    {
+      fprintf (stderr,
+               _
+               ("Invalid synatx, argument to 'get' must have the format SECTION:OPTION.\n"));
+      return GNUNET_SYSERR;
+    }
+  get_option = GNUNET_strdup (value);
+  return GNUNET_OK;
+}
+
 
 /**
  * All gnunet-setup command line options
  */
-static struct CommandLineOption gnunetsetupOptions[] = {
-  COMMAND_LINE_OPTION_CFG_FILE (&cfgFilename),  /* -c */
+static struct GNUNET_CommandLineOption gnunetsetupOptions[] = {
+  GNUNET_COMMAND_LINE_OPTION_CFG_FILE (&cfgFilename),   /* -c */
   {'d', "daemon", NULL,
    gettext_noop ("generate configuration for gnunetd, the GNUnet daemon"),
-   0, &gnunet_getopt_configure_set_one, &config_daemon},
-  COMMAND_LINE_OPTION_HELP (gettext_noop ("Tool to setup GNUnet.")),    /* -h */
-  COMMAND_LINE_OPTION_VERSION (PACKAGE_VERSION),        /* -v */
-  COMMAND_LINE_OPTION_VERBOSE,
-  COMMAND_LINE_OPTION_END,
+   0, &GNUNET_getopt_configure_set_one, &config_daemon},
+  {'g', "get", "SECTION:ENTRY",
+   gettext_noop ("print a value from the configuration file to stdout"),
+   1, &get_option_helper, NULL},
+  GNUNET_COMMAND_LINE_OPTION_HELP (gettext_noop ("Tool to setup GNUnet.")),     /* -h */
+  {'s', "set", "SECTION:ENTRY=VALUE",
+   gettext_noop ("update a value in the configuration file"),
+   1, &set_option_helper, NULL},
+  GNUNET_COMMAND_LINE_OPTION_VERSION (PACKAGE_VERSION), /* -v */
+  GNUNET_COMMAND_LINE_OPTION_VERBOSE,
+  GNUNET_COMMAND_LINE_OPTION_END,
 };
 
+#if HAVE_GUILE
 static void
-gns2cfg (struct GNS_Tree *pos)
+gns2cfg (struct GNUNET_GNS_TreeNode *pos)
 {
   int i;
   char *val;
@@ -82,18 +139,21 @@ gns2cfg (struct GNS_Tree *pos)
     return;
   if ((pos->section == NULL) || (pos->option == NULL))
     return;
-  if (NO == GC_have_configuration_value (cfg, pos->section, pos->option))
+  if (GNUNET_NO ==
+      GNUNET_GC_have_configuration_value (cfg, pos->section, pos->option))
     {
-      val = GNS_get_default_value_as_string (pos->type, &pos->value);
+      val = GNUNET_GNS_get_default_value_as_string (pos->type, &pos->value);
       if (val != NULL)
         {
-          GC_set_configuration_value_string (cfg,
-                                             ectx,
-                                             pos->section, pos->option, val);
-          FREE (val);
+          GNUNET_GC_set_configuration_value_string (cfg,
+                                                    ectx,
+                                                    pos->section, pos->option,
+                                                    val);
+          GNUNET_free (val);
         }
     }
 }
+#endif
 
 static int
 dyn_config (const char *module,
@@ -101,20 +161,25 @@ dyn_config (const char *module,
             int argc, char *const *argv, const char *filename)
 {
   ConfigurationPluginMain mptr;
-  struct PluginHandle *library;
-
-  library = os_plugin_load (ectx, "libgnunet", module);
+  struct GNUNET_PluginHandle *library;
+  library = GNUNET_plugin_load (ectx, "libgnunet", module);
   if (!library)
-    return SYSERR;
-  mptr = os_plugin_resolve_function (library, mainfunc, YES);
+    return GNUNET_SYSERR;
+  mptr = GNUNET_plugin_resolve_function (library, mainfunc, GNUNET_YES);
   if (!mptr)
     {
-      os_plugin_unload (library);
-      return SYSERR;
+      GNUNET_plugin_unload (library);
+      return GNUNET_SYSERR;
     }
-  mptr (argc, argv, library, ectx, cfg, gns, filename, config_daemon);
-  os_plugin_unload (library);
-  return YES;
+  mptr (argc, argv, library, ectx, cfg,
+#if HAVE_GUILE
+        gns,
+#else
+        NULL,
+#endif
+        filename, config_daemon);
+  GNUNET_plugin_unload (library);
+  return GNUNET_YES;
 }
 
 static const char *INFO = "gnunet-setup [OPTIONS] config|generate-defaults"
@@ -123,6 +188,9 @@ static const char *INFO = "gnunet-setup [OPTIONS] config|generate-defaults"
 #endif
 #if HAVE_GTK
   "|gconfig|wizard-gtk"
+#endif
+#if HAVE_QT
+  "|wizard-qt"
 #endif
   "";
 
@@ -137,6 +205,7 @@ static const char *modules[] = {
   "config", "setup_text", "main_",
   "wizard-curses", "setup_curses", "wizard_curs_main",
   "wizard-gtk", "setup_gtk", "gtk_wizard_main",
+  "wizard-qt", "setup_qt", "qt_wizard_main",
   "generate-defaults", "setup_text", "dump_",
   NULL,
 };
@@ -148,58 +217,73 @@ main (int argc, char *const *argv)
   const char *operation;
   int done;
   char *dirname;
+#if HAVE_GUILE
   char *specname;
+#endif
+  char *value;
+  char *option;
   int i;
 
-  ectx = GE_create_context_stderr (NO,
-                                   GE_WARNING | GE_ERROR | GE_FATAL |
-                                   GE_USER | GE_ADMIN | GE_DEVELOPER |
-                                   GE_IMMEDIATE | GE_BULK);
-  GE_setDefaultContext (ectx);
-  os_init (ectx);
-  cfg = GC_create_C_impl ();
-  GE_ASSERT (ectx, cfg != NULL);
-  i = gnunet_parse_options (INFO,
+  ectx = GNUNET_GE_create_context_stderr (GNUNET_NO,
+                                          GNUNET_GE_WARNING | GNUNET_GE_ERROR
+                                          | GNUNET_GE_FATAL | GNUNET_GE_USER |
+                                          GNUNET_GE_ADMIN |
+                                          GNUNET_GE_DEVELOPER |
+                                          GNUNET_GE_IMMEDIATE |
+                                          GNUNET_GE_BULK);
+  GNUNET_GE_setDefaultContext (ectx);
+  GNUNET_os_init (ectx);
+  cfg = GNUNET_GC_create ();
+  GNUNET_GE_ASSERT (ectx, cfg != NULL);
+  i = GNUNET_parse_options (INFO,
                             ectx,
                             cfg,
                             gnunetsetupOptions, (unsigned int) argc, argv);
   if (i < 0)
     {
-      GC_free (cfg);
-      GE_free_context (ectx);
+      GNUNET_GC_free (cfg);
+      GNUNET_GE_free_context (ectx);
       return -1;
     }
-  if (i != argc - 1)
+  if (option_processing)
     {
-      if (i < argc - 1)
-        {
-          fprintf (stderr, _("Too many arguments.\n"));
-          return -1;
-        }
-      GE_LOG (ectx,
-              GE_WARNING | GE_REQUEST | GE_USER,
-              _("No interface specified, using default\n"));
-      operation = "config";
-#if HAVE_DIALOG
-      operation = "menuconfig";
-#endif
-#if HAVE_GTK
-      operation = "gconfig";
-#endif
+      operation = "options";
     }
   else
     {
-      operation = argv[i];
+      if (i != argc - 1)
+        {
+          if (i < argc - 1)
+            {
+              fprintf (stderr, _("Too many arguments.\n"));
+              return -1;
+            }
+          GNUNET_GE_LOG (ectx,
+                         GNUNET_GE_WARNING | GNUNET_GE_REQUEST |
+                         GNUNET_GE_USER,
+                         _("No interface specified, using default\n"));
+          operation = "config";
+#if HAVE_DIALOG
+          operation = "menuconfig";
+#endif
+#if HAVE_GTK
+          operation = "gconfig";
+#endif
+        }
+      else
+        {
+          operation = argv[i];
+        }
     }
   if (NULL != strstr (operation, "wizard"))
-    config_daemon = YES;        /* wizard implies daemon! */
+    config_daemon = GNUNET_YES; /* wizard implies daemon! */
   if (cfgFilename == NULL)
     cfgFilename = config_daemon
-      ? STRDUP (DEFAULT_DAEMON_CONFIG_FILE)
-      : STRDUP (DEFAULT_CLIENT_CONFIG_FILE);
-  dirname = string_expandFileName (ectx, cfgFilename);
-  FREE (cfgFilename);
-  cfgFilename = STRDUP (dirname);
+      ? GNUNET_strdup (GNUNET_DEFAULT_DAEMON_CONFIG_FILE)
+      : GNUNET_strdup (GNUNET_DEFAULT_CLIENT_CONFIG_FILE);
+  dirname = GNUNET_expand_file_name (ectx, cfgFilename);
+  GNUNET_free (cfgFilename);
+  cfgFilename = GNUNET_strdup (dirname);
   i = strlen (dirname) - 1;
   while (i > -1)
     {
@@ -211,73 +295,137 @@ main (int argc, char *const *argv)
         }
       i--;
     }
-  disk_directory_create (ectx, dirname);
+  GNUNET_disk_directory_create (ectx, dirname);
   if (((0 != ACCESS (cfgFilename, W_OK)) &&
        ((errno != ENOENT) || (0 != ACCESS (dirname, W_OK)))))
-    GE_DIE_STRERROR_FILE (ectx,
-                          GE_FATAL | GE_USER | GE_ADMIN | GE_IMMEDIATE,
-                          "access", dirname);
-  FREE (dirname);
+    GNUNET_GE_DIE_STRERROR_FILE (ectx,
+                                 GNUNET_GE_FATAL | GNUNET_GE_USER |
+                                 GNUNET_GE_ADMIN | GNUNET_GE_IMMEDIATE,
+                                 "access", dirname);
+  GNUNET_free (dirname);
 
   if (0 == ACCESS (cfgFilename, F_OK))
-    GC_parse_configuration (cfg, cfgFilename);
-  dirname = os_get_installation_path (IPK_DATADIR);
-  GE_ASSERT (ectx, dirname != NULL);
-  specname = MALLOC (strlen (dirname) + strlen ("config-daemon.scm") + 1);
+    GNUNET_GC_parse_configuration (cfg, cfgFilename);
+  dirname = GNUNET_get_installation_path (GNUNET_IPK_DATADIR);
+  GNUNET_GE_ASSERT (ectx, dirname != NULL);
+#if HAVE_GUILE
+  specname =
+    GNUNET_malloc (strlen (dirname) + strlen ("config-daemon.scm") + 1);
   strcpy (specname, dirname);
-  FREE (dirname);
+  GNUNET_free (dirname);
   if (config_daemon)
     strcat (specname, "config-daemon.scm");
   else
     strcat (specname, "config-client.scm");
-  gns = GNS_load_specification (ectx, cfg, specname);
-  FREE (specname);
+  gns = GNUNET_GNS_load_specification (ectx, cfg, specname);
+  GNUNET_free (specname);
   if (gns == NULL)
     {
-      GC_free (cfg);
-      GE_free_context (ectx);
-      FREE (cfgFilename);
+      GNUNET_GC_free (cfg);
+      GNUNET_GE_free_context (ectx);
+      GNUNET_free (cfgFilename);
       return -1;
     }
-  gns2cfg (GNS_get_tree (gns));
-
-  done = NO;
-  i = 0;
-  while ((done == NO) && (modules[i] != NULL))
+  gns2cfg (GNUNET_GNS_get_tree_root (gns));
+#endif
+  if (option_processing)
     {
-      if (strcmp (operation, modules[i]) == 0)
+      done = 0;
+      if (get_option != NULL)
         {
-          if (dyn_config (modules[i + 1],
-                          modules[i + 2], argc, argv, cfgFilename) != YES)
+          option = strstr (get_option, ":");
+          option[0] = '\0';
+          option++;
+          if (GNUNET_NO == GNUNET_GC_have_configuration_value (cfg,
+                                                               get_option,
+                                                               option))
             {
-              GE_LOG (ectx,
-                      GE_FATAL | GE_USER | GE_ADMIN | GE_IMMEDIATE,
-                      _("`%s' is not available."), operation);
-              GNS_free_specification (gns);
-              GC_free (cfg);
-              GE_free_context (ectx);
-              FREE (cfgFilename);
-              return -1;
+              fprintf (stderr, _("Undefined option.\n"));
+              done = 1;
             }
           else
             {
-              done = YES;
+              GNUNET_GC_get_configuration_value_string (cfg,
+                                                        get_option,
+                                                        option, NULL, &value);
+              fprintf (stdout, "%s\n", value);
+              GNUNET_free (value);
             }
+          GNUNET_free (get_option);
         }
-      i += 3;
+      if (set_option != NULL)
+        {
+          option = strstr (set_option, ":");
+          option[0] = '\0';
+          option++;
+          value = strstr (option, "=");
+          value[0] = '\0';
+          value++;
+          if ((GNUNET_OK !=
+               GNUNET_GC_set_configuration_value_string (cfg, ectx,
+                                                         set_option, option,
+                                                         value))
+              || (GNUNET_OK !=
+                  GNUNET_GC_write_configuration (cfg, cfgFilename)))
+            done = 1;
+          GNUNET_free (set_option);
+        }
+#if HAVE_GUILE
+      GNUNET_GNS_free_specification (gns);
+#endif
+      GNUNET_GC_free (cfg);
+      GNUNET_GE_free_context (ectx);
+      GNUNET_free (cfgFilename);
+      return done;
     }
-  FREE (cfgFilename);
-  if (done == NO)
+  else
+    {
+      done = GNUNET_NO;
+      i = 0;
+      while ((done == GNUNET_NO) && (modules[i] != NULL))
+        {
+          if (strcmp (operation, modules[i]) == 0)
+            {
+              if (dyn_config (modules[i + 1],
+                              modules[i + 2], argc, argv,
+                              cfgFilename) != GNUNET_YES)
+                {
+                  GNUNET_GE_LOG (ectx,
+                                 GNUNET_GE_FATAL | GNUNET_GE_USER |
+                                 GNUNET_GE_ADMIN | GNUNET_GE_IMMEDIATE,
+                                 _("`%s' is not available.\n"), operation);
+#if HAVE_GUILE
+                  GNUNET_GNS_free_specification (gns);
+#endif
+                  GNUNET_GC_free (cfg);
+                  GNUNET_GE_free_context (ectx);
+                  GNUNET_free (cfgFilename);
+                  return -1;
+                }
+              else
+                {
+                  done = GNUNET_YES;
+                }
+            }
+          i += 3;
+        }
+    }
+  GNUNET_free (cfgFilename);
+  if (done == GNUNET_NO)
     {
       fprintf (stderr, _("Unknown operation `%s'\n"), operation);
       fprintf (stderr, _("Use --help to get a list of options.\n"));
-      GNS_free_specification (gns);
-      GC_free (cfg);
-      GE_free_context (ectx);
+#if HAVE_GUILE
+      GNUNET_GNS_free_specification (gns);
+#endif
+      GNUNET_GC_free (cfg);
+      GNUNET_GE_free_context (ectx);
       return 1;
     }
-  GNS_free_specification (gns);
-  GC_free (cfg);
-  GE_free_context (ectx);
+#if HAVE_GUILE
+  GNUNET_GNS_free_specification (gns);
+#endif
+  GNUNET_GC_free (cfg);
+  GNUNET_GE_free_context (ectx);
   return 0;
 }

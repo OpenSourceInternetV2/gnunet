@@ -8,8 +8,15 @@ LIBS = @LIBINTL@ @LIBS@
 plugin_LTLIBRARIES = \
  libgnunetsetup_curses.la
 
+if HAVE_GUILE
+GUILE_SRC = \
+	 mconf.c mconf.h
+endif
+
+EXTRA_DIST = mconf.c mconf.h
+
 libgnunetsetup_curses_la_SOURCES = \
- mconf.c mconf.h \
+ $(GUILE_SRC) \
  wizard_curs.c wizard_curs.h
 
 libgnunetsetup_curses_la_LDFLAGS = \

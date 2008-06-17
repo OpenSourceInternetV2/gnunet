@@ -58,11 +58,13 @@ am__installdirs = "$(DESTDIR)$(libdir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libgnunetsetup_la_DEPENDENCIES =  \
-	$(top_builddir)/src/util/libgnunetutil.la \
-	$(top_builddir)/src/util/loggers/libgnunetutil_logging.la \
-	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la
-am_libgnunetsetup_la_OBJECTS = libgnunetsetup_la-gns.lo \
-	libgnunetsetup_la-tree.lo libgnunetsetup_la-wizard_util.lo
+	$(top_builddir)/src/util/libgnunetutil.la
+am__libgnunetsetup_la_SOURCES_DIST = gns.c tree.c tree.h wizard_util.c \
+	wizard_util.h
+@HAVE_GUILE_TRUE@am__objects_1 = libgnunetsetup_la-gns.lo \
+@HAVE_GUILE_TRUE@	libgnunetsetup_la-tree.lo
+am_libgnunetsetup_la_OBJECTS = $(am__objects_1) \
+	libgnunetsetup_la-wizard_util.lo
 libgnunetsetup_la_OBJECTS = $(am_libgnunetsetup_la_OBJECTS)
 libgnunetsetup_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) \
@@ -81,7 +83,7 @@ LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
 SOURCES = $(libgnunetsetup_la_SOURCES)
-DIST_SOURCES = $(libgnunetsetup_la_SOURCES)
+DIST_SOURCES = $(am__libgnunetsetup_la_SOURCES_DIST)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -105,6 +107,7 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DLLDIR = @DLLDIR@
 DLLTOOL = @DLLTOOL@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
@@ -139,6 +142,7 @@ LIBICONV = @LIBICONV@
 LIBINTL = @LIBINTL@
 LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
+LIBPREFIX = @LIBPREFIX@
 
 # GNU Gettext support
 LIBS = @LIBINTL@ @LIBS@
@@ -166,6 +170,8 @@ PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PKG_CONFIG = @PKG_CONFIG@
 POSUB = @POSUB@
+QTINC = @QTINC@
+QTLIBS = @QTLIBS@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -176,9 +182,14 @@ STRIP = @STRIP@
 USE_NLS = @USE_NLS@
 VERSION = @VERSION@
 XGETTEXT = @XGETTEXT@
+XMKMF = @XMKMF@
 XML2_CONFIG = @XML2_CONFIG@
 XML_CPPFLAGS = @XML_CPPFLAGS@
 XML_LIBS = @XML_LIBS@
+X_CFLAGS = @X_CFLAGS@
+X_EXTRA_LIBS = @X_EXTRA_LIBS@
+X_LIBS = @X_LIBS@
+X_PRE_LIBS = @X_PRE_LIBS@
 _libcurl_config = @_libcurl_config@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
@@ -197,6 +208,7 @@ build = @build@
 build_alias = @build_alias@
 build_cpu = @build_cpu@
 build_os = @build_os@
+build_target = @build_target@
 build_vendor = @build_vendor@
 builddir = @builddir@
 datadir = @datadir@
@@ -236,18 +248,20 @@ INCLUDES = -I$(top_srcdir)/src/include
 AM_CFLAGS = $(GTK_CFLAGS)
 plugindir = $(libdir)/GNUnet
 lib_LTLIBRARIES = libgnunetsetup.la
+@HAVE_GUILE_TRUE@GUILE_SRC = \
+@HAVE_GUILE_TRUE@    gns.c \
+@HAVE_GUILE_TRUE@    tree.c tree.h
+
+@HAVE_GUILE_TRUE@GUILE_LIB = -lguile
 libgnunetsetup_la_SOURCES = \
-  gns.c \
-  tree.c tree.h \
+	$(GUILE_SRC) \
   wizard_util.c wizard_util.h
 
 libgnunetsetup_la_LIBADD = \
- $(top_builddir)/src/util/libgnunetutil.la \
- $(top_builddir)/src/util/loggers/libgnunetutil_logging.la \
- $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  
+ $(top_builddir)/src/util/libgnunetutil.la 
 
 libgnunetsetup_la_LDFLAGS = \
- -export-dynamic -lguile
+ -export-dynamic $(GUILE_LIB)
 
 libgnunetsetup_la_CFLAGS = -I$(top_scrdir)/include 
 all: all-am

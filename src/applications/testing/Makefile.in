@@ -33,7 +33,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-check_PROGRAMS = testingtest$(EXEEXT)
+check_PROGRAMS = testingtest$(EXEEXT) testingtest_loop$(EXEEXT)
 subdir = src/applications/testing
 DIST_COMMON = README $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -61,9 +61,6 @@ libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libgnunettesting_api_la_DEPENDENCIES =  \
 	$(top_builddir)/src/util/libgnunetutil.la \
-	$(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
-	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
-	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
 	$(top_builddir)/src/applications/identity/libgnunetidentity_api.la
 am_libgnunettesting_api_la_OBJECTS = testing.lo
 libgnunettesting_api_la_OBJECTS =  \
@@ -71,6 +68,11 @@ libgnunettesting_api_la_OBJECTS =  \
 am_testingtest_OBJECTS = testingtest.$(OBJEXT)
 testingtest_OBJECTS = $(am_testingtest_OBJECTS)
 testingtest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la \
+	$(top_builddir)/src/applications/testing/libgnunettesting_api.la
+am_testingtest_loop_OBJECTS = testingtest_loop.$(OBJEXT)
+testingtest_loop_OBJECTS = $(am_testingtest_loop_OBJECTS)
+testingtest_loop_DEPENDENCIES =  \
+	$(top_builddir)/src/util/libgnunetutil.la \
 	$(top_builddir)/src/applications/testing/libgnunettesting_api.la
 DEFAULT_INCLUDES = -I. -I$(top_builddir)@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -84,9 +86,10 @@ CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
-SOURCES = $(libgnunettesting_api_la_SOURCES) $(testingtest_SOURCES)
+SOURCES = $(libgnunettesting_api_la_SOURCES) $(testingtest_SOURCES) \
+	$(testingtest_loop_SOURCES)
 DIST_SOURCES = $(libgnunettesting_api_la_SOURCES) \
-	$(testingtest_SOURCES)
+	$(testingtest_SOURCES) $(testingtest_loop_SOURCES)
 pkgdataDATA_INSTALL = $(INSTALL_DATA)
 DATA = $(pkgdata_DATA)
 ETAGS = etags
@@ -112,6 +115,7 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DLLDIR = @DLLDIR@
 DLLTOOL = @DLLTOOL@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
@@ -146,6 +150,7 @@ LIBICONV = @LIBICONV@
 LIBINTL = @LIBINTL@
 LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
+LIBPREFIX = @LIBPREFIX@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
@@ -171,6 +176,8 @@ PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PKG_CONFIG = @PKG_CONFIG@
 POSUB = @POSUB@
+QTINC = @QTINC@
+QTLIBS = @QTLIBS@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -181,9 +188,14 @@ STRIP = @STRIP@
 USE_NLS = @USE_NLS@
 VERSION = @VERSION@
 XGETTEXT = @XGETTEXT@
+XMKMF = @XMKMF@
 XML2_CONFIG = @XML2_CONFIG@
 XML_CPPFLAGS = @XML_CPPFLAGS@
 XML_LIBS = @XML_LIBS@
+X_CFLAGS = @X_CFLAGS@
+X_EXTRA_LIBS = @X_EXTRA_LIBS@
+X_LIBS = @X_LIBS@
+X_PRE_LIBS = @X_PRE_LIBS@
 _libcurl_config = @_libcurl_config@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
@@ -202,6 +214,7 @@ build = @build@
 build_alias = @build_alias@
 build_cpu = @build_cpu@
 build_os = @build_os@
+build_target = @build_target@
 build_vendor = @build_vendor@
 builddir = @builddir@
 datadir = @datadir@
@@ -247,9 +260,6 @@ libgnunettesting_api_la_SOURCES = \
 
 libgnunettesting_api_la_LIBADD = \
   $(top_builddir)/src/util/libgnunetutil.la \
-  $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
-  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
-  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
   $(top_builddir)/src/applications/identity/libgnunetidentity_api.la 
 
 TESTS = $(check_PROGRAMS)
@@ -257,6 +267,13 @@ testingtest_SOURCES = \
  testingtest.c 
 
 testingtest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la \
+ $(top_builddir)/src/applications/testing/libgnunettesting_api.la
+
+testingtest_loop_SOURCES = \
+ testingtest_loop.c 
+
+testingtest_loop_LDADD = \
  $(top_builddir)/src/util/libgnunetutil.la \
  $(top_builddir)/src/applications/testing/libgnunettesting_api.la
 
@@ -338,6 +355,9 @@ clean-checkPROGRAMS:
 testingtest$(EXEEXT): $(testingtest_OBJECTS) $(testingtest_DEPENDENCIES) 
 	@rm -f testingtest$(EXEEXT)
 	$(LINK) $(testingtest_OBJECTS) $(testingtest_LDADD) $(LIBS)
+testingtest_loop$(EXEEXT): $(testingtest_loop_OBJECTS) $(testingtest_loop_DEPENDENCIES) 
+	@rm -f testingtest_loop$(EXEEXT)
+	$(LINK) $(testingtest_loop_OBJECTS) $(testingtest_loop_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -347,6 +367,7 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/testing.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/testingtest.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/testingtest_loop.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<

@@ -28,7 +28,7 @@
 #include "gnunet_util_string.h"
 #include "platform.h"
 
-#if SOLARIS || FREEBSD || OSX
+#if SOLARIS || GNUNET_freeBSD || OSX
 #include <semaphore.h>
 #endif
 #if SOMEBSD
@@ -42,19 +42,19 @@
 #include <pthread.h>
 #endif
 
-typedef struct PTHREAD
+typedef struct GNUNET_ThreadHandle
 {
   pthread_t pt;
 } PThread;
 
 /**
- * Returns YES if pt is the handle for THIS thread.
+ * Returns GNUNET_YES if pt is the handle for THIS thread.
  */
 int
-PTHREAD_TEST_SELF (PThread * handle)
+GNUNET_thread_test_self (PThread * handle)
 {
   if (handle == NULL)
-    return NO;
+    return GNUNET_NO;
 #if HAVE_PTHREAD_EQUAL
   if (pthread_equal (pthread_self (), handle->pt))
 #else
@@ -64,19 +64,19 @@ PTHREAD_TEST_SELF (PThread * handle)
   if (handle->pt == pthread_self ())
 #endif
 #endif
-    return YES;
+    return GNUNET_YES;
   else
-    return NO;
+    return GNUNET_NO;
 }
 
 /**
  * Get the handle for THIS thread.
  */
 PThread *
-PTHREAD_GET_SELF ()
+GNUNET_thread_get_self ()
 {
   PThread *ret;
-  ret = MALLOC (sizeof (PThread));
+  ret = GNUNET_malloc (sizeof (PThread));
   ret->pt = pthread_self ();
   return ret;
 }
@@ -85,9 +85,9 @@ PTHREAD_GET_SELF ()
  * Release handle for a thread.
  */
 void
-PTHREAD_REL_SELF (PThread * handle)
+GNUNET_thread_release_self (PThread * handle)
 {
-  FREE (handle);
+  GNUNET_free (handle);
 }
 
 /**
@@ -103,7 +103,8 @@ PTHREAD_REL_SELF (PThread * handle)
  * @return see pthread_create
  */
 PThread *
-PTHREAD_CREATE (PThreadMain main, void *arg, unsigned int stackSize)
+GNUNET_thread_create (GNUNET_ThreadMainFunction main, void *arg,
+                      unsigned int stackSize)
 {
   PThread *handle;
 #ifndef LINUX
@@ -111,7 +112,7 @@ PTHREAD_CREATE (PThreadMain main, void *arg, unsigned int stackSize)
 #endif
   int ret;
 
-  handle = MALLOC (sizeof (PThread));
+  handle = GNUNET_malloc (sizeof (PThread));
 #ifdef MINGW
   memset (handle, 0, sizeof (PThread));
 #endif
@@ -128,60 +129,66 @@ PTHREAD_CREATE (PThreadMain main, void *arg, unsigned int stackSize)
                         main, arg);
   if (ret != 0)
     {
-      FREE (handle);
+      GNUNET_free (handle);
       return NULL;
     }
   return handle;
 }
 
 void
-PTHREAD_JOIN_FL (PThread * handle,
-                 void **ret, const char *file, unsigned int line)
+GNUNET_thread_join_at_file_line_ (PThread * handle,
+                                  void **ret, const char *file,
+                                  unsigned int line)
 {
-  cron_t start;
-  cron_t end;
+  GNUNET_CronTime start;
+  GNUNET_CronTime end;
   int k;
 
-  GE_ASSERT (NULL, handle != NULL);
-  GE_ASSERT (NULL, NO == PTHREAD_TEST_SELF (handle));
-  start = get_time ();
+  GNUNET_GE_ASSERT (NULL, handle != NULL);
+  GNUNET_GE_ASSERT (NULL, GNUNET_NO == GNUNET_thread_test_self (handle));
+  start = GNUNET_get_time ();
   k = pthread_join (handle->pt, ret);
-  end = get_time ();
-  if ((end - start > REALTIME_LIMIT) && (REALTIME_LIMIT != 0))
+  end = GNUNET_get_time ();
+  if ((end - start > GNUNET_REALTIME_LIMIT) && (GNUNET_REALTIME_LIMIT != 0))
     {
-      GE_LOG (NULL,
-              GE_DEVELOPER | GE_WARNING | GE_IMMEDIATE,
-              _("Real-time delay violation (%llu ms) at %s:%u\n"),
-              end - start, file, line);
+      GNUNET_GE_LOG (NULL,
+                     GNUNET_GE_DEVELOPER | GNUNET_GE_WARNING |
+                     GNUNET_GE_IMMEDIATE,
+                     _("Real-time delay violation (%llu ms) at %s:%u\n"),
+                     end - start, file, line);
     }
-  FREE (handle);
+  GNUNET_free (handle);
   switch (k)
     {
     case 0:
       return;
     case ESRCH:
-      GE_LOG (NULL,
-              GE_FATAL | GE_USER | GE_DEVELOPER | GE_IMMEDIATE,
-              _("`%s' failed with error code %s: %s\n"),
-              "pthread_join", "ESRCH", STRERROR (errno));
+      GNUNET_GE_LOG (NULL,
+                     GNUNET_GE_FATAL | GNUNET_GE_USER | GNUNET_GE_DEVELOPER |
+                     GNUNET_GE_IMMEDIATE,
+                     _("`%s' failed with error code %s: %s\n"),
+                     "pthread_join", "ESRCH", STRERROR (errno));
       break;
     case EINVAL:
-      GE_LOG (NULL,
-              GE_FATAL | GE_USER | GE_DEVELOPER | GE_IMMEDIATE,
-              _("`%s' failed with error code %s: %s\n"),
-              "pthread_join", "EINVAL", STRERROR (errno));
+      GNUNET_GE_LOG (NULL,
+                     GNUNET_GE_FATAL | GNUNET_GE_USER | GNUNET_GE_DEVELOPER |
+                     GNUNET_GE_IMMEDIATE,
+                     _("`%s' failed with error code %s: %s\n"),
+                     "pthread_join", "EINVAL", STRERROR (errno));
     case EDEADLK:
-      GE_LOG (NULL,
-              GE_FATAL | GE_USER | GE_DEVELOPER | GE_IMMEDIATE,
-              _("`%s' failed with error code %s: %s\n"),
-              "pthread_join", "EDEADLK", STRERROR (errno));
+      GNUNET_GE_LOG (NULL,
+                     GNUNET_GE_FATAL | GNUNET_GE_USER | GNUNET_GE_DEVELOPER |
+                     GNUNET_GE_IMMEDIATE,
+                     _("`%s' failed with error code %s: %s\n"),
+                     "pthread_join", "EDEADLK", STRERROR (errno));
     default:
-      GE_LOG (NULL,
-              GE_FATAL | GE_USER | GE_DEVELOPER | GE_IMMEDIATE,
-              _("`%s' failed with error code %d: %s\n"),
-              "pthread_join", k, STRERROR (errno));
+      GNUNET_GE_LOG (NULL,
+                     GNUNET_GE_FATAL | GNUNET_GE_USER | GNUNET_GE_DEVELOPER |
+                     GNUNET_GE_IMMEDIATE,
+                     _("`%s' failed with error code %d: %s\n"),
+                     "pthread_join", k, STRERROR (errno));
     }
-  GE_ASSERT (NULL, 0);
+  GNUNET_GE_ASSERT (NULL, 0);
 }
 
 #ifdef WINDOWS
@@ -201,12 +208,12 @@ sigalrmHandler (int sig)
 
 
 /**
- * Sleep for the specified time interval.  Use PTHREAD_STOP_SLEEP to
+ * Sleep for the specified time interval.  Use GNUNET_thread_stop_sleep to
  * wake the thread up early.  Caller is responsible to check that the
  * sleep was long enough.
  */
 void
-PTHREAD_SLEEP (unsigned long long delay)
+GNUNET_thread_sleep (unsigned long long delay)
 {
 #if LINUX || SOLARIS || SOMEBSD || OSX
   struct timespec req;
@@ -224,7 +231,9 @@ PTHREAD_SLEEP (unsigned long long delay)
   rem.tv_sec = 0;
   rem.tv_nsec = 0;
   if ((0 != nanosleep (&req, &rem)) && (errno != EINTR))
-    GE_LOG_STRERROR (NULL, GE_WARNING | GE_USER | GE_BULK, "nanosleep");
+    GNUNET_GE_LOG_STRERROR (NULL,
+                            GNUNET_GE_WARNING | GNUNET_GE_USER |
+                            GNUNET_GE_BULK, "nanosleep");
 
 #elif WINDOWS
   SleepEx (delay, TRUE);
@@ -235,13 +244,15 @@ PTHREAD_SLEEP (unsigned long long delay)
     = (delay - timeout.tv_sec * CRON_UNIT_TO_SECONDS) * MICROSEC_TO_CRON_UNIT;
   ret = SELECT (0, NULL, NULL, NULL, &timeout);
   if ((ret == -1) && (errno != EINTR))
-    GE_LOG_STRERROR (NULL, GE_WARNING | GE_USER | GE_BULK, "select");
+    GNUNET_GE_LOG_STRERROR (NULL,
+                            GNUNET_GE_WARNING | GNUNET_GE_USER |
+                            GNUNET_GE_BULK, "select");
 #endif
 
 }
 
 void
-PTHREAD_STOP_SLEEP (PThread * handle)
+GNUNET_thread_stop_sleep (PThread * handle)
 {
   int ret;
 
@@ -259,19 +270,21 @@ PTHREAD_STOP_SLEEP (PThread * handle)
     case 0:
       break;                    /* ok */
     case EINVAL:
-      GE_LOG (NULL,
-              GE_ERROR | GE_USER | GE_DEVELOPER | GE_BULK,
-              _("`%s' failed with error code %s: %s\n"),
-              "pthread_kill", "EINVAL", STRERROR (ret));
+      GNUNET_GE_LOG (NULL,
+                     GNUNET_GE_ERROR | GNUNET_GE_USER | GNUNET_GE_DEVELOPER |
+                     GNUNET_GE_BULK,
+                     _("`%s' failed with error code %s: %s\n"),
+                     "pthread_kill", "EINVAL", STRERROR (ret));
       break;
     case ESRCH:
       /* ignore, thread might have already exited by chance */
       break;
     default:
-      GE_LOG (NULL,
-              GE_ERROR | GE_USER | GE_DEVELOPER | GE_BULK,
-              _("`%s' failed with error code %d: %s\n"),
-              "pthread_kill", ret, STRERROR (ret));
+      GNUNET_GE_LOG (NULL,
+                     GNUNET_GE_ERROR | GNUNET_GE_USER | GNUNET_GE_DEVELOPER |
+                     GNUNET_GE_BULK,
+                     _("`%s' failed with error code %d: %s\n"),
+                     "pthread_kill", ret, STRERROR (ret));
       break;
     }
 }
@@ -285,7 +298,7 @@ static struct sigaction old;
 /**
  * Initialize the signal handlers, etc.
  */
-void __attribute__ ((constructor)) pthread_handlers_ltdl_init ()
+void __attribute__ ((constructor)) GNUNET_pthread_handlers_ltdl_init ()
 {
   /* make sure SIGALRM does not kill us */
 #ifndef MINGW
@@ -294,17 +307,21 @@ void __attribute__ ((constructor)) pthread_handlers_ltdl_init ()
   sig.sa_flags = SA_NODEFER;
   sig.sa_handler = &sigalrmHandler;
   if (0 != sigaction (SIGALRM, &sig, &old))
-    GE_LOG_STRERROR (NULL, GE_WARNING | GE_ADMIN | GE_BULK, "sigaction");
+    GNUNET_GE_LOG_STRERROR (NULL,
+                            GNUNET_GE_WARNING | GNUNET_GE_ADMIN |
+                            GNUNET_GE_BULK, "sigaction");
 #else
   InitWinEnv (NULL);
 #endif
 }
 
-void __attribute__ ((destructor)) pthread_handlers_ltdl_fini ()
+void __attribute__ ((destructor)) GNUNET_pthread_handlers_ltdl_fini ()
 {
 #ifndef MINGW
   if (0 != sigaction (SIGALRM, &old, &sig))
-    GE_LOG_STRERROR (NULL, GE_WARNING | GE_ADMIN | GE_BULK, "sigaction");
+    GNUNET_GE_LOG_STRERROR (NULL,
+                            GNUNET_GE_WARNING | GNUNET_GE_ADMIN |
+                            GNUNET_GE_BULK, "sigaction");
 #else
   ShutdownWinEnv ();
 #endif

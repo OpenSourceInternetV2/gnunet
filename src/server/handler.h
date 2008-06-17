@@ -33,40 +33,41 @@
  * Initialize message handling module (make ready to register
  * handlers).
  */
-void initHandler (struct GE_Context *e);
+void GNUNET_CORE_p2p_init (struct GNUNET_GE_Context *e);
 
 /**
  * Shutdown message handling module.
  */
-void doneHandler ();
+void GNUNET_CORE_p2p_done (void);
 
 /**
  * Start processing messages from the transports.
  */
-void enableCoreProcessing ();
+void GNUNET_CORE_p2p_enable_processing (void);
 
 /**
  * Stop processing messages from the transports.
  */
-void disableCoreProcessing ();
+void GNUNET_CORE_p2p_disable_processing (void);
 
 /**
  * Handle a message (that was decrypted if needed).  Processes the
  * message by calling the registered handler for each message part.
  *
- * @param wasEncrypted YES if it was encrypted,
- *                     NO if plaintext,
+ * @param wasEncrypted GNUNET_YES if it was encrypted,
+ *                     GNUNET_NO if plaintext,
  */
-void injectMessage (const PeerIdentity * sender,
-                    const char *msg,
-                    unsigned int size, int wasEncrypted, TSession * session);
+void GNUNET_CORE_p2p_inject_message (const GNUNET_PeerIdentity * sender,
+                                     const char *msg,
+                                     unsigned int size, int wasEncrypted,
+                                     GNUNET_TSession * session);
 
 /**
  * Processing of a message from the transport layer (receive
  * implementation).  Detects if the message is encrypted, possibly
- * decrypts and calls injectMessage.
+ * decrypts and calls GNUNET_CORE_p2p_inject_message.
  */
-void core_receive (P2P_PACKET * mp);
+void GNUNET_CORE_p2p_receive (GNUNET_TransportPacket * mp);
 
 /**
  * Register a method as a handler for specific message
@@ -74,13 +75,13 @@ void core_receive (P2P_PACKET * mp);
  * @param type the message type
  * @param callback the method to call if a message of
  *        that type is received, if the callback returns
- *        SYSERR, processing of the message is discontinued
+ *        GNUNET_SYSERR, processing of the message is discontinued
  *        afterwards (all other parts are ignored)
- * @return OK on success, SYSERR if there is already a
+ * @return GNUNET_OK on success, GNUNET_SYSERR if there is already a
  *         handler for that type
  */
-int registerp2pHandler (const unsigned short type,
-                        MessagePartHandler callback);
+int GNUNET_CORE_p2p_register_handler (const unsigned short type,
+                                      GNUNET_P2PRequestHandler callback);
 
 
 /**
@@ -89,28 +90,29 @@ int registerp2pHandler (const unsigned short type,
  * @param type the message type
  * @param callback the method to call if a message of
  *        that type is received
- * @return OK on success, SYSERR if there is a different
+ * @return GNUNET_OK on success, GNUNET_SYSERR if there is a different
  *         handler for that type
  */
-int unregisterp2pHandler (const unsigned short type,
-                          MessagePartHandler callback);
+int GNUNET_CORE_p2p_unregister_handler (const unsigned short type,
+                                        GNUNET_P2PRequestHandler callback);
 
 
 /**
  * Register a method as a handler for specific message types.  Note
  * that it IS possible to register multiple handlers for the same
  * message.  In that case, they will ALL be executed in the order of
- * registration, unless one of them returns SYSERR in which case the
+ * registration, unless one of them returns GNUNET_SYSERR in which case the
  * remaining handlers and the rest of the message are ignored.
  *
  * @param type the message type
  * @param callback the method to call if a message of
  *        that type is received
- * @return OK on success, SYSERR if core threads are running
+ * @return GNUNET_OK on success, GNUNET_SYSERR if core threads are running
  *        and updates to the handler list are illegal!
  */
-int registerPlaintextHandler (const unsigned short type,
-                              PlaintextMessagePartHandler callback);
+int GNUNET_CORE_plaintext_register_handler (const unsigned short type,
+                                            GNUNET_P2PPlaintextRequestHandler
+                                            callback);
 
 
 /**
@@ -120,12 +122,13 @@ int registerPlaintextHandler (const unsigned short type,
  * @param type the message type
  * @param callback the method to call if a message of
  *        that type is received
- * @return OK on success, SYSERR if there is a different
+ * @return GNUNET_OK on success, GNUNET_SYSERR if there is a different
  *        handler for that type or if core threads are running
  *        and updates to the handler list are illegal!
  */
-int unregisterPlaintextHandler (const unsigned short type,
-                                PlaintextMessagePartHandler callback);
+int GNUNET_CORE_plaintext_unregister_handler (const unsigned short type,
+                                              GNUNET_P2PPlaintextRequestHandler
+                                              callback);
 
 /**
  * Is a handler registered for messages of the given type?
@@ -134,11 +137,12 @@ int unregisterPlaintextHandler (const unsigned short type,
  *                    1 for ciphertext P2P,
  *                    2 for either plaintext or ciphertext P2P,
  *                    3 for client-server
- *        NO for ciphertext handlers, SYSERR for either
+ *        GNUNET_NO for ciphertext handlers, GNUNET_SYSERR for either
  * @return number of handlers registered, 0 for none,
- *        SYSERR for invalid value of handlerType
+ *        GNUNET_SYSERR for invalid value of handlerType
  */
-int isHandlerRegistered (unsigned short type, unsigned short handlerType);
+int GNUNET_CORE_p2p_test_handler_registered (unsigned short type,
+                                             unsigned short handlerType);
 
 
 #endif

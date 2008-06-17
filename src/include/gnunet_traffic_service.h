@@ -40,27 +40,27 @@ extern "C"
 /**
  * This type is for messages that we send.
  */
-#define TC_SENT      0x8000
+#define GNUNET_TRAFFIC_TYPE_SENT      0x8000
 
 /**
  * This type is for messages that we receive.
  */
-#define TC_RECEIVED  0x4000
+#define GNUNET_TRAFFIC_TYPE_RECEIVED  0x4000
 
-#define TC_TYPE_MASK (TC_RECEIVED|TC_SENT)
+#define GNUNET_TRAFFIC_TYPE_MASK (GNUNET_TRAFFIC_TYPE_RECEIVED|GNUNET_TRAFFIC_TYPE_SENT)
 
 /**
  * From/To how many different peers did we receive/send
  * messages of this type? (bitmask)
  */
-#define TC_DIVERSITY_MASK 0xFFF
+#define GNUNET_TRAFFIC_DIVERSITY_MASK 0xFFF
 
 /**
- * What is the unit of time (in cron_t) for the traffic module? This
+ * What is the unit of time (in GNUNET_CronTime) for the traffic module? This
  * constant essentially specifies the resolution of the distribution
  * function that is applied for sampling traffic. Default is 1s.
  */
-#define TRAFFIC_TIME_UNIT cronSECONDS
+#define GNUNET_TRAFFIC_TIME_UNIT GNUNET_CRON_SECONDS
 
 /**
  * @brief API to the traffic service.
@@ -78,14 +78,14 @@ typedef struct
    *
    * @param timeframe what time interval should be considered
    * @param type what type of message do we care about?
-   * @param direction TC_RECEIVED of TC_SEND?
+   * @param direction GNUNET_TRAFFIC_TYPE_RECEIVED of TC_SEND?
    * @param msgCount set to number of messages
    * @param avg_size set to average size
    * @param peerCount set to number of peers involved
    * @param time set to the time distribution
    *        bit-vector giving times of interactions,
    *        highest bit is current time-unit, bit 1 is 32 time-units ago (set)
-   * @return OK on success, SYSERR on error
+   * @return GNUNET_OK on success, GNUNET_SYSERR on error
    */
   int (*get) (unsigned int timeframe,
               unsigned short type,
@@ -94,7 +94,7 @@ typedef struct
               unsigned int *peerCount,
               unsigned int *avg_size, unsigned int *time);
 
-} Traffic_ServiceAPI;
+} GNUNET_Traffic_ServiceAPI;
 
 #if 0                           /* keep Emacsens' auto-indent happy */
 {

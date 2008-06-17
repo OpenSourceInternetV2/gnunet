@@ -34,7 +34,7 @@
 #include <dialog.h>
 
 #undef _
-#undef OK
+#undef GNUNET_OK
 #include "platform.h"
 #include "gnunet_util.h"
 #include "gnunet_setup_lib.h"
@@ -47,9 +47,9 @@
 #include <grp.h>
 #endif
 
-static struct GE_Context *ectx;
+static struct GNUNET_GE_Context *ectx;
 
-static struct GC_Configuration *cfg;
+static struct GNUNET_GC_Configuration *cfg;
 
 static int last;
 
@@ -60,10 +60,10 @@ showCursErr (const char *prefix, const char *error)
 {
   char *err;
 
-  err = MALLOC (strlen (prefix) + strlen (error) + 2);
+  err = GNUNET_malloc (strlen (prefix) + strlen (error) + 2);
   sprintf (err, "%s %s", prefix, error);
   dialog_msgbox (_("Error"), err, 70, 15, 1);
-  FREE (err);
+  GNUNET_free (err);
 }
 
 static void
@@ -100,12 +100,13 @@ query_yesno (const char *title,
         {
         case DLG_EXIT_OK:
         case DLG_EXIT_CANCEL:
-          if (0 != GC_set_configuration_value_string (cfg,
-                                                      ectx,
-                                                      section,
-                                                      option,
-                                                      ret == DLG_EXIT_OK
-                                                      ? "YES" : "NO"))
+          if (0 != GNUNET_GC_set_configuration_value_string (cfg,
+                                                             ectx,
+                                                             section,
+                                                             option,
+                                                             ret ==
+                                                             DLG_EXIT_OK ?
+                                                             "YES" : "NO"))
             {
               show_error (_("Internal error! (Choice invalid?)"));
               break;
@@ -119,7 +120,7 @@ query_yesno (const char *title,
         case DLG_EXIT_EXTRA:
           return -1;            /* back */
         default:
-          GE_BREAK (ectx, 0);
+          GNUNET_GE_BREAK (ectx, 0);
           break;
         }
     }
@@ -142,7 +143,7 @@ query_string (const char *title,
   dialog_vars.cancel_label = _("Abort");
   dialog_vars.ok_label = _("Ok");
   fitem.type = 0;
-  fitem.name = STRDUP (question);
+  fitem.name = GNUNET_strdup (question);
   fitem.name_len = strlen (question);
   fitem.name_y = 3;
   fitem.name_x = 5;
@@ -153,10 +154,10 @@ query_string (const char *title,
   fitem.text_ilen = 63;
   fitem.text_free = 0;
   fitem.help_free = 0;
-  fitem.text = MALLOC (65536);
+  fitem.text = GNUNET_malloc (65536);
   strcpy (fitem.text, def);
   fitem.text_len = strlen (fitem.text);
-  fitem.help = STRDUP (help);
+  fitem.help = GNUNET_strdup (help);
   msel = 0;
 
   ret = 2;
@@ -166,10 +167,11 @@ query_string (const char *title,
       switch (ret)
         {
         case DLG_EXIT_OK:
-          if (0 != GC_set_configuration_value_string (cfg,
-                                                      ectx,
-                                                      section,
-                                                      option, fitem.text))
+          if (0 != GNUNET_GC_set_configuration_value_string (cfg,
+                                                             ectx,
+                                                             section,
+                                                             option,
+                                                             fitem.text))
             {
               show_error (_("Internal error! (Choice invalid?)"));
               ret = 2;
@@ -191,14 +193,14 @@ query_string (const char *title,
           ret = -1;             /* back */
           break;
         default:
-          GE_BREAK (ectx, 0);
+          GNUNET_GE_BREAK (ectx, 0);
           ret = 0;
           break;
         }
     }
-  FREE (fitem.name);
-  FREE (fitem.text);
-  FREE (fitem.help);
+  GNUNET_free (fitem.name);
+  GNUNET_free (fitem.text);
+  GNUNET_free (fitem.help);
   return ret;
 }
 
@@ -229,13 +231,13 @@ insert_nic_curs (const char *name, int defaultNIC, void *cls)
   while ((pos < MAX_NIC) && (nic_items[pos].text != NULL))
     pos++;
   if (pos == MAX_NIC)
-    return SYSERR;
+    return GNUNET_SYSERR;
   item = &nic_items[pos];
   item->name = "";
-  item->text = STRDUP (name);
+  item->text = GNUNET_strdup (name);
   item->help = "";
   item->state = defaultNIC;
-  return OK;
+  return GNUNET_OK;
 }
 
 static int
@@ -260,7 +262,7 @@ network_interface ()
   fitem.text_free = 0;
   fitem.help_free = 0;
   memset (nic_items, 0, sizeof (DIALOG_LISTITEM) * MAX_NIC);
-  os_list_network_interfaces (NULL, &insert_nic_curs, nic_items);
+  GNUNET_list_network_interfaces (NULL, &insert_nic_curs, nic_items);
   total = 0;
   while ((total < MAX_NIC) && (nic_items[total].text != NULL))
     {
@@ -280,12 +282,12 @@ network_interface ()
           switch (ret)
             {
             case DLG_EXIT_OK:
-              if (0 != GC_set_configuration_value_choice (cfg,
-                                                          ectx,
-                                                          "NETWORK",
-                                                          "INTERFACE",
-                                                          nic_items[msel].
-                                                          name))
+              if (0 != GNUNET_GC_set_configuration_value_choice (cfg,
+                                                                 ectx,
+                                                                 "NETWORK",
+                                                                 "INTERFACE",
+                                                                 nic_items
+                                                                 [msel].name))
                 {
                   show_error (_("Internal error! (Choice invalid?)"));
                   break;
@@ -309,21 +311,7 @@ network_interface ()
                        _("The \"Network interface\" is the device "
                          "that connects your computer to the internet. This is usually a modem, "
                          "an ISDN card or a network card in case you are using DSL."),
-                       "NETWORK", "INTERFACE", "eth0");
-}
-
-static int
-nat_limited ()
-{
-  /* TODO: try autodetect! */
-  return query_yesno (_("Network configuration: NAT"),
-                      _("Is this machine behind "
-                        "NAT?\n\nIf you are connected to the internet through another computer "
-                        "doing SNAT, a router or a \"hardware firewall\" and other computers "
-                        "on the internet cannot connect to this computer, say \"yes\" here. "
-                        "Answer \"no\" on direct connections through modems, ISDN cards and "
-                        "DNAT (also known as \"port forwarding\")."),
-                      NULL, "NAT", "LIMITED");
+                       "NETWORK", "INTERFACE", GNUNET_DEFAULT_INTERFACE);
 }
 
 static int
@@ -388,7 +376,9 @@ disk_quota ()
 static int
 user ()
 {
-  if (YES != os_modify_user (YES, YES, "gnunet", "gnunet"))
+  if (GNUNET_YES !=
+      GNUNET_configure_user_account (GNUNET_YES, GNUNET_YES, "gnunet",
+                                     "gnunet"))
     return last;                /* ignore option */
   return query_string (_("Daemon configuration: user account"),
                        _("As which user should gnunetd be run?"),
@@ -406,7 +396,9 @@ user ()
 static int
 group ()
 {
-  if (YES != os_modify_user (YES, YES, "gnunet", "gnunet"))
+  if (GNUNET_YES !=
+      GNUNET_configure_user_account (GNUNET_YES, GNUNET_YES, "gnunet",
+                                     "gnunet"))
     return last;                /* ignore option */
   return query_string (_("Daemon configuration: group account"),
                        _("As which group should gnunetd be run?"),
@@ -445,41 +437,42 @@ finish ()
   char *user_name;
   char *group_name;
 
-  ret = OK;
+  ret = GNUNET_OK;
 
-  if ((0 != GC_test_dirty (cfg)) &&
-      (0 != GC_write_configuration (cfg, cfg_fn)))
+  if ((0 != GNUNET_GC_test_dirty (cfg)) &&
+      (0 != GNUNET_GC_write_configuration (cfg, cfg_fn)))
     {
       prefix = _("Unable to save configuration file `%s':");
-      err = MALLOC (strlen (cfg_fn) + strlen (prefix) + 1);
+      err = GNUNET_malloc (strlen (cfg_fn) + strlen (prefix) + 1);
       sprintf (err, prefix, cfg_fn);
       showCursErr (err, STRERROR (errno));
-      ret = SYSERR;
+      ret = GNUNET_SYSERR;
     }
   user_name = NULL;
-  GC_get_configuration_value_string (cfg, "GNUNETD", "USER", "", &user_name);
-  GC_get_configuration_value_string (cfg,
-                                     "GNUNETD", "GROUP", "", &group_name);
-  if (((strlen (user_name) > 0) ||
-       (strlen (group_name) > 0)) &&
-      (OK == os_modify_user (YES,
-                             YES,
-                             user_name,
-                             group_name)) &&
-      (OK != os_modify_user (NO, YES, user_name, group_name)))
+  GNUNET_GC_get_configuration_value_string (cfg, "GNUNETD", "USER", "",
+                                            &user_name);
+  GNUNET_GC_get_configuration_value_string (cfg, "GNUNETD", "GROUP", "",
+                                            &group_name);
+  if (((strlen (user_name) > 0) || (strlen (group_name) > 0))
+      && (GNUNET_OK ==
+          GNUNET_configure_user_account (GNUNET_YES, GNUNET_YES, user_name,
+                                         group_name))
+      && (GNUNET_OK !=
+          GNUNET_configure_user_account (GNUNET_NO, GNUNET_YES, user_name,
+                                         group_name)))
     {
       showCursErr (_("Unable to create user account for daemon."), "");
-      ret = SYSERR;
+      ret = GNUNET_SYSERR;
     }
-  if ((YES == GC_get_configuration_value_yesno (cfg, "GNUNETD", "AUTOSTART", NO)) && (YES != os_modify_autostart (ectx, NO, YES, "gnunetd",     /* specify full path? */
-                                                                                                                  user_name,
-                                                                                                                  group_name)))
+  if ((GNUNET_YES == GNUNET_GC_get_configuration_value_yesno (cfg, "GNUNETD", "AUTOSTART", GNUNET_NO)) && (GNUNET_YES != GNUNET_configure_autostart (ectx, GNUNET_NO, GNUNET_YES, "gnunetd",    /* specify full path? */
+                                                                                                                                                     user_name,
+                                                                                                                                                     group_name)))
     {
       showCursErr (_("Unable to setup autostart for daemon."), "");
-      ret = SYSERR;
+      ret = GNUNET_SYSERR;
     }
-  FREE (user_name);
-  FREE (group_name);
+  GNUNET_free (user_name);
+  GNUNET_free (group_name);
   return ret;
 }
 
@@ -495,7 +488,7 @@ save_config ()
   switch (ret)
     {
     case DLG_EXIT_OK:
-      if (OK != finish ())
+      if (GNUNET_OK != finish ())
         return 0;               /* error */
       return 1;
     case DLG_EXIT_CANCEL:
@@ -505,7 +498,7 @@ save_config ()
     case DLG_EXIT_EXTRA:
       return -1;                /* back */
     default:
-      GE_BREAK (ectx, 0);
+      GNUNET_GE_BREAK (ectx, 0);
       break;
     }
   return 1;
@@ -514,10 +507,10 @@ save_config ()
 int
 wizard_curs_mainsetup_curses (int argc,
                               const char **argv,
-                              struct PluginHandle *self,
-                              struct GE_Context *e,
-                              struct GC_Configuration *c,
-                              struct GNS_Context *gns,
+                              struct GNUNET_PluginHandle *self,
+                              struct GNUNET_GE_Context *e,
+                              struct GNUNET_GC_Configuration *c,
+                              struct GNUNET_GNS_Context *gns,
                               const char *filename, int is_daemon)
 {
   struct termios ios_org;
@@ -539,8 +532,8 @@ wizard_curs_mainsetup_curses (int argc,
   init_dialog (stdin, stderr);
 
   phase = 0;
-  ret = NO;
-  while (ret == NO)
+  ret = GNUNET_NO;
+  while (ret == GNUNET_NO)
     {
       switch (phase)
         {
@@ -551,45 +544,42 @@ wizard_curs_mainsetup_curses (int argc,
           dir = network_interface ();
           break;
         case 2:
-          dir = nat_limited ();
-          break;
-        case 3:
           dir = ip_address ();
           break;
-        case 4:
+        case 3:
           dir = network_load_up ();
           break;
-        case 5:
+        case 4:
           dir = network_load_down ();
           break;
-        case 6:
+        case 5:
           dir = disk_quota ();
           break;
-        case 7:
+        case 6:
           dir = user ();
           break;
-        case 8:
+        case 7:
           dir = group ();
           break;
-        case 9:
+        case 8:
           dir = autostart ();
           break;
-        case 10:
+        case 9:
           dir = save_config ();
           break;
-        case 11:
+        case 10:
           dir = 0;
-          ret = OK;
+          ret = GNUNET_OK;
           break;
         default:
-          GE_BREAK (NULL, 0);
+          GNUNET_GE_BREAK (NULL, 0);
           dir = 0;
           break;
         }
       phase += dir;
       last = dir;
       if (dir == 0)
-        ret = SYSERR;
+        ret = GNUNET_SYSERR;
     }
   end_dialog ();
 #ifndef MINGW

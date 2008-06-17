@@ -29,19 +29,20 @@
 #include "gnunet_ecrs_lib.h"
 
 /**
- * @param scls must be of type "struct ECRS_URI **"
+ * @param scls must be of type "struct GNUNET_ECRS_URI **"
  */
 int
-gnunet_getopt_configure_set_keywords (CommandLineProcessorContext * ctx,
-                                      void *scls,
-                                      const char *option, const char *value)
+GNUNET_ECRS_getopt_configure_set_keywords (GNUNET_CommandLineProcessorContext
+                                           * ctx, void *scls,
+                                           const char *option,
+                                           const char *value)
 {
-  struct ECRS_URI **uri = scls;
-  struct ECRS_URI *u = *uri;
+  struct GNUNET_ECRS_URI **uri = scls;
+  struct GNUNET_ECRS_URI *u = *uri;
 
   if (u == NULL)
     {
-      u = MALLOC (sizeof (struct ECRS_URI));
+      u = GNUNET_malloc (sizeof (struct GNUNET_ECRS_URI));
       *uri = u;
       u->type = ksk;
       u->data.ksk.keywordCount = 0;
@@ -49,42 +50,43 @@ gnunet_getopt_configure_set_keywords (CommandLineProcessorContext * ctx,
     }
   else
     {
-      GE_ASSERT (NULL, u->type == ksk);
+      GNUNET_GE_ASSERT (NULL, u->type == ksk);
     }
-  GROW (u->data.ksk.keywords,
-        u->data.ksk.keywordCount, u->data.ksk.keywordCount + 1);
-  u->data.ksk.keywords[u->data.ksk.keywordCount - 1] = STRDUP (value);
-  return OK;
+  GNUNET_array_grow (u->data.ksk.keywords,
+                     u->data.ksk.keywordCount, u->data.ksk.keywordCount + 1);
+  u->data.ksk.keywords[u->data.ksk.keywordCount - 1] = GNUNET_strdup (value);
+  return GNUNET_OK;
 }
 
 
 /**
- * @param scls must be of type "struct ECRS_MetaData **"
+ * @param scls must be of type "struct GNUNET_ECRS_MetaData **"
  */
 int
-gnunet_getopt_configure_set_metadata (CommandLineProcessorContext * ctx,
-                                      void *scls,
-                                      const char *option, const char *value)
+GNUNET_ECRS_getopt_configure_set_metadata (GNUNET_CommandLineProcessorContext
+                                           * ctx, void *scls,
+                                           const char *option,
+                                           const char *value)
 {
-  struct ECRS_MetaData **mm = scls;
+  struct GNUNET_ECRS_MetaData **mm = scls;
   EXTRACTOR_KeywordType type;
   const char *typename;
   const char *typename_i18n;
-  struct ECRS_MetaData *meta;
+  struct GNUNET_ECRS_MetaData *meta;
   char *tmp;
 
   meta = *mm;
   if (meta == NULL)
     {
-      meta = ECRS_createMetaData ();
+      meta = GNUNET_ECRS_meta_data_create ();
       *mm = meta;
     }
 
-  tmp = string_convertToUtf8 (NULL, value, strlen (value),
+  tmp = GNUNET_convert_string_to_utf8 (NULL, value, strlen (value),
 #if ENABLE_NLS
-                              nl_langinfo (CODESET)
+                                       nl_langinfo (CODESET)
 #else
-                              "utf-8"
+                                       "utf-8"
 #endif
     );
   type = EXTRACTOR_getHighestKeywordTypeNumber ();
@@ -97,8 +99,9 @@ gnunet_getopt_configure_set_metadata (CommandLineProcessorContext * ctx,
           (tmp[strlen (typename)] == ':') &&
           (0 == strncmp (typename, tmp, strlen (typename))))
         {
-          ECRS_addToMetaData (meta, type, &tmp[strlen (typename) + 1]);
-          FREE (tmp);
+          GNUNET_ECRS_meta_data_insert (meta, type,
+                                        &tmp[strlen (typename) + 1]);
+          GNUNET_free (tmp);
           tmp = NULL;
           break;
         }
@@ -106,19 +109,20 @@ gnunet_getopt_configure_set_metadata (CommandLineProcessorContext * ctx,
           (tmp[strlen (typename_i18n)] == ':') &&
           (0 == strncmp (typename_i18n, tmp, strlen (typename_i18n))))
         {
-          ECRS_addToMetaData (meta, type, &tmp[strlen (typename_i18n) + 1]);
-          FREE (tmp);
+          GNUNET_ECRS_meta_data_insert (meta, type,
+                                        &tmp[strlen (typename_i18n) + 1]);
+          GNUNET_free (tmp);
           tmp = NULL;
           break;
         }
     }
   if (tmp != NULL)
     {
-      ECRS_addToMetaData (meta, EXTRACTOR_UNKNOWN, tmp);
-      FREE (tmp);
+      GNUNET_ECRS_meta_data_insert (meta, EXTRACTOR_UNKNOWN, tmp);
+      GNUNET_free (tmp);
       printf (_
               ("Unknown metadata type in metadata option `%s'.  Using metadata type `unknown' instead.\n"),
               value);
     }
-  return OK;
+  return GNUNET_OK;
 }

@@ -31,10 +31,11 @@
  * @author Christian Grothoff
  */
 
-static CoreAPIForApplication *coreAPI;
+static GNUNET_CoreAPIForPlugins *coreAPI;
 
 static int
-handleGetOption (struct ClientHandle *sock, const MESSAGE_HEADER * message)
+handleGetOption (struct GNUNET_ClientHandle *sock,
+                 const GNUNET_MessageHeader * message)
 {
   CS_getoption_request_MESSAGE *req;
   CS_getoption_reply_MESSAGE *rep;
@@ -42,54 +43,57 @@ handleGetOption (struct ClientHandle *sock, const MESSAGE_HEADER * message)
   int ret;
 
   if (ntohs (message->size) != sizeof (CS_getoption_request_MESSAGE))
-    return SYSERR;
+    return GNUNET_SYSERR;
   req = (CS_getoption_request_MESSAGE *) message;
   req->section[CS_getoption_request_MESSAGE_OPT_LEN - 1] = '\0';
   req->option[CS_getoption_request_MESSAGE_OPT_LEN - 1] = '\0';
   val = NULL;
-  if (NO == GC_have_configuration_value (coreAPI->cfg,
-                                         req->section, req->option))
-    return SYSERR;              /* signal error: option not set */
-  if ((0 != GC_get_configuration_value_string (coreAPI->cfg,
-                                               req->section,
-                                               req->option,
-                                               NULL, &val)) || (val == NULL))
-    return SYSERR;              /* signal error: option not set */
+  if (GNUNET_NO == GNUNET_GC_have_configuration_value (coreAPI->cfg,
+                                                       req->section,
+                                                       req->option))
+    return GNUNET_SYSERR;       /* signal error: option not set */
+  if ((0 != GNUNET_GC_get_configuration_value_string (coreAPI->cfg,
+                                                      req->section,
+                                                      req->option,
+                                                      NULL, &val))
+      || (val == NULL))
+    return GNUNET_SYSERR;       /* signal error: option not set */
 
-  rep = MALLOC (sizeof (MESSAGE_HEADER) + strlen (val) + 1);
-  rep->header.size = htons (sizeof (MESSAGE_HEADER) + strlen (val) + 1);
+  rep = GNUNET_malloc (sizeof (GNUNET_MessageHeader) + strlen (val) + 1);
+  rep->header.size = htons (sizeof (GNUNET_MessageHeader) + strlen (val) + 1);
   memcpy (rep->value, val, strlen (val) + 1);
-  rep->header.type = htons (CS_PROTO_GET_OPTION_REPLY);
-  ret = coreAPI->sendToClient (sock, &rep->header, YES);
-  FREE (rep);
-  FREE (val);
+  rep->header.type = htons (GNUNET_CS_PROTO_GET_OPTION_REPLY);
+  ret = coreAPI->cs_send_to_client (sock, &rep->header, GNUNET_YES);
+  GNUNET_free (rep);
+  GNUNET_free (val);
   return ret;
 }
 
 int
-initialize_module_getoption (CoreAPIForApplication * capi)
+initialize_module_getoption (GNUNET_CoreAPIForPlugins * capi)
 {
   coreAPI = capi;
-  GE_LOG (capi->ectx,
-          GE_INFO | GE_USER | GE_REQUEST,
-          _("`%s' registering client handler %d\n"),
-          "getoption", CS_PROTO_GET_OPTION_REQUEST);
-  capi->registerClientHandler (CS_PROTO_GET_OPTION_REQUEST, &handleGetOption);
-  GE_ASSERT (capi->ectx,
-             0 == GC_set_configuration_value_string (capi->cfg,
-                                                     capi->ectx,
-                                                     "ABOUT",
-                                                     "getoption",
-                                                     _
-                                                     ("allows clients to determine gnunetd's"
-                                                      " configuration")));
-  return OK;
+  GNUNET_GE_LOG (capi->ectx,
+                 GNUNET_GE_INFO | GNUNET_GE_USER | GNUNET_GE_REQUEST,
+                 _("`%s' registering client handler %d\n"),
+                 "getoption", GNUNET_CS_PROTO_GET_OPTION_REQUEST);
+  capi->registerClientHandler (GNUNET_CS_PROTO_GET_OPTION_REQUEST,
+                               &handleGetOption);
+  GNUNET_GE_ASSERT (capi->ectx,
+                    0 == GNUNET_GC_set_configuration_value_string (capi->cfg,
+                                                                   capi->ectx,
+                                                                   "ABOUT",
+                                                                   "getoption",
+                                                                   _
+                                                                   ("allows clients to determine gnunetd's"
+                                                                    " configuration")));
+  return GNUNET_OK;
 }
 
 void
 done_module_getoption ()
 {
-  coreAPI->unregisterClientHandler (CS_PROTO_GET_OPTION_REQUEST,
+  coreAPI->unregisterClientHandler (GNUNET_CS_PROTO_GET_OPTION_REQUEST,
                                     &handleGetOption);
   coreAPI = NULL;
 }

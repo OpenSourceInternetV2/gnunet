@@ -35,96 +35,96 @@
  * Return a descriptive name for a p2p message type
  */
 const char *
-STATS_p2pMessageName (unsigned short type)
+GNUNET_STATS_p2p_message_type_to_string (unsigned short type)
 {
   const char *name = NULL;
 
   switch (type)
     {
-    case p2p_PROTO_hello:
+    case GNUNET_P2P_PROTO_HELLO:
       name = "p2p_PROTO_hello";
       break;
-    case P2P_PROTO_setkey:
+    case GNUNET_P2P_PROTO_SET_KEY:
       name = "P2P_PROTO_setkey";
       break;
-    case p2p_PROTO_PING:
+    case GNUNET_P2P_PROTO_PING:
       name = "p2p_PROTO_PING";
       break;
-    case p2p_PROTO_PONG:
+    case GNUNET_P2P_PROTO_PONG:
       name = "p2p_PROTO_PONG";
       break;
-    case P2P_PROTO_hangup:
+    case GNUNET_P2P_PROTO_HANG_UP:
       name = "P2P_PROTO_hangup";
       break;
-    case P2P_PROTO_fragment:
+    case GNUNET_P2P_PROTO_MESSAGE_FRAGMENT:
       name = "P2P_PROTO_fragment";
       break;
-    case P2P_PROTO_noise:
+    case GNUNET_P2P_PROTO_NOISE:
       name = "P2P_PROTO_noise";
       break;
 
-    case P2P_PROTO_gap_QUERY:
+    case GNUNET_P2P_PROTO_GAP_QUERY:
       name = "P2P_PROTO_gap_QUERY";
       break;
-    case P2P_PROTO_gap_RESULT:
+    case GNUNET_P2P_PROTO_GAP_RESULT:
       name = "P2P_PROTO_gap_RESULT";
       break;
 
-    case P2P_PROTO_chat_MSG:
+    case GNUNET_P2P_PROTO_CHAT_MSG:
       name = "P2P_PROTO_chat_MSG";
       break;
 
-    case P2P_PROTO_tracekit_PROBE:
+    case GNUNET_P2P_PROTO_TRACEKIT_PROBE:
       name = "P2P_PROTO_tracekit_PROBE";
       break;
-    case P2P_PROTO_tracekit_REPLY:
+    case GNUNET_P2P_PROTO_TRACEKIT_REPLY:
       name = "P2P_PROTO_tracekit_REPLY";
       break;
 
-    case P2P_PROTO_tbench_REQUEST:
+    case GNUNET_P2P_PROTO_TBENCH_REQUEST:
       name = "P2P_PROTO_tbench_REQUEST";
       break;
-    case P2P_PROTO_tbench_REPLY:
+    case GNUNET_P2P_PROTO_TBENCH_REPLY:
       name = "P2P_PROTO_tbench_REPLY";
       break;
 
-    case P2P_PROTO_rpc_REQ:
-      name = "P2P_PROTO_rpc_REQ";
+    case GNUNET_P2P_PROTO_RPC_REQ:
+      name = "GNUNET_P2P_PROTO_RPC_REQ";
       break;
-    case P2P_PROTO_rpc_RES:
-      name = "P2P_PROTO_rpc_RES";
+    case GNUNET_P2P_PROTO_RPC_RES:
+      name = "GNUNET_P2P_PROTO_RPC_RES";
       break;
-    case P2P_PROTO_rpc_ACK:
-      name = "P2P_PROTO_rpc_ACK";
-      break;
-
-    case P2P_PROTO_DHT_DISCOVERY:
-      name = "P2P_PROTO_DHT_DISCOVERY";
-      break;
-    case P2P_PROTO_DHT_ASK_HELLO:
-      name = "P2P_PROTO_DHT_ASK_HELLO";
-      break;
-    case P2P_PROTO_DHT_GET:
-      name = "P2P_PROTO_DHT_GET";
-      break;
-    case P2P_PROTO_DHT_PUT:
-      name = "P2P_PROTO_DHT_PUT";
-      break;
-    case P2P_PROTO_DHT_RESULT:
-      name = "P2P_PROTO_DHT_RESULT";
+    case GNUNET_P2P_PROTO_RPC_ACK:
+      name = "GNUNET_P2P_PROTO_RPC_ACK";
       break;
 
-    case P2P_PROTO_aip_IP:
-      name = "P2P_PROTO_aip_IP";
+    case GNUNET_P2P_PROTO_DHT_DISCOVERY:
+      name = "GNUNET_P2P_PROTO_DHT_DISCOVERY";
       break;
-    case P2P_PROTO_aip_ROUTE:
-      name = "P2P_PROTO_aip_ROUTE";
+    case GNUNET_P2P_PROTO_DHT_ASK_HELLO:
+      name = "GNUNET_P2P_PROTO_DHT_ASK_HELLO";
       break;
-    case P2P_PROTO_aip_ROUTES:
-      name = "P2P_PROTO_aip_ROUTES";
+    case GNUNET_P2P_PROTO_DHT_GET:
+      name = "GNUNET_P2P_PROTO_DHT_GET";
       break;
-    case P2P_PROTO_aip_GETROUTE:
-      name = "P2P_PROTO_aip_GETROUTE";
+    case GNUNET_P2P_PROTO_DHT_PUT:
+      name = "GNUNET_P2P_PROTO_DHT_PUT";
+      break;
+    case GNUNET_P2P_PROTO_DHT_RESULT:
+      name = "GNUNET_P2P_PROTO_DHT_RESULT";
+      break;
+
+    case GNUNET_P2P_PROTO_AIP_IP:
+      name = "GNUNET_P2P_PROTO_AIP_IP";
+      break;
+    case GNUNET_P2P_PROTO_AIP_ROUTE:
+      name = "GNUNET_P2P_PROTO_AIP_ROUTE";
+      break;
+    case GNUNET_P2P_PROTO_AIP_ROUTES:
+      name = "GNUNET_P2P_PROTO_AIP_ROUTES";
+      break;
+    case GNUNET_P2P_PROTO_AIP_GETROUTE:
+      name = "GNUNET_P2P_PROTO_AIP_GETROUTE";
       break;
 
     default:
@@ -139,141 +139,141 @@ STATS_p2pMessageName (unsigned short type)
  * Return a descriptive name for a client server message type
  */
 const char *
-STATS_csMessageName (unsigned short type)
+GNUNET_STATS_cs_message_type_to_string (unsigned short type)
 {
   const char *name = NULL;
 
   switch (type)
     {
-    case CS_PROTO_RETURN_VALUE:
+    case GNUNET_CS_PROTO_RETURN_VALUE:
       name = "CS_PROTO_RETURN_VALUE";
       break;
-    case CS_PROTO_SHUTDOWN_REQUEST:
+    case GNUNET_CS_PROTO_SHUTDOWN_REQUEST:
       name = "CS_PROTO_SHUTDOWN_REQUEST";
       break;
-    case CS_PROTO_GET_OPTION_REQUEST:
+    case GNUNET_CS_PROTO_GET_OPTION_REQUEST:
       name = "CS_PROTO_GET_OPTION_REQUEST";
       break;
-    case CS_PROTO_GET_OPTION_REPLY:
+    case GNUNET_CS_PROTO_GET_OPTION_REPLY:
       name = "CS_PROTO_GET_OPTION_REPLY";
       break;
-    case CS_PROTO_RETURN_ERROR:
+    case GNUNET_CS_PROTO_RETURN_ERROR:
       name = "CS_PROTO_RETURN_ERROR";
       break;
 
-    case CS_PROTO_gap_QUERY_START:
+    case GNUNET_CS_PROTO_GAP_QUERY_START:
       name = "CS_PROTO_gap_QUERY_START";
       break;
-    case CS_PROTO_gap_QUERY_STOP:
-      /* case CS_PROTO_gap_RESULT : */
+    case GNUNET_CS_PROTO_GAP_QUERY_STOP:
+      /* case GNUNET_CS_PROTO_GAP_RESULT : */
       name = "CS_PROTO_gap_QUERY_STOP or CS_PROTO_gap_RESULT";
       break;
-    case CS_PROTO_gap_INSERT:
+    case GNUNET_CS_PROTO_GAP_INSERT:
       name = "CS_PROTO_gap_INSERT";
       break;
-    case CS_PROTO_gap_INDEX:
+    case GNUNET_CS_PROTO_GAP_INDEX:
       name = "CS_PROTO_gap_INDEX";
       break;
-    case CS_PROTO_gap_DELETE:
+    case GNUNET_CS_PROTO_GAP_DELETE:
       name = "CS_PROTO_gap_DELETE";
       break;
-    case CS_PROTO_gap_UNINDEX:
+    case GNUNET_CS_PROTO_GAP_UNINDEX:
       name = "CS_PROTO_gap_UNINDEX";
       break;
-    case CS_PROTO_gap_TESTINDEX:
+    case GNUNET_CS_PROTO_GAP_TESTINDEX:
       name = "CS_PROTO_gap_TESTINDEX";
       break;
-    case CS_PROTO_gap_GET_AVG_PRIORITY:
+    case GNUNET_CS_PROTO_GAP_GET_AVG_PRIORITY:
       name = "CS_PROTO_gap_GET_AVG_PRIORITY";
       break;
-    case CS_PROTO_gap_INIT_INDEX:
+    case GNUNET_CS_PROTO_GAP_INIT_INDEX:
       name = "CS_PROTO_gap_INIT_INDEX";
       break;
 
-    case CS_PROTO_traffic_COUNT:
-      name = "CS_PROTO_traffic_COUNT";
+    case GNUNET_CS_PROTO_TRAFFIC_COUNT:
+      name = "GNUNET_CS_PROTO_TRAFFIC_COUNT";
       break;
-    case CS_PROTO_traffic_QUERY:
-      name = "CS_PROTO_traffic_QUERY";
+    case GNUNET_CS_PROTO_TRAFFIC_QUERY:
+      name = "GNUNET_CS_PROTO_TRAFFIC_QUERY";
       break;
-    case CS_PROTO_traffic_INFO:
-      name = "CS_PROTO_traffic_INFO";
-      break;
-
-    case CS_PROTO_stats_GET_STATISTICS:
-      name = "CS_PROTO_stats_GET_STATISTICS";
-      break;
-    case CS_PROTO_stats_STATISTICS:
-      name = "CS_PROTO_stats_STATISTICS";
-      break;
-    case CS_PROTO_stats_GET_CS_MESSAGE_SUPPORTED:
-      name = "CS_PROTO_stats_GET_CS_MESSAGE_SUPPORTED";
-      break;
-    case CS_PROTO_stats_GET_P2P_MESSAGE_SUPPORTED:
-      name = "CS_PROTO_stats_GET_P2P_MESSAGE_SUPPORTED";
+    case GNUNET_CS_PROTO_TRAFFIC_INFO:
+      name = "GNUNET_CS_PROTO_TRAFFIC_INFO";
       break;
 
-    case CS_PROTO_tbench_REQUEST:
-      name = "CS_PROTO_tbench_REQUEST";
+    case GNUNET_CS_PROTO_STATS_GET_STATISTICS:
+      name = "GNUNET_CS_PROTO_STATS_GET_STATISTICS";
       break;
-    case CS_PROTO_tbench_REPLY:
-      name = "CS_PROTO_tbench_REPLY";
+    case GNUNET_CS_PROTO_STATS_STATISTICS:
+      name = "GNUNET_CS_PROTO_STATS_STATISTICS";
       break;
-
-    case CS_PROTO_tracekit_PROBE:
-      name = "CS_PROTO_tracekit_PROBE";
+    case GNUNET_CS_PROTO_STATS_GET_CS_MESSAGE_SUPPORTED:
+      name = "GNUNET_CS_PROTO_STATS_GET_CS_MESSAGE_SUPPORTED";
       break;
-    case CS_PROTO_tracekit_REPLY:
-      name = "CS_PROTO_tracekit_REPLY";
-      break;
-
-    case CS_PROTO_chat_MSG:
-      name = "CS_PROTO_chat_MSG";
+    case GNUNET_CS_PROTO_STATS_GET_P2P_MESSAGE_SUPPORTED:
+      name = "GNUNET_CS_PROTO_STATS_GET_P2P_MESSAGE_SUPPORTED";
       break;
 
-    case CS_PROTO_dht_REQUEST_GET:
-      name = "CS_PROTO_dht_REQUEST_GET";
+    case GNUNET_CS_PROTO_TBENCH_REQUEST:
+      name = "GNUNET_CS_PROTO_TBENCH_REQUEST";
       break;
-    case CS_PROTO_dht_REQUEST_PUT:
-      name = "CS_PROTO_dht_REQUEST_PUT";
-      break;
-
-    case CS_PROTO_testbed_REQUEST:
-      name = "CS_PROTO_testbed_REQUEST";
-      break;
-    case CS_PROTO_testbed_REPLY:
-      name = "CS_PROTO_testbed_REPLY";
+    case GNUNET_CS_PROTO_TBENCH_REPLY:
+      name = "GNUNET_CS_PROTO_TBENCH_REPLY";
       break;
 
-    case CS_PROTO_VPN_MSG:
-      name = "CS_PROTO_VPN_MSG";
+    case GNUNET_CS_PROTO_TRACEKIT_PROBE:
+      name = "GNUNET_CS_PROTO_TRACEKIT_PROBE";
       break;
-    case CS_PROTO_VPN_REPLY:
-      name = "CS_PROTO_VPN_REPLY";
+    case GNUNET_CS_PROTO_TRACEKIT_REPLY:
+      name = "GNUNET_CS_PROTO_TRACEKIT_REPLY";
       break;
-    case CS_PROTO_VPN_DEBUGOFF:
-      name = "CS_PROTO_VPN_DEBUGOFF";
+
+    case GNUNET_CS_PROTO_CHAT_MSG:
+      name = "GNUNET_CS_PROTO_CHAT_MSG";
       break;
-    case CS_PROTO_VPN_TUNNELS:
-      name = "CS_PROTO_VPN_TUNNELS";
+
+    case GNUNET_CS_PROTO_DHT_REQUEST_GET:
+      name = "GNUNET_CS_PROTO_DHT_REQUEST_GET";
       break;
-    case CS_PROTO_VPN_ROUTES:
-      name = "CS_PROTO_VPN_ROUTES";
+    case GNUNET_CS_PROTO_DHT_REQUEST_PUT:
+      name = "GNUNET_CS_PROTO_DHT_REQUEST_PUT";
       break;
-    case CS_PROTO_VPN_REALISED:
-      name = "CS_PROTO_VPN_REALISED";
+
+    case GNUNET_CS_PROTO_TESTBED_REQUEST:
+      name = "GNUNET_CS_PROTO_TESTBED_REQUEST";
       break;
-    case CS_PROTO_VPN_RESET:
-      name = "CS_PROTO_VPN_RESET";
+    case GNUNET_CS_PROTO_TESTBED_REPLY:
+      name = "GNUNET_CS_PROTO_TESTBED_REPLY";
       break;
-    case CS_PROTO_VPN_REALISE:
-      name = "CS_PROTO_VPN_REALISE";
+
+    case GNUNET_CS_PROTO_VPN_MSG:
+      name = "GNUNET_CS_PROTO_VPN_MSG";
       break;
-    case CS_PROTO_VPN_ADD:
-      name = "CS_PROTO_VPN_ADD";
+    case GNUNET_CS_PROTO_VPN_REPLY:
+      name = "GNUNET_CS_PROTO_VPN_REPLY";
       break;
-    case CS_PROTO_VPN_TRUST:
-      name = "CS_PROTO_VPN_TRUST";
+    case GNUNET_CS_PROTO_VPN_DEBUGOFF:
+      name = "GNUNET_CS_PROTO_VPN_DEBUGOFF";
+      break;
+    case GNUNET_CS_PROTO_VPN_TUNNELS:
+      name = "GNUNET_CS_PROTO_VPN_TUNNELS";
+      break;
+    case GNUNET_CS_PROTO_VPN_ROUTES:
+      name = "GNUNET_CS_PROTO_VPN_ROUTES";
+      break;
+    case GNUNET_CS_PROTO_VPN_REALISED:
+      name = "GNUNET_CS_PROTO_VPN_REALISED";
+      break;
+    case GNUNET_CS_PROTO_VPN_RESET:
+      name = "GNUNET_CS_PROTO_VPN_RESET";
+      break;
+    case GNUNET_CS_PROTO_VPN_REALISE:
+      name = "GNUNET_CS_PROTO_VPN_REALISE";
+      break;
+    case GNUNET_CS_PROTO_VPN_ADD:
+      name = "GNUNET_CS_PROTO_VPN_ADD";
+      break;
+    case GNUNET_CS_PROTO_VPN_TRUST:
+      name = "GNUNET_CS_PROTO_VPN_TRUST";
       break;
 
     default:
@@ -287,41 +287,44 @@ STATS_csMessageName (unsigned short type)
  * Request statistics from TCP socket.
  * @param sock the socket to use
  * @param processor function to call on each value
- * @return OK on success, SYSERR on error
+ * @return GNUNET_OK on success, GNUNET_SYSERR on error
  */
 int
-STATS_getStatistics (struct GE_Context *ectx,
-                     struct ClientServerConnection *sock,
-                     STATS_StatProcessor processor, void *cls)
+GNUNET_STATS_get_statistics (struct GNUNET_GE_Context *ectx,
+                             struct GNUNET_ClientServerConnection *sock,
+                             GNUNET_STATS_StatisticsProcessor processor,
+                             void *cls)
 {
   CS_stats_reply_MESSAGE *statMsg;
-  MESSAGE_HEADER csHdr;
+  GNUNET_MessageHeader csHdr;
   unsigned int count;
   unsigned int i;
   int mpos;
   int ret;
 
-  ret = OK;
-  csHdr.size = htons (sizeof (MESSAGE_HEADER));
-  csHdr.type = htons (CS_PROTO_stats_GET_STATISTICS);
-  if (SYSERR == connection_write (sock, &csHdr))
-    return SYSERR;
-  statMsg = MALLOC (sizeof (CS_stats_reply_MESSAGE));
+  ret = GNUNET_OK;
+  csHdr.size = htons (sizeof (GNUNET_MessageHeader));
+  csHdr.type = htons (GNUNET_CS_PROTO_STATS_GET_STATISTICS);
+  if (GNUNET_SYSERR == GNUNET_client_connection_write (sock, &csHdr))
+    return GNUNET_SYSERR;
+  statMsg = GNUNET_malloc (sizeof (CS_stats_reply_MESSAGE));
   statMsg->totalCounters = htonl (1);   /* to ensure we enter the loop */
   count = 0;
   while (count < ntohl (statMsg->totalCounters))
     {
-      FREE (statMsg);
+      GNUNET_free (statMsg);
       statMsg = NULL;
       /* printf("reading from socket starting %u of %d\n",
          count, ntohl(statMsg->totalCounters) ); */
-      if (SYSERR == connection_read (sock, (MESSAGE_HEADER **) & statMsg))
-        return SYSERR;
+      if (GNUNET_SYSERR ==
+          GNUNET_client_connection_read (sock,
+                                         (GNUNET_MessageHeader **) & statMsg))
+        return GNUNET_SYSERR;
       if ((ntohs (statMsg->header.size) < sizeof (CS_stats_reply_MESSAGE)) ||
           (((char *) statMsg)[ntohs (statMsg->header.size) - 1] != '\0'))
         {
-          GE_BREAK (ectx, 0);
-          ret = SYSERR;
+          GNUNET_GE_BREAK (ectx, 0);
+          ret = GNUNET_SYSERR;
           break;
         }
       mpos = sizeof (unsigned long long) * ntohl (statMsg->statCounters);
@@ -329,41 +332,42 @@ STATS_getStatistics (struct GE_Context *ectx,
         {
           ret = processor (_("Uptime (seconds)"),
                            (unsigned long long)
-                           ((get_time () -
-                             ntohll (statMsg->startTime)) / cronSECONDS),
-                           cls);
+                           ((GNUNET_get_time () -
+                             GNUNET_ntohll (statMsg->startTime)) /
+                            GNUNET_CRON_SECONDS), cls);
         }
       for (i = 0; i < ntohl (statMsg->statCounters); i++)
         {
           if (mpos +
               strlen (&
                       ((char
-                        *) (((CS_stats_reply_MESSAGE_GENERIC *) statMsg)->
-                            values))[mpos]) + 1 >
+                        *) (((CS_stats_reply_MESSAGE_GENERIC *)
+                             statMsg)->values))[mpos]) + 1 >
               ntohs (statMsg->header.size) - sizeof (CS_stats_reply_MESSAGE))
             {
-              GE_BREAK (ectx, 0);
-              ret = SYSERR;
+              GNUNET_GE_BREAK (ectx, 0);
+              ret = GNUNET_SYSERR;
               break;            /* out of bounds! */
             }
-          if (ret != SYSERR)
+          if (ret != GNUNET_SYSERR)
             {
               ret =
                 processor (&
                            ((char
                              *) (((CS_stats_reply_MESSAGE_GENERIC *)
                                   statMsg)->values))[mpos],
-                           ntohll (((CS_stats_reply_MESSAGE_GENERIC *)
-                                    statMsg)->values[i]), cls);
+                           GNUNET_ntohll (((CS_stats_reply_MESSAGE_GENERIC *)
+                                           statMsg)->values[i]), cls);
             }
           mpos +=
             strlen (&
-                    ((char *) (((CS_stats_reply_MESSAGE_GENERIC *) statMsg)->
-                               values))[mpos]) + 1;
+                    ((char
+                      *) (((CS_stats_reply_MESSAGE_GENERIC *)
+                           statMsg)->values))[mpos]) + 1;
         }
       count += ntohl (statMsg->statCounters);
     }                           /* end while */
-  FREE (statMsg);
+  GNUNET_free (statMsg);
   return ret;
 }
 
@@ -372,12 +376,14 @@ STATS_getStatistics (struct GE_Context *ectx,
  * Request available protocols from TCP socket.
  * @param sock the socket to use
  * @param processor function to call on each value
- * @return OK on success, SYSERR on error
+ * @return GNUNET_OK on success, GNUNET_SYSERR on error
  */
 int
-STATS_getAvailableProtocols (struct GE_Context *ectx,
-                             struct ClientServerConnection *sock,
-                             STATS_ProtocolProcessor processor, void *cls)
+GNUNET_STATS_get_available_protocols (struct GNUNET_GE_Context *ectx,
+                                      struct GNUNET_ClientServerConnection
+                                      *sock,
+                                      GNUNET_STATS_ProtocolProcessor
+                                      processor, void *cls)
 {
   CS_stats_get_supported_MESSAGE csStatMsg;
   unsigned short i;
@@ -385,28 +391,31 @@ STATS_getAvailableProtocols (struct GE_Context *ectx,
   int supported;
   int ret;
 
-  ret = OK;
+  ret = GNUNET_OK;
   csStatMsg.header.size = htons (sizeof (CS_stats_get_supported_MESSAGE));
-  csStatMsg.header.type = htons (CS_PROTO_stats_GET_P2P_MESSAGE_SUPPORTED);
+  csStatMsg.header.type =
+    htons (GNUNET_CS_PROTO_STATS_GET_P2P_MESSAGE_SUPPORTED);
   for (j = 2; j < 4; j++)
     {
       csStatMsg.handlerType = htons (j);
       for (i = 0; i < 65535; i++)
         {
           csStatMsg.type = htons (i);
-          if (SYSERR == connection_write (sock, &csStatMsg.header))
-            return SYSERR;
-          if (SYSERR == connection_read_result (sock, &supported))
-            return SYSERR;
-          if (supported == YES)
+          if (GNUNET_SYSERR ==
+              GNUNET_client_connection_write (sock, &csStatMsg.header))
+            return GNUNET_SYSERR;
+          if (GNUNET_SYSERR ==
+              GNUNET_client_connection_read_result (sock, &supported))
+            return GNUNET_SYSERR;
+          if (supported == GNUNET_YES)
             {
-              ret = processor (i, (j == 2) ? YES : NO, cls);
-              if (ret != OK)
+              ret = processor (i, (j == 2) ? GNUNET_YES : GNUNET_NO, cls);
+              if (ret != GNUNET_OK)
                 break;
             }
         }
     }
-  return OK;
+  return GNUNET_OK;
 }
 
 /* end of clientapi.c */

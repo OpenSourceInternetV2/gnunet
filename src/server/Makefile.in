@@ -61,9 +61,7 @@ am__installdirs = "$(DESTDIR)$(libdir)" "$(DESTDIR)$(bindir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libgnunetcore_la_DEPENDENCIES =  \
-	$(top_builddir)/src/util/libgnunetutil.la \
-	$(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
-	$(top_builddir)/src/util/cron/libgnunetutil_cron.la
+	$(top_builddir)/src/util/libgnunetutil.la
 am_libgnunetcore_la_OBJECTS = connection.lo core.lo handler.lo \
 	tcpserver.lo startup.lo version.lo
 libgnunetcore_la_OBJECTS = $(am_libgnunetcore_la_OBJECTS)
@@ -73,22 +71,18 @@ am_gnunet_peer_info_OBJECTS = gnunet-peer-info.$(OBJEXT)
 gnunet_peer_info_OBJECTS = $(am_gnunet_peer_info_OBJECTS)
 gnunet_peer_info_DEPENDENCIES =  \
 	$(top_builddir)/src/util/libgnunetutil.la \
-	$(top_builddir)/src/server/libgnunetcore.la \
-	$(top_builddir)/src/util/boot/libgnunetutil_boot.la
+	$(top_builddir)/src/server/libgnunetcore.la
 am_gnunet_transport_check_OBJECTS = gnunet-transport-check.$(OBJEXT)
 gnunet_transport_check_OBJECTS = $(am_gnunet_transport_check_OBJECTS)
 gnunet_transport_check_DEPENDENCIES =  \
-	$(top_builddir)/src/server/libgnunetcore.la \
-	$(top_builddir)/src/util/boot/libgnunetutil_boot.la
+	$(top_builddir)/src/server/libgnunetcore.la
 am_gnunet_update_OBJECTS = gnunet-update.$(OBJEXT)
 gnunet_update_OBJECTS = $(am_gnunet_update_OBJECTS)
 gnunet_update_DEPENDENCIES =  \
-	$(top_builddir)/src/server/libgnunetcore.la \
-	$(top_builddir)/src/util/boot/libgnunetutil_boot.la
+	$(top_builddir)/src/server/libgnunetcore.la
 am_gnunetd_OBJECTS = gnunetd.$(OBJEXT)
 gnunetd_OBJECTS = $(am_gnunetd_OBJECTS)
-gnunetd_DEPENDENCIES = $(top_builddir)/src/server/libgnunetcore.la \
-	$(top_builddir)/src/util/boot/libgnunetutil_boot.la
+gnunetd_DEPENDENCIES = $(top_builddir)/src/server/libgnunetcore.la
 DEFAULT_INCLUDES = -I. -I$(top_builddir)@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -130,6 +124,7 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DLLDIR = @DLLDIR@
 DLLTOOL = @DLLTOOL@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
@@ -164,6 +159,7 @@ LIBICONV = @LIBICONV@
 LIBINTL = @LIBINTL@
 LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
+LIBPREFIX = @LIBPREFIX@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
@@ -189,6 +185,8 @@ PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PKG_CONFIG = @PKG_CONFIG@
 POSUB = @POSUB@
+QTINC = @QTINC@
+QTLIBS = @QTLIBS@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -199,9 +197,14 @@ STRIP = @STRIP@
 USE_NLS = @USE_NLS@
 VERSION = @VERSION@
 XGETTEXT = @XGETTEXT@
+XMKMF = @XMKMF@
 XML2_CONFIG = @XML2_CONFIG@
 XML_CPPFLAGS = @XML_CPPFLAGS@
 XML_LIBS = @XML_LIBS@
+X_CFLAGS = @X_CFLAGS@
+X_EXTRA_LIBS = @X_EXTRA_LIBS@
+X_LIBS = @X_LIBS@
+X_PRE_LIBS = @X_PRE_LIBS@
 _libcurl_config = @_libcurl_config@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
@@ -220,6 +223,7 @@ build = @build@
 build_alias = @build_alias@
 build_cpu = @build_cpu@
 build_os = @build_os@
+build_target = @build_target@
 build_vendor = @build_vendor@
 builddir = @builddir@
 datadir = @datadir@
@@ -268,38 +272,32 @@ libgnunetcore_la_SOURCES = \
  version.c version.h
 
 libgnunetcore_la_LIBADD = \
- $(top_builddir)/src/util/libgnunetutil.la \
- $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
- $(top_builddir)/src/util/cron/libgnunetutil_cron.la 
+ $(top_builddir)/src/util/libgnunetutil.la 
 
 gnunetd_SOURCES = \
  gnunetd.c 
 
 gnunetd_LDADD = \
- $(top_builddir)/src/server/libgnunetcore.la \
- $(top_builddir)/src/util/boot/libgnunetutil_boot.la 
+ $(top_builddir)/src/server/libgnunetcore.la
 
 gnunet_update_SOURCES = \
  gnunet-update.c 
 
 gnunet_update_LDADD = \
- $(top_builddir)/src/server/libgnunetcore.la \
- $(top_builddir)/src/util/boot/libgnunetutil_boot.la 
+ $(top_builddir)/src/server/libgnunetcore.la
 
 gnunet_peer_info_SOURCES = \
  gnunet-peer-info.c 
 
 gnunet_peer_info_LDADD = \
  $(top_builddir)/src/util/libgnunetutil.la \
- $(top_builddir)/src/server/libgnunetcore.la \
- $(top_builddir)/src/util/boot/libgnunetutil_boot.la 
+ $(top_builddir)/src/server/libgnunetcore.la
 
 gnunet_transport_check_SOURCES = \
  gnunet-transport-check.c 
 
 gnunet_transport_check_LDADD = \
- $(top_builddir)/src/server/libgnunetcore.la \
- $(top_builddir)/src/util/boot/libgnunetutil_boot.la 
+ $(top_builddir)/src/server/libgnunetcore.la
 
 all: all-am
 

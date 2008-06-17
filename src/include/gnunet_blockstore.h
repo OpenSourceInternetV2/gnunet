@@ -48,7 +48,7 @@ typedef struct
    * of data.
    */
   unsigned int size;
-} DataContainer;
+} GNUNET_DataContainer;
 
 /**
  * Callback function type for items in the GAP datastore.
@@ -56,10 +56,11 @@ typedef struct
  * @param key the current key
  * @param value the current value
  * @param cls argument passed for context (closure)
- * @return OK to continue with iteration, SYSERR to abort
+ * @return GNUNET_OK to continue with iteration, GNUNET_SYSERR to abort
  */
-typedef int (*DataProcessor) (const HashCode512 * key,
-                              const DataContainer * value, void *cls);
+typedef int (*GNUNET_DataProcessor) (const GNUNET_HashCode * key,
+                                     const GNUNET_DataContainer * value,
+                                     void *cls);
 
 /**
  * GAP and DHT clients must implement this interface to tell
@@ -71,7 +72,7 @@ typedef int (*DataProcessor) (const HashCode512 * key,
  * routing, the other parts are just passed along and untouched by the
  * routing code.  The type is typically used to tell what they refer
  * to.  The assumption is that they (including the type) can be
- * reproduced from the DataContainer and thus the Iterator
+ * reproduced from the GNUNET_DataContainer and thus the Iterator
  * methods do not communicate those values.
  *
  * The put method is (ab)used to check an item that is merely routed
@@ -88,7 +89,7 @@ typedef struct
   /**
    * Do a quick test if we MAY have the content.
    */
-  int (*fast_get) (const HashCode512 * key);
+  int (*fast_get) (const GNUNET_HashCode * key);
 
   /**
    * Lookup an item in the datastore.
@@ -99,14 +100,14 @@ typedef struct
    * @param keys to look up
    * @param resultCallback function to call for each result that was found
    * @param resCallbackClosure extra argument to resultCallback
-   * @return number of results, SYSERR on error
+   * @return number of results, GNUNET_SYSERR on error
    */
   int (*get) (void *closure,
               unsigned int type,
               unsigned int prio,
               unsigned int keyCount,
-              const HashCode512 * keys,
-              DataProcessor resultCallback, void *resCallbackClosure);
+              const GNUNET_HashCode * keys,
+              GNUNET_DataProcessor resultCallback, void *resCallbackClosure);
 
   /**
    * Store an item in the datastore.
@@ -114,34 +115,35 @@ typedef struct
    * @param key the key of the item, NULL if not known
    *        (client should try to figure it out)
    * @param value the value to store
-   * @return OK if the value could be stored,
-   *         NO if the value verifies but is not stored,
-   *         SYSERR if the value is malformed
+   * @return GNUNET_OK if the value could be stored,
+   *         GNUNET_NO if the value verifies but is not stored,
+   *         GNUNET_SYSERR if the value is malformed
    */
   int (*put) (void *closure,
-              const HashCode512 * key,
-              const DataContainer * value, unsigned int prio);
+              const GNUNET_HashCode * key,
+              const GNUNET_DataContainer * value, unsigned int prio);
 
   /**
    * Remove an item from the datastore.
    *
    * @param key the key of the item
    * @param value the value to remove, NULL for all values of the key
-   * @return OK if the value could be removed, SYSERR if not (i.e. not present)
+   * @return GNUNET_OK if the value could be removed, GNUNET_SYSERR if not (i.e. not present)
    */
   int (*del) (void *closure,
-              const HashCode512 * key, const DataContainer * value);
+              const GNUNET_HashCode * key,
+              const GNUNET_DataContainer * value);
 
   /**
    * Iterate over all keys in the local datastore
    *
    * @param processor function to call on each item
    * @param cls argument to processor
-   * @return number of results, SYSERR on error
+   * @return number of results, GNUNET_SYSERR on error
    */
-  int (*iterate) (void *closure, DataProcessor processor, void *cls);
+  int (*iterate) (void *closure, GNUNET_DataProcessor processor, void *cls);
 
-} Blockstore;
+} GNUNET_Blockstore;
 
 #if 0                           /* keep Emacsens' auto-indent happy */
 {

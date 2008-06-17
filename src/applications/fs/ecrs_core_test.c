@@ -28,30 +28,33 @@
 #include "ecrs_core.h"
 #include "gnunet_protocols.h"
 
-#define CHECK(a,b) { if (! (a)) { fprintf(stderr, "Error at %s:%d\n", __FILE__, __LINE__); FREENONNULL(b); return 1; } }
+#define CHECK(a,b) { if (! (a)) { fprintf(stderr, "Error at %s:%d\n", __FILE__, __LINE__); GNUNET_free_non_null(b); return 1; } }
 
 static int
 testEC ()
 {
   DBlock *data;
-  Datastore_Value *value;
-  HashCode512 query;
-  HashCode512 key;
+  GNUNET_DatastoreValue *value;
+  GNUNET_HashCode query;
+  GNUNET_HashCode key;
   unsigned int len;
 
   len = sizeof (DBlock) + 42;
-  data = MALLOC (len);
+  data = GNUNET_malloc (len);
   memset (&data[1], rand (), len - sizeof (DBlock));
-  data->type = htonl (D_BLOCK);
-  CHECK (D_BLOCK == getTypeOfBlock (len, data), data);
-  fileBlockGetKey (data, len, &key);
-  fileBlockGetQuery (data, len, &query);
-  CHECK (OK == fileBlockEncode (data, len, &query, &value), data);
+  data->type = htonl (GNUNET_ECRS_BLOCKTYPE_DATA);
+  CHECK (GNUNET_ECRS_BLOCKTYPE_DATA ==
+         GNUNET_EC_file_block_get_type (len, data), data);
+  GNUNET_EC_file_block_get_key (data, len, &key);
+  GNUNET_EC_file_block_get_query (data, len, &query);
+  CHECK (GNUNET_OK == GNUNET_EC_file_block_encode (data, len, &query, &value),
+         data);
   memcpy (data, &value[1], len);
-  FREE (value);
-  CHECK (YES == isDatumApplicable (D_BLOCK,
-                                   len, data, &query, 1, &query), data);
-  FREE (data);
+  GNUNET_free (value);
+  CHECK (GNUNET_YES ==
+         GNUNET_EC_is_block_applicable_for_query
+         (GNUNET_ECRS_BLOCKTYPE_DATA, len, data, &query, 1, &query), data);
+  GNUNET_free (data);
   return 0;
 }
 

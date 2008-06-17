@@ -26,8 +26,6 @@
 
 #include "platform.h"
 #include "gnunet_util.h"
-#include "gnunet_util_config_impl.h"
-#include "gnunet_util_network_client.h"
 #include "gnunet_ecrs_lib.h"
 #include "ecrs.h"
 
@@ -36,73 +34,80 @@
 
 #define CHECKNAME "gnunet-namespace-test"
 
-static struct GC_Configuration *cfg;
+static struct GNUNET_GC_Configuration *cfg;
 
 static int match;
 
 static int
-spcb (const ECRS_FileInfo * fi,
-      const HashCode512 * key, int isRoot, void *closure)
+spcb (const GNUNET_ECRS_FileInfo * fi,
+      const GNUNET_HashCode * key, int isRoot, void *closure)
 {
-  struct ECRS_URI *want = closure;
+  struct GNUNET_ECRS_URI *want = closure;
 
-  if (ECRS_equalsUri (want, fi->uri))
+  if (GNUNET_ECRS_uri_test_equal (want, fi->uri))
     match = 1;
   else
     fprintf (stderr,
              "Namespace search returned unexpected result: \nHAVE: %s\nWANT: %s...\n",
-             ECRS_uriToString (fi->uri), ECRS_uriToString (want));
-  return OK;
+             GNUNET_ECRS_uri_to_string (fi->uri),
+             GNUNET_ECRS_uri_to_string (want));
+  return GNUNET_OK;
 }
 
 static int
 testNamespace ()
 {
-  HashCode512 root;
-  HashCode512 thisId;
-  HashCode512 nextId;
-  struct ECRS_URI *adv;
-  struct ECRS_URI *uri;
-  struct ECRS_URI *advURI;
-  struct ECRS_URI *rootURI;
-  struct ECRS_MetaData *meta;
+  GNUNET_HashCode root;
+  GNUNET_HashCode thisId;
+  GNUNET_HashCode nextId;
+  struct GNUNET_ECRS_URI *adv;
+  struct GNUNET_ECRS_URI *uri;
+  struct GNUNET_ECRS_URI *advURI;
+  struct GNUNET_ECRS_URI *rootURI;
+  struct GNUNET_ECRS_MetaData *meta;
   const char *keys[] = {
     "testNamespace",
     NULL,
   };
 
 
-  ECRS_deleteNamespace (NULL, cfg, CHECKNAME);  /* make sure old one is deleted */
-  meta = ECRS_createMetaData ();
-  adv = ECRS_keywordsToUri (keys);
-  hash ("root", 4, &root);
+  GNUNET_ECRS_namespace_delete (NULL, cfg, CHECKNAME);  /* make sure old one is deleted */
+  meta = GNUNET_ECRS_meta_data_create ();
+  adv = GNUNET_ECRS_keyword_strings_to_uri (keys);
+  GNUNET_hash ("root", 4, &root);
   rootURI =
-    ECRS_createNamespace (NULL,
-                          cfg,
-                          CHECKNAME,
-                          meta,
-                          0, 0, get_time () + 15 * cronMINUTES, adv, &root);
+    GNUNET_ECRS_namespace_create (NULL,
+                                  cfg,
+                                  CHECKNAME,
+                                  meta,
+                                  0, 0,
+                                  GNUNET_get_time () +
+                                  15 * GNUNET_CRON_MINUTES, adv, &root);
   CHECK (NULL != rootURI);
-  hash ("this", 4, &thisId);
-  hash ("next", 4, &nextId);
+  GNUNET_hash ("this", 4, &thisId);
+  GNUNET_hash ("next", 4, &nextId);
   uri = rootURI;                /* just for fun: NS::this advertises NS::root */
-  advURI = ECRS_addToNamespace (NULL, cfg, CHECKNAME, 1,        /* anonymity */
-                                1000,   /* priority */
-                                5 * cronMINUTES + get_time (),
-                                TIME (NULL) + 300,
-                                0, &thisId, &nextId, uri, meta);
+  advURI = GNUNET_ECRS_namespace_add_content (NULL, cfg, CHECKNAME, 1,  /* anonymity */
+                                              1000,     /* priority */
+                                              5 * GNUNET_CRON_MINUTES +
+                                              GNUNET_get_time (),
+                                              GNUNET_get_time_int32 (NULL) +
+                                              300, 0, &thisId, &nextId, uri,
+                                              meta);
   CHECK (NULL != advURI);
   fprintf (stderr, "Starting namespace search...\n");
-  CHECK (OK == ECRS_search (NULL,
-                            cfg,
-                            advURI,
-                            1, 60 * cronSECONDS, &spcb, uri, NULL, NULL));
+  CHECK (GNUNET_OK == GNUNET_ECRS_search (NULL,
+                                          cfg,
+                                          advURI,
+                                          1, 60 * GNUNET_CRON_SECONDS, &spcb,
+                                          uri, NULL, NULL));
   fprintf (stderr, "Completed namespace search...\n");
-  CHECK (OK == ECRS_deleteNamespace (NULL, cfg, CHECKNAME));
-  CHECK (SYSERR == ECRS_deleteNamespace (NULL, cfg, CHECKNAME));
-  ECRS_freeMetaData (meta);
-  ECRS_freeUri (rootURI);
-  ECRS_freeUri (advURI);
+  CHECK (GNUNET_OK == GNUNET_ECRS_namespace_delete (NULL, cfg, CHECKNAME));
+  CHECK (GNUNET_SYSERR ==
+         GNUNET_ECRS_namespace_delete (NULL, cfg, CHECKNAME));
+  GNUNET_ECRS_meta_data_destroy (meta);
+  GNUNET_ECRS_uri_destroy (rootURI);
+  GNUNET_ECRS_uri_destroy (advURI);
   CHECK (match == 1);
   return 0;
 }
@@ -113,24 +118,25 @@ main (int argc, char *argv[])
   pid_t daemon;
   int failureCount = 0;
 
-  cfg = GC_create_C_impl ();
-  if (-1 == GC_parse_configuration (cfg, "check.conf"))
+  cfg = GNUNET_GC_create ();
+  if (-1 == GNUNET_GC_parse_configuration (cfg, "check.conf"))
     {
-      GC_free (cfg);
+      GNUNET_GC_free (cfg);
       return -1;
     }
-  daemon = os_daemon_start (NULL, cfg, "peer.conf", NO);
-  GE_ASSERT (NULL, daemon > 0);
-  if (OK != connection_wait_for_running (NULL, cfg, 60 * cronSECONDS))
+  daemon = GNUNET_daemon_start (NULL, cfg, "peer.conf", GNUNET_NO);
+  GNUNET_GE_ASSERT (NULL, daemon > 0);
+  if (GNUNET_OK !=
+      GNUNET_wait_for_daemon_running (NULL, cfg, 60 * GNUNET_CRON_SECONDS))
     {
       failureCount++;
     }
   else
     {
-      PTHREAD_SLEEP (5 * cronSECONDS);
+      GNUNET_thread_sleep (5 * GNUNET_CRON_SECONDS);
       failureCount += testNamespace ();
     }
-  GE_ASSERT (NULL, OK == os_daemon_stop (NULL, daemon));
+  GNUNET_GE_ASSERT (NULL, GNUNET_OK == GNUNET_daemon_stop (NULL, daemon));
 
   return (failureCount == 0) ? 0 : 1;
 }

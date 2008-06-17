@@ -52,59 +52,40 @@ am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
 CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
-am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
-am__vpath_adj = case $$p in \
-    $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
-    *) f=$$p;; \
-  esac;
-am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
-am__installdirs = "$(DESTDIR)$(libdir)"
-libLTLIBRARIES_INSTALL = $(INSTALL)
-LTLIBRARIES = $(lib_LTLIBRARIES)
-libgnunetutil_crypto_la_DEPENDENCIES =  \
-	$(top_builddir)/src/util/libgnunetutil.la
-am_libgnunetutil_crypto_la_OBJECTS = crc32.lo hashing.lo \
-	hostkey_gcrypt.lo kblockkey.lo locking_gcrypt.lo random.lo \
-	symcipher_gcrypt.lo
-libgnunetutil_crypto_la_OBJECTS =  \
-	$(am_libgnunetutil_crypto_la_OBJECTS)
-libgnunetutil_crypto_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
+LTLIBRARIES = $(noinst_LTLIBRARIES)
+libcrypto_la_DEPENDENCIES =
+am_libcrypto_la_OBJECTS = crc32.lo hashing.lo hostkey_gcrypt.lo \
+	kblockkey.lo locking_gcrypt.lo random.lo symcipher_gcrypt.lo
+libcrypto_la_OBJECTS = $(am_libcrypto_la_OBJECTS)
+libcrypto_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
-	$(libgnunetutil_crypto_la_LDFLAGS) $(LDFLAGS) -o $@
+	$(libcrypto_la_LDFLAGS) $(LDFLAGS) -o $@
 am_crctest_OBJECTS = crctest.$(OBJEXT)
 crctest_OBJECTS = $(am_crctest_OBJECTS)
-crctest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la \
-	$(top_builddir)/src/util/crypto/libgnunetutil_crypto.la
+crctest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la
 am_hashingtest_OBJECTS = hashingtest.$(OBJEXT)
 hashingtest_OBJECTS = $(am_hashingtest_OBJECTS)
-hashingtest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la \
-	$(top_builddir)/src/util/crypto/libgnunetutil_crypto.la
+hashingtest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la
 am_hashperf_OBJECTS = hashperf.$(OBJEXT)
 hashperf_OBJECTS = $(am_hashperf_OBJECTS)
-hashperf_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la \
-	$(top_builddir)/src/util/crypto/libgnunetutil_crypto.la
+hashperf_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la
 am_hashtest_OBJECTS = hashingtest.$(OBJEXT)
 hashtest_OBJECTS = $(am_hashtest_OBJECTS)
-hashtest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la \
-	$(top_builddir)/src/util/crypto/libgnunetutil_crypto.la
+hashtest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la
 am_hostkeytest_OBJECTS = hostkeytest.$(OBJEXT)
 hostkeytest_OBJECTS = $(am_hostkeytest_OBJECTS)
-hostkeytest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la \
-	$(top_builddir)/src/util/crypto/libgnunetutil_crypto.la
+hostkeytest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la
 am_kblockkey_test_OBJECTS = kblockkey_test.$(OBJEXT)
 kblockkey_test_OBJECTS = $(am_kblockkey_test_OBJECTS)
 kblockkey_test_DEPENDENCIES =  \
-	$(top_builddir)/src/util/libgnunetutil.la \
-	$(top_builddir)/src/util/crypto/libgnunetutil_crypto.la
+	$(top_builddir)/src/util/libgnunetutil.la
 am_symciphertest_OBJECTS = symciphertest.$(OBJEXT)
 symciphertest_OBJECTS = $(am_symciphertest_OBJECTS)
 symciphertest_DEPENDENCIES =  \
-	$(top_builddir)/src/util/libgnunetutil.la \
-	$(top_builddir)/src/util/crypto/libgnunetutil_crypto.la
+	$(top_builddir)/src/util/libgnunetutil.la
 am_weakkeytest_OBJECTS = weakkeytest.$(OBJEXT)
 weakkeytest_OBJECTS = $(am_weakkeytest_OBJECTS)
-weakkeytest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la \
-	$(top_builddir)/src/util/crypto/libgnunetutil_crypto.la
+weakkeytest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la
 DEFAULT_INCLUDES = -I. -I$(top_builddir)@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -117,11 +98,11 @@ CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
-SOURCES = $(libgnunetutil_crypto_la_SOURCES) $(crctest_SOURCES) \
+SOURCES = $(libcrypto_la_SOURCES) $(crctest_SOURCES) \
 	$(hashingtest_SOURCES) $(hashperf_SOURCES) $(hashtest_SOURCES) \
 	$(hostkeytest_SOURCES) $(kblockkey_test_SOURCES) \
 	$(symciphertest_SOURCES) $(weakkeytest_SOURCES)
-DIST_SOURCES = $(libgnunetutil_crypto_la_SOURCES) $(crctest_SOURCES) \
+DIST_SOURCES = $(libcrypto_la_SOURCES) $(crctest_SOURCES) \
 	$(hashingtest_SOURCES) $(hashperf_SOURCES) $(hashtest_SOURCES) \
 	$(hostkeytest_SOURCES) $(kblockkey_test_SOURCES) \
 	$(symciphertest_SOURCES) $(weakkeytest_SOURCES)
@@ -158,6 +139,7 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DLLDIR = @DLLDIR@
 DLLTOOL = @DLLTOOL@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
@@ -192,6 +174,7 @@ LIBICONV = @LIBICONV@
 LIBINTL = @LIBINTL@
 LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
+LIBPREFIX = @LIBPREFIX@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
@@ -217,6 +200,8 @@ PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PKG_CONFIG = @PKG_CONFIG@
 POSUB = @POSUB@
+QTINC = @QTINC@
+QTLIBS = @QTLIBS@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -227,9 +212,14 @@ STRIP = @STRIP@
 USE_NLS = @USE_NLS@
 VERSION = @VERSION@
 XGETTEXT = @XGETTEXT@
+XMKMF = @XMKMF@
 XML2_CONFIG = @XML2_CONFIG@
 XML_CPPFLAGS = @XML_CPPFLAGS@
 XML_LIBS = @XML_LIBS@
+X_CFLAGS = @X_CFLAGS@
+X_EXTRA_LIBS = @X_EXTRA_LIBS@
+X_LIBS = @X_LIBS@
+X_PRE_LIBS = @X_PRE_LIBS@
 _libcurl_config = @_libcurl_config@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
@@ -248,6 +238,7 @@ build = @build@
 build_alias = @build_alias@
 build_cpu = @build_cpu@
 build_os = @build_os@
+build_target = @build_target@
 build_vendor = @build_vendor@
 builddir = @builddir@
 datadir = @datadir@
@@ -285,14 +276,13 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 SUBDIRS = .
 INCLUDES = -I$(top_srcdir)/src/include
-lib_LTLIBRARIES = libgnunetutil_crypto.la
+noinst_LTLIBRARIES = libcrypto.la
 AM_CPPFLAGS = $(LIBGCRYPT_CFLAGS) -O3
-libgnunetutil_crypto_la_LIBADD = \
- $(GCLIBADD) \
- $(top_builddir)/src/util/libgnunetutil.la 
+libcrypto_la_LIBADD = \
+ $(GCLIBADD) 
 
-libgnunetutil_crypto_la_LDFLAGS = $(LIBGCRYPT_LIBS) -lgmp
-libgnunetutil_crypto_la_SOURCES = \
+libcrypto_la_LDFLAGS = $(LIBGCRYPT_LIBS) -lgmp
+libcrypto_la_SOURCES = \
  crc32.c \
  hashing.c \
  hostkey_gcrypt.c \
@@ -306,57 +296,49 @@ hashingtest_SOURCES = \
  hashingtest.c
 
 hashingtest_LDADD = \
- $(top_builddir)/src/util/libgnunetutil.la \
- $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la  
+ $(top_builddir)/src/util/libgnunetutil.la 
 
 crctest_SOURCES = \
  crctest.c
 
 crctest_LDADD = \
- $(top_builddir)/src/util/libgnunetutil.la \
- $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la  
+ $(top_builddir)/src/util/libgnunetutil.la 
 
 kblockkey_test_SOURCES = \
  kblockkey_test.c
 
 kblockkey_test_LDADD = \
- $(top_builddir)/src/util/libgnunetutil.la \
- $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la  
+ $(top_builddir)/src/util/libgnunetutil.la 
 
 hostkeytest_SOURCES = \
  hostkeytest.c
 
 hostkeytest_LDADD = \
- $(top_builddir)/src/util/libgnunetutil.la \
- $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la   
+ $(top_builddir)/src/util/libgnunetutil.la 
 
 hashtest_SOURCES = \
  hashingtest.c
 
 hashtest_LDADD = \
- $(top_builddir)/src/util/libgnunetutil.la \
- $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la  
+ $(top_builddir)/src/util/libgnunetutil.la 
 
 hashperf_SOURCES = \
  hashperf.c
 
 hashperf_LDADD = \
- $(top_builddir)/src/util/libgnunetutil.la \
- $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la  
+ $(top_builddir)/src/util/libgnunetutil.la 
 
 symciphertest_SOURCES = \
  symciphertest.c
 
 symciphertest_LDADD = \
- $(top_builddir)/src/util/libgnunetutil.la \
- $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la   
+ $(top_builddir)/src/util/libgnunetutil.la 
 
 weakkeytest_SOURCES = \
  weakkeytest.c
 
 weakkeytest_LDADD = \
- $(top_builddir)/src/util/libgnunetutil.la \
- $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la  
+ $(top_builddir)/src/util/libgnunetutil.la 
 
 all: all-recursive
 
@@ -391,35 +373,17 @@ $(top_srcdir)/configure:  $(am__configure_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
 $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh
-install-libLTLIBRARIES: $(lib_LTLIBRARIES)
-	@$(NORMAL_INSTALL)
-	test -z "$(libdir)" || $(MKDIR_P) "$(DESTDIR)$(libdir)"
-	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
-	  if test -f $$p; then \
-	    f=$(am__strip_dir) \
-	    echo " $(LIBTOOL) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) '$$p' '$(DESTDIR)$(libdir)/$$f'"; \
-	    $(LIBTOOL) --mode=install $(libLTLIBRARIES_INSTALL) $(INSTALL_STRIP_FLAG) "$$p" "$(DESTDIR)$(libdir)/$$f"; \
-	  else :; fi; \
-	done
 
-uninstall-libLTLIBRARIES:
-	@$(NORMAL_UNINSTALL)
-	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
-	  p=$(am__strip_dir) \
-	  echo " $(LIBTOOL) --mode=uninstall rm -f '$(DESTDIR)$(libdir)/$$p'"; \
-	  $(LIBTOOL) --mode=uninstall rm -f "$(DESTDIR)$(libdir)/$$p"; \
-	done
-
-clean-libLTLIBRARIES:
-	-test -z "$(lib_LTLIBRARIES)" || rm -f $(lib_LTLIBRARIES)
-	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \
+clean-noinstLTLIBRARIES:
+	-test -z "$(noinst_LTLIBRARIES)" || rm -f $(noinst_LTLIBRARIES)
+	@list='$(noinst_LTLIBRARIES)'; for p in $$list; do \
 	  dir="`echo $$p | sed -e 's|/[^/]*$$||'`"; \
 	  test "$$dir" != "$$p" || dir=.; \
 	  echo "rm -f \"$${dir}/so_locations\""; \
 	  rm -f "$${dir}/so_locations"; \
 	done
-libgnunetutil_crypto.la: $(libgnunetutil_crypto_la_OBJECTS) $(libgnunetutil_crypto_la_DEPENDENCIES) 
-	$(libgnunetutil_crypto_la_LINK) -rpath $(libdir) $(libgnunetutil_crypto_la_OBJECTS) $(libgnunetutil_crypto_la_LIBADD) $(LIBS)
+libcrypto.la: $(libcrypto_la_OBJECTS) $(libcrypto_la_DEPENDENCIES) 
+	$(libcrypto_la_LINK)  $(libcrypto_la_OBJECTS) $(libcrypto_la_LIBADD) $(LIBS)
 
 clean-checkPROGRAMS:
 	@list='$(check_PROGRAMS)'; for p in $$list; do \
@@ -754,9 +718,6 @@ check: check-recursive
 all-am: Makefile $(LTLIBRARIES)
 installdirs: installdirs-recursive
 installdirs-am:
-	for dir in "$(DESTDIR)$(libdir)"; do \
-	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
-	done
 install: install-recursive
 install-exec: install-exec-recursive
 install-data: install-data-recursive
@@ -783,8 +744,8 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-recursive
 
-clean-am: clean-checkPROGRAMS clean-generic clean-libLTLIBRARIES \
-	clean-libtool mostlyclean-am
+clean-am: clean-checkPROGRAMS clean-generic clean-libtool \
+	clean-noinstLTLIBRARIES mostlyclean-am
 
 distclean: distclean-recursive
 	-rm -rf ./$(DEPDIR)
@@ -806,7 +767,7 @@ install-data-am:
 
 install-dvi: install-dvi-recursive
 
-install-exec-am: install-libLTLIBRARIES
+install-exec-am:
 
 install-html: install-html-recursive
 
@@ -838,27 +799,26 @@ ps: ps-recursive
 
 ps-am:
 
-uninstall-am: uninstall-libLTLIBRARIES
+uninstall-am:
 
 .MAKE: $(RECURSIVE_CLEAN_TARGETS) $(RECURSIVE_TARGETS) install-am \
 	install-strip
 
 .PHONY: $(RECURSIVE_CLEAN_TARGETS) $(RECURSIVE_TARGETS) CTAGS GTAGS \
 	all all-am check check-TESTS check-am clean \
-	clean-checkPROGRAMS clean-generic clean-libLTLIBRARIES \
-	clean-libtool ctags ctags-recursive distclean \
+	clean-checkPROGRAMS clean-generic clean-libtool \
+	clean-noinstLTLIBRARIES ctags ctags-recursive distclean \
 	distclean-compile distclean-generic distclean-libtool \
 	distclean-tags distdir dvi dvi-am html html-am info info-am \
 	install install-am install-data install-data-am install-dvi \
 	install-dvi-am install-exec install-exec-am install-html \
-	install-html-am install-info install-info-am \
-	install-libLTLIBRARIES install-man install-pdf install-pdf-am \
-	install-ps install-ps-am install-strip installcheck \
-	installcheck-am installdirs installdirs-am maintainer-clean \
-	maintainer-clean-generic mostlyclean mostlyclean-compile \
-	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	tags tags-recursive uninstall uninstall-am \
-	uninstall-libLTLIBRARIES
+	install-html-am install-info install-info-am install-man \
+	install-pdf install-pdf-am install-ps install-ps-am \
+	install-strip installcheck installcheck-am installdirs \
+	installdirs-am maintainer-clean maintainer-clean-generic \
+	mostlyclean mostlyclean-compile mostlyclean-generic \
+	mostlyclean-libtool pdf pdf-am ps ps-am tags tags-recursive \
+	uninstall uninstall-am
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

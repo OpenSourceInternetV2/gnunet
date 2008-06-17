@@ -58,7 +58,6 @@ am_gnunet_directory_OBJECTS = gnunet-directory.$(OBJEXT)
 gnunet_directory_OBJECTS = $(am_gnunet_directory_OBJECTS)
 gnunet_directory_DEPENDENCIES = $(top_builddir)/src/applications/fs/uritrack/libgnuneturitrack.la \
 	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
-	$(top_builddir)/src/util/boot/libgnunetutil_boot.la \
 	$(top_builddir)/src/util/libgnunetutil.la
 am_gnunet_download_OBJECTS = gnunet-download.$(OBJEXT)
 gnunet_download_OBJECTS = $(am_gnunet_download_OBJECTS)
@@ -66,7 +65,6 @@ gnunet_download_LDADD = $(LDADD)
 gnunet_download_DEPENDENCIES = $(top_builddir)/src/applications/fs/uritrack/libgnuneturitrack.la \
 	$(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
 	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
-	$(top_builddir)/src/util/boot/libgnunetutil_boot.la \
 	$(top_builddir)/src/util/libgnunetutil.la
 am_gnunet_insert_OBJECTS = gnunet-insert.$(OBJEXT)
 gnunet_insert_OBJECTS = $(am_gnunet_insert_OBJECTS)
@@ -74,7 +72,6 @@ gnunet_insert_LDADD = $(LDADD)
 gnunet_insert_DEPENDENCIES = $(top_builddir)/src/applications/fs/uritrack/libgnuneturitrack.la \
 	$(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
 	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
-	$(top_builddir)/src/util/boot/libgnunetutil_boot.la \
 	$(top_builddir)/src/util/libgnunetutil.la
 am_gnunet_pseudonym_OBJECTS = gnunet-pseudonym.$(OBJEXT)
 gnunet_pseudonym_OBJECTS = $(am_gnunet_pseudonym_OBJECTS)
@@ -82,7 +79,6 @@ gnunet_pseudonym_DEPENDENCIES = $(top_builddir)/src/applications/fs/namespace/li
 	$(top_builddir)/src/applications/fs/uritrack/libgnuneturitrack.la \
 	$(top_builddir)/src/applications/fs/collection/libgnunetcollection.la \
 	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
-	$(top_builddir)/src/util/boot/libgnunetutil_boot.la \
 	$(top_builddir)/src/util/libgnunetutil.la
 am_gnunet_search_OBJECTS = gnunet-search.$(OBJEXT)
 gnunet_search_OBJECTS = $(am_gnunet_search_OBJECTS)
@@ -90,7 +86,6 @@ gnunet_search_LDADD = $(LDADD)
 gnunet_search_DEPENDENCIES = $(top_builddir)/src/applications/fs/uritrack/libgnuneturitrack.la \
 	$(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
 	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
-	$(top_builddir)/src/util/boot/libgnunetutil_boot.la \
 	$(top_builddir)/src/util/libgnunetutil.la
 am_gnunet_unindex_OBJECTS = gnunet-unindex.$(OBJEXT)
 gnunet_unindex_OBJECTS = $(am_gnunet_unindex_OBJECTS)
@@ -98,7 +93,6 @@ gnunet_unindex_LDADD = $(LDADD)
 gnunet_unindex_DEPENDENCIES = $(top_builddir)/src/applications/fs/uritrack/libgnuneturitrack.la \
 	$(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
 	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
-	$(top_builddir)/src/util/boot/libgnunetutil_boot.la \
 	$(top_builddir)/src/util/libgnunetutil.la
 DEFAULT_INCLUDES = -I. -I$(top_builddir)@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -141,6 +135,7 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DLLDIR = @DLLDIR@
 DLLTOOL = @DLLTOOL@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
@@ -175,6 +170,7 @@ LIBICONV = @LIBICONV@
 LIBINTL = @LIBINTL@
 LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
+LIBPREFIX = @LIBPREFIX@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
@@ -200,6 +196,8 @@ PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PKG_CONFIG = @PKG_CONFIG@
 POSUB = @POSUB@
+QTINC = @QTINC@
+QTLIBS = @QTLIBS@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -210,9 +208,14 @@ STRIP = @STRIP@
 USE_NLS = @USE_NLS@
 VERSION = @VERSION@
 XGETTEXT = @XGETTEXT@
+XMKMF = @XMKMF@
 XML2_CONFIG = @XML2_CONFIG@
 XML_CPPFLAGS = @XML_CPPFLAGS@
 XML_LIBS = @XML_LIBS@
+X_CFLAGS = @X_CFLAGS@
+X_EXTRA_LIBS = @X_EXTRA_LIBS@
+X_LIBS = @X_LIBS@
+X_PRE_LIBS = @X_PRE_LIBS@
 _libcurl_config = @_libcurl_config@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
@@ -231,6 +234,7 @@ build = @build@
 build_alias = @build_alias@
 build_cpu = @build_cpu@
 build_os = @build_os@
+build_target = @build_target@
 build_vendor = @build_vendor@
 builddir = @builddir@
 datadir = @datadir@
@@ -271,7 +275,6 @@ LDADD = \
   $(top_builddir)/src/applications/fs/uritrack/libgnuneturitrack.la \
   $(top_builddir)/src/applications/fs/fsui/libgnunetfsui.la \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
-  $(top_builddir)/src/util/boot/libgnunetutil_boot.la \
   $(top_builddir)/src/util/libgnunetutil.la
 
 gnunet_insert_SOURCES = \
@@ -286,7 +289,6 @@ gnunet_directory_SOURCES = \
 gnunet_directory_LDADD = \
   $(top_builddir)/src/applications/fs/uritrack/libgnuneturitrack.la \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
-  $(top_builddir)/src/util/boot/libgnunetutil_boot.la \
   $(top_builddir)/src/util/libgnunetutil.la
 
 gnunet_pseudonym_SOURCES = \
@@ -297,7 +299,6 @@ gnunet_pseudonym_LDADD = \
   $(top_builddir)/src/applications/fs/uritrack/libgnuneturitrack.la \
   $(top_builddir)/src/applications/fs/collection/libgnunetcollection.la \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
-  $(top_builddir)/src/util/boot/libgnunetutil_boot.la \
   $(top_builddir)/src/util/libgnunetutil.la
 
 gnunet_search_SOURCES = \

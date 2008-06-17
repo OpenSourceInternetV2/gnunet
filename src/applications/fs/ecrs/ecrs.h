@@ -24,8 +24,8 @@
  * @author Igor Wronsky, Christian Grothoff
  */
 
-#ifndef ECRS_H
-#define ECRS_H
+#ifndef GNUNET_ECRS_H
+#define GNUNET_ECRS_H
 
 #include "ecrs_core.h"
 #include "tree.h"
@@ -39,8 +39,8 @@
  * are interpreted as durations (in seconds) for periodical
  * updates.
  */
-#define SBLOCK_UPDATE_SPORADIC ECRS_SBLOCK_UPDATE_SPORADIC
-#define SBLOCK_UPDATE_NONE     ECRS_SBLOCK_UPDATE_NONE
+#define SBLOCK_UPDATE_SPORADIC GNUNET_ECRS_SBLOCK_UPDATE_SPORADIC
+#define SBLOCK_UPDATE_NONE     GNUNET_ECRS_SBLOCK_UPDATE_NONE
 
 
 #define BLOCK_ALIGN_SIZE (DBLOCK_SIZE)
@@ -55,27 +55,27 @@ typedef struct Location
   /**
    * Identity of the peer sharing the file.
    */
-  PublicKey peer;
+  GNUNET_RSA_PublicKey peer;
 
   /**
    * Time when the HELLO *and* this location URI
    * expire (they expire together!).
    */
-  TIME_T expirationTime;
+  GNUNET_Int32Time expirationTime;
 
   /**
    * RSA signature over the FileIdentifier,
-   * hash of the peer and expiration time.
+   * GNUNET_hash of the peer and expiration time.
    * (everything until proto).
    */
-  Signature contentSignature;
+  GNUNET_RSA_Signature contentSignature;
 
 } Location;
 
 enum uri_types
 { chk, sks, ksk, loc };
 
-typedef struct ECRS_URI
+typedef struct GNUNET_ECRS_URI
 {
   enum uri_types type;
   union
@@ -87,8 +87,8 @@ typedef struct ECRS_URI
     } ksk;
     struct
     {
-      HashCode512 namespace;
-      HashCode512 identifier;
+      GNUNET_HashCode namespace;
+      GNUNET_HashCode identifier;
     } sks;
     FileIdentifier fi;
     Location loc;
@@ -104,18 +104,18 @@ typedef struct
 /**
  * Meta data to associate with a file, directory or namespace.
  */
-typedef struct ECRS_MetaData
+typedef struct GNUNET_ECRS_MetaData
 {
   unsigned int itemCount;
   Item *items;
 } MetaData;
 
 
-void ECRS_encryptInPlace (const HashCode512 * hc,
-                          void *data, unsigned int len);
+void GNUNET_ECRS_encryptInPlace (const GNUNET_HashCode * hc,
+                                 void *data, unsigned int len);
 
-void ECRS_decryptInPlace (const HashCode512 * hc,
-                          void *data, unsigned int len);
+void GNUNET_ECRS_decryptInPlace (const GNUNET_HashCode * hc,
+                                 void *data, unsigned int len);
 
 
 

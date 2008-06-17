@@ -31,16 +31,16 @@
 
 static GtkListStore *no_model;
 
-static struct GC_Configuration *cfg;
+static struct GNUNET_GC_Configuration *cfg;
 
-static struct GE_Context *ectx;
+static struct GNUNET_GE_Context *ectx;
 
 static const char *cfg_filename;
 
 struct P2W
 {
   struct P2W *next;
-  struct GNS_Tree *pos;
+  struct GNUNET_GNS_TreeNode *pos;
   GtkWidget *w;
 };
 
@@ -82,10 +82,10 @@ update_visibility ()
 }
 
 static void
-link_visibility (struct GNS_Tree *pos, GtkWidget * w)
+link_visibility (struct GNUNET_GNS_TreeNode *pos, GtkWidget * w)
 {
   struct P2W *pw;
-  pw = MALLOC (sizeof (struct P2W));
+  pw = GNUNET_malloc (sizeof (struct P2W));
   pw->pos = pos;
   pw->w = w;
   pw->next = pws;
@@ -95,32 +95,33 @@ link_visibility (struct GNS_Tree *pos, GtkWidget * w)
 static void
 boolean_toggled (GtkToggleButton * togglebutton, gpointer user_data)
 {
-  struct GNS_Tree *pos = user_data;
-  GC_set_configuration_value_string (cfg,
-                                     ectx,
-                                     pos->section,
-                                     pos->option,
-                                     gtk_toggle_button_get_active
-                                     (togglebutton) ? "YES" : "NO");
+  struct GNUNET_GNS_TreeNode *pos = user_data;
+  GNUNET_GC_set_configuration_value_string (cfg,
+                                            ectx,
+                                            pos->section,
+                                            pos->option,
+                                            gtk_toggle_button_get_active
+                                            (togglebutton) ? "YES" : "NO");
   update_visibility ();
 }
 
 static void
 radio_update (GtkRadioButton * button, gpointer user_data)
 {
-  struct GNS_Tree *pos = user_data;
+  struct GNUNET_GNS_TreeNode *pos = user_data;
   const char *opt;
 
   opt = g_object_get_data (G_OBJECT (button), "SC-value");
-  GC_set_configuration_value_string (cfg,
-                                     ectx, pos->section, pos->option, opt);
+  GNUNET_GC_set_configuration_value_string (cfg,
+                                            ectx, pos->section, pos->option,
+                                            opt);
   update_visibility ();
 }
 
 static void
 multi_update (GtkToggleButton * button, gpointer user_data)
 {
-  struct GNS_Tree *pos = user_data;
+  struct GNUNET_GNS_TreeNode *pos = user_data;
   char *val;
   char *opt;
   char *ret;
@@ -128,13 +129,14 @@ multi_update (GtkToggleButton * button, gpointer user_data)
   char *s;
 
   val = NULL;
-  GC_get_configuration_value_string (cfg,
-                                     pos->section, pos->option, NULL, &val);
-  GE_ASSERT (ectx, val != NULL);
+  GNUNET_GC_get_configuration_value_string (cfg,
+                                            pos->section, pos->option, NULL,
+                                            &val);
+  GNUNET_GE_ASSERT (ectx, val != NULL);
   opt = g_object_get_data (G_OBJECT (button), "MC-value");
   if (gtk_toggle_button_get_active (button))
     {
-      ret = MALLOC (strlen (val) + strlen (opt) + 2);
+      ret = GNUNET_malloc (strlen (val) + strlen (opt) + 2);
       strcpy (ret, val);
       strcat (ret, " ");
       strcat (ret, opt);
@@ -146,34 +148,36 @@ multi_update (GtkToggleButton * button, gpointer user_data)
              (((s[strlen (opt)] != '\0') &&
                (s[strlen (opt)] != ' ')) || ((s != val) && (s[-1] != ' '))))
         v = s + 1;
-      GE_ASSERT (NULL, s != NULL);
-      ret = MALLOC (strlen (val));
+      GNUNET_GE_ASSERT (NULL, s != NULL);
+      ret = GNUNET_malloc (strlen (val));
       s[0] = '\0';
       if (s != val)
         s[-1] = '\0';           /* kill space */
       strcpy (ret, val);
       strcat (ret, &s[strlen (opt)]);
     }
-  GC_set_configuration_value_string (cfg,
-                                     ectx, pos->section, pos->option, ret);
-  FREE (ret);
-  FREE (val);
+  GNUNET_GC_set_configuration_value_string (cfg,
+                                            ectx, pos->section, pos->option,
+                                            ret);
+  GNUNET_free (ret);
+  GNUNET_free (val);
   update_visibility ();
 }
 
 static void
 string_update (GtkEntry * entry, gpointer user_data)
 {
-  struct GNS_Tree *pos = user_data;
-  GC_set_configuration_value_string (cfg,
-                                     ectx,
-                                     pos->section,
-                                     pos->option, gtk_entry_get_text (entry));
+  struct GNUNET_GNS_TreeNode *pos = user_data;
+  GNUNET_GC_set_configuration_value_string (cfg,
+                                            ectx,
+                                            pos->section,
+                                            pos->option,
+                                            gtk_entry_get_text (entry));
   update_visibility ();
 }
 
 static int
-addLeafToTree (GtkWidget * parent, struct GNS_Tree *pos)
+addLeafToTree (GtkWidget * parent, struct GNUNET_GNS_TreeNode *pos)
 {
   GtkWidget *ebox;
   GtkWidget *box;
@@ -186,9 +190,9 @@ addLeafToTree (GtkWidget * parent, struct GNS_Tree *pos)
 
   box = gtk_hbox_new (FALSE, 0);
   link_visibility (pos, box);
-  switch (pos->type & GNS_TypeMask)
+  switch (pos->type & GNUNET_GNS_TYPE_MASK)
     {
-    case GNS_Boolean:
+    case GNUNET_GNS_TYPE_BOOLEAN:
       w = gtk_check_button_new_with_label (pos->description);
       gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (w),
                                     pos->value.Boolean.val);
@@ -196,7 +200,7 @@ addLeafToTree (GtkWidget * parent, struct GNS_Tree *pos)
       g_signal_connect (w, "toggled", G_CALLBACK (&boolean_toggled), pos);
       gtk_box_pack_start (GTK_BOX (box), w, FALSE, FALSE, 10);
       break;
-    case GNS_String:
+    case GNUNET_GNS_TYPE_STRING:
       ebox = gtk_vbox_new (FALSE, 10);
       w = gtk_entry_new ();
       label = gtk_label_new (pos->description);
@@ -208,7 +212,7 @@ addLeafToTree (GtkWidget * parent, struct GNS_Tree *pos)
       gtk_box_pack_start (GTK_BOX (ebox), w, TRUE, TRUE, 10);
       gtk_box_pack_start (GTK_BOX (box), ebox, TRUE, TRUE, 10);
       break;
-    case GNS_MC:
+    case GNUNET_GNS_TYPE_MULTIPLE_CHOICE:
       i = 0;
       label = gtk_label_new (pos->description);
       gtk_box_pack_start (GTK_BOX (box), label, FALSE, FALSE, 10);
@@ -236,7 +240,7 @@ addLeafToTree (GtkWidget * parent, struct GNS_Tree *pos)
           i++;
         }
       break;
-    case GNS_SC:
+    case GNUNET_GNS_TYPE_SINGLE_CHOICE:
       w = NULL;
       i = 0;
       choice = NULL;
@@ -261,8 +265,8 @@ addLeafToTree (GtkWidget * parent, struct GNS_Tree *pos)
       gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (choice), TRUE);
 
       break;
-    case GNS_Double:
-      SNPRINTF (defStr, 128, "%llf", pos->value.Double.val);
+    case GNUNET_GNS_TYPE_DOUBLE:
+      GNUNET_snprintf (defStr, 128, "%llf", pos->value.Double.val);
       w = gtk_entry_new ();
       tooltip (w, pos->help);
       label = gtk_label_new (pos->description);
@@ -272,7 +276,7 @@ addLeafToTree (GtkWidget * parent, struct GNS_Tree *pos)
       gtk_entry_set_text (GTK_ENTRY (w), defStr);
       gtk_box_pack_start (GTK_BOX (box), w, FALSE, FALSE, 0);
       break;
-    case GNS_UInt64:
+    case GNUNET_GNS_TYPE_UINT64:
       w = gtk_spin_button_new_with_range (pos->value.UInt64.min,
                                           pos->value.UInt64.max, 1);
       tooltip (w, pos->help);
@@ -286,7 +290,7 @@ addLeafToTree (GtkWidget * parent, struct GNS_Tree *pos)
       gtk_box_pack_start (GTK_BOX (box), w, FALSE, FALSE, 0);
       break;
     default:
-      GE_ASSERT (NULL, 0);
+      GNUNET_GE_ASSERT (NULL, 0);
       return 0;
     }
   gtk_box_pack_start (GTK_BOX (parent), box, FALSE, FALSE, 10);
@@ -294,10 +298,10 @@ addLeafToTree (GtkWidget * parent, struct GNS_Tree *pos)
 }
 
 static int
-addNodeToTree (GtkNotebook * parent, struct GNS_Tree *pos)
+addNodeToTree (GtkNotebook * parent, struct GNUNET_GNS_TreeNode *pos)
 {
   int i;
-  struct GNS_Tree *child;
+  struct GNUNET_GNS_TreeNode *child;
   GtkNotebook *notebook;
   GtkWidget *vbox;
   GtkWidget *label;
@@ -310,9 +314,9 @@ addNodeToTree (GtkNotebook * parent, struct GNS_Tree *pos)
   notebook = NULL;
   while (NULL != (child = pos->children[i]))
     {
-      switch (child->type & GNS_KindMask)
+      switch (child->type & GNUNET_GNS_KIND_MASK)
         {
-        case GNS_Node:
+        case GNUNET_GNS_KIND_NODE:
           if (notebook == NULL)
             {
               notebook = GTK_NOTEBOOK (gtk_notebook_new ());
@@ -321,12 +325,12 @@ addNodeToTree (GtkNotebook * parent, struct GNS_Tree *pos)
             }
           have = have | addNodeToTree (notebook, child);
           break;
-        case GNS_Leaf:
+        case GNUNET_GNS_KIND_LEAF:
           have = have | addLeafToTree (vbox, child);
           break;
-        case GNS_Root:
+        case GNUNET_GNS_KIND_ROOT:
         default:
-          GE_ASSERT (NULL, 0);
+          GNUNET_GE_ASSERT (NULL, 0);
           break;
         }
       i++;
@@ -353,11 +357,11 @@ addNodeToTree (GtkNotebook * parent, struct GNS_Tree *pos)
 }
 
 static void
-initView (struct GNS_Context *gns)
+initView (struct GNUNET_GNS_Context *gns)
 {
   GtkNotebook *notebook;
   notebook = GTK_NOTEBOOK (lookup_widget ("configNotebook"));
-  addNodeToTree (notebook, GNS_get_tree (gns));
+  addNodeToTree (notebook, GNUNET_GNS_get_tree_root (gns));
   gtk_widget_show_all (GTK_WIDGET (notebook));
   update_visibility ();
 }
@@ -370,7 +374,7 @@ void
 on_saveButton_activatesetup_gtk ()
 {
   GtkWidget *dialog;
-  if (0 == GC_write_configuration (cfg, cfg_filename))
+  if (0 == GNUNET_GC_write_configuration (cfg, cfg_filename))
     {
       dialog = gtk_message_dialog_new (NULL,
                                        GTK_DIALOG_MODAL,
@@ -398,14 +402,14 @@ on_saveButton_activatesetup_gtk ()
  * needs saving and possibly save configuration or do not
  * exit.
  *
- * @return TRUE to NOT exit (i.e. user hits cancel on save YES/NO/CANCEL).
+ * @return TRUE to NOT exit (i.e. user hits cancel on save GNUNET_YES/GNUNET_NO/CANCEL).
  */
 gboolean
 on_main_window_delete_eventsetup_gtk ()
 {
   GtkWidget *dialog;
   gint ret;
-  if (GC_test_dirty (cfg))
+  if (GNUNET_GC_test_dirty (cfg))
     {
       dialog = gtk_message_dialog_new (NULL,
                                        GTK_DIALOG_MODAL,
@@ -417,7 +421,7 @@ on_main_window_delete_eventsetup_gtk ()
       switch (ret)
         {
         case GTK_RESPONSE_YES:
-          if (0 != GC_write_configuration (cfg, cfg_filename))
+          if (0 != GNUNET_GC_write_configuration (cfg, cfg_filename))
             {
               dialog = gtk_message_dialog_new (NULL,
                                                GTK_DIALOG_MODAL,
@@ -452,15 +456,16 @@ gtk_main_quitsetup_gtk ()
 
 int
 gconf_main_post_init (struct
-                      PluginHandle
+                      GNUNET_PluginHandle
                       *self,
                       struct
-                      GE_Context *e,
+                      GNUNET_GE_Context *e,
                       struct
-                      GC_Configuration
+                      GNUNET_GC_Configuration
                       *c,
                       struct
-                      GNS_Context *gns, const char *filename, int is_daemon)
+                      GNUNET_GNS_Context *gns, const char *filename,
+                      int is_daemon)
 {
   GtkWidget *mainWindow;
   cfg = c;
@@ -496,15 +501,16 @@ gconf_mainsetup_gtk (int argc,
                      const char
                      **argv,
                      struct
-                     PluginHandle
+                     GNUNET_PluginHandle
                      *self,
-                     struct GE_Context
+                     struct GNUNET_GE_Context
                      *ectx,
                      struct
-                     GC_Configuration
+                     GNUNET_GC_Configuration
                      *cfg,
                      struct
-                     GNS_Context *gns, const char *filename, int is_daemon)
+                     GNUNET_GNS_Context *gns, const char *filename,
+                     int is_daemon)
 {
   g_thread_init (NULL);
   gtk_init (&argc, (char ***) &argv);

@@ -43,26 +43,26 @@
  * a failure of the command 'cmd' with the message given
  * by gcry_strerror(rc).
  */
-#define LOG_GCRY(ectx, level, cmd, rc) do { GE_LOG(ectx, level, _("`%s' failed at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, gcry_strerror(rc)); } while(0);
+#define LOG_GCRY(ectx, level, cmd, rc) do { GNUNET_GE_LOG(ectx, level, _("`%s' failed at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, gcry_strerror(rc)); } while(0);
 
 /**
  * Die with an error message that indicates
  * a failure of the command 'cmd' with the message given
  * by gcry_strerror(rc).
  */
-#define DIE_GCRY(ectx, cmd, rc) do { GE_LOG(ectx, GE_FATAL | GE_USER | GE_DEVELOPER | GE_IMMEDIATE, _("`%s' failed at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, gcry_strerror(rc)); abort(); } while(0);
+#define DIE_GCRY(ectx, cmd, rc) do { GNUNET_GE_LOG(ectx, GNUNET_GE_FATAL | GNUNET_GE_USER | GNUNET_GE_DEVELOPER | GNUNET_GE_IMMEDIATE, _("`%s' failed at %s:%d with error: %s\n"), cmd, __FILE__, __LINE__, gcry_strerror(rc)); abort(); } while(0);
 
 
 /**
  * Create a new SessionKey (for AES-256).
  */
 void
-makeSessionkey (SESSIONKEY * key)
+GNUNET_AES_create_session_key (GNUNET_AES_SessionKey * key)
 {
-  lockGcrypt ();
-  gcry_randomize (&key->key[0], SESSIONKEY_LEN, GCRY_STRONG_RANDOM);
-  unlockGcrypt ();
-  key->crc32 = htonl (crc32N (key, SESSIONKEY_LEN));
+  GNUNET_lock_gcrypt_ ();
+  gcry_randomize (&key->key[0], GNUNET_SESSIONKEY_LEN, GCRY_STRONG_RANDOM);
+  GNUNET_unlock_gcrypt_ ();
+  key->crc32 = htonl (GNUNET_crc32_n (key, GNUNET_SESSIONKEY_LEN));
 }
 
 /**
@@ -77,49 +77,51 @@ makeSessionkey (SESSIONKEY * key)
  * @returns the size of the encrypted block, -1 for errors
  */
 int
-encryptBlock (const void *block,
-              unsigned short len,
-              const SESSIONKEY * sessionkey,
-              const INITVECTOR * iv, void *result)
+GNUNET_AES_encrypt (const void *block,
+                    unsigned short len,
+                    const GNUNET_AES_SessionKey * sessionkey,
+                    const GNUNET_AES_InitializationVector * iv, void *result)
 {
   gcry_cipher_hd_t handle;
   int rc;
 
-  if (sessionkey->crc32 != htonl (crc32N (sessionkey, SESSIONKEY_LEN)))
+  if (sessionkey->crc32 !=
+      htonl (GNUNET_crc32_n (sessionkey, GNUNET_SESSIONKEY_LEN)))
     {
-      GE_BREAK (NULL, 0);
-      return SYSERR;
+      GNUNET_GE_BREAK (NULL, 0);
+      return GNUNET_SYSERR;
     }
-  lockGcrypt ();
+  GNUNET_lock_gcrypt_ ();
   rc = gcry_cipher_open (&handle,
                          GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CFB, 0);
   if (rc)
     {
       LOG_GCRY (NULL,
-                GE_ERROR | GE_USER | GE_DEVELOPER | GE_BULK,
-                "gcry_cipher_open", rc);
-      unlockGcrypt ();
+                GNUNET_GE_ERROR | GNUNET_GE_USER | GNUNET_GE_DEVELOPER |
+                GNUNET_GE_BULK, "gcry_cipher_open", rc);
+      GNUNET_unlock_gcrypt_ ();
       return -1;
     }
-  rc = gcry_cipher_setkey (handle, sessionkey, SESSIONKEY_LEN);
+  rc = gcry_cipher_setkey (handle, sessionkey, GNUNET_SESSIONKEY_LEN);
 
   if (rc && ((char) rc != GPG_ERR_WEAK_KEY))
     {
       LOG_GCRY (NULL,
-                GE_ERROR | GE_USER | GE_DEVELOPER | GE_BULK,
-                "gcry_cipher_setkey", rc);
+                GNUNET_GE_ERROR | GNUNET_GE_USER | GNUNET_GE_DEVELOPER |
+                GNUNET_GE_BULK, "gcry_cipher_setkey", rc);
       gcry_cipher_close (handle);
-      unlockGcrypt ();
+      GNUNET_unlock_gcrypt_ ();
       return -1;
     }
-  rc = gcry_cipher_setiv (handle, iv, sizeof (INITVECTOR));
+  rc =
+    gcry_cipher_setiv (handle, iv, sizeof (GNUNET_AES_InitializationVector));
   if (rc && ((char) rc != GPG_ERR_WEAK_KEY))
     {
       LOG_GCRY (NULL,
-                GE_ERROR | GE_USER | GE_DEVELOPER | GE_BULK,
-                "gcry_cipher_setiv", rc);
+                GNUNET_GE_ERROR | GNUNET_GE_USER | GNUNET_GE_DEVELOPER |
+                GNUNET_GE_BULK, "gcry_cipher_setiv", rc);
       gcry_cipher_close (handle);
-      unlockGcrypt ();
+      GNUNET_unlock_gcrypt_ ();
       return -1;
     }
 
@@ -127,14 +129,14 @@ encryptBlock (const void *block,
   if (rc)
     {
       LOG_GCRY (NULL,
-                GE_ERROR | GE_USER | GE_DEVELOPER | GE_BULK,
-                "gcry_cipher_encrypt", rc);
+                GNUNET_GE_ERROR | GNUNET_GE_USER | GNUNET_GE_DEVELOPER |
+                GNUNET_GE_BULK, "gcry_cipher_encrypt", rc);
       gcry_cipher_close (handle);
-      unlockGcrypt ();
+      GNUNET_unlock_gcrypt_ ();
       return -1;
     }
   gcry_cipher_close (handle);
-  unlockGcrypt ();
+  GNUNET_unlock_gcrypt_ ();
   return len;
 }
 
@@ -149,63 +151,66 @@ encryptBlock (const void *block,
  * @return -1 on failure, size of decrypted block on success
  */
 int
-decryptBlock (const SESSIONKEY * sessionkey,
-              const void *block,
-              unsigned short size, const INITVECTOR * iv, void *result)
+GNUNET_AES_decrypt (const GNUNET_AES_SessionKey * sessionkey,
+                    const void *block,
+                    unsigned short size,
+                    const GNUNET_AES_InitializationVector * iv, void *result)
 {
   gcry_cipher_hd_t handle;
   int rc;
 
-  if (sessionkey->crc32 != htonl (crc32N (sessionkey, SESSIONKEY_LEN)))
+  if (sessionkey->crc32 !=
+      htonl (GNUNET_crc32_n (sessionkey, GNUNET_SESSIONKEY_LEN)))
     {
-      GE_BREAK (NULL, 0);
-      return SYSERR;
+      GNUNET_GE_BREAK (NULL, 0);
+      return GNUNET_SYSERR;
     }
-  lockGcrypt ();
+  GNUNET_lock_gcrypt_ ();
   rc = gcry_cipher_open (&handle,
                          GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CFB, 0);
   if (rc)
     {
       LOG_GCRY (NULL,
-                GE_ERROR | GE_USER | GE_DEVELOPER | GE_BULK,
-                "gcry_cipher_open", rc);
-      unlockGcrypt ();
+                GNUNET_GE_ERROR | GNUNET_GE_USER | GNUNET_GE_DEVELOPER |
+                GNUNET_GE_BULK, "gcry_cipher_open", rc);
+      GNUNET_unlock_gcrypt_ ();
       return -1;
     }
-  rc = gcry_cipher_setkey (handle, sessionkey, SESSIONKEY_LEN);
+  rc = gcry_cipher_setkey (handle, sessionkey, GNUNET_SESSIONKEY_LEN);
 
   if (rc && ((char) rc != GPG_ERR_WEAK_KEY))
     {
       LOG_GCRY (NULL,
-                GE_ERROR | GE_USER | GE_DEVELOPER | GE_BULK,
-                "gcry_cipher_setkey", rc);
+                GNUNET_GE_ERROR | GNUNET_GE_USER | GNUNET_GE_DEVELOPER |
+                GNUNET_GE_BULK, "gcry_cipher_setkey", rc);
       gcry_cipher_close (handle);
-      unlockGcrypt ();
+      GNUNET_unlock_gcrypt_ ();
       return -1;
     }
-  rc = gcry_cipher_setiv (handle, iv, sizeof (INITVECTOR));
+  rc =
+    gcry_cipher_setiv (handle, iv, sizeof (GNUNET_AES_InitializationVector));
 
   if (rc && ((char) rc != GPG_ERR_WEAK_KEY))
     {
       LOG_GCRY (NULL,
-                GE_ERROR | GE_USER | GE_DEVELOPER | GE_BULK,
-                "gcry_cipher_setiv", rc);
+                GNUNET_GE_ERROR | GNUNET_GE_USER | GNUNET_GE_DEVELOPER |
+                GNUNET_GE_BULK, "gcry_cipher_setiv", rc);
       gcry_cipher_close (handle);
-      unlockGcrypt ();
+      GNUNET_unlock_gcrypt_ ();
       return -1;
     }
   rc = gcry_cipher_decrypt (handle, result, size, block, size);
   if (rc)
     {
       LOG_GCRY (NULL,
-                GE_ERROR | GE_USER | GE_DEVELOPER | GE_BULK,
-                "gcry_cipher_decrypt", rc);
+                GNUNET_GE_ERROR | GNUNET_GE_USER | GNUNET_GE_DEVELOPER |
+                GNUNET_GE_BULK, "gcry_cipher_decrypt", rc);
       gcry_cipher_close (handle);
-      unlockGcrypt ();
+      GNUNET_unlock_gcrypt_ ();
       return -1;
     }
   gcry_cipher_close (handle);
-  unlockGcrypt ();
+  GNUNET_unlock_gcrypt_ ();
   return size;
 }
 

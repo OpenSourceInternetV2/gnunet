@@ -7,9 +7,9 @@
 void
 gaim_debug_error (char *facility, char *format, ...)
 {
-  GE_LOG (NULL,
-          GE_WARNING | GE_DEVELOPER | GE_ADMIN | GE_BULK,
-          "%s: %s\n", facility, format);
+  GNUNET_GE_LOG (NULL,
+                 GNUNET_GE_WARNING | GNUNET_GE_DEVELOPER | GNUNET_GE_ADMIN |
+                 GNUNET_GE_BULK, "%s: %s\n", facility, format);
 }
 
 /**
@@ -18,5 +18,6 @@ gaim_debug_error (char *facility, char *format, ...)
 void
 gaim_debug_info (char *facility, char *format, ...)
 {
-  GE_LOG (NULL, GE_INFO | GE_ADMIN | GE_BULK, "%s: %s\n", facility, format);
+  GNUNET_GE_LOG (NULL, GNUNET_GE_INFO | GNUNET_GE_ADMIN | GNUNET_GE_BULK,
+                 "%s: %s\n", facility, format);
 }

@@ -32,8 +32,8 @@
 
 #include <curl/curl.h>
 
-#define TRUE YES
-#define FALSE NO
+#define TRUE GNUNET_YES
+#define FALSE GNUNET_NO
 #define g_return_if_fail(a) if(!(a)) return;
 #define g_return_val_if_fail(a, val) if(!(a)) return (val);
 
@@ -172,7 +172,7 @@ gaim_upnp_compare_device (const xmlnode * device, const char *deviceType)
     return FALSE;
   tmp = xmlnode_get_data (deviceTypeNode);
   ret = !strcasecmp (tmp, deviceType);
-  FREE (tmp);
+  GNUNET_free (tmp);
   return ret;
 }
 
@@ -190,7 +190,7 @@ gaim_upnp_compare_service (const xmlnode * service, const char *serviceType)
     return FALSE;
   tmp = xmlnode_get_data (serviceTypeNode);
   ret = !strcasecmp (tmp, serviceType);
-  FREE (tmp);
+  GNUNET_free (tmp);
   return ret;
 }
 
@@ -224,7 +224,7 @@ gaim_upnp_parse_description_response (const char *httpResponse,
     }
   else
     {
-      baseURL = STRDUP (httpURL);
+      baseURL = GNUNET_strdup (httpURL);
     }
 
   /* get the serviceType child that has the service type as its data */
@@ -238,14 +238,14 @@ gaim_upnp_parse_description_response (const char *httpResponse,
     }
   if (serviceTypeNode == NULL)
     {
-      FREE (baseURL);
+      GNUNET_free (baseURL);
       xmlnode_free (xmlRootNode);
       return NULL;
     }
   serviceTypeNode = xmlnode_get_child (serviceTypeNode, "deviceList");
   if (serviceTypeNode == NULL)
     {
-      FREE (baseURL);
+      GNUNET_free (baseURL);
       xmlnode_free (xmlRootNode);
       return NULL;
     }
@@ -260,14 +260,14 @@ gaim_upnp_parse_description_response (const char *httpResponse,
     }
   if (serviceTypeNode == NULL)
     {
-      FREE (baseURL);
+      GNUNET_free (baseURL);
       xmlnode_free (xmlRootNode);
       return NULL;
     }
   serviceTypeNode = xmlnode_get_child (serviceTypeNode, "deviceList");
   if (serviceTypeNode == NULL)
     {
-      FREE (baseURL);
+      GNUNET_free (baseURL);
       xmlnode_free (xmlRootNode);
       return NULL;
     }
@@ -281,14 +281,14 @@ gaim_upnp_parse_description_response (const char *httpResponse,
     }
   if (serviceTypeNode == NULL)
     {
-      FREE (baseURL);
+      GNUNET_free (baseURL);
       xmlnode_free (xmlRootNode);
       return NULL;
     }
   serviceTypeNode = xmlnode_get_child (serviceTypeNode, "serviceList");
   if (serviceTypeNode == NULL)
     {
-      FREE (baseURL);
+      GNUNET_free (baseURL);
       xmlnode_free (xmlRootNode);
       return NULL;
     }
@@ -302,10 +302,10 @@ gaim_upnp_parse_description_response (const char *httpResponse,
       serviceTypeNode = xmlnode_get_next_twin (serviceTypeNode);
     }
 
-  FREE (service);
+  GNUNET_free (service);
   if (serviceTypeNode == NULL)
     {
-      FREE (baseURL);
+      GNUNET_free (baseURL);
       xmlnode_free (xmlRootNode);
       return NULL;
     }
@@ -314,7 +314,7 @@ gaim_upnp_parse_description_response (const char *httpResponse,
   if ((controlURLNode = xmlnode_get_child (serviceTypeNode,
                                            "controlURL")) == NULL)
     {
-      FREE (baseURL);
+      GNUNET_free (baseURL);
       xmlnode_free (xmlRootNode);
       return NULL;
     }
@@ -341,19 +341,19 @@ gaim_upnp_parse_description_response (const char *httpResponse,
         {
           controlURL = g_strdup_printf ("%s%s", baseURL, tmp);
         }
-      FREE (tmp);
+      GNUNET_free (tmp);
     }
   else
     {
       controlURL = tmp;
     }
-  FREE (baseURL);
+  GNUNET_free (baseURL);
   xmlnode_free (xmlRootNode);
 
   return controlURL;
 }
 
-#define CURL_EASY_SETOPT(c, a, b) do { ret = curl_easy_setopt(c, a, b); if (ret != CURLE_OK) GE_LOG(NULL, GE_WARNING | GE_USER | GE_BULK, _("%s failed at %s:%d: `%s'\n"), "curl_easy_setopt", __FILE__, __LINE__, curl_easy_strerror(ret)); } while (0);
+#define CURL_EASY_SETOPT(c, a, b) do { ret = curl_easy_setopt(c, a, b); if (ret != CURLE_OK) GNUNET_GE_LOG(NULL, GNUNET_GE_WARNING | GNUNET_GE_USER | GNUNET_GE_BULK, _("%s failed at %s:%d: `%s'\n"), "curl_easy_setopt", __FILE__, __LINE__, curl_easy_strerror(ret)); } while (0);
 
 /**
  * Do the generic curl setup.
@@ -372,7 +372,7 @@ setup_curl (const char *proxy, CURL * curl)
      setting NOSIGNAL results in really weird
      crashes on my system! */
   CURL_EASY_SETOPT (curl, CURLOPT_NOSIGNAL, 1);
-  return OK;
+  return GNUNET_OK;
 }
 
 static int
@@ -389,9 +389,9 @@ gaim_upnp_generate_action_message_and_send (const char *proxy,
   char *soapMessage;
   struct curl_slist *headers = NULL;
 
-  GE_ASSERT (NULL, cb != NULL);
+  GNUNET_GE_ASSERT (NULL, cb != NULL);
   if (0 != curl_global_init (CURL_GLOBAL_WIN32))
-    return SYSERR;
+    return GNUNET_SYSERR;
   /* set the soap message */
   soapMessage = g_strdup_printf (SOAP_ACTION,
                                  actionName,
@@ -424,22 +424,23 @@ gaim_upnp_generate_action_message_and_send (const char *proxy,
     ret = curl_easy_perform (curl);
 #if 0
   if (ret != CURLE_OK)
-    GE_LOG (NULL,
-            GE_ERROR | GE_ADMIN | GE_DEVELOPER | GE_BULK,
-            _("%s failed for url `%s' and post-data `%s' at %s:%d: `%s'\n"),
-            "curl_easy_perform",
-            control_info.control_url,
-            soapMessage, __FILE__, __LINE__, curl_easy_strerror (ret));
+    GNUNET_GE_LOG (NULL,
+                   GNUNET_GE_ERROR | GNUNET_GE_ADMIN | GNUNET_GE_DEVELOPER |
+                   GNUNET_GE_BULK,
+                   _
+                   ("%s failed for url `%s' and post-data `%s' at %s:%d: `%s'\n"),
+                   "curl_easy_perform", control_info.control_url, soapMessage,
+                   __FILE__, __LINE__, curl_easy_strerror (ret));
 #endif
   curl_slist_free_all (headers);
   curl_easy_cleanup (curl);
   curl_global_cleanup ();
-  FREE (sizeHeader);
-  FREE (soapMessage);
-  FREE (soapHeader);
+  GNUNET_free (sizeHeader);
+  GNUNET_free (soapMessage);
+  GNUNET_free (soapHeader);
   if (ret != CURLE_OK)
-    return SYSERR;
-  return OK;
+    return GNUNET_SYSERR;
+  return GNUNET_OK;
 }
 
 
@@ -454,7 +455,7 @@ looked_up_public_ip_cb (void *url_data,
 
   if (len + dd->buf_len > 1024 * 1024 * 4)
     return 0;                   /* refuse to process - too big! */
-  GROW (dd->buf, dd->buf_len, dd->buf_len + len);
+  GNUNET_array_grow (dd->buf, dd->buf_len, dd->buf_len + len);
   memcpy (&dd->buf[dd->buf_len - len], url_data, len);
   if (dd->buf_len == 0)
     return len;
@@ -470,9 +471,9 @@ looked_up_public_ip_cb (void *url_data,
   if (temp2 - temp >= sizeof (control_info.publicip))
     temp2 = temp + sizeof (control_info.publicip) - 1;
   memcpy (control_info.publicip, temp + 1, temp2 - (temp + 1));
-  GE_LOG (NULL,
-          GE_INFO | GE_USER | GE_BULK,
-          _("upnp: NAT Returned IP: %s\n"), control_info.publicip);
+  GNUNET_GE_LOG (NULL,
+                 GNUNET_GE_INFO | GNUNET_GE_USER | GNUNET_GE_BULK,
+                 _("upnp: NAT Returned IP: %s\n"), control_info.publicip);
   return len;
 }
 
@@ -496,7 +497,7 @@ upnp_parse_description_cb (void *httpResponse,
 
   if (len + dd->buf_len > 1024 * 1024 * 4)
     return len;                 /* refuse to process - too big! */
-  GROW (dd->buf, dd->buf_len, dd->buf_len + len);
+  GNUNET_array_grow (dd->buf, dd->buf_len, dd->buf_len + len);
   memcpy (&dd->buf[dd->buf_len - len], httpResponse, len);
   if (dd->buf_len > 0)
     control_url = gaim_upnp_parse_description_response (dd->buf,
@@ -505,7 +506,7 @@ upnp_parse_description_cb (void *httpResponse,
                                                         dd->service_type);
   control_info.status = control_url ? GAIM_UPNP_STATUS_DISCOVERED
     : GAIM_UPNP_STATUS_UNABLE_TO_DISCOVER;
-  FREENONNULL (control_info.control_url);
+  GNUNET_free_non_null (control_info.control_url);
   control_info.control_url = control_url;
   control_info.service_type = dd->service_type;
   return len;
@@ -518,7 +519,7 @@ gaim_upnp_parse_description (char *proxy, UPnPDiscoveryData * dd)
   int ret;
 
   if (0 != curl_global_init (CURL_GLOBAL_WIN32))
-    return SYSERR;
+    return GNUNET_SYSERR;
   curl = curl_easy_init ();
   setup_curl (proxy, curl);
   ret = CURLE_OK;
@@ -535,21 +536,21 @@ gaim_upnp_parse_description (char *proxy, UPnPDiscoveryData * dd)
   CURL_EASY_SETOPT (curl, CURLOPT_NOSIGNAL, 1);
   ret = curl_easy_perform (curl);
   if (ret != CURLE_OK)
-    GE_LOG (NULL,
-            GE_ERROR | GE_ADMIN | GE_DEVELOPER | GE_BULK,
-            _("%s failed at %s:%d: `%s'\n"),
-            "curl_easy_perform",
-            __FILE__, __LINE__, curl_easy_strerror (ret));
+    GNUNET_GE_LOG (NULL,
+                   GNUNET_GE_ERROR | GNUNET_GE_ADMIN | GNUNET_GE_DEVELOPER |
+                   GNUNET_GE_BULK, _("%s failed at %s:%d: `%s'\n"),
+                   "curl_easy_perform", __FILE__, __LINE__,
+                   curl_easy_strerror (ret));
   curl_easy_cleanup (curl);
   curl_global_cleanup ();
   if (control_info.control_url == NULL)
-    return SYSERR;
-  return OK;
+    return GNUNET_SYSERR;
+  return GNUNET_OK;
 }
 
 int
-gaim_upnp_discover (struct GE_Context *ectx,
-                    struct GC_Configuration *cfg, int sock)
+gaim_upnp_discover (struct GNUNET_GE_Context *ectx,
+                    struct GNUNET_GC_Configuration *cfg, int sock)
 {
   char *proxy;
   struct hostent *hp;
@@ -567,13 +568,13 @@ gaim_upnp_discover (struct GE_Context *ectx,
 
   memset (&dd, 0, sizeof (UPnPDiscoveryData));
   if (control_info.status == GAIM_UPNP_STATUS_DISCOVERING)
-    return NO;
+    return GNUNET_NO;
   dd.sock = sock;
   hp = gethostbyname (HTTPMU_HOST_ADDRESS);
   if (hp == NULL)
     {
       CLOSE (dd.sock);
-      return SYSERR;
+      return GNUNET_SYSERR;
     }
   memset (&server, 0, sizeof (struct sockaddr));
   server.sin_family = AF_INET;
@@ -607,13 +608,13 @@ gaim_upnp_discover (struct GE_Context *ectx,
             }
         }
       while (((errno == EINTR) || (errno == EAGAIN)) &&
-             (GNUNET_SHUTDOWN_TEST () == NO));
-      FREE (sendMessage);
+             (GNUNET_shutdown_test () == GNUNET_NO));
+      GNUNET_free (sendMessage);
       if (sentSuccess)
         break;
     }
   if (sentSuccess == FALSE)
-    return SYSERR;
+    return GNUNET_SYSERR;
 
   /* try to read response */
   do
@@ -629,13 +630,13 @@ gaim_upnp_discover (struct GE_Context *ectx,
           continue;
         }
     }
-  while ((errno == EINTR) && (GNUNET_SHUTDOWN_TEST () == NO));
+  while ((errno == EINTR) && (GNUNET_shutdown_test () == GNUNET_NO));
 
   /* parse the response, and see if it was a success */
   if (g_strstr_len (buf, buf_len, HTTP_OK) == NULL)
-    return SYSERR;
+    return GNUNET_SYSERR;
   if ((startDescURL = g_strstr_len (buf, buf_len, "http://")) == NULL)
-    return SYSERR;
+    return GNUNET_SYSERR;
 
   endDescURL = g_strstr_len (startDescURL,
                              buf_len - (startDescURL - buf), "\r");
@@ -643,26 +644,28 @@ gaim_upnp_discover (struct GE_Context *ectx,
     endDescURL = g_strstr_len (startDescURL,
                                buf_len - (startDescURL - buf), "\n");
   if (endDescURL == NULL)
-    return SYSERR;
+    return GNUNET_SYSERR;
   if (endDescURL == startDescURL)
-    return SYSERR;
-  dd.full_url = STRNDUP (startDescURL, endDescURL - startDescURL);
+    return GNUNET_SYSERR;
+  dd.full_url = GNUNET_strdup (startDescURL);
+  dd.full_url[endDescURL - startDescURL] = '\0';
   proxy = NULL;
-  GC_get_configuration_value_string (cfg,
-                                     "GNUNETD", "HTTP-PROXY", "", &proxy);
+  GNUNET_GC_get_configuration_value_string (cfg,
+                                            "GNUNETD", "HTTP-PROXY", "",
+                                            &proxy);
   ret = gaim_upnp_parse_description (proxy, &dd);
-  FREE (dd.full_url);
-  GROW (dd.buf, dd.buf_len, 0);
-  if (ret == OK)
+  GNUNET_free (dd.full_url);
+  GNUNET_array_grow (dd.buf, dd.buf_len, 0);
+  if (ret == GNUNET_OK)
     {
       ret = gaim_upnp_generate_action_message_and_send (proxy,
                                                         "GetExternalIPAddress",
                                                         "",
                                                         looked_up_public_ip_cb,
                                                         &dd);
-      GROW (dd.buf, dd.buf_len, 0);
+      GNUNET_array_grow (dd.buf, dd.buf_len, 0);
     }
-  FREE (proxy);
+  GNUNET_free (proxy);
   return ret;
 }
 
@@ -676,8 +679,8 @@ gaim_upnp_get_public_ip ()
 }
 
 int
-gaim_upnp_change_port_mapping (struct GE_Context *ectx,
-                               struct GC_Configuration *cfg,
+gaim_upnp_change_port_mapping (struct GNUNET_GE_Context *ectx,
+                               struct GNUNET_GC_Configuration *cfg,
                                int do_add,
                                unsigned short portmap, const char *protocol)
 {
@@ -688,7 +691,7 @@ gaim_upnp_change_port_mapping (struct GE_Context *ectx,
   int ret;
 
   if (control_info.status != GAIM_UPNP_STATUS_DISCOVERED)
-    return NO;
+    return GNUNET_NO;
   if (do_add)
     {
       internal_ip = gaim_upnp_get_internal_ip (cfg, ectx);
@@ -696,13 +699,13 @@ gaim_upnp_change_port_mapping (struct GE_Context *ectx,
         {
           gaim_debug_error ("upnp",
                             "gaim_upnp_set_port_mapping(): couldn't get local ip\n");
-          return NO;
+          return GNUNET_NO;
         }
       action_name = "AddPortMapping";
       action_params = g_strdup_printf (ADD_PORT_MAPPING_PARAMS,
                                        portmap,
                                        protocol, portmap, internal_ip);
-      FREE (internal_ip);
+      GNUNET_free (internal_ip);
     }
   else
     {
@@ -711,15 +714,16 @@ gaim_upnp_change_port_mapping (struct GE_Context *ectx,
                                        portmap, protocol);
     }
   proxy = NULL;
-  GC_get_configuration_value_string (cfg,
-                                     "GNUNETD", "HTTP-PROXY", "", &proxy);
-  ret = gaim_upnp_generate_action_message_and_send (proxy,
-                                                    action_name,
-                                                    action_params,
-                                                    &ignore_response, NULL);
+  GNUNET_GC_get_configuration_value_string (cfg,
+                                            "GNUNETD", "HTTP-PROXY", "",
+                                            &proxy);
+  ret =
+    gaim_upnp_generate_action_message_and_send (proxy, action_name,
+                                                action_params,
+                                                &ignore_response, NULL);
 
-  FREE (action_params);
-  FREE (proxy);
+  GNUNET_free (action_params);
+  GNUNET_free (proxy);
   return ret;
 }
 

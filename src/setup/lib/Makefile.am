@@ -9,18 +9,22 @@ LIBS = @LIBINTL@ @LIBS@
 
 lib_LTLIBRARIES = libgnunetsetup.la
 
+if HAVE_GUILE
+ GUILE_SRC = \
+    gns.c \
+    tree.c tree.h
+ GUILE_LIB = -lguile
+endif
+
 libgnunetsetup_la_SOURCES = \
-  gns.c \
-  tree.c tree.h \
+	$(GUILE_SRC) \
   wizard_util.c wizard_util.h
 
 libgnunetsetup_la_LIBADD = \
- $(top_builddir)/src/util/libgnunetutil.la \
- $(top_builddir)/src/util/loggers/libgnunetutil_logging.la \
- $(top_builddir)/src/util/config_impl/libgnunetutil_config.la  
+ $(top_builddir)/src/util/libgnunetutil.la 
 
 libgnunetsetup_la_LDFLAGS = \
- -export-dynamic -lguile
+ -export-dynamic $(GUILE_LIB)
 
 libgnunetsetup_la_CFLAGS = -I$(top_scrdir)/include 
 

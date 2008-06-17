@@ -23,8 +23,6 @@
  */
 
 #include "gnunet_util.h"
-#include "gnunet_util_config_impl.h"
-#include "gnunet_util_error_loggers.h"
 #include "platform.h"
 
 int
@@ -32,38 +30,41 @@ main (int argc, char *argv[])
 {
   static long k;
   int ret;
-  cron_t start;
-  struct GE_Context *ectx;
-  struct GC_Configuration *cfg;
+  GNUNET_CronTime start;
+  struct GNUNET_GE_Context *ectx;
+  struct GNUNET_GC_Configuration *cfg;
 
-  ectx = GE_create_context_stderr (NO,
-                                   GE_WARNING | GE_ERROR | GE_FATAL |
-                                   GE_USER | GE_ADMIN | GE_DEVELOPER |
-                                   GE_IMMEDIATE | GE_BULK);
-  GE_setDefaultContext (ectx);
-  cfg = GC_create_C_impl ();
-  GE_ASSERT (ectx, cfg != NULL);
-  os_init (ectx);
+  ectx = GNUNET_GE_create_context_stderr (GNUNET_NO,
+                                          GNUNET_GE_WARNING | GNUNET_GE_ERROR
+                                          | GNUNET_GE_FATAL | GNUNET_GE_USER |
+                                          GNUNET_GE_ADMIN |
+                                          GNUNET_GE_DEVELOPER |
+                                          GNUNET_GE_IMMEDIATE |
+                                          GNUNET_GE_BULK);
+  GNUNET_GE_setDefaultContext (ectx);
+  cfg = GNUNET_GC_create ();
+  GNUNET_GE_ASSERT (ectx, cfg != NULL);
+  GNUNET_os_init (ectx);
   /* need to run each phase for more than 10s since
      statuscalls only refreshes that often... */
-  start = get_time ();
-  while (start + 12 * cronSECONDS > get_time ())
-    PTHREAD_SLEEP (1);
-  start = get_time ();
-  ret = os_cpu_get_load (ectx, cfg);
-  while (start + 60 * cronSECONDS > get_time ())
+  start = GNUNET_get_time ();
+  while (start + 12 * GNUNET_CRON_SECONDS > GNUNET_get_time ())
+    GNUNET_thread_sleep (1);
+  start = GNUNET_get_time ();
+  ret = GNUNET_cpu_get_load (ectx, cfg);
+  while (start + 60 * GNUNET_CRON_SECONDS > GNUNET_get_time ())
     k++;                        /* do some processing to drive load up */
-  if (ret > os_cpu_get_load (ectx, cfg))
+  if (ret > GNUNET_cpu_get_load (ectx, cfg))
     {
       printf ("busy loop decreased CPU load: %d < %d.\n",
-              ret, os_cpu_get_load (ectx, cfg));
+              ret, GNUNET_cpu_get_load (ectx, cfg));
       ret = 1;
     }
   else
     {
       ret = 0;
     }
-  GC_free (cfg);
-  GE_free_context (ectx);
+  GNUNET_GC_free (cfg);
+  GNUNET_GE_free_context (ectx);
   return ret;
 }

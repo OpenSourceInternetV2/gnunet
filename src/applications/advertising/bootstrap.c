@@ -31,21 +31,21 @@
 #include "gnunet_bootstrap_service.h"
 #include "gnunet_state_service.h"
 
-#define DEBUG_BOOTSTRAP NO
+#define DEBUG_BOOTSTRAP GNUNET_NO
 
 #define hello_HELPER_TABLE_START_SIZE 64
 
-static CoreAPIForApplication *coreAPI;
+static GNUNET_CoreAPIForPlugins *coreAPI;
 
-static Bootstrap_ServiceAPI *bootstrap;
+static GNUNET_Bootstrap_ServiceAPI *bootstrap;
 
-static State_ServiceAPI *state;
+static GNUNET_State_ServiceAPI *state;
 
-static struct PTHREAD *pt;
+static struct GNUNET_ThreadHandle *pt;
 
 typedef struct
 {
-  P2P_hello_MESSAGE **hellos;
+  GNUNET_MessageHello **hellos;
   unsigned int hellosCount;
   unsigned int hellosLen;
   int do_shutdown;
@@ -65,69 +65,76 @@ processhellos (HelloListClosure * hcq)
 {
   int rndidx;
   int i;
-  P2P_hello_MESSAGE *msg;
+  GNUNET_MessageHello *msg;
 
   if (NULL == hcq)
     {
-      GE_BREAK (coreAPI->ectx, 0);
+      GNUNET_GE_BREAK (coreAPI->ectx, 0);
       return;
     }
   while ((!hcq->do_shutdown) && (hcq->hellosCount > 0))
     {
       /* select hellos in random order */
-      rndidx = weak_randomi (hcq->hellosCount);
+      rndidx =
+        GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK, hcq->hellosCount);
 #if DEBUG_BOOTSTRAP
-      GE_LOG (coreAPI->ectx,
-              GE_DEBUG | GE_REQUEST | GE_USER,
-              "%s chose hello %d of %d\n",
-              __FUNCTION__, rndidx, hcq->hellosCount);
+      GNUNET_GE_LOG (coreAPI->ectx,
+                     GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                     "%s chose hello %d of %d\n",
+                     __FUNCTION__, rndidx, hcq->hellosCount);
 #endif
-      msg = (P2P_hello_MESSAGE *) hcq->hellos[rndidx];
+      msg = (GNUNET_MessageHello *) hcq->hellos[rndidx];
       hcq->hellos[rndidx] = hcq->hellos[hcq->hellosCount - 1];
-      GROW (hcq->hellos, hcq->hellosCount, hcq->hellosCount - 1);
+      GNUNET_array_grow (hcq->hellos, hcq->hellosCount, hcq->hellosCount - 1);
 
-      coreAPI->injectMessage (NULL,
-                              (const char *) msg,
-                              ntohs (msg->header.size), NO, NULL);
-      FREE (msg);
+      coreAPI->p2p_inject_message (NULL,
+                                   (const char *) msg,
+                                   ntohs (msg->header.size), GNUNET_NO, NULL);
+      GNUNET_free (msg);
       if ((hcq->hellosCount > 0) && (!hlc.do_shutdown))
         {
           /* wait a bit */
           unsigned int load;
           int nload;
-          load = os_cpu_get_load (coreAPI->ectx, coreAPI->cfg);
+          load = GNUNET_cpu_get_load (coreAPI->ectx, coreAPI->cfg);
           if (load == (unsigned int) -1)
             load = 50;
-          nload = os_network_monitor_get_load (coreAPI->load_monitor, Upload);
+          nload =
+            GNUNET_network_monitor_get_load (coreAPI->load_monitor,
+                                             GNUNET_ND_UPLOAD);
           if (nload > load)
             load = nload;
-          nload = os_network_monitor_get_load (coreAPI->load_monitor,
-                                               Download);
+          nload = GNUNET_network_monitor_get_load (coreAPI->load_monitor,
+                                                   GNUNET_ND_DOWNLOAD);
           if (nload > load)
             load = nload;
           if (load > 100)
             load = 100;
 
-          PTHREAD_SLEEP (50 + weak_randomi ((load + 1) * (load + 1)));
+          GNUNET_thread_sleep (50 +
+                               GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK,
+                                                  (load + 1) * (load + 1)));
         }
     }
   for (i = 0; i < hcq->hellosCount; i++)
-    FREE (hcq->hellos[i]);
-  GROW (hcq->hellos, hcq->hellosCount, 0);
+    GNUNET_free (hcq->hellos[i]);
+  GNUNET_array_grow (hcq->hellos, hcq->hellosCount, 0);
 }
 
 static void
-downloadHostlistCallback (const P2P_hello_MESSAGE * hello, void *c)
+downloadHostlistCallback (const GNUNET_MessageHello * hello, void *c)
 {
   HelloListClosure *cls = c;
   if (cls->hellosCount >= cls->hellosLen)
     {
-      GROW (cls->hellos,
-            cls->hellosLen, cls->hellosLen + hello_HELPER_TABLE_START_SIZE);
+      GNUNET_array_grow (cls->hellos,
+                         cls->hellosLen,
+                         cls->hellosLen + hello_HELPER_TABLE_START_SIZE);
     }
-  cls->hellos[cls->hellosCount++] = MALLOC (ntohs (hello->header.size));
-  memcpy (cls->hellos[cls->hellosCount - 1],
-          hello, ntohs (hello->header.size));
+  cls->hellos[cls->hellosCount++] =
+    GNUNET_malloc (ntohs (hello->header.size));
+  memcpy (cls->hellos[cls->hellosCount - 1], hello,
+          ntohs (hello->header.size));
 }
 
 #define BOOTSTRAP_INFO "bootstrap-info"
@@ -135,21 +142,22 @@ downloadHostlistCallback (const P2P_hello_MESSAGE * hello, void *c)
 static int
 needBootstrap ()
 {
-  static cron_t lastTest;
-  static cron_t delta;
-  cron_t now;
+  static GNUNET_CronTime lastTest;
+  static GNUNET_CronTime delta;
+  GNUNET_CronTime now;
   char *data;
 
-  now = get_time ();
-  if (coreAPI->forAllConnectedNodes (NULL, NULL) >= MIN_CONNECTION_TARGET)
+  now = GNUNET_get_time ();
+  if (coreAPI->forAllConnectedNodes (NULL, NULL) >=
+      GNUNET_MIN_CONNECTION_TARGET)
     {
       /* still change delta and lastTest; even
          if the peer _briefly_ drops below MCT
          connections, we don't want it to immediately
          go for the hostlist... */
-      delta = 5 * cronMINUTES;
+      delta = 5 * GNUNET_CRON_MINUTES;
       lastTest = now;
-      return NO;
+      return GNUNET_NO;
     }
   if (lastTest == 0)
     {
@@ -158,14 +166,14 @@ needBootstrap ()
         {
           /* but not first on this machine */
           lastTest = now;
-          delta = 2 * cronMINUTES;      /* wait 2 minutes */
-          FREE (data);
+          delta = 2 * GNUNET_CRON_MINUTES;      /* wait 2 minutes */
+          GNUNET_free (data);
         }
       else
         {
           /* first on this machine, too! */
           state->write (coreAPI->ectx, BOOTSTRAP_INFO, 1, "X");
-          delta = 60 * cronSECONDS;
+          delta = 60 * GNUNET_CRON_SECONDS;
         }
     }
   if (now - lastTest > delta)
@@ -176,35 +184,36 @@ needBootstrap ()
          we know (identity).
          Sure, in the end it goes to the topology, so
          probably that API should be extended here... */
-      return YES;
+      return GNUNET_YES;
     }
   /* wait a bit longer */
-  return NO;
+  return GNUNET_NO;
 }
 
 static void *
 processThread (void *unused)
 {
   hlc.hellos = NULL;
-  while (NO == hlc.do_shutdown)
+  while (GNUNET_NO == hlc.do_shutdown)
     {
-      while (NO == hlc.do_shutdown)
+      while (GNUNET_NO == hlc.do_shutdown)
         {
-          PTHREAD_SLEEP (2 * cronSECONDS);
+          GNUNET_thread_sleep (2 * GNUNET_CRON_SECONDS);
           if (needBootstrap ())
             break;
         }
-      if (YES == hlc.do_shutdown)
+      if (GNUNET_YES == hlc.do_shutdown)
         break;
 #if DEBUG_BOOTSTRAP
-      GE_LOG (coreAPI->ectx, GE_DEBUG | GE_REQUEST | GE_USER,
-              "Starting bootstrap.\n");
+      GNUNET_GE_LOG (coreAPI->ectx,
+                     GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                     "Starting bootstrap.\n");
 #endif
       hlc.hellosLen = 0;
       hlc.hellosCount = 0;
       bootstrap->bootstrap (&downloadHostlistCallback,
                             &hlc, &testTerminate, &hlc);
-      GROW (hlc.hellos, hlc.hellosLen, hlc.hellosCount);
+      GNUNET_array_grow (hlc.hellos, hlc.hellosLen, hlc.hellosCount);
       processhellos (&hlc);
     }
   return NULL;
@@ -215,16 +224,16 @@ processThread (void *unused)
  * advertisements if needed.
  */
 void
-startBootstrap (CoreAPIForApplication * capi)
+startBootstrap (GNUNET_CoreAPIForPlugins * capi)
 {
   coreAPI = capi;
-  state = capi->requestService ("state");
-  GE_ASSERT (capi->ectx, state != NULL);
-  bootstrap = capi->requestService ("bootstrap");
-  GE_ASSERT (capi->ectx, bootstrap != NULL);
-  hlc.do_shutdown = NO;
-  pt = PTHREAD_CREATE (&processThread, NULL, 64 * 1024);
-  GE_ASSERT (capi->ectx, pt != NULL);
+  state = capi->request_service ("state");
+  GNUNET_GE_ASSERT (capi->ectx, state != NULL);
+  bootstrap = capi->request_service ("bootstrap");
+  GNUNET_GE_ASSERT (capi->ectx, bootstrap != NULL);
+  hlc.do_shutdown = GNUNET_NO;
+  pt = GNUNET_thread_create (&processThread, NULL, 64 * 1024);
+  GNUNET_GE_ASSERT (capi->ectx, pt != NULL);
 }
 
 /**
@@ -235,13 +244,13 @@ stopBootstrap ()
 {
   void *unused;
 
-  hlc.do_shutdown = YES;
-  PTHREAD_STOP_SLEEP (pt);
-  PTHREAD_JOIN (pt, &unused);
+  hlc.do_shutdown = GNUNET_YES;
+  GNUNET_thread_stop_sleep (pt);
+  GNUNET_thread_join (pt, &unused);
   pt = NULL;
-  coreAPI->releaseService (bootstrap);
+  coreAPI->release_service (bootstrap);
   bootstrap = NULL;
-  coreAPI->releaseService (state);
+  coreAPI->release_service (state);
   state = NULL;
   coreAPI = NULL;
 }

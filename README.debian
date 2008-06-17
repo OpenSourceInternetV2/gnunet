@@ -30,6 +30,7 @@ dialog (optional)
 libglade2-dev (recommended)
 libgtk2.0-dev (recommended)
 libxml2-dev (recommended, especially with NAT)
+libesmtp-dev (optional -- only for SMTP transport)
 
 
 Additional libextractor dependencies:
@@ -44,6 +45,7 @@ libgcj-dev (optional)
 Additional gnunet-gtk dependencies:
 
 libnotify-dev (optional)
+libgksu2-dev (optional)
 
 
 For running GNUnet with the MySQL database:

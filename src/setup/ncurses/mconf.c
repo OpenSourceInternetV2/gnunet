@@ -27,7 +27,7 @@
 #include <dialog.h>
 
 #undef _
-#undef OK
+#undef GNUNET_OK
 #include "platform.h"
 #include "gnunet_util.h"
 #include "gnunet_setup_lib.h"
@@ -38,7 +38,7 @@
 #include <termios.h>
 #endif
 
-static struct GE_Context *ectx;
+static struct GNUNET_GE_Context *ectx;
 
 static void
 show_help (const char *option, const char *helptext)
@@ -49,8 +49,9 @@ show_help (const char *option, const char *helptext)
 }
 
 static void
-run_menu (struct GNS_Context *ctx,
-          struct GNS_Tree *pos, struct GC_Configuration *cfg)
+run_menu (struct GNUNET_GNS_Context *ctx,
+          struct GNUNET_GNS_TreeNode *pos,
+          struct GNUNET_GC_Configuration *cfg)
 {
   int st;
   int i;
@@ -59,7 +60,7 @@ run_menu (struct GNS_Context *ctx,
   DIALOG_FORMITEM fitem;
   unsigned long long lval;
   double dval;
-  GNS_Value *val;
+  GNUNET_GNS_Value *val;
   char *tmp;
   size_t tlen;
 
@@ -79,23 +80,23 @@ run_menu (struct GNS_Context *ctx,
   msel = 0;
   while (1)
     {
-      switch (pos->type & GNS_KindMask)
+      switch (pos->type & GNUNET_GNS_KIND_MASK)
         {
-        case GNS_Root:
+        case GNUNET_GNS_KIND_ROOT:
           dialog_vars.cancel_label = _("Exit");
           break;
-        case GNS_Node:
+        case GNUNET_GNS_KIND_NODE:
           dialog_vars.cancel_label = _("Up");
           break;
         default:
           dialog_vars.cancel_label = _("Cancel");
           break;
         }
-      switch (pos->type & GNS_KindMask)
+      switch (pos->type & GNUNET_GNS_KIND_MASK)
         {
-        case GNS_Root:
+        case GNUNET_GNS_KIND_ROOT:
           /* fall-through! */
-        case GNS_Node:
+        case GNUNET_GNS_KIND_NODE:
           st = 0;
           i = 0;
           while (pos->children[i] != NULL)
@@ -106,7 +107,7 @@ run_menu (struct GNS_Context *ctx,
             }
           if (st == 0)
             return;             /* no visible entries */
-          items = MALLOC (sizeof (DIALOG_LISTITEM) * st);
+          items = GNUNET_malloc (sizeof (DIALOG_LISTITEM) * st);
           i = 0;
           st = 0;
           while (pos->children[i] != NULL)
@@ -127,7 +128,7 @@ run_menu (struct GNS_Context *ctx,
           st = dlg_menu (gettext (pos->description),
                          "Select configuration option to change",
                          20, 70, 13, st, items, &msel, NULL);
-          FREE (items);
+          GNUNET_free (items);
           switch (st)
             {
             case DLG_EXIT_OK:
@@ -156,23 +157,26 @@ run_menu (struct GNS_Context *ctx,
             }
           break;
 
-        case GNS_Leaf:
-          switch (pos->type & GNS_TypeMask)
+        case GNUNET_GNS_KIND_LEAF:
+          switch (pos->type & GNUNET_GNS_TYPE_MASK)
             {
-            case GNS_Boolean:
+            case GNUNET_GNS_TYPE_BOOLEAN:
               st = dialog_yesno (pos->option,
                                  gettext (pos->description), 5, 60);
               switch (st)
                 {
                 case DLG_EXIT_OK:
                 case DLG_EXIT_CANCEL:
-                  if (0 != GC_set_configuration_value_string (cfg,
-                                                              ectx,
-                                                              pos->section,
-                                                              pos->option,
-                                                              st ==
-                                                              DLG_EXIT_OK ?
-                                                              "YES" : "NO"))
+                  if (0 != GNUNET_GC_set_configuration_value_string (cfg,
+                                                                     ectx,
+                                                                     pos->
+                                                                     section,
+                                                                     pos->
+                                                                     option,
+                                                                     st ==
+                                                                     DLG_EXIT_OK
+                                                                     ? "YES" :
+                                                                     "NO"))
                     {
                       show_help (pos->option,
                                  gettext_noop
@@ -186,13 +190,13 @@ run_menu (struct GNS_Context *ctx,
                 case DLG_EXIT_ESC:
                   return;
                 default:
-                  GE_BREAK (ectx, 0);
+                  GNUNET_GE_BREAK (ectx, 0);
                   return;
                 }
               break;
-            case GNS_String:
+            case GNUNET_GNS_TYPE_STRING:
               /* free form */
-              fitem.text = MALLOC (65536);
+              fitem.text = GNUNET_malloc (65536);
               strcpy (fitem.text, pos->value.String.val);
               fitem.text_len = strlen (fitem.text);
               fitem.help = pos->help;
@@ -201,18 +205,21 @@ run_menu (struct GNS_Context *ctx,
               switch (st)
                 {
                 case DLG_EXIT_OK:
-                  if (0 != GC_set_configuration_value_string (cfg,
-                                                              ectx,
-                                                              pos->section,
-                                                              pos->option,
-                                                              fitem.text))
+                  if (0 != GNUNET_GC_set_configuration_value_string (cfg,
+                                                                     ectx,
+                                                                     pos->
+                                                                     section,
+                                                                     pos->
+                                                                     option,
+                                                                     fitem.
+                                                                     text))
                     {
                       show_help (pos->option,
                                  gettext_noop
                                  ("Internal error! (Value invalid?)"));
                       break;
                     }
-                  FREE (fitem.text);
+                  GNUNET_free (fitem.text);
                   return;
                 case DLG_EXIT_HELP:
                   show_help (pos->option, pos->help);
@@ -220,22 +227,22 @@ run_menu (struct GNS_Context *ctx,
                 case DLG_EXIT_CANCEL:
                 case DLG_EXIT_ERROR:
                 case DLG_EXIT_ESC:
-                  FREE (fitem.text);
+                  GNUNET_free (fitem.text);
                   return;
                 default:
                   break;
                 }
-              FREE (fitem.text);
+              GNUNET_free (fitem.text);
               /* end free form */
               break;
-            case GNS_SC:
+            case GNUNET_GNS_TYPE_SINGLE_CHOICE:
               /* begin single choice */
               val = &pos->value;
               i = 0;
               while (val->String.legalRange[i] != NULL)
                 i++;
-              GE_ASSERT (ectx, i != 0);
-              items = MALLOC (sizeof (DIALOG_LISTITEM) * i);
+              GNUNET_GE_ASSERT (ectx, i != 0);
+              items = GNUNET_malloc (sizeof (DIALOG_LISTITEM) * i);
               i = 0;
               msel = -1;
 
@@ -261,17 +268,20 @@ run_menu (struct GNS_Context *ctx,
                                   gettext (pos->description),
                                   20,
                                   70, 13, i, items, " *", FLAG_RADIO, &msel);
-              FREE (items);
+              GNUNET_free (items);
               switch (st)
                 {
                 case DLG_EXIT_OK:
-                  if (0 != GC_set_configuration_value_choice (cfg,
-                                                              ectx,
-                                                              pos->section,
-                                                              pos->option,
-                                                              val->String.
-                                                              legalRange
-                                                              [msel]))
+                  if (0 != GNUNET_GC_set_configuration_value_choice (cfg,
+                                                                     ectx,
+                                                                     pos->
+                                                                     section,
+                                                                     pos->
+                                                                     option,
+                                                                     val->
+                                                                     String.
+                                                                     legalRange
+                                                                     [msel]))
                     {
                       show_help (pos->option,
                                  gettext_noop
@@ -289,15 +299,15 @@ run_menu (struct GNS_Context *ctx,
                   return;
                 }
               break;
-            case GNS_MC:
+            case GNUNET_GNS_TYPE_MULTIPLE_CHOICE:
               /* begin multiple choice */
               val = &pos->value;
               i = 0;
               tlen = 2;
               while (val->String.legalRange[i] != NULL)
                 i++;
-              GE_ASSERT (ectx, i != 0);
-              items = MALLOC (sizeof (DIALOG_LISTITEM) * i);
+              GNUNET_GE_ASSERT (ectx, i != 0);
+              items = GNUNET_malloc (sizeof (DIALOG_LISTITEM) * i);
               i = 0;
               msel = 0;
               while (val->String.legalRange[i] != NULL)
@@ -333,7 +343,7 @@ run_menu (struct GNS_Context *ctx,
               switch (st)
                 {
                 case DLG_EXIT_OK:
-                  tmp = MALLOC (tlen);
+                  tmp = GNUNET_malloc (tlen);
                   tmp[0] = '\0';
                   i = 0;
                   while (val->String.legalRange[i] != NULL)
@@ -347,20 +357,22 @@ run_menu (struct GNS_Context *ctx,
                     }
                   if (strlen (tmp) > 0)
                     tmp[strlen (tmp) - 1] = '\0';
-                  if (0 != GC_set_configuration_value_choice (cfg,
-                                                              ectx,
-                                                              pos->section,
-                                                              pos->option,
-                                                              tmp))
+                  if (0 != GNUNET_GC_set_configuration_value_choice (cfg,
+                                                                     ectx,
+                                                                     pos->
+                                                                     section,
+                                                                     pos->
+                                                                     option,
+                                                                     tmp))
                     {
-                      FREE (tmp);
+                      GNUNET_free (tmp);
                       show_help (pos->option,
                                  gettext_noop
                                  ("Internal error! (Choice invalid?)"));
                       break;
                     }
-                  FREE (tmp);
-                  FREE (items);
+                  GNUNET_free (tmp);
+                  GNUNET_free (items);
                   return;
                 case DLG_EXIT_HELP:
                   show_help (pos->option, pos->help);
@@ -369,14 +381,14 @@ run_menu (struct GNS_Context *ctx,
                 case DLG_EXIT_ERROR:
                 case DLG_EXIT_CANCEL:
                 default:
-                  FREE (items);
+                  GNUNET_free (items);
                   return;
                 }
-              FREE (items);
+              GNUNET_free (items);
               break;
-            case GNS_Double:
-              fitem.text = MALLOC (64);
-              SNPRINTF (fitem.text, 64, "%f", pos->value.Double.val);
+            case GNUNET_GNS_TYPE_DOUBLE:
+              fitem.text = GNUNET_malloc (64);
+              GNUNET_snprintf (fitem.text, 64, "%f", pos->value.Double.val);
               fitem.text_len = strlen (fitem.text);
               fitem.help = pos->help;
               st = DLG_EXIT_HELP;
@@ -392,18 +404,21 @@ run_menu (struct GNS_Context *ctx,
                                  ("Invalid input, expecting floating point value."));
                       break;
                     }
-                  if (0 != GC_set_configuration_value_string (cfg,
-                                                              ectx,
-                                                              pos->section,
-                                                              pos->option,
-                                                              fitem.text))
+                  if (0 != GNUNET_GC_set_configuration_value_string (cfg,
+                                                                     ectx,
+                                                                     pos->
+                                                                     section,
+                                                                     pos->
+                                                                     option,
+                                                                     fitem.
+                                                                     text))
                     {
                       show_help (pos->option,
                                  gettext_noop
                                  ("Internal error! (Value invalid?)"));
                       break;
                     }
-                  FREE (fitem.text);
+                  GNUNET_free (fitem.text);
                   return;
                 case DLG_EXIT_HELP:
                   show_help (pos->option, pos->help);
@@ -411,12 +426,12 @@ run_menu (struct GNS_Context *ctx,
                 default:
                   break;
                 }
-              FREE (fitem.text);
+              GNUNET_free (fitem.text);
               break;
 
-            case GNS_UInt64:
-              fitem.text = MALLOC (64);
-              SNPRINTF (fitem.text, 64, "%llu", pos->value.UInt64.val);
+            case GNUNET_GNS_TYPE_UINT64:
+              fitem.text = GNUNET_malloc (64);
+              GNUNET_snprintf (fitem.text, 64, "%llu", pos->value.UInt64.val);
               fitem.text_len = strlen (fitem.text);
               fitem.help = pos->help;
               st = DLG_EXIT_HELP;
@@ -443,12 +458,13 @@ run_menu (struct GNS_Context *ctx,
                                      ("Value is not in legal range."));
                           continue;
                         }
-                      if (0 != GC_set_configuration_value_number (cfg,
-                                                                  ectx,
-                                                                  pos->
-                                                                  section,
-                                                                  pos->option,
-                                                                  lval))
+                      if (0 != GNUNET_GC_set_configuration_value_number (cfg,
+                                                                         ectx,
+                                                                         pos->
+                                                                         section,
+                                                                         pos->
+                                                                         option,
+                                                                         lval))
                         {
                           show_help (pos->option,
                                      gettext_noop
@@ -463,16 +479,16 @@ run_menu (struct GNS_Context *ctx,
                       break;
                     }
                 }
-              FREE (fitem.text);
+              GNUNET_free (fitem.text);
               return;
             default:
-              GE_BREAK (ectx, 0);
+              GNUNET_GE_BREAK (ectx, 0);
               return;
             }                   /* end switch type & type */
           break;
 
         default:
-          GE_BREAK (ectx, 0);
+          GNUNET_GE_BREAK (ectx, 0);
           break;
 
         }                       /* end switch type & Kind */
@@ -483,10 +499,10 @@ run_menu (struct GNS_Context *ctx,
 int
 mconf_mainsetup_curses (int argc,
                         const char **argv,
-                        struct PluginHandle *self,
-                        struct GE_Context *e,
-                        struct GC_Configuration *cfg,
-                        struct GNS_Context *gns,
+                        struct GNUNET_PluginHandle *self,
+                        struct GNUNET_GE_Context *e,
+                        struct GNUNET_GC_Configuration *cfg,
+                        struct GNUNET_GNS_Context *gns,
                         const char *filename, int is_daemon)
 {
   int ret;
@@ -502,10 +518,10 @@ mconf_mainsetup_curses (int argc,
 
   init_dialog (stdin, stderr);
 
-  run_menu (gns, GNS_get_tree (gns), cfg);
+  run_menu (gns, GNUNET_GNS_get_tree_root (gns), cfg);
 
   ret = 0;
-  if ((0 == GC_test_dirty (cfg)) && (0 == ACCESS (filename, R_OK)))
+  if ((0 == GNUNET_GC_test_dirty (cfg)) && (0 == ACCESS (filename, R_OK)))
     {
       end_dialog ();
       printf (_("Configuration unchanged, no need to save.\n"));
@@ -519,7 +535,7 @@ mconf_mainsetup_curses (int argc,
       end_dialog ();
       if (ret == DLG_EXIT_OK)
         {
-          if (0 != GC_write_configuration (cfg, filename))
+          if (0 != GNUNET_GC_write_configuration (cfg, filename))
             {
               /* error message already printed... */
               ret = 1;

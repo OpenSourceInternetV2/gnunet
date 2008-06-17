@@ -14,11 +14,18 @@ pkgdata_DATA = \
   gnunet-setup.glade
 
 EXTRA_DIST = \
-	$(pkgdata_DATA)
+	$(pkgdata_DATA) \
+        about.c ngconf.c gconf.h
+
+if HAVE_GUILE
+GUILE_SRC = \
+	 about.c \
+	 ngconf.c gconf.h
+endif
+
 
 libgnunetsetup_gtk_la_SOURCES = \
- about.c \
- ngconf.c gconf.h \
+ $(GUILE_SRC) \
  glade_support.h glade_support.c \
  wizard_gtk.c wizard_gtk.h
 

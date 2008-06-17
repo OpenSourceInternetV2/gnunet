@@ -34,6 +34,7 @@ gnunetinclude_HEADERS = \
   gnunet_namespace_lib.h \
   gnunet_pingpong_service.h \
   gnunet_protocols.h \
+  gnunet_rpc_lib.h \
   gnunet_rpc_service.h \
   gnunet_session_service.h \
   gnunet_setup_lib.h \
@@ -43,6 +44,7 @@ gnunetinclude_HEADERS = \
   gnunet_stats_service.h \
   gnunet_testing_lib.h \
   gnunet_topology_service.h \
+  gnunet_tracekit_lib.h \
   gnunet_traffic_lib.h \
   gnunet_traffic_service.h \
   gnunet_transport.h \
@@ -53,7 +55,6 @@ gnunetinclude_HEADERS = \
   gnunet_util_boot.h \
   gnunet_util_common.h \
   gnunet_util_config.h \
-  gnunet_util_config_impl.h \
   gnunet_util_containers.h \
   gnunet_util_core.h \
   gnunet_util_cron.h \

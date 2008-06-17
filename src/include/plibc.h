@@ -2,19 +2,19 @@
      This file is part of PlibC.
      (C) 2005, 2006, 2007 Nils Durner (and other contributing authors)
 
-     This library is free software; you can redistribute it and/or
-     modify it under the terms of the GNU Lesser General Public
-     License as published by the Free Software Foundation; either
-     version 2.1 of the License, or (at your option) any later version.
-  
-     This library is distributed in the hope that it will be useful,
-     but WITHOUT ANY WARRANTY; without even the implied warranty of
-     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-     Lesser General Public License for more details.
-  
-     You should have received a copy of the GNU Lesser General Public
-     License along with this library; if not, write to the Free Software
-     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+	   This library is free software; you can redistribute it and/or
+	   modify it under the terms of the GNU Lesser General Public
+	   License as published by the Free Software Foundation; either
+	   version 2.1 of the License, or (at your option) any later version.
+	
+	   This library is distributed in the hope that it will be useful,
+	   but WITHOUT ANY WARRANTY; without even the implied warranty of
+	   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+	   Lesser General Public License for more details.
+	
+	   You should have received a copy of the GNU Lesser General Public
+	   License along with this library; if not, write to the Free Software
+	   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
 /**
@@ -22,7 +22,7 @@
  * @brief PlibC header
  * @attention This file is usually not installed under Unix,
  *            so ship it with your application
- * @version $Revision: 1.40.2.2 $
+ * @version $Revision: 1.45 $
  */
 
 #ifndef _PLIBC_H_
@@ -71,9 +71,6 @@ extern "C"
 
 #define socklen_t int
 #define ssize_t int
-#ifndef HAVE_FTRUNCATE
-#define ftruncate chsize
-#endif
 #define off_t int
 #define int64_t long long
 #define int32_t long
@@ -310,11 +307,6 @@ extern "C"
 
 #define SetErrnoFromWinError(e) _SetErrnoFromWinError(e, __FILE__, __LINE__)
 
-/**
- * @brief index() - same as strchr()
- */
-#define index(s, c) strchr(s, c)
-
   BOOL _plibc_CreateShortcut (const char *pszSrc, const char *pszDest);
   BOOL _plibc_DereferenceShortcut (char *pszShortcut);
   char *plibc_ChooseDir (char *pszTitle, unsigned long ulFlags);
@@ -327,6 +319,7 @@ extern "C"
   void __win_DiscardHandleBlockingMode (SOCKET s);
   int _win_isSocketValid (int s);
   int plibc_conv_to_win_path (const char *pszUnix, char *pszWindows);
+  unsigned plibc_get_handle_count ();
 
   typedef void (*TPanicProc) (int, char *);
   void plibc_set_panic_proc (TPanicProc proc);
@@ -366,6 +359,7 @@ extern "C"
   int _win_close (int fd);
   int _win_creat (const char *path, mode_t mode);
   int _win_fstat (int handle, struct stat *buffer);
+  int _win_ftruncate (int fildes, off_t length);
   int _win_pipe (int *phandles);
   int _win_rmdir (const char *path);
   int _win_access (const char *path, int mode);
@@ -429,6 +423,7 @@ extern "C"
   struct hostent *_win_gethostbyname (const char *name);
   char *_win_strerror (int errnum);
   int IsWinNT ();
+  char *index (const char *s, int c);
 
 #if !HAVE_STRNDUP
   char *strndup (const char *s, size_t n);
@@ -527,12 +522,12 @@ extern "C"
 #endif
 #define CREAT(p, m) _win_creat(p, m)
 #define FOPEN(f, m) _win_fopen(f, m)
-#define FTRUNCATE(f, l) ftruncate(f, l)
+#define FTRUNCATE(f, l) _win_ftruncate(f, l)
 #define OPENDIR(d) _win_opendir(d)
 #define OPEN _win_open
 #define CHDIR(d) _win_chdir(d)
 #define CLOSE(f) _win_close(f)
-#define LSEEK(f, o, w) lseek(f, o, w)
+#define LSEEK(f, o, w) _win_lseek(f, o, w)
 #define FSTAT(h, b) _win_fstat(h, b)
 #define RMDIR(f) _win_rmdir(f)
 #define ACCESS(p, m) _win_access(p, m)

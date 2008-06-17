@@ -19,7 +19,7 @@
 */
 /**
  * @file applications/fs/ecrs/download.c
- * @brief Download helper methods (which do the real work).
+ * @brief GNUNET_ND_DOWNLOAD helper methods (which do the real work).
  * @author Christian Grothoff
  */
 
@@ -32,7 +32,7 @@
 #include "ecrs.h"
 #include "tree.h"
 
-#define DEBUG_DOWNLOAD NO
+#define DEBUG_DOWNLOAD GNUNET_NO
 
 /**
  * Highest TTL allowed? (equivalent of 25-50 HOPS distance!)
@@ -67,12 +67,12 @@
 typedef struct IOContext
 {
 
-  struct GE_Context *ectx;
+  struct GNUNET_GE_Context *ectx;
 
   /**
    * A lock for synchronizing access.
    */
-  struct MUTEX *lock;
+  struct GNUNET_Mutex *lock;
 
   /**
    * The file handles for each level in the tree.
@@ -98,8 +98,8 @@ typedef struct IOContext
  * itself.
  *
  * @param this reference to the IOContext
- * @param unlinkTreeFiles if YES, the non-level 0 files
- *     are unlinked (removed), set to NO if the download
+ * @param unlinkTreeFiles if GNUNET_YES, the non-level 0 files
+ *     are unlinked (removed), set to GNUNET_NO if the download
  *     is not complete and may be resumed later.
  */
 static void
@@ -116,25 +116,26 @@ freeIOC (IOContext * this, int unlinkTreeFiles)
           this->handles[i] = -1;
         }
     }
-  MUTEX_DESTROY (this->lock);
-  if (YES == unlinkTreeFiles)
+  GNUNET_mutex_destroy (this->lock);
+  if (GNUNET_YES == unlinkTreeFiles)
     {
       for (i = 1; i <= this->treedepth; i++)
         {
-          fn = MALLOC (strlen (this->filename) + 3);
+          fn = GNUNET_malloc (strlen (this->filename) + 3);
           strcpy (fn, this->filename);
           strcat (fn, ".A");
           fn[strlen (fn) - 1] += i;
           if (0 != UNLINK (fn))
-            GE_LOG (this->ectx,
-                    GE_WARNING | GE_BULK | GE_USER,
-                    _("Could not unlink temporary file `%s': %s\n"),
-                    fn, STRERROR (errno));
-          FREE (fn);
+            GNUNET_GE_LOG (this->ectx,
+                           GNUNET_GE_WARNING | GNUNET_GE_BULK |
+                           GNUNET_GE_USER,
+                           _("Could not unlink temporary file `%s': %s\n"),
+                           fn, STRERROR (errno));
+          GNUNET_free (fn);
         }
     }
-  FREE (this->filename);
-  FREE (this->handles);
+  GNUNET_free (this->filename);
+  GNUNET_free (this->handles);
 }
 
 /**
@@ -144,10 +145,10 @@ freeIOC (IOContext * this, int unlinkTreeFiles)
  * @param no_temporaries disallow creation of temp files
  * @param filesize the size of the file
  * @param filename the name of the level-0 file
- * @return OK on success, SYSERR on failure
+ * @return GNUNET_OK on success, GNUNET_SYSERR on failure
  */
 static int
-createIOContext (struct GE_Context *ectx,
+createIOContext (struct GNUNET_GE_Context *ectx,
                  IOContext * this,
                  int no_temporaries,
                  unsigned long long filesize, const char *filename)
@@ -157,21 +158,21 @@ createIOContext (struct GE_Context *ectx,
   struct stat st;
 
   this->ectx = ectx;
-  GE_ASSERT (ectx, filename != NULL);
-  this->treedepth = computeDepth (filesize);
-  this->lock = MUTEX_CREATE (NO);
-  this->handles = MALLOC (sizeof (int) * (this->treedepth + 1));
-  this->filename = STRDUP (filename);
+  GNUNET_GE_ASSERT (ectx, filename != NULL);
+  this->treedepth = GNUNET_ECRS_compute_depth (filesize);
+  this->lock = GNUNET_mutex_create (GNUNET_NO);
+  this->handles = GNUNET_malloc (sizeof (int) * (this->treedepth + 1));
+  this->filename = GNUNET_strdup (filename);
 
   if ((0 == STAT (filename, &st)) && ((size_t) st.st_size > filesize))
     {
       /* if exists and oversized, truncate */
       if (truncate (filename, filesize) != 0)
         {
-          GE_LOG_STRERROR_FILE (ectx,
-                                GE_ERROR | GE_ADMIN | GE_BULK,
-                                "truncate", filename);
-          return SYSERR;
+          GNUNET_GE_LOG_STRERROR_FILE (ectx,
+                                       GNUNET_GE_ERROR | GNUNET_GE_ADMIN |
+                                       GNUNET_GE_BULK, "truncate", filename);
+          return GNUNET_SYSERR;
         }
     }
   for (i = 0; i <= this->treedepth; i++)
@@ -179,29 +180,29 @@ createIOContext (struct GE_Context *ectx,
 
   for (i = 0; i <= this->treedepth; i++)
     {
-      if ((i == 0) || (no_temporaries != YES))
+      if ((i == 0) || (no_temporaries != GNUNET_YES))
         {
-          fn = MALLOC (strlen (filename) + 3);
+          fn = GNUNET_malloc (strlen (filename) + 3);
           strcpy (fn, filename);
           if (i > 0)
             {
               strcat (fn, ".A");
               fn[strlen (fn) - 1] += i;
             }
-          this->handles[i] = disk_file_open (ectx,
-                                             fn,
-                                             O_CREAT | O_RDWR,
-                                             S_IRUSR | S_IWUSR);
+          this->handles[i] = GNUNET_disk_file_open (ectx,
+                                                    fn,
+                                                    O_CREAT | O_RDWR,
+                                                    S_IRUSR | S_IWUSR);
           if (this->handles[i] < 0)
             {
-              freeIOC (this, YES);
-              FREE (fn);
-              return SYSERR;
+              freeIOC (this, GNUNET_YES);
+              GNUNET_free (fn);
+              return GNUNET_SYSERR;
             }
-          FREE (fn);
+          GNUNET_free (fn);
         }
     }
-  return OK;
+  return GNUNET_OK;
 }
 
 /**
@@ -212,29 +213,29 @@ createIOContext (struct GE_Context *ectx,
  * @param pos position where to read or write
  * @param buf where to read from or write to
  * @param len how many bytes to read or write
- * @return number of bytes read, SYSERR on error
+ * @return number of bytes read, GNUNET_SYSERR on error
  */
-int
+static int
 readFromIOC (IOContext * this,
              unsigned int level,
              unsigned long long pos, void *buf, unsigned int len)
 {
   int ret;
 
-  MUTEX_LOCK (this->lock);
+  GNUNET_mutex_lock (this->lock);
   if (this->handles[level] == -1)
     {
-      MUTEX_UNLOCK (this->lock);
-      return SYSERR;
+      GNUNET_mutex_unlock (this->lock);
+      return GNUNET_SYSERR;
     }
   LSEEK (this->handles[level], pos, SEEK_SET);
   ret = READ (this->handles[level], buf, len);
-  MUTEX_UNLOCK (this->lock);
+  GNUNET_mutex_unlock (this->lock);
 #if DEBUG_DOWNLOAD
-  GE_LOG (this->ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER,
-          "IOC read at level %u offset %llu wanted %u got %d\n",
-          level, pos, len, ret);
+  GNUNET_GE_LOG (this->ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 "IOC read at level %u offset %llu wanted %u got %d\n",
+                 level, pos, len, ret);
 #endif
   return ret;
 }
@@ -247,35 +248,36 @@ readFromIOC (IOContext * this,
  * @param pos position where to  write
  * @param buf where to write to
  * @param len how many bytes to write
- * @return number of bytes written, SYSERR on error
+ * @return number of bytes written, GNUNET_SYSERR on error
  */
-int
+static int
 writeToIOC (IOContext * this,
             unsigned int level,
             unsigned long long pos, void *buf, unsigned int len)
 {
   int ret;
 
-  MUTEX_LOCK (this->lock);
+  GNUNET_mutex_lock (this->lock);
   if ((this->handles[level] == -1) && (level > 0))
     {
-      MUTEX_UNLOCK (this->lock);
+      GNUNET_mutex_unlock (this->lock);
       return len;               /* lie -- no temps allowed... */
     }
   LSEEK (this->handles[level], pos, SEEK_SET);
   ret = WRITE (this->handles[level], buf, len);
   if (ret != len)
     {
-      GE_LOG (this->ectx,
-              GE_WARNING | GE_BULK | GE_USER,
-              _("Write(%d, %p, %d) failed: %s\n"),
-              this->handles[level], buf, len, STRERROR (errno));
+      GNUNET_GE_LOG (this->ectx,
+                     GNUNET_GE_WARNING | GNUNET_GE_BULK | GNUNET_GE_USER,
+                     _("Write(%d, %p, %d) failed: %s\n"),
+                     this->handles[level], buf, len, STRERROR (errno));
     }
-  MUTEX_UNLOCK (this->lock);
+  GNUNET_mutex_unlock (this->lock);
 #if DEBUG_DOWNLOAD
-  GE_LOG (this->ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER,
-          "IOC write at level %u offset %llu writes %u\n", level, pos, len);
+  GNUNET_GE_LOG (this->ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 "IOC write at level %u offset %llu writes %u\n", level, pos,
+                 len);
 #endif
   return ret;
 }
@@ -336,19 +338,19 @@ typedef struct RequestEntry
    * Search handle of the last request (NULL if never
    * requested).
    */
-  struct FS_SEARCH_HANDLE *searchHandle;
+  struct GNUNET_FS_SearchHandle *searchHandle;
 
   /**
    * Last time the query was send.
    */
-  cron_t lasttime;
+  GNUNET_CronTime lasttime;
 
   /**
    * Timeout used for the last search (ttl in request is
    * = lastTimeout - lasttime modulo corrections in gap
    * with respect to priority cap).
    */
-  cron_t lastTimeout;
+  GNUNET_CronTime lastTimeout;
 
   /**
    * How long have we been actively trying this one?
@@ -376,22 +378,22 @@ typedef struct RequestManager
   /**
    * Mutex for synchronizing access to this struct
    */
-  struct MUTEX *lock;
+  struct GNUNET_Mutex *lock;
 
   /**
    * Current list of all pending requests
    */
   RequestEntry **requestList;
 
-  struct FS_SEARCH_CONTEXT *sctx;
+  struct GNUNET_FS_SearchContext *sctx;
 
-  struct PTHREAD *requestThread;
+  struct GNUNET_ThreadHandle *requestThread;
 
-  struct GE_Context *ectx;
+  struct GNUNET_GE_Context *ectx;
 
-  struct GC_Configuration *cfg;
+  struct GNUNET_GC_Configuration *cfg;
 
-  PeerIdentity target;
+  GNUNET_PeerIdentity target;
 
   /**
    * Number of pending requests (highest used index)
@@ -422,7 +424,7 @@ typedef struct RequestManager
   /**
    * What was the last time we updated ssthresh?
    */
-  TIME_T lastDET;
+  GNUNET_Int32Time lastDET;
 
   /**
    * Abort?  Flag that can be set at any time
@@ -452,31 +454,32 @@ typedef struct RequestManager
  * @return NULL on error
  */
 static RequestManager *
-createRequestManager (struct GE_Context *ectx, struct GC_Configuration *cfg)
+createRequestManager (struct GNUNET_GE_Context *ectx,
+                      struct GNUNET_GC_Configuration *cfg)
 {
   RequestManager *rm;
 
-  rm = MALLOC (sizeof (RequestManager));
-  rm->shutdown = NO;
-  rm->lock = MUTEX_CREATE (YES);
-  rm->sctx = FS_SEARCH_makeContext (ectx, cfg, rm->lock);
+  rm = GNUNET_malloc (sizeof (RequestManager));
+  rm->shutdown = GNUNET_NO;
+  rm->lock = GNUNET_mutex_create (GNUNET_YES);
+  rm->sctx = GNUNET_FS_create_search_context (ectx, cfg, rm->lock);
   if (rm->sctx == NULL)
     {
-      MUTEX_DESTROY (rm->lock);
-      FREE (rm);
+      GNUNET_mutex_destroy (rm->lock);
+      GNUNET_free (rm);
       return NULL;
     }
   rm->ectx = ectx;
   rm->cfg = cfg;
-  rm->requestThread = PTHREAD_GET_SELF ();
-  rm->abortFlag = NO;
+  rm->requestThread = GNUNET_thread_get_self ();
+  rm->abortFlag = GNUNET_NO;
   rm->lastDET = 0;
   rm->requestListIndex = 0;
   rm->requestListSize = 0;
   rm->requestList = NULL;
-  rm->have_target = NO;
-  GROW (rm->requestList, rm->requestListSize, 256);
-  rm->initialTTL = 5 * cronSECONDS;
+  rm->have_target = GNUNET_NO;
+  GNUNET_array_grow (rm->requestList, rm->requestListSize, 256);
+  rm->initialTTL = 5 * GNUNET_CRON_SECONDS;
   /* RFC 2001 suggests to use 1 segment size initially;
      Given 1500 octets per message in GNUnet, we would
      have 2-3 queries of maximum size (552); but since
@@ -486,9 +489,9 @@ createRequestManager (struct GE_Context *ectx, struct GC_Configuration *cfg)
   rm->congestionWindow = 1;     /* RSS is 1 */
   rm->ssthresh = 65535;
 #if DEBUG_DOWNLOAD
-  GE_LOG (ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER,
-          "created request manager %p\n", rm);
+  GNUNET_GE_LOG (ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 "created request manager %p\n", rm);
 #endif
   return rm;
 }
@@ -506,30 +509,30 @@ destroyRequestManager (RequestManager * rm)
   int i;
 
 #if DEBUG_DOWNLOAD
-  GE_LOG (rm->ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER,
-          "destroying request manager %p\n", rm);
+  GNUNET_GE_LOG (rm->ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 "destroying request manager %p\n", rm);
 #endif
-  MUTEX_LOCK (rm->lock);
+  GNUNET_mutex_lock (rm->lock);
   /* cannot hold lock during shutdown since
      fslib may have to aquire it; but we can
      flag that we are in the shutdown process
      and start to ignore fslib events! */
-  rm->shutdown = YES;
-  MUTEX_UNLOCK (rm->lock);
+  rm->shutdown = GNUNET_YES;
+  GNUNET_mutex_unlock (rm->lock);
   for (i = 0; i < rm->requestListIndex; i++)
     {
       if (rm->requestList[i]->searchHandle != NULL)
-        FS_stop_search (rm->sctx, rm->requestList[i]->searchHandle);
-      FREE (rm->requestList[i]->node);
-      FREE (rm->requestList[i]);
+        GNUNET_FS_stop_search (rm->sctx, rm->requestList[i]->searchHandle);
+      GNUNET_free (rm->requestList[i]->node);
+      GNUNET_free (rm->requestList[i]);
     }
-  GROW (rm->requestList, rm->requestListSize, 0);
-  FS_SEARCH_destroyContext (rm->sctx);
+  GNUNET_array_grow (rm->requestList, rm->requestListSize, 0);
+  GNUNET_FS_destroy_search_context (rm->sctx);
   rm->sctx = NULL;
-  MUTEX_DESTROY (rm->lock);
-  PTHREAD_REL_SELF (rm->requestThread);
-  FREE (rm);
+  GNUNET_mutex_destroy (rm->lock);
+  GNUNET_thread_release_self (rm->requestThread);
+  GNUNET_free (rm);
 }
 
 /**
@@ -541,8 +544,8 @@ requestManagerEndgame (RequestManager * rm)
 {
   int i;
 
-  MUTEX_LOCK (rm->lock);
-  if (rm->shutdown == NO)
+  GNUNET_mutex_lock (rm->lock);
+  if (rm->shutdown == GNUNET_NO)
     {
       for (i = 0; i < rm->requestListIndex; i++)
         {
@@ -551,7 +554,7 @@ requestManagerEndgame (RequestManager * rm)
           entry->lasttime += (entry->lasttime + entry->lastTimeout) / 2;
         }
     }
-  MUTEX_UNLOCK (rm->lock);
+  GNUNET_mutex_unlock (rm->lock);
 }
 
 /**
@@ -565,38 +568,39 @@ addRequest (RequestManager * rm, NodeClosure * node)
 {
   RequestEntry *entry;
 #if DEBUG_DOWNLOAD
-  EncName enc;
+  GNUNET_EncName enc;
 
   IF_GELOG (rm->ectx,
-            GE_DEBUG | GE_REQUEST | GE_USER,
-            hash2enc (&node->chk.query, &enc));
-  GE_LOG (rm->ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER,
-          "Queuing request (query: %s)\n", &enc);
+            GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+            GNUNET_hash_to_enc (&node->chk.query, &enc));
+  GNUNET_GE_LOG (rm->ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 "Queuing request (query: %s)\n", &enc);
 #endif
 
-  GE_ASSERT (rm->ectx, node != NULL);
-  entry = MALLOC (sizeof (RequestEntry));
+  GNUNET_GE_ASSERT (rm->ectx, node != NULL);
+  entry = GNUNET_malloc (sizeof (RequestEntry));
   entry->node = node;
   entry->lasttime = 0;          /* never sent */
   entry->lastTimeout = 0;
   entry->tries = 0;             /* not tried so far */
   entry->lastPriority = 0;
   entry->searchHandle = NULL;
-  MUTEX_LOCK (rm->lock);
-  if (rm->shutdown == NO)
+  GNUNET_mutex_lock (rm->lock);
+  if (rm->shutdown == GNUNET_NO)
     {
-      GE_ASSERT (rm->ectx, rm->requestListSize > 0);
+      GNUNET_GE_ASSERT (rm->ectx, rm->requestListSize > 0);
       if (rm->requestListSize == rm->requestListIndex)
-        GROW (rm->requestList, rm->requestListSize, rm->requestListSize * 2);
+        GNUNET_array_grow (rm->requestList, rm->requestListSize,
+                           rm->requestListSize * 2);
       rm->requestList[rm->requestListIndex++] = entry;
     }
   else
     {
-      GE_BREAK (rm->ectx, 0);
-      FREE (entry);
+      GNUNET_GE_BREAK (rm->ectx, 0);
+      GNUNET_free (entry);
     }
-  MUTEX_UNLOCK (rm->lock);
+  GNUNET_mutex_unlock (rm->lock);
 }
 
 
@@ -612,8 +616,8 @@ delRequest (RequestManager * rm, NodeClosure * node)
   int i;
   RequestEntry *re;
 
-  MUTEX_LOCK (rm->lock);
-  if (rm->shutdown == NO)
+  GNUNET_mutex_lock (rm->lock);
+  if (rm->shutdown == GNUNET_NO)
     {
       for (i = 0; i < rm->requestListIndex; i++)
         {
@@ -622,16 +626,16 @@ delRequest (RequestManager * rm, NodeClosure * node)
             {
               rm->requestList[i] = rm->requestList[--rm->requestListIndex];
               rm->requestList[rm->requestListIndex] = NULL;
-              MUTEX_UNLOCK (rm->lock);
+              GNUNET_mutex_unlock (rm->lock);
               if (NULL != re->searchHandle)
-                FS_stop_search (rm->sctx, re->searchHandle);
-              FREE (re);
+                GNUNET_FS_stop_search (rm->sctx, re->searchHandle);
+              GNUNET_free (re);
               return;
             }
         }
     }
-  MUTEX_UNLOCK (rm->lock);
-  GE_BREAK (rm->ectx, 0);       /* uh uh - at least a memory leak... */
+  GNUNET_mutex_unlock (rm->lock);
+  GNUNET_GE_BREAK (rm->ectx, 0);        /* uh uh - at least a memory leak... */
 }
 
 
@@ -647,11 +651,11 @@ typedef struct CommonCtx
   unsigned long long completed;
   unsigned long long offset;
   unsigned long long length;
-  cron_t startTime;
-  cron_t TTL_DECREMENT;
+  GNUNET_CronTime startTime;
+  GNUNET_CronTime TTL_DECREMENT;
   RequestManager *rm;
   IOContext *ioc;
-  ECRS_DownloadProgressCallback dpcb;
+  GNUNET_ECRS_DownloadProgressCallback dpcb;
   void *dpcbClosure;
   unsigned int anonymityLevel;
 } CommonCtx;
@@ -669,17 +673,17 @@ getNodeSize (const NodeClosure * node)
   unsigned long long spos;
   unsigned long long epos;
 
-  GE_ASSERT (node->ctx->rm->ectx, node->offset < node->ctx->total);
+  GNUNET_GE_ASSERT (node->ctx->rm->ectx, node->offset < node->ctx->total);
   if (node->level == 0)
     {
       ret = DBLOCK_SIZE;
       if (node->offset + (unsigned long long) ret > node->ctx->total)
         ret = (unsigned int) (node->ctx->total - node->offset);
 #if DEBUG_DOWNLOAD
-      GE_LOG (node->ctx->rm->ectx,
-              GE_DEBUG | GE_REQUEST | GE_USER,
-              "Node at offset %llu and level %d has size %u\n",
-              node->offset, node->level, ret);
+      GNUNET_GE_LOG (node->ctx->rm->ectx,
+                     GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                     "Node at offset %llu and level %d has size %u\n",
+                     node->offset, node->level, ret);
 #endif
       return ret;
     }
@@ -694,10 +698,10 @@ getNodeSize (const NodeClosure * node)
   if (ret * rsize < epos - spos)
     ret++;                      /* need to round up! */
 #if DEBUG_DOWNLOAD
-  GE_LOG (node->ctx->rm->ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER,
-          "Node at offset %llu and level %d has size %u\n",
-          node->offset, node->level, ret * sizeof (CHK));
+  GNUNET_GE_LOG (node->ctx->rm->ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 "Node at offset %llu and level %d has size %u\n",
+                 node->offset, node->level, ret * sizeof (CHK));
 #endif
   return ret * sizeof (CHK);
 }
@@ -717,16 +721,16 @@ updateProgress (const NodeClosure * node, const char *data, unsigned int size)
   /* locking? */
   if (node->level == 0)
     {
-      cron_t eta;
+      GNUNET_CronTime eta;
 
       node->ctx->completed += size;
-      eta = get_time ();
+      eta = GNUNET_get_time ();
       if (node->ctx->completed > 0)
         {
-          eta = (cron_t) (node->ctx->startTime +
-                          (((double) (eta - node->ctx->startTime) /
-                            (double) node->ctx->completed)) *
-                          (double) node->ctx->length);
+          eta = (GNUNET_CronTime) (node->ctx->startTime +
+                                   (((double) (eta - node->ctx->startTime) /
+                                     (double) node->ctx->completed)) *
+                                   (double) node->ctx->length);
         }
       if (node->ctx->dpcb != NULL)
         {
@@ -737,10 +741,10 @@ updateProgress (const NodeClosure * node, const char *data, unsigned int size)
         }
     }
   rm = node->ctx->rm;
-  MUTEX_LOCK (rm->lock);
-  if (rm->shutdown == YES)
+  GNUNET_mutex_lock (rm->lock);
+  if (rm->shutdown == GNUNET_YES)
     {
-      MUTEX_UNLOCK (rm->lock);
+      GNUNET_mutex_unlock (rm->lock);
       return;
     }
 
@@ -753,18 +757,18 @@ updateProgress (const NodeClosure * node, const char *data, unsigned int size)
       pos = i;
   if (pos == -1)
     {
-      /* GE_BREAK(ectx, 0); *//* should never happen */
-      MUTEX_UNLOCK (rm->lock);
+      /* GNUNET_GE_BREAK(ectx, 0); *//* should never happen */
+      GNUNET_mutex_unlock (rm->lock);
       return;
     }
   entry = rm->requestList[pos];
 
-  if ((entry->lasttime < get_time ()) && (entry->lasttime != 0))
+  if ((entry->lasttime < GNUNET_get_time ()) && (entry->lasttime != 0))
     {
       unsigned int weight = 15;
       unsigned int ettl = entry->lastTimeout - entry->lasttime;
       if ((ettl > 4 * rm->initialTTL) &&
-          ((get_time () - entry->lasttime) < rm->initialTTL))
+          ((GNUNET_get_time () - entry->lasttime) < rm->initialTTL))
         {
           weight = 127;
           /* eTTL is MUCH bigger than what we currently expect AND the time
@@ -782,9 +786,9 @@ updateProgress (const NodeClosure * node, const char *data, unsigned int size)
     }
   if (entry->tries > 1)
     {
-      TIME_T nowTT;
+      GNUNET_Int32Time nowTT;
 
-      TIME (&nowTT);
+      GNUNET_get_time_int32 (&nowTT);
       if ((nowTT - rm->initialTTL) > rm->lastDET)
         {
           /* only consider congestion control every
@@ -798,12 +802,12 @@ updateProgress (const NodeClosure * node, const char *data, unsigned int size)
           rm->lastDET = nowTT;
         }
     }
-  MUTEX_UNLOCK (rm->lock);
+  GNUNET_mutex_unlock (rm->lock);
 }
 
 
 /**
- * Download children of this IBlock.
+ * GNUNET_ND_DOWNLOAD children of this IBlock.
  *
  * @param rm the node that should downloaded
  */
@@ -822,7 +826,7 @@ static void iblock_download_children (NodeClosure * node,
  * progress.
  *
  * @param node that is checked for presence
- * @return YES if present, NO if not.
+ * @return GNUNET_YES if present, GNUNET_NO if not.
  */
 static int
 checkPresent (NodeClosure * node)
@@ -831,7 +835,7 @@ checkPresent (NodeClosure * node)
   int ret;
   char *data;
   unsigned int size;
-  HashCode512 hc;
+  GNUNET_HashCode hc;
 
   size = getNodeSize (node);
 
@@ -841,46 +845,46 @@ checkPresent (NodeClosure * node)
   if ((node->level == 0) &&
       ((node->offset + size < node->ctx->offset) ||
        (node->offset >= node->ctx->offset + node->ctx->length)))
-    return YES;
+    return GNUNET_YES;
 
-  data = MALLOC (size);
+  data = GNUNET_malloc (size);
   res = readFromIOC (node->ctx->ioc, node->level, node->offset, data, size);
   if (res == size)
     {
-      hash (data, size, &hc);
-      if (equalsHashCode512 (&hc, &node->chk.key))
+      GNUNET_hash (data, size, &hc);
+      if (0 == memcmp (&hc, &node->chk.key, sizeof (GNUNET_HashCode)))
         {
           updateProgress (node, data, size);
           if (node->level > 0)
             iblock_download_children (node, data, size);
 
-          ret = YES;
+          ret = GNUNET_YES;
         }
       else
-        ret = NO;
+        ret = GNUNET_NO;
     }
   else
-    ret = NO;
-  FREE (data);
+    ret = GNUNET_NO;
+  GNUNET_free (data);
 #if DEBUG_DOWNLOAD
-  GE_LOG (node->ctx->rm->ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER,
-          "Checked presence of block at %llu level %u.  Result: %s\n",
-          node->offset, node->level, ret == YES ? "YES" : "NO");
+  GNUNET_GE_LOG (node->ctx->rm->ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 "Checked presence of block at %llu level %u.  Result: %s\n",
+                 node->offset, node->level, ret == GNUNET_YES ? "YES" : "NO");
 #endif
 
   return ret;
 }
 
 /**
- * Download children of this IBlock.
+ * GNUNET_ND_DOWNLOAD children of this IBlock.
  *
  * @param this the node that should downloaded
  */
 static void
 iblock_download_children (NodeClosure * node, char *data, unsigned int size)
 {
-  struct GE_Context *ectx = node->ctx->rm->ectx;
+  struct GNUNET_GE_Context *ectx = node->ctx->rm->ectx;
   int i;
   NodeClosure *child;
   unsigned int childcount;
@@ -888,11 +892,11 @@ iblock_download_children (NodeClosure * node, char *data, unsigned int size)
   unsigned int levelSize;
   unsigned long long baseOffset;
 
-  GE_ASSERT (ectx, node->level > 0);
+  GNUNET_GE_ASSERT (ectx, node->level > 0);
   childcount = size / sizeof (CHK);
   if (size != childcount * sizeof (CHK))
     {
-      GE_BREAK (ectx, 0);
+      GNUNET_GE_BREAK (ectx, 0);
       return;
     }
   if (node->level == 1)
@@ -908,18 +912,18 @@ iblock_download_children (NodeClosure * node, char *data, unsigned int size)
   chks = (CHK *) data;
   for (i = 0; i < childcount; i++)
     {
-      child = MALLOC (sizeof (NodeClosure));
+      child = GNUNET_malloc (sizeof (NodeClosure));
       child->ctx = node->ctx;
       child->chk = chks[i];
       child->offset = baseOffset + i * levelSize;
-      GE_ASSERT (ectx, child->offset < node->ctx->total);
+      GNUNET_GE_ASSERT (ectx, child->offset < node->ctx->total);
       child->level = node->level - 1;
-      GE_ASSERT (ectx, (child->level != 0) ||
-                 ((child->offset % DBLOCK_SIZE) == 0));
-      if (NO == checkPresent (child))
+      GNUNET_GE_ASSERT (ectx, (child->level != 0) ||
+                        ((child->offset % DBLOCK_SIZE) == 0));
+      if (GNUNET_NO == checkPresent (child))
         addRequest (node->ctx->rm, child);
       else
-        FREE (child);           /* done already! */
+        GNUNET_free (child);    /* done already! */
     }
 }
 
@@ -931,19 +935,21 @@ iblock_download_children (NodeClosure * node, char *data, unsigned int size)
  * @param hashcode represents the key concatenated with the initial
  *        value used in the alg
  * @param result where to store the result (encrypted block)
- * @returns OK on success, SYSERR on error
+ * @returns GNUNET_OK on success, GNUNET_SYSERR on error
  */
 static int
 decryptContent (const char *data,
-                unsigned int size, const HashCode512 * hashcode, char *result)
+                unsigned int size, const GNUNET_HashCode * hashcode,
+                char *result)
 {
-  INITVECTOR iv;
-  SESSIONKEY skey;
+  GNUNET_AES_InitializationVector iv;
+  GNUNET_AES_SessionKey skey;
 
-  GE_ASSERT (NULL, (data != NULL) && (hashcode != NULL) && (result != NULL));
-  /* get key and init value from the hash code */
-  hashToKey (hashcode, &skey, &iv);
-  return decryptBlock (&skey, data, size, &iv, result);
+  GNUNET_GE_ASSERT (NULL, (data != NULL) && (hashcode != NULL)
+                    && (result != NULL));
+  /* get key and init value from the GNUNET_hash code */
+  GNUNET_hash_to_AES_key (hashcode, &skey, &iv);
+  return GNUNET_AES_decrypt (&skey, data, size, &iv, result);
 }
 
 
@@ -958,59 +964,63 @@ decryptContent (const char *data,
  *        this function!
  * @param query the query for which reply is the answer
  * @param reply the reply
- * @return OK if the reply was valid, SYSERR on error
+ * @return GNUNET_OK if the reply was valid, GNUNET_SYSERR on error
  */
 static int
-nodeReceive (const HashCode512 * query,
-             const Datastore_Value * reply, void *cls, unsigned long long uid)
+nodeReceive (const GNUNET_HashCode * query,
+             const GNUNET_DatastoreValue * reply, void *cls,
+             unsigned long long uid)
 {
   NodeClosure *node = cls;
-  struct GE_Context *ectx = node->ctx->rm->ectx;
-  HashCode512 hc;
+  struct GNUNET_GE_Context *ectx = node->ctx->rm->ectx;
+  GNUNET_HashCode hc;
   unsigned int size;
   int i;
   char *data;
 #if DEBUG_DOWNLOAD
-  EncName enc;
+  GNUNET_EncName enc;
 
-  IF_GELOG (ectx, GE_DEBUG | GE_REQUEST | GE_USER, hash2enc (query, &enc));
-  GE_LOG (ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER,
-          "Receiving reply to query `%s'\n", &enc);
+  IF_GELOG (ectx, GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+            GNUNET_hash_to_enc (query, &enc));
+  GNUNET_GE_LOG (ectx, GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 "Receiving reply to query `%s'\n", &enc);
 #endif
-  GE_ASSERT (ectx, equalsHashCode512 (query, &node->chk.query));
-  size = ntohl (reply->size) - sizeof (Datastore_Value);
+  GNUNET_GE_ASSERT (ectx,
+                    0 == memcmp (query, &node->chk.query,
+                                 sizeof (GNUNET_HashCode)));
+  size = ntohl (reply->size) - sizeof (GNUNET_DatastoreValue);
   if ((size <= sizeof (DBlock)) ||
       (size - sizeof (DBlock) != getNodeSize (node)))
     {
-      GE_BREAK (ectx, 0);
-      return SYSERR;            /* invalid size! */
+      GNUNET_GE_BREAK (ectx, 0);
+      return GNUNET_SYSERR;     /* invalid size! */
     }
   size -= sizeof (DBlock);
-  data = MALLOC (size);
-  if (SYSERR == decryptContent ((char *) &((DBlock *) & reply[1])[1],
-                                size, &node->chk.key, data))
-    GE_ASSERT (ectx, 0);
-  hash (data, size, &hc);
-  if (!equalsHashCode512 (&hc, &node->chk.key))
+  data = GNUNET_malloc (size);
+  if (GNUNET_SYSERR == decryptContent ((char *) &((DBlock *) & reply[1])[1],
+                                       size, &node->chk.key, data))
+    GNUNET_GE_ASSERT (ectx, 0);
+  GNUNET_hash (data, size, &hc);
+  if (0 != memcmp (&hc, &node->chk.key, sizeof (GNUNET_HashCode)))
     {
       delRequest (node->ctx->rm, node);
-      FREE (data);
-      GE_BREAK (ectx, 0);
-      GE_LOG (ectx, GE_ERROR | GE_BULK | GE_USER,
-              _("Decrypted content does not match key. "
-                "This is either a bug or a maliciously inserted "
-                "file. Download aborted.\n"));
-      node->ctx->rm->abortFlag = YES;
-      return SYSERR;
+      GNUNET_free (data);
+      GNUNET_GE_BREAK (ectx, 0);
+      GNUNET_GE_LOG (ectx, GNUNET_GE_ERROR | GNUNET_GE_BULK | GNUNET_GE_USER,
+                     _("Decrypted content does not match key. "
+                       "This is either a bug or a maliciously inserted "
+                       "file. Download aborted.\n"));
+      node->ctx->rm->abortFlag = GNUNET_YES;
+      return GNUNET_SYSERR;
     }
   if (size != writeToIOC (node->ctx->ioc,
                           node->level, node->offset, data, size))
     {
-      GE_LOG_STRERROR (ectx,
-                       GE_ERROR | GE_ADMIN | GE_USER | GE_BULK, "WRITE");
-      node->ctx->rm->abortFlag = YES;
-      return SYSERR;
+      GNUNET_GE_LOG_STRERROR (ectx,
+                              GNUNET_GE_ERROR | GNUNET_GE_ADMIN |
+                              GNUNET_GE_USER | GNUNET_GE_BULK, "WRITE");
+      node->ctx->rm->abortFlag = GNUNET_YES;
+      return GNUNET_SYSERR;
     }
   updateProgress (node, data, size);
   if (node->level > 0)
@@ -1029,11 +1039,12 @@ nodeReceive (const HashCode512 * query,
           requestManagerEndgame (node->ctx->rm);
         }
     }
-  GE_ASSERT (node->ctx->rm->ectx, node->ctx->rm->requestThread != NULL);
-  PTHREAD_STOP_SLEEP (node->ctx->rm->requestThread);
-  FREE (data);
-  FREE (node);
-  return OK;
+  GNUNET_GE_ASSERT (node->ctx->rm->ectx,
+                    node->ctx->rm->requestThread != NULL);
+  GNUNET_thread_stop_sleep (node->ctx->rm->requestThread);
+  GNUNET_free (data);
+  GNUNET_free (node);
+  return GNUNET_OK;
 }
 
 
@@ -1048,35 +1059,37 @@ static void
 issueRequest (RequestManager * rm, int requestIndex)
 {
   static unsigned int lastmpriority;
-  static cron_t lastmpritime;
+  static GNUNET_CronTime lastmpritime;
   RequestEntry *entry;
-  cron_t now;
+  GNUNET_CronTime now;
   unsigned int priority;
   unsigned int mpriority;
-  cron_t timeout;
+  GNUNET_CronTime timeout;
   unsigned int ttl;
   int TTL_DECREMENT;
 #if DEBUG_DOWNLOAD
-  EncName enc;
+  GNUNET_EncName enc;
 #endif
 
-  now = get_time ();
+  now = GNUNET_get_time ();
   entry = rm->requestList[requestIndex];
 
   /* compute priority */
-  if (lastmpritime + 10 * cronSECONDS < now)
+  if (lastmpritime + 10 * GNUNET_CRON_SECONDS < now)
     {
       /* only update avg. priority at most every
          10 seconds */
-      struct ClientServerConnection *sock;
+      struct GNUNET_ClientServerConnection *sock;
 
-      sock = client_connection_create (rm->ectx, rm->cfg);
-      lastmpriority = FS_getAveragePriority (sock);
+      sock = GNUNET_client_connection_create (rm->ectx, rm->cfg);
+      lastmpriority = GNUNET_FS_get_current_average_priority (sock);
       lastmpritime = now;
-      connection_destroy (sock);
+      GNUNET_client_connection_destroy (sock);
     }
   mpriority = lastmpriority;
-  priority = entry->lastPriority + weak_randomi (1 + entry->tries);
+  priority =
+    entry->lastPriority + GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK,
+                                             1 + entry->tries);
   if (priority > mpriority)
     {
       /* mpriority is (2 * (current average priority + 2)) and
@@ -1084,17 +1097,19 @@ issueRequest (RequestManager * rm, int requestIndex)
          calculated tpriority is above it, we reduce tpriority
          to random value between the average (mpriority/2) but
          bounded by mpriority */
-      priority = 1 + mpriority / 2 + (weak_randomi (2 + mpriority / 2));
+      priority =
+        1 + mpriority / 2 +
+        (GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK, 2 + mpriority / 2));
     }
   if (priority > 0x0FFFFFF)
-    priority = weak_randomi (0xFFFFFF); /* bound! */
+    priority = GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK, 0xFFFFFF);        /* bound! */
 
   /* compute TTL */
 
   TTL_DECREMENT = entry->node->ctx->TTL_DECREMENT;
 
   if (entry->lastTimeout + TTL_DECREMENT > now)
-    GE_BREAK (rm->ectx, 0);
+    GNUNET_GE_BREAK (rm->ectx, 0);
   if (entry->lasttime == 0)
     {
       timeout = now + rm->initialTTL;
@@ -1104,7 +1119,9 @@ issueRequest (RequestManager * rm, int requestIndex)
       ttl = entry->lastTimeout - entry->lasttime;
       if (ttl > MAX_TTL)
         {
-          ttl = MAX_TTL + weak_randomi (2 * TTL_DECREMENT);
+          ttl =
+            MAX_TTL + GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK,
+                                         2 * TTL_DECREMENT);
         }
       else if (ttl > rm->initialTTL)
         {
@@ -1119,13 +1136,15 @@ issueRequest (RequestManager * rm, int requestIndex)
           rd = TTL_DECREMENT / rd;
           if (rd == 0)
             rd = 1;
-          ttl += weak_randomi (50 * cronMILLIS + rd);
+          ttl +=
+            GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK,
+                               50 * GNUNET_CRON_MILLISECONDS + rd);
           /* rd == TTL_DECREMENT / (con->ttl / rm->initialTTL) + saveguards
              50ms: minimum increment */
         }
       else
         {
-          ttl += weak_randomi (ttl + 2 * TTL_DECREMENT);        /* exponential backoff with random factor */
+          ttl += GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK, ttl + 2 * TTL_DECREMENT);       /* exponential backoff with random factor */
         }
       if (ttl > (priority + 8) * TTL_DECREMENT)
         ttl = (priority + 8) * TTL_DECREMENT;   /* see adjustTTL in gap */
@@ -1134,31 +1153,32 @@ issueRequest (RequestManager * rm, int requestIndex)
 
 #if DEBUG_DOWNLOAD
   IF_GELOG (ectx,
-            GE_DEBUG | GE_REQUEST | GE_USER,
-            hash2enc (&entry->node->chk.query, &enc));
-  GE_LOG (ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER,
-          "Starting FS search for %s:%llu:%u `%s'\n",
-          entry->node->ctx->ioc->filename,
-          entry->node->offset, entry->node->level, &enc);
+            GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+            GNUNET_hash_to_enc (&entry->node->chk.query, &enc));
+  GNUNET_GE_LOG (ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 "Starting FS search for %s:%llu:%u `%s'\n",
+                 entry->node->ctx->ioc->filename,
+                 entry->node->offset, entry->node->level, &enc);
 #endif
 
   if (entry->searchHandle != NULL)
-    FS_stop_search (rm->sctx, entry->searchHandle);
+    GNUNET_FS_stop_search (rm->sctx, entry->searchHandle);
   entry->searchHandle
-    = FS_start_search (rm->sctx,
-                       rm->have_target == NO ? NULL : &rm->target,
-                       D_BLOCK,
-                       1,
-                       &entry->node->chk.query,
-                       entry->node->ctx->anonymityLevel,
-                       priority, timeout, &nodeReceive, entry->node);
+    = GNUNET_FS_start_search (rm->sctx,
+                              rm->have_target ==
+                              GNUNET_NO ? NULL : &rm->target,
+                              GNUNET_ECRS_BLOCKTYPE_DATA, 1,
+                              &entry->node->chk.query,
+                              entry->node->ctx->anonymityLevel, priority,
+                              timeout, &nodeReceive, entry->node);
   if (entry->searchHandle != NULL)
     {
       entry->lastPriority = priority;
       entry->lastTimeout = timeout;
       entry->lasttime = now + 2 * TTL_DECREMENT;
-      if (weak_randomi (1 + entry->tries) > 1)
+      if (GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK, 1 + entry->tries) >
+          1)
         {
           /* do linear (in tries) extra back-off (in addition to ttl)
              to avoid repeatedly tie-ing with other peers; rm is somewhat
@@ -1167,22 +1187,23 @@ issueRequest (RequestManager * rm, int requestIndex)
              http://www.industrialethernetuniversity.com/courses/101_4.htm
            */
           entry->lasttime +=
-            weak_randomi (TTL_DECREMENT * (1 + entry->tries));
+            GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK,
+                               TTL_DECREMENT * (1 + entry->tries));
         }
       entry->tries++;
     }
   /* warn if number of attempts goes too high */
   if ((0 == (entry->tries % MAX_TRIES)) && (entry->tries > 0))
     {
-      EncName enc;
+      GNUNET_EncName enc;
       IF_GELOG (rm->ectx,
-                GE_WARNING | GE_BULK | GE_USER,
-                hash2enc (&entry->node->chk.key, &enc));
-      GE_LOG (rm->ectx,
-              GE_WARNING | GE_BULK | GE_USER,
-              _
-              ("Content `%s' seems to be not available on the network (tried %u times).\n"),
-              &enc, entry->tries);
+                GNUNET_GE_WARNING | GNUNET_GE_BULK | GNUNET_GE_USER,
+                GNUNET_hash_to_enc (&entry->node->chk.key, &enc));
+      GNUNET_GE_LOG (rm->ectx,
+                     GNUNET_GE_WARNING | GNUNET_GE_BULK | GNUNET_GE_USER,
+                     _
+                     ("Content `%s' seems to be not available on the network (tried %u times).\n"),
+                     &enc, entry->tries);
     }
 }
 
@@ -1191,24 +1212,24 @@ issueRequest (RequestManager * rm, int requestIndex)
  * (min ttl until next job is ready) and re-schedule itself
  * accordingly!
  */
-static cron_t
+static GNUNET_CronTime
 processRequests (RequestManager * rm)
 {
-  cron_t minSleep;
-  cron_t now;
-  cron_t delta;
+  GNUNET_CronTime minSleep;
+  GNUNET_CronTime now;
+  GNUNET_CronTime delta;
   int i;
   unsigned int pending;
-  int *perm;
+  unsigned int *perm;
   unsigned int TTL_DECREMENT;
 
-  MUTEX_LOCK (rm->lock);
-  if ((rm->shutdown == YES) || (rm->requestListIndex == 0))
+  GNUNET_mutex_lock (rm->lock);
+  if ((rm->shutdown == GNUNET_YES) || (rm->requestListIndex == 0))
     {
-      MUTEX_UNLOCK (rm->lock);
+      GNUNET_mutex_unlock (rm->lock);
       return 0;
     }
-  now = get_time ();
+  now = GNUNET_get_time ();
   pending = 0;
   TTL_DECREMENT = 0;
   if (rm->requestListIndex > 0)
@@ -1222,13 +1243,13 @@ processRequests (RequestManager * rm)
         }
       else if (rm->requestList[i]->searchHandle != NULL)
         {
-          FS_stop_search (rm->sctx, rm->requestList[i]->searchHandle);
+          GNUNET_FS_stop_search (rm->sctx, rm->requestList[i]->searchHandle);
           rm->requestList[i]->searchHandle = NULL;
         }
     }
 
-  minSleep = 5000 * cronMILLIS; /* max-sleep! */
-  perm = permute (WEAK, rm->requestListIndex);
+  minSleep = 5000 * GNUNET_CRON_MILLISECONDS;   /* max-sleep! */
+  perm = GNUNET_permute (GNUNET_RANDOM_QUALITY_WEAK, rm->requestListIndex);
   for (i = 0; i < rm->requestListIndex; i++)
     {
       int j = perm[i];
@@ -1242,7 +1263,9 @@ processRequests (RequestManager * rm)
           if ((pOCWCubed <= 0) ||
               (pOCWCubed * rm->requestListIndex <= 0) /* see #642 */  ||
               /* avoid no-start: override congestionWindow occasionally... */
-              (0 == weak_randomi (rm->requestListIndex * pOCWCubed)))
+              (0 ==
+               GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK,
+                                  rm->requestListIndex * pOCWCubed)))
             {
               issueRequest (rm, j);
               delta = (rm->requestList[j]->lastTimeout - now) + TTL_DECREMENT;
@@ -1260,10 +1283,10 @@ processRequests (RequestManager * rm)
       if (delta < minSleep)
         minSleep = delta;
     }
-  FREE (perm);
-  if (minSleep < cronMILLIS * 100)
-    minSleep = cronMILLIS * 100;        /* maximum resolution: 100ms */
-  MUTEX_UNLOCK (rm->lock);
+  GNUNET_free (perm);
+  if (minSleep < GNUNET_CRON_MILLISECONDS * 100)
+    minSleep = GNUNET_CRON_MILLISECONDS * 100;  /* maximum resolution: 100ms */
+  GNUNET_mutex_unlock (rm->lock);
   return minSleep;
 }
 
@@ -1272,33 +1295,34 @@ processRequests (RequestManager * rm)
 /* ***************** main method **************** */
 
 /**
- * Download a file.
+ * GNUNET_ND_DOWNLOAD a file.
  *
  * @param uri the URI of the file (determines what to download)
  * @param filename where to store the file
  */
 int
-ECRS_downloadFile (struct GE_Context *ectx,
-                   struct GC_Configuration *cfg,
-                   const struct ECRS_URI *uri,
-                   const char *filename,
-                   unsigned int anonymityLevel,
-                   ECRS_DownloadProgressCallback dpcb,
-                   void *dpcbClosure, ECRS_TestTerminate tt, void *ttClosure)
+GNUNET_ECRS_file_download (struct GNUNET_GE_Context *ectx,
+                           struct GNUNET_GC_Configuration *cfg,
+                           const struct GNUNET_ECRS_URI *uri,
+                           const char *filename,
+                           unsigned int anonymityLevel,
+                           GNUNET_ECRS_DownloadProgressCallback dpcb,
+                           void *dpcbClosure, GNUNET_ECRS_TestTerminate tt,
+                           void *ttClosure)
 {
-  return ECRS_downloadPartialFile (ectx,
-                                   cfg,
-                                   uri,
-                                   filename,
-                                   0,
-                                   ECRS_fileSize (uri),
-                                   anonymityLevel,
-                                   NO, dpcb, dpcbClosure, tt, ttClosure);
+  return GNUNET_ECRS_file_download_partial (ectx,
+                                            cfg,
+                                            uri,
+                                            filename,
+                                            0,
+                                            GNUNET_ECRS_uri_get_file_size
+                                            (uri), anonymityLevel, GNUNET_NO,
+                                            dpcb, dpcbClosure, tt, ttClosure);
 }
 
 
 /**
- * Download parts of a file.  Note that this will store
+ * GNUNET_ND_DOWNLOAD parts of a file.  Note that this will store
  * the blocks at the respective offset in the given file.
  * Also, the download is still using the blocking of the
  * underlying ECRS encoding.  As a result, the download
@@ -1312,22 +1336,23 @@ ECRS_downloadFile (struct GE_Context *ectx,
  *
  * @param uri the URI of the file (determines what to download)
  * @param filename where to store the file
- * @param no_temporaries set to YES to disallow generation of temporary files
+ * @param no_temporaries set to GNUNET_YES to disallow generation of temporary files
  * @param start starting offset
  * @param length length of the download (starting at offset)
  */
 int
-ECRS_downloadPartialFile (struct GE_Context *ectx,
-                          struct GC_Configuration *cfg,
-                          const struct ECRS_URI *uri,
-                          const char *filename,
-                          unsigned long long offset,
-                          unsigned long long length,
-                          unsigned int anonymityLevel,
-                          int no_temporaries,
-                          ECRS_DownloadProgressCallback dpcb,
-                          void *dpcbClosure,
-                          ECRS_TestTerminate tt, void *ttClosure)
+GNUNET_ECRS_file_download_partial (struct GNUNET_GE_Context *ectx,
+                                   struct GNUNET_GC_Configuration *cfg,
+                                   const struct GNUNET_ECRS_URI *uri,
+                                   const char *filename,
+                                   unsigned long long offset,
+                                   unsigned long long length,
+                                   unsigned int anonymityLevel,
+                                   int no_temporaries,
+                                   GNUNET_ECRS_DownloadProgressCallback dpcb,
+                                   void *dpcbClosure,
+                                   GNUNET_ECRS_TestTerminate tt,
+                                   void *ttClosure)
 {
   IOContext ioc;
   RequestManager *rm;
@@ -1335,31 +1360,32 @@ ECRS_downloadPartialFile (struct GE_Context *ectx,
   CommonCtx ctx;
   NodeClosure *top;
   FileIdentifier fid;
-  cron_t minSleep;
+  GNUNET_CronTime minSleep;
   char *realFN;
   char *path;
   char *pos;
   struct stat buf;
 
 #if DEBUG_DOWNLOAD
-  GE_LOG (ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER,
-          "`%s' running for file `%s'\n", __FUNCTION__, filename);
+  GNUNET_GE_LOG (ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 "`%s' running for file `%s'\n", __FUNCTION__, filename);
 #endif
-  GE_ASSERT (ectx, filename != NULL);
+  GNUNET_GE_ASSERT (ectx, filename != NULL);
   if ((filename[strlen (filename) - 1] == '/') ||
       (filename[strlen (filename) - 1] == '\\'))
     {
-      realFN = MALLOC (strlen (filename) + strlen (GNUNET_DIRECTORY_EXT));
+      realFN =
+        GNUNET_malloc (strlen (filename) + strlen (GNUNET_DIRECTORY_EXT));
       strcpy (realFN, filename);
       realFN[strlen (filename) - 1] = '\0';
       strcat (realFN, GNUNET_DIRECTORY_EXT);
     }
   else
     {
-      realFN = STRDUP (filename);
+      realFN = GNUNET_strdup (filename);
     }
-  path = MALLOC (strlen (realFN) * strlen (GNUNET_DIRECTORY_EXT) + 1);
+  path = GNUNET_malloc (strlen (realFN) * strlen (GNUNET_DIRECTORY_EXT) + 1);
   strcpy (path, realFN);
   pos = path;
   while (*pos != '\0')
@@ -1383,128 +1409,130 @@ ECRS_downloadPartialFile (struct GE_Context *ectx,
         }
       pos++;
     }
-  FREE (realFN);
+  GNUNET_free (realFN);
   realFN = path;
 
-  if (SYSERR == disk_directory_create_for_file (ectx, realFN))
+  if (GNUNET_SYSERR == GNUNET_disk_directory_create_for_file (ectx, realFN))
     {
-      FREE (realFN);
-      return SYSERR;
+      GNUNET_free (realFN);
+      return GNUNET_SYSERR;
     }
-  if (0 == ECRS_fileSize (uri))
+  if (0 == GNUNET_ECRS_uri_get_file_size (uri))
     {
-      ret = disk_file_open (ectx,
-                            realFN,
-                            O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR);
-      FREE (realFN);
+      ret = GNUNET_disk_file_open (ectx,
+                                   realFN,
+                                   O_CREAT | O_WRONLY | O_TRUNC,
+                                   S_IRUSR | S_IWUSR);
+      GNUNET_free (realFN);
       if (ret == -1)
-        return SYSERR;
+        return GNUNET_SYSERR;
       CLOSE (ret);
-      dpcb (0, 0, get_time (), 0, NULL, 0, dpcbClosure);
-      return OK;
+      dpcb (0, 0, GNUNET_get_time (), 0, NULL, 0, dpcbClosure);
+      return GNUNET_OK;
     }
   fid = uri->data.fi;
 
-  if ((!ECRS_isFileUri (uri)) && (!ECRS_isLocationUri (uri)))
+  if ((!GNUNET_ECRS_uri_test_chk (uri)) && (!GNUNET_ECRS_uri_test_loc (uri)))
     {
-      GE_BREAK (ectx, 0);
-      FREE (realFN);
-      return SYSERR;
+      GNUNET_GE_BREAK (ectx, 0);
+      GNUNET_free (realFN);
+      return GNUNET_SYSERR;
     }
 
-  if (OK != createIOContext (ectx,
-                             &ioc,
-                             no_temporaries,
-                             ntohll (fid.file_length), realFN))
+  if (GNUNET_OK != createIOContext (ectx,
+                                    &ioc,
+                                    no_temporaries,
+                                    GNUNET_ntohll (fid.file_length), realFN))
     {
 #if DEBUG_DOWNLOAD
-      GE_LOG (ectx,
-              GE_DEBUG | GE_REQUEST | GE_USER,
-              "`%s' aborted for file `%s'\n", __FUNCTION__, realFN);
+      GNUNET_GE_LOG (ectx,
+                     GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                     "`%s' aborted for file `%s'\n", __FUNCTION__, realFN);
 #endif
-      FREE (realFN);
-      return SYSERR;
+      GNUNET_free (realFN);
+      return GNUNET_SYSERR;
     }
   rm = createRequestManager (ectx, cfg);
   if (rm == NULL)
     {
-      freeIOC (&ioc, YES);
-      FREE (realFN);
-      return SYSERR;
+      freeIOC (&ioc, GNUNET_YES);
+      GNUNET_free (realFN);
+      return GNUNET_SYSERR;
     }
-  if (ECRS_isLocationUri (uri))
+  if (GNUNET_ECRS_uri_test_loc (uri))
     {
-      hash (&uri->data.loc.peer, sizeof (PublicKey), &rm->target.hashPubKey);
-      rm->have_target = YES;
+      GNUNET_hash (&uri->data.loc.peer, sizeof (GNUNET_RSA_PublicKey),
+                   &rm->target.hashPubKey);
+      rm->have_target = GNUNET_YES;
     }
 
-  ctx.startTime = get_time ();
+  ctx.startTime = GNUNET_get_time ();
   ctx.anonymityLevel = anonymityLevel;
   ctx.offset = offset;
   ctx.length = length;
-  ctx.TTL_DECREMENT = 5 * cronSECONDS;  /* HACK! */
+  ctx.TTL_DECREMENT = 5 * GNUNET_CRON_SECONDS;  /* HACK! */
   ctx.rm = rm;
   ctx.ioc = &ioc;
   ctx.dpcb = dpcb;
   ctx.dpcbClosure = dpcbClosure;
-  ctx.total = ntohll (fid.file_length);
+  ctx.total = GNUNET_ntohll (fid.file_length);
   ctx.completed = 0;
-  top = MALLOC (sizeof (NodeClosure));
+  top = GNUNET_malloc (sizeof (NodeClosure));
   top->ctx = &ctx;
   top->chk = fid.chk;
   top->offset = 0;
-  top->level = computeDepth (ctx.total);
-  if (NO == checkPresent (top))
+  top->level = GNUNET_ECRS_compute_depth (ctx.total);
+  if (GNUNET_NO == checkPresent (top))
     addRequest (rm, top);
   else
-    FREE (top);
-  while ((OK == tt (ttClosure)) &&
-         (rm->abortFlag == NO) && (rm->requestListIndex != 0))
+    GNUNET_free (top);
+  while ((GNUNET_OK == tt (ttClosure)) &&
+         (rm->abortFlag == GNUNET_NO) && (rm->requestListIndex != 0))
     {
       minSleep = processRequests (rm);
-      if ((OK == tt (ttClosure)) &&
-          (rm->abortFlag == NO) && (rm->requestListIndex != 0))
-        PTHREAD_SLEEP (minSleep);
+      if ((GNUNET_OK == tt (ttClosure)) &&
+          (rm->abortFlag == GNUNET_NO) && (rm->requestListIndex != 0))
+        GNUNET_thread_sleep (minSleep);
     }
 
   if ((rm->requestListIndex == 0) &&
       ((ctx.completed == ctx.total) ||
        ((ctx.total != ctx.length) &&
-        (ctx.completed >= ctx.length))) && (rm->abortFlag == NO))
+        (ctx.completed >= ctx.length))) && (rm->abortFlag == GNUNET_NO))
     {
-      ret = OK;
+      ret = GNUNET_OK;
     }
   else
     {
 #if 0
-      GE_LOG (ectx,
-              GE_ERROR | GE_BULK | GE_USER,
-              "Download ends prematurely: %d %llu == %llu %d TT: %d\n",
-              rm->requestListIndex,
-              ctx.completed, ctx.total, rm->abortFlag, tt (ttClosure));
+      GNUNET_GE_LOG (ectx,
+                     GNUNET_GE_ERROR | GNUNET_GE_BULK | GNUNET_GE_USER,
+                     "Download ends prematurely: %d %llu == %llu %d TT: %d\n",
+                     rm->requestListIndex,
+                     ctx.completed, ctx.total, rm->abortFlag, tt (ttClosure));
 #endif
-      ret = SYSERR;
+      ret = GNUNET_SYSERR;
     }
   destroyRequestManager (rm);
-  if (ret == OK)
+  if (ret == GNUNET_OK)
     {
-      freeIOC (&ioc, YES);
+      freeIOC (&ioc, GNUNET_YES);
     }
-  else if (tt (ttClosure) == SYSERR)
+  else if (tt (ttClosure) == GNUNET_SYSERR)
     {
-      freeIOC (&ioc, YES);
+      freeIOC (&ioc, GNUNET_YES);
       if (0 != UNLINK (realFN))
         {
-          GE_LOG_STRERROR_FILE (ectx,
-                                GE_WARNING | GE_USER | GE_BULK,
-                                "unlink", realFN);
+          GNUNET_GE_LOG_STRERROR_FILE (ectx,
+                                       GNUNET_GE_WARNING | GNUNET_GE_USER |
+                                       GNUNET_GE_BULK, "unlink", realFN);
         }
       else
         {                       /* delete empty directories */
           char *rdir;
           int len;
 
-          rdir = STRDUP (realFN);
+          rdir = GNUNET_strdup (realFN);
           len = strlen (rdir);
           do
             {
@@ -1513,20 +1541,21 @@ ECRS_downloadPartialFile (struct GE_Context *ectx,
               rdir[len] = '\0';
             }
           while ((len > 0) && (0 == rmdir (rdir)));
-          FREE (rdir);
+          GNUNET_free (rdir);
         }
     }
   else
     {
-      freeIOC (&ioc, NO);       /* aborted */
+      freeIOC (&ioc, GNUNET_NO);        /* aborted */
     }
 #if DEBUG_DOWNLOAD
-  GE_LOG (ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER,
-          "`%s' terminating for file `%s' with result %s\n",
-          __FUNCTION__, filename, ret == OK ? "SUCCESS" : "INCOMPLETE");
+  GNUNET_GE_LOG (ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 "`%s' terminating for file `%s' with result %s\n",
+                 __FUNCTION__, filename,
+                 ret == GNUNET_OK ? "SUCCESS" : "INCOMPLETE");
 #endif
-  FREE (realFN);
+  GNUNET_free (realFN);
   return ret;
 }
 

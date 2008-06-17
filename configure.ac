@@ -21,8 +21,8 @@
 #
 #
 AC_PREREQ(2.61)
-AC_INIT([GNUnet], [0.7.2c],[bug-gnunet@gnu.org])
-AM_INIT_AUTOMAKE([GNUnet], [0.7.2c])
+AC_INIT([GNUnet], [0.7.3],[bug-gnunet@gnu.org])
+AM_INIT_AUTOMAKE([GNUnet], [0.7.3])
 AC_CONFIG_HEADERS([config.h])
 
 AH_TOP([#define _GNU_SOURCE  1])
@@ -63,6 +63,8 @@ then
  CFLAGS="-fno-strict-aliasing $CFLAGS"
 fi
 
+# Use Linux interface name unless the OS has a different preference
+DEFAULT_INTERFACE="\"eth0\""
 
 # Check system type
 case "$host_os" in
@@ -72,26 +74,53 @@ case "$host_os" in
      LDFLAGS="-flat_namespace -undefined suppress $LDFLAGS"
      AC_MSG_WARN([The VPN application cannot be compiled on your OS])
      build_target="macosx"
+     DEFAULT_INTERFACE="\"en0\""
+     LIBPREFIX=
+     DLLDIR=lib
+     QTLIBS="-L$QTDIR/lib -lQtGui -lQtOpenGL -lQtCore $X_LIBS -lX11 -lXext -lXmu -lXt -lXi $X_EXTRA_LIBS -lGLU -lGL -lpthread"
+     QTINC="-I$QTDIR/include -I$QTDIR/include/QtGui -I$QTDIR/include/QtCore -I$QTDIR/include/QtOpenGL $X_CFLAGS -DQT_OPENGL_LIB -DQT_GUI_LIB -DQT_CORE_LIB -DQT_SHARED"
+     QTBIN="$QTDIR/bin"
      ;;
 linux*)
      AC_DEFINE_UNQUOTED(LINUX,1,[This is a Linux system])
      build_target="linux"
+     LIBPREFIX=
+     DLLDIR=lib
+     AC_PATH_XTRA
+     QTLIBS="-Wl,-rpath,$QTDIR/lib -L$QTDIR/lib -lQtGui -lQtOpenGL -lQtCore $X_LIBS -lX11 -lXext -lXmu -lXt -lXi $X_EXTRA_LIBS -lGLU -lGL -lpthread"
+     QTINC="-I$QTDIR/include -I$QTDIR/include/QtGui -I$QTDIR/include/QtCore -I$QTDIR/include/QtOpenGL $X_CFLAGS -DQT_OPENGL_LIB -DQT_GUI_LIB -DQT_CORE_LIB -DQT_SHARED"
+     QTBIN="$QTDIR/bin"
      ;;
 freebsd*)
      AC_DEFINE_UNQUOTED(SOMEBSD,1,[This is a BSD system])
      AC_DEFINE_UNQUOTED(FREEBSD,1,[This is a FreeBSD system])
      CFLAGS="-D_THREAD_SAFE $CFLAGS"
      build_target="freebsd"
+     LIBPREFIX=
+     DLLDIR=lib
+     QTLIBS="-Wl,-rpath,$QTDIR/lib -L$QTDIR/lib -lQtGui -lQtOpenGL -lQtCore $X_LIBS -lX11 -lXext -lXmu -lXt -lXi $X_EXTRA_LIBS -lGLU -lGL -lpthread"
+     QTINC="-I$QTDIR/include -I$QTDIR/include/QtGui -I$QTDIR/include/QtCore -I$QTDIR/include/QtOpenGL $X_CFLAGS -DQT_OPENGL_LIB -DQT_GUI_LIB -DQT_CORE_LIB -DQT_SHARED"
+     QTBIN="$QTDIR/bin"
      ;;
 openbsd*)
      AC_DEFINE_UNQUOTED(SOMEBSD,1,[This is a BSD system])
      AC_DEFINE_UNQUOTED(OPENBSD,1,[This is an OpenBSD system])
      LIBS=`echo $LIBS | sed -e "s/-ldl//"`
      build_target="openbsd"
+     LIBPREFIX=
+     DLLDIR=lib
+     QTLIBS="-Wl,-rpath,$QTDIR/lib -L$QTDIR/lib -lQtGui -lQtOpenGL -lQtCore $X_LIBS -lX11 -lXext -lXmu -lXt -lXi $X_EXTRA_LIBS -lGLU -lGL -lpthread"
+     QTINC="-I$QTDIR/include -I$QTDIR/include/QtGui -I$QTDIR/include/QtCore -I$QTDIR/include/QtOpenGL $X_CFLAGS -DQT_OPENGL_LIB -DQT_GUI_LIB -DQT_CORE_LIB -DQT_SHARED"
+     QTBIN="$QTDIR/bin"
      ;;
 netbsd*)
      AC_DEFINE_UNQUOTED(SOMEBSD,1,[This is a BSD system])
      AC_DEFINE_UNQUOTED(NETBSD,1,[This is a NetBSD system])
+     LIBPREFIX=
+     DLLDIR=lib
+     QTLIBS="-Wl,-rpath,$QTDIR/lib -L$QTDIR/lib -lQtGui -lQtOpenGL -lQtCore $X_LIBS -lX11 -lXext -lXmu -lXt -lXi $X_EXTRA_LIBS -lGLU -lGL -lpthread"
+     QTINC="-I$QTDIR/include -I$QTDIR/include/QtGui -I$QTDIR/include/QtCore -I$QTDIR/include/QtOpenGL $X_CFLAGS -DQT_OPENGL_LIB -DQT_GUI_LIB -DQT_CORE_LIB -DQT_SHARED"
+     QTBIN="$QTDIR/bin"
      ;;
 *solaris*)
      AC_DEFINE_UNQUOTED(SOLARIS,1,[This is a Solaris system])
@@ -99,11 +128,21 @@ netbsd*)
      AC_CHECK_LIB(resolv, res_init)
      AC_CHECK_LIB(rt, nanosleep)
      build_target="solaris"
+     LIBPREFIX=
+     DLLDIR=lib
+     QTLIBS="-Wl,-rpath,$QTDIR/lib -L$QTDIR/lib -lQtGui -lQtOpenGL -lQtCore $X_LIBS -lX11 -lXext -lXmu -lXt -lXi $X_EXTRA_LIBS -lGLU -lGL -lpthread"
+     QTINC="-I$QTDIR/include -I$QTDIR/include/QtGui -I$QTDIR/include/QtCore -I$QTDIR/include/QtOpenGL $X_CFLAGS -DQT_OPENGL_LIB -DQT_GUI_LIB -DQT_CORE_LIB -DQT_SHARED"
+     QTBIN="$QTDIR/bin"
      ;;
 *arm-linux*)
      AC_DEFINE_UNQUOTED(LINUX,1,[This is a Linux system])
      CFLAGS="-D_REENTRANT -fPIC -pipe $CFLAGS"
      build_target="linux"
+     LIBPREFIX=
+     DLLDIR=lib
+     QTLIBS="-Wl,-rpath,$QTDIR/lib -L$QTDIR/lib -lQtGui -lQtOpenGL -lQtCore $X_LIBS -lX11 -lXext -lXmu -lXt -lXi $X_EXTRA_LIBS -lGLU -lGL -lpthread"
+     QTINC="-I$QTDIR/include -I$QTDIR/include/QtGui -I$QTDIR/include/QtCore -I$QTDIR/include/QtOpenGL $X_CFLAGS -DQT_OPENGL_LIB -DQT_GUI_LIB -DQT_CORE_LIB -DQT_SHARED"
+     QTBIN="$QTDIR/bin"
      ;;
 *cygwin*)
      AC_DEFINE_UNQUOTED(CYGWIN,1,[This is a Cygwin system])
@@ -112,7 +151,12 @@ netbsd*)
      LDFLAGS="$LDFLAGS -no-undefined"
      CFLAGS="-mms-bitfields $CFLAGS"
      build_target="cygwin"
+     LIBPREFIX=lib
+     DLLDIR=bin
      AC_PROG_CXX
+     QTLIBS="-L$QTDIR/lib -lopengl32 -lglu32 -lgdi32 -luser32 -lmingw32 -lqtmain -lQtOpenGL4 -lQtGui4 -lQtCore4 -mthreads -Wl,-enable-stdcall-fixup -Wl,-enable-auto-import -Wl,-enable-runtime-pseudo-reloc -Wl,-s -Wl,-s -Wl,-subsystem,windows"
+     QTINC="-I$QTDIR/include -I$QTDIR/include/QtCore -I$QTDIR/include/QtGui -I$QTDIR/include/QtOpenGL -DUNICODE -DQT_LARGEFILE_SUPPORT -DQT_DLL -DQT_NO_DEBUG -DQT_OPENGL_LIB -DQT_GUI_LIB -DQT_CORE_LIB -DQT_THREAD_SUPPORT -DQT_NEEDS_QMAIN -frtti -fexceptions"
+     QTBIN="$QTDIR/bin"
      ;;
 *mingw*)
      AC_DEFINE_UNQUOTED(MINGW,1,[This is a MinGW system])
@@ -123,12 +167,18 @@ netbsd*)
      CFLAGS="-mms-bitfields $CFLAGS"
      build_target="mingw"
      AC_PROG_CXX
+     LIBPREFIX=lib
+     DLLDIR=bin
+     QTLIBS="-L$QTDIR/lib -lopengl32 -lglu32 -lgdi32 -luser32 -lmingw32 -lqtmain -lQtOpenGL4 -lQtGui4 -lQtCore4 -mthreads -Wl,-enable-stdcall-fixup -Wl,-enable-auto-import -Wl,-enable-runtime-pseudo-reloc -Wl,-s -Wl,-s -Wl,-subsystem,windows"
+     QTINC="-I$QTDIR/include -I$QTDIR/include/QtCore -I$QTDIR/include/QtGui -I$QTDIR/include/QtOpenGL -DUNICODE -DQT_LARGEFILE_SUPPORT -DQT_DLL -DQT_NO_DEBUG -DQT_OPENGL_LIB -DQT_GUI_LIB -DQT_CORE_LIB -DQT_THREAD_SUPPORT -DQT_NEEDS_QMAIN -frtti -fexceptions"
+     QTBIN="$QTDIR/bin"
      ;;
 *)
      AC_MSG_RESULT(Unrecognised OS $host_os)
      AC_DEFINE_UNQUOTED(OTHEROS,1,[Some strange OS])
 ;;
 esac
+AC_DEFINE_UNQUOTED([GNUNET_DEFAULT_INTERFACE], $DEFAULT_INTERFACE, [This should be the default choice for the name of the first network interface])
 
 AC_MSG_CHECKING([for build target])
 AM_CONDITIONAL(MACOSX,  test "$build_target" = "macosx")
@@ -139,6 +189,7 @@ AM_CONDITIONAL(XFREEBSD, test "$build_target" = "freebsd")
 AM_CONDITIONAL(OPENBSD, test "$build_target" = "openbsd")
 AM_CONDITIONAL(LINUX, test "$build_target" = "linux")
 AC_MSG_RESULT([$build_target])
+AC_SUBST(build_target)
 
 
 CHECK_PTHREAD
@@ -176,10 +227,14 @@ fi
 
 # libcurl
 LIBCURL_CHECK_CONFIG(,7.15.4,,AC_MSG_ERROR([GNUnet requires libcurl >= 7.15.4]))
+# restore LIBS
+LIBS=$SAVE_LIBS
 
 # libxml2
 AM_PATH_XML2(,xml=1,xml=0)
 AM_CONDITIONAL(HAVE_XML2, test x$xml = x1)
+# restore LIBS
+LIBS=$SAVE_LIBS
 
 # test for kvm and kstat (for CPU stats under BSD/Solaris)
 AC_CHECK_LIB([kvm],[kvm_open])
@@ -217,6 +272,8 @@ if test "$extractor" != 1
 then
  AC_MSG_ERROR([GNUnet requires libextractor])
 fi
+# restore LIBS
+LIBS=$SAVE_LIBS
 
 # test for libgmp
 gmp=0
@@ -365,7 +422,8 @@ then
 fi
 AM_CONDITIONAL(HAVE_MYSQL, test x$mysql = xtrue)
 AM_CONDITIONAL(HAVE_MYSQLE, test "0" = "1")
-
+# restore LIBS
+LIBS=$SAVE_LIBS
 LDFLAGS=$SAVE_LDFLAGS
 CPPFLAGS=$SAVE_CPPFLAGS
 
@@ -407,7 +465,136 @@ AC_ARG_WITH(dialog,
 
 AM_CONDITIONAL(HAVE_DIALOG, test x$dialog = x1)
 AC_DEFINE_UNQUOTED([HAVE_DIALOG], $dialog, [We have dialog])
+# restore LIBS
+LIBS=$SAVE_LIBS
 
+# check for Qt 4
+SAVE_LDFLAGS=$LDFLAGS
+SAVE_CPPFLAGS=$CPPFLAGS
+AC_LANG_PUSH([C++])
+qt=0
+AC_MSG_CHECKING(for Qt)
+AC_ARG_WITH(qt,
+   [  --with-qt=PFX    Base of Qt installation],
+   [AC_MSG_RESULT([$with_qt])
+    case $with_qt in
+      no)
+        ;;
+      yes)
+        AC_CHECK_HEADERS([Qt/qpixmap.h],
+           AC_CHECK_LIB([QtGui], [_ZN7QPixmap12defaultDepthEv],
+              qt=1))
+        ;;
+      *)
+        QTLIBS="$QTLIBS -L$with_qt/lib"
+        LDFLAGS="$QTLIBS $LDFLAGS"
+        QTINC="$QTINC -I$with_qt/include -I$with_qt/include/qt4"
+        CPPFLAGS="$QTINC $CPPFLAGS"
+        AC_CHECK_HEADERS([Qt/qpixmap.h],
+           AC_CHECK_LIB([QtGui], [_ZN7QPixmap12defaultDepthEv],
+           EXT_LIB_PATH="-L$with_qt/lib $EXT_LIB_PATH"
+           qt=1))
+        ;;
+    esac
+   ],
+  [AC_MSG_RESULT([--with-qt not specified])
+    QTLIBS="$QTLIBS -L/usr/lib"
+    LDFLAGS="$QTLIBS $LDFLAGS"
+    QTINC="$QTINC -I/usr/include -I/usr/include/qt4"
+    CPPFLAGS="$QTINC $CPPFLAGS"
+    AC_CHECK_HEADERS([Qt/qpixmap.h],
+          AC_CHECK_LIB([QtGui], [_ZN7QPixmap12defaultDepthEv],
+           EXT_LIB_PATH="-L$with_qt/lib $EXT_LIB_PATH"
+              qt=1))])
+
+LIBS="$LIBS $QTLIBS"
+INCLUDES="$INCLUDES $QTINC"
+PATH="$PATH:$QTBIN"
+CXXFLAGS="$CXXFLAGS $QTINC"
+AC_SUBST(QTINC)
+AC_SUBST(QTLIBS)
+# Verbatim from http://qtnode.net/wiki?title=Qt_with_autotools
+
+# Now we check whether we can actually build a Qt app.
+cat > myqt.h << EOF
+#include <Qt/qobject.h>
+class Test : public QObject
+{
+Q_OBJECT
+public:
+  Test() {}
+  ~Test() {}
+public slots:
+  void receive() {}
+signals:
+  void send();
+};
+EOF
+
+cat > myqt.cpp << EOF
+#include "myqt.h"
+#include <Qt/qapplication.h>
+int main( int argc, char **argv )
+{
+  QApplication app( argc, argv );
+  Test t;
+  QObject::connect( &t, SIGNAL(send()), &t, SLOT(receive()) );
+}
+EOF
+
+AC_MSG_CHECKING(does moc work?)
+bnv_try_1="moc myqt.h -o moc_myqt.cpp"
+AC_TRY_EVAL(bnv_try_1)
+if test x"$ac_status" != x0; then
+   AC_MSG_RESULT(moc doesn't work)
+   qt=0
+else
+   AC_MSG_RESULT(yes)
+fi
+AC_MSG_CHECKING(can I compile moc_myqt.cpp?)
+bnv_try_2="$CXX -c $CXXFLAGS -o moc_myqt.o moc_myqt.cpp"
+AC_TRY_EVAL(bnv_try_2)
+if test x"$ac_status" != x0; then
+   AC_MSG_RESULT(couldn't compile moc_myqt.cpp)
+   qt=0
+else
+   AC_MSG_RESULT(yes)
+fi
+AC_MSG_CHECKING(can I compile myqt.cpp?)
+bnv_try_3="$CXX $QTINC -c $CXXFLAGS -o myqt.o myqt.cpp"
+AC_TRY_EVAL(bnv_try_3)
+if test x"$ac_status" != x0; then
+   AC_MSG_RESULT(couldn't compile myqt.cpp)
+   qt=0
+else
+   AC_MSG_RESULT(yes)
+fi
+AC_MSG_CHECKING(can I link against QT?)
+nv_try_4="$CXX $LIBS -o myqt myqt.o moc_myqt.o"
+AC_TRY_EVAL(bnv_try_4)
+if test x"$ac_status" != x0; then
+   AC_MSG_RESULT(couldn't link)
+   qt=0
+else
+   AC_MSG_RESULT(yes)
+fi
+
+
+AC_MSG_CHECKING(for mkoctfile)
+AC_TRY_EVAL(mkoctfile)
+if test x"$ac_status" != x0; then
+   AC_MSG_RESULT(mkoctfile is not in the path)
+   qt=0
+else
+  AC_MSG_RESULT(yes)
+fi
+rm -f moc_myqt.cpp myqt.h myqt.cpp myqt.o myqt moc_myqt.o
+
+AC_LANG_POP([C++])
+# restore LIBS
+LIBS=$SAVE_LIBS
+LDFLAGS=$SAVE_LDFLAGS
+CPPFLAGS=$SAVE_CPPFLAGS
 
 # libmicrohttpd
 lmhd=0
@@ -439,7 +626,41 @@ AC_ARG_WITH(microhttpd,
           lmhd=1))])
 AM_CONDITIONAL(HAVE_MHD, test x$lmhd = x1)
 AC_DEFINE_UNQUOTED([HAVE_MHD], $lmhd, [We have libmicrohttpd])
+# restore LIBS
+LIBS=$SAVE_LIBS
 
+# libesmtp
+esmtp=0
+AC_MSG_CHECKING([for libesmtp])
+AC_ARG_WITH(esmtp,
+   [  --with-esmtp=PFX    Base of libesmtp installation],
+   [AC_MSG_RESULT([$with_esmtp])
+    case $with_esmtp in
+      no)
+        ;;
+      yes)
+        AC_CHECK_HEADERS(libesmtp.h,
+          AC_CHECK_LIB([esmtp], [smtp_start_session],
+            esmtp=1))
+        ;;
+      *)
+        LDFLAGS="-L$with_esmtp/lib $LDFLAGS"
+        CPPFLAGS="-I$with_esmtp/include $CPPFLAGS"
+        AC_CHECK_HEADERS(libesmtp.h,
+          AC_CHECK_LIB([esmtp], [smtp_start_session],
+            EXT_LIB_PATH="-L$with_esmtp/lib $EXT_LIB_PATH"
+              esmtp=1))
+        ;;
+    esac
+   ],
+   [AC_MSG_RESULT([--with-esmtp not specified])
+    AC_CHECK_HEADERS(libesmtp.h,
+      AC_CHECK_LIB([esmtp], [smtp_start_session],
+          esmtp=1))])
+AM_CONDITIONAL(HAVE_ESMTP, test x$esmtp = x1)
+AC_DEFINE_UNQUOTED([HAVE_ESMTP], $esmtp, [We have libesmtp])
+# restore LIBS
+LIBS=$SAVE_LIBS
 
 
 # GNU adns
@@ -474,6 +695,9 @@ AC_ARG_WITH(adns,
 
 AM_CONDITIONAL(HAVE_ADNS, test x$adns = x1)
 AC_DEFINE_UNQUOTED([HAVE_ADNS], $adns, [We have GNU adns])
+# restore LIBS
+LIBS=$SAVE_LIBS
+
 
 # check for gtk >= 2.6.0
 AC_MSG_CHECKING(for gtk)
@@ -607,6 +831,16 @@ else
 fi
 AM_CONDITIONAL(HAVE_GUILE, test x$guile = x1)
 
+if test "$qt" = 1
+then
+	AC_DEFINE(HAVE_QT, 1, [We have Qt])
+fi
+AM_CONDITIONAL(HAVE_QT, test x$qt != x0)
+
+AC_SUBST(LIBPREFIX)
+AC_SUBST(DLLDIR)
+AC_SUBST(EXT_LIB_PATH)
+
 AC_CONFIG_FILES([ po/Makefile.in m4/Makefile
 Makefile
 contrib/Makefile
@@ -621,7 +855,8 @@ src/applications/datastore/Makefile
 src/applications/dht/Makefile
 src/applications/dht/tools/Makefile
 src/applications/dht/module/Makefile
-src/applications/dstore/Makefile
+src/applications/dstore_mysql/Makefile
+src/applications/dstore_sqlite/Makefile
 src/applications/fragmentation/Makefile
 src/applications/fs/Makefile
 src/applications/fs/collection/Makefile
@@ -647,7 +882,6 @@ src/applications/tbench/Makefile
 src/applications/template/Makefile
 src/applications/testing/Makefile
 src/applications/topology_default/Makefile
-src/applications/topology_f2f/Makefile
 src/applications/tracekit/Makefile
 src/applications/traffic/Makefile
 src/applications/transport/Makefile
@@ -655,6 +889,8 @@ src/applications/vpn/Makefile
 src/setup/Makefile
 src/setup/lib/Makefile
 src/setup/gtk/Makefile
+src/setup/qt/Makefile
+src/setup/qt/pixmaps/Makefile
 src/setup/ncurses/Makefile
 src/setup/text/Makefile
 src/server/Makefile
@@ -663,7 +899,6 @@ src/transports/upnp/Makefile
 src/util/Makefile
 src/util/boot/Makefile
 src/util/config/Makefile
-src/util/config_impl/Makefile
 src/util/containers/Makefile
 src/util/cron/Makefile
 src/util/crypto/Makefile
@@ -688,6 +923,13 @@ then
   AC_MSG_NOTICE([NOTICE: MySQL found, but too old. MySQL support will not be compiled.])
 fi
 
+# sqlite
+if test "x$sqlite" = "x0"
+then
+  AC_MSG_NOTICE([NOTICE: sqlite not found.  sqLite support will not be compiled.])
+fi
+
+
 if test "$dialog" != 1
 then
  AC_MSG_NOTICE([NOTICE: curses based gnunet-setup frontends will not be installed.])
@@ -696,6 +938,16 @@ fi
 if test "$lmhd" != 1
 then
  AC_MSG_NOTICE([NOTICE: libmicrohttpd not found, http transport will not be installed.])
+fi
+
+if test "$esmtp" != 1
+then
+ AC_MSG_NOTICE([NOTICE: libesmtp not found, smtp transport will not be installed.])
+fi
+
+if test "$qt" != 1
+then
+ AC_MSG_NOTICE([NOTICE: qt not found, will not build gnunet-setup qt plugin.])
 fi
 
 if test "$ipv6" = "0"
@@ -717,8 +969,15 @@ then
  AC_MSG_NOTICE([WARNING: GNU adns not found, will use synchronous DNS resolution.])
 fi
 
-# sqlite
-if test "x$sqlite" = "x0"
-then
-  AC_MSG_NOTICE([WARNING: sqlite not found, this will cause problems with file-sharing.])
-fi
+AC_MSG_NOTICE([********************************************
+You can build GNUnet with
+	make install
+now. After that, run
+	gnunet-setup -d wizard-gtk
+(on graphical systems with GTK) or
+	gnunet-setup -d wizard-curses
+(on text-based systems with curses) in order to make important configuration
+settings. If neither works for you, you can find a template configuration
+file in the contrib/ subdirectory. Copy it to /etc/gnunetd.conf and modify it
+using your favourite text editor.
+********************************************])

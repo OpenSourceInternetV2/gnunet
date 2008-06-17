@@ -50,7 +50,8 @@ typedef struct
    *        (*result should be NULL, sufficient space is allocated)
    * @return the number of bytes read on success, -1 on failure
    */
-  int (*read) (struct GE_Context * ectx, const char *name, void **result);
+  int (*read) (struct GNUNET_GE_Context * ectx, const char *name,
+               void **result);
 
   /**
    * Append content to file.
@@ -58,9 +59,9 @@ typedef struct
    * @param fn the key for the entry
    * @param len the number of bytes in block
    * @param block the data to store
-   * @return SYSERR on error, OK if ok.
+   * @return GNUNET_SYSERR on error, GNUNET_OK if ok.
    */
-  int (*append) (struct GE_Context * ectx,
+  int (*append) (struct GNUNET_GE_Context * ectx,
                  const char *name, int len, const void *block);
 
   /**
@@ -69,9 +70,9 @@ typedef struct
    * @param fn the key for the entry
    * @param len the number of bytes in block
    * @param block the data to store
-   * @return SYSERR on error, OK if ok.
+   * @return GNUNET_SYSERR on error, GNUNET_OK if ok.
    */
-  int (*write) (struct GE_Context * ectx,
+  int (*write) (struct GNUNET_GE_Context * ectx,
                 const char *name, int len, const void *block);
 
   /**
@@ -79,9 +80,9 @@ typedef struct
    * @param name the hashcode representing the name of the file
    *        (without directory)
    */
-  int (*unlink) (struct GE_Context * ectx, const char *name);
+  int (*unlink) (struct GNUNET_GE_Context * ectx, const char *name);
 
-} State_ServiceAPI;
+} GNUNET_State_ServiceAPI;
 
 #if 0                           /* keep Emacsens' auto-indent happy */
 {

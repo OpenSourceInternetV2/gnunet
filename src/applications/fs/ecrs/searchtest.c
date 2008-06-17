@@ -27,54 +27,52 @@
 #include "platform.h"
 #include "gnunet_util.h"
 #include "gnunet_ecrs_lib.h"
-#include "gnunet_util_config_impl.h"
-#include "gnunet_util_network_client.h"
 #include "tree.h"
 
-#define CHECK(a) if (!(a)) { ok = NO; GE_BREAK(NULL, 0); goto FAILURE; }
+#define CHECK(a) if (!(a)) { ok = GNUNET_NO; GNUNET_GE_BREAK(NULL, 0); goto FAILURE; }
 
 static int
 testTerminate (void *unused)
 {
-  return OK;
+  return GNUNET_OK;
 }
 
-static struct GC_Configuration *cfg;
+static struct GNUNET_GC_Configuration *cfg;
 
 static int
-searchCB (const ECRS_FileInfo * fi,
-          const HashCode512 * key, int isRoot, void *closure)
+searchCB (const GNUNET_ECRS_FileInfo * fi,
+          const GNUNET_HashCode * key, int isRoot, void *closure)
 {
   int *cnt = closure;
 #if 1
   char *st;
 
-  st = ECRS_uriToString (fi->uri);
+  st = GNUNET_ECRS_uri_to_string (fi->uri);
   printf ("Got result `%s'\n", st);
-  FREE (st);
+  GNUNET_free (st);
 #endif
   (*cnt)--;
   if (0 == *cnt)
-    return SYSERR;              /* abort search */
-  return OK;
+    return GNUNET_SYSERR;       /* abort search */
+  return GNUNET_OK;
 }
 
 /**
  * @param *uri In: keyword URI
- * @return OK on success, SYSERR on error
+ * @return GNUNET_OK on success, GNUNET_SYSERR on error
  */
 static int
-searchFile (const struct ECRS_URI *uri, int resultCount)
+searchFile (const struct GNUNET_ECRS_URI *uri, int resultCount)
 {
-  ECRS_search (NULL,
-               cfg,
-               uri,
-               0,
-               60 * 15 * cronSECONDS,
-               &searchCB, &resultCount, &testTerminate, NULL);
+  GNUNET_ECRS_search (NULL,
+                      cfg,
+                      uri,
+                      0,
+                      60 * 15 * GNUNET_CRON_SECONDS,
+                      &searchCB, &resultCount, &testTerminate, NULL);
   if (resultCount > 0)
-    return SYSERR;
-  return OK;
+    return GNUNET_SYSERR;
+  return GNUNET_OK;
 }
 
 int
@@ -82,77 +80,79 @@ main (int argc, char *argv[])
 {
   pid_t daemon;
   int ok;
-  struct ClientServerConnection *sock;
-  struct ECRS_URI *uri;
-  struct ECRS_MetaData *meta;
-  struct ECRS_URI *key;
+  struct GNUNET_ClientServerConnection *sock;
+  struct GNUNET_ECRS_URI *uri;
+  struct GNUNET_ECRS_MetaData *meta;
+  struct GNUNET_ECRS_URI *key;
   const char *keywords[6];
 
 
-  cfg = GC_create_C_impl ();
-  if (-1 == GC_parse_configuration (cfg, "check.conf"))
+  cfg = GNUNET_GC_create ();
+  if (-1 == GNUNET_GC_parse_configuration (cfg, "check.conf"))
     {
-      GC_free (cfg);
+      GNUNET_GC_free (cfg);
       return -1;
     }
   sock = NULL;
-  daemon = os_daemon_start (NULL, cfg, "peer.conf", NO);
-  GE_ASSERT (NULL, daemon > 0);
-  CHECK (OK == connection_wait_for_running (NULL, cfg, 30 * cronSECONDS));
-  ok = YES;
-  PTHREAD_SLEEP (5 * cronSECONDS);      /* give apps time to start */
-  sock = client_connection_create (NULL, cfg);
+  daemon = GNUNET_daemon_start (NULL, cfg, "peer.conf", GNUNET_NO);
+  GNUNET_GE_ASSERT (NULL, daemon > 0);
+  CHECK (GNUNET_OK ==
+         GNUNET_wait_for_daemon_running (NULL, cfg,
+                                         30 * GNUNET_CRON_SECONDS));
+  ok = GNUNET_YES;
+  GNUNET_thread_sleep (5 * GNUNET_CRON_SECONDS);        /* give apps time to start */
+  sock = GNUNET_client_connection_create (NULL, cfg);
   CHECK (sock != NULL);
   /* ACTUAL TEST CODE */
   /* first, simple insertion => one result */
 #if 1
   printf ("Testing search for 'XXtest' with one result.\n");
 #endif
-  uri = ECRS_stringToUri (NULL,
-                          "gnunet://ecrs/sks/C282GG70GKK41O4551011DO413KFBVTVMQG1OG30I0K4045N0G41HAPB82G680A02JRVVFO8URVRU2F159011DO41000000022RG820/test");
-  meta = ECRS_createMetaData ();
+  uri = GNUNET_ECRS_string_to_uri (NULL,
+                                   "gnunet://ecrs/sks/C282GG70GKK41O4551011DO413KFBVTVMQG1OG30I0K4045N0G41HAPB82G680A02JRVVFO8URVRU2F159011DO41000000022RG820/test");
+  meta = GNUNET_ECRS_meta_data_create ();
   keywords[0] = "XXtest";
   keywords[1] = NULL;
 
-  key = ECRS_keywordsToUri (keywords);
-  CHECK (OK == ECRS_addToKeyspace (NULL, cfg, key, 0, 0, get_time () + 10 * cronMINUTES,        /* expire */
-                                   uri, meta));
-  CHECK (OK == searchFile (key, 1));
-  ECRS_freeUri (key);
-  ECRS_freeUri (uri);
+  key = GNUNET_ECRS_keyword_strings_to_uri (keywords);
+  CHECK (GNUNET_OK == GNUNET_ECRS_publish_under_keyword (NULL, cfg, key, 0, 0, GNUNET_get_time () + 10 * GNUNET_CRON_MINUTES,   /* expire */
+                                                         uri, meta));
+  CHECK (GNUNET_OK == searchFile (key, 1));
+  GNUNET_ECRS_uri_destroy (key);
+  GNUNET_ECRS_uri_destroy (uri);
 
   /* inserting another URI under the 'XXtest' keyword and under 'binary'
      should give both URIs since ECRS knows nothing about 'AND'ing: */
 #if 1
   printf ("Testing search for 'XXtest AND binary' with two results.\n");
 #endif
-  uri = ECRS_stringToUri (NULL,
-                          "gnunet://ecrs/sks/C282GG70GKK41O4551011DO413KFBVTVMQG1OG30I0K4045N0G41HAPB82G680A02JRVVFO8URVRU2F159011DO41000000022RG820/test-different");
+  uri = GNUNET_ECRS_string_to_uri (NULL,
+                                   "gnunet://ecrs/sks/C282GG70GKK41O4551011DO413KFBVTVMQG1OG30I0K4045N0G41HAPB82G680A02JRVVFO8URVRU2F159011DO41000000022RG820/test-different");
   keywords[1] = "binary";
   keywords[2] = NULL;
-  key = ECRS_keywordsToUri (keywords);
-  CHECK (OK == ECRS_addToKeyspace (NULL, cfg, key, 0, 0, get_time () + 10 * cronMINUTES,        /* expire */
-                                   uri, meta));
-  CHECK (OK == searchFile (key, 2));
-  ECRS_freeUri (key);
-  ECRS_freeUri (uri);
-  ECRS_freeMetaData (meta);
+  key = GNUNET_ECRS_keyword_strings_to_uri (keywords);
+  CHECK (GNUNET_OK == GNUNET_ECRS_publish_under_keyword (NULL, cfg, key, 0, 0, GNUNET_get_time () + 10 * GNUNET_CRON_MINUTES,   /* expire */
+                                                         uri, meta));
+  CHECK (GNUNET_OK == searchFile (key, 2));
+  GNUNET_ECRS_uri_destroy (key);
+  GNUNET_ECRS_uri_destroy (uri);
+  GNUNET_ECRS_meta_data_destroy (meta);
 
   /* now searching just for 'XXtest' should again give 2 results! */
 #if 0
   printf ("Testing search for 'XXtest' with two results.\n");
 #endif
   keywords[1] = NULL;
-  key = ECRS_keywordsToUri (keywords);
-  CHECK (OK == searchFile (key, 2));
-  ECRS_freeUri (key);
+  key = GNUNET_ECRS_keyword_strings_to_uri (keywords);
+  CHECK (GNUNET_OK == searchFile (key, 2));
+  GNUNET_ECRS_uri_destroy (key);
 
   /* END OF TEST CODE */
 FAILURE:
   if (sock != NULL)
-    connection_destroy (sock);
-  GE_ASSERT (NULL, OK == os_daemon_stop (NULL, daemon));
-  return (ok == YES) ? 0 : 1;
+    GNUNET_client_connection_destroy (sock);
+  GNUNET_GE_ASSERT (NULL, GNUNET_OK == GNUNET_daemon_stop (NULL, daemon));
+  return (ok == GNUNET_YES) ? 0 : 1;
 }
 
 /* end of searchtest.c */

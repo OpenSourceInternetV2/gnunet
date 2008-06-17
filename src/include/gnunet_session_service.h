@@ -49,13 +49,13 @@ typedef struct
   /**
    * Try to connect to the given peer.
    *
-   * @return SYSERR if that is impossible,
-   *         YES if a connection is established upon return,
-   *         NO if we're going to try to establish one asynchronously
+   * @return GNUNET_SYSERR if that is impossible,
+   *         GNUNET_YES if a connection is established upon return,
+   *         GNUNET_NO if we're going to try to establish one asynchronously
    */
-  int (*tryConnect) (const PeerIdentity * peer);
+  int (*tryConnect) (const GNUNET_PeerIdentity * peer);
 
-} Session_ServiceAPI;
+} GNUNET_Session_ServiceAPI;
 
 #if 0                           /* keep Emacsens' auto-indent happy */
 {

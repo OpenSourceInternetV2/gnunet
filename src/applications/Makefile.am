@@ -1,9 +1,9 @@
 if HAVE_MYSQL
- MYSQL_DIR = sqstore_mysql
+ MYSQL_DIR = sqstore_mysql dstore_mysql
 endif
 
 if HAVE_SQLITE
- SQLITE_DIR = sqstore_sqlite kvstore_sqlite dstore dht
+ SQLITE_DIR = sqstore_sqlite kvstore_sqlite dstore_sqlite
 endif
 
 if !MINGW
@@ -16,7 +16,6 @@ endif
 SUBDIRS	= \
  identity \
  testing \
- advertising \
  bootstrap_http \
  datastore \
  rpc \
@@ -25,7 +24,6 @@ SUBDIRS	= \
  fs \
  state \
  stats \
- gap \
  pingpong \
  session \
  $(MYSQL_DIR) \
@@ -33,10 +31,12 @@ SUBDIRS	= \
  tbench \
  template \
  topology_default \
- topology_f2f \
- tracekit \
  traffic \
  transport \
+ advertising \
+ gap \
+ dht \
+ tracekit \
  $(VPN_DIR)
 # $(TESTBED_DIR) 
 # chat

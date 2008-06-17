@@ -57,8 +57,6 @@ libecrs_core_la_OBJECTS = $(am_libecrs_core_la_OBJECTS)
 am_ecrs_core_test_OBJECTS = ecrs_core_test.$(OBJEXT)
 ecrs_core_test_OBJECTS = $(am_ecrs_core_test_OBJECTS)
 ecrs_core_test_DEPENDENCIES =  \
-	$(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
-	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
 	$(top_builddir)/src/applications/fs/libecrs_core.la
 DEFAULT_INCLUDES = -I. -I$(top_builddir)@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -107,6 +105,7 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DLLDIR = @DLLDIR@
 DLLTOOL = @DLLTOOL@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
@@ -141,6 +140,7 @@ LIBICONV = @LIBICONV@
 LIBINTL = @LIBINTL@
 LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
+LIBPREFIX = @LIBPREFIX@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
@@ -166,6 +166,8 @@ PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PKG_CONFIG = @PKG_CONFIG@
 POSUB = @POSUB@
+QTINC = @QTINC@
+QTLIBS = @QTLIBS@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -176,9 +178,14 @@ STRIP = @STRIP@
 USE_NLS = @USE_NLS@
 VERSION = @VERSION@
 XGETTEXT = @XGETTEXT@
+XMKMF = @XMKMF@
 XML2_CONFIG = @XML2_CONFIG@
 XML_CPPFLAGS = @XML_CPPFLAGS@
 XML_LIBS = @XML_LIBS@
+X_CFLAGS = @X_CFLAGS@
+X_EXTRA_LIBS = @X_EXTRA_LIBS@
+X_LIBS = @X_LIBS@
+X_PRE_LIBS = @X_PRE_LIBS@
 _libcurl_config = @_libcurl_config@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
@@ -197,6 +204,7 @@ build = @build@
 build_alias = @build_alias@
 build_cpu = @build_cpu@
 build_os = @build_os@
+build_target = @build_target@
 build_vendor = @build_vendor@
 builddir = @builddir@
 datadir = @datadir@
@@ -250,8 +258,6 @@ ecrs_core_test_SOURCES = \
   ecrs_core_test.c 
 
 ecrs_core_test_LDADD = \
-  $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
-  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
   $(top_builddir)/src/applications/fs/libecrs_core.la 
 
 all: all-recursive

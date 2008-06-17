@@ -55,13 +55,15 @@ int GNUNET_init (int argc,
                  char *const *argv,
                  const char *binaryName,
                  char **configurationFileName,
-                 const struct CommandLineOption *options,
-                 struct GE_Context **ectx, struct GC_Configuration **cfg);
+                 const struct GNUNET_CommandLineOption *options,
+                 struct GNUNET_GE_Context **ectx,
+                 struct GNUNET_GC_Configuration **cfg);
 
 /**
  * Free resources allocated during GNUnet_init.
  */
-void GNUNET_fini (struct GE_Context *ectx, struct GC_Configuration *cfg);
+void GNUNET_fini (struct GNUNET_GE_Context *ectx,
+                  struct GNUNET_GC_Configuration *cfg);
 
 #if 0                           /* keep Emacsens' auto-indent happy */
 {

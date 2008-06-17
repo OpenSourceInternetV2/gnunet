@@ -45,16 +45,16 @@ extern "C"
  * @param sock socket to query gnunetd over
  * @param timeframe what time interval should be considered
  * @param type what type of message do we care about?
- * @param direction TC_RECEIVED of TC_SEND?
+ * @param direction GNUNET_TRAFFIC_TYPE_RECEIVED of TC_SEND?
  * @param count set to number of messages
  * @param avg_size set to average size
  * @param peers set to number of peers involved
  * @param time set to the time distribution
  *        bit-vector giving times of interactions,
  *        highest bit is current time-unit, bit 1 is 32 time-units ago (set)
- * @return OK on success, SYSERR on error
+ * @return GNUNET_OK on success, GNUNET_SYSERR on error
  */
-int gnunet_traffic_poll (struct ClientServerConnection *sock,
+int GNUNET_traffic_poll (struct GNUNET_ClientServerConnection *sock,
                          unsigned int timeframe,
                          unsigned short type,
                          unsigned short direction,

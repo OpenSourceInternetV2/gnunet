@@ -59,8 +59,7 @@ am__installdirs = "$(DESTDIR)$(plugindir)"
 pluginLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(plugin_LTLIBRARIES)
 libgnunetmodule_upnp_la_DEPENDENCIES =  \
-	$(top_builddir)/src/util/libgnunetutil.la \
-	$(top_builddir)/src/util/cron/libgnunetutil_cron.la
+	$(top_builddir)/src/util/libgnunetutil.la
 am_libgnunetmodule_upnp_la_OBJECTS = libgnunetmodule_upnp_la-error.lo \
 	libgnunetmodule_upnp_la-init.lo libgnunetmodule_upnp_la-ip.lo \
 	libgnunetmodule_upnp_la-util.lo \
@@ -74,9 +73,7 @@ libgnunetmodule_upnp_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(libgnunetmodule_upnp_la_LDFLAGS) $(LDFLAGS) -o $@
 am_upnptest_OBJECTS = upnptest.$(OBJEXT)
 upnptest_OBJECTS = $(am_upnptest_OBJECTS)
-upnptest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la \
-	$(top_builddir)/src/util/loggers/libgnunetutil_logging.la \
-	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la
+upnptest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la
 DEFAULT_INCLUDES = -I. -I$(top_builddir)@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -114,6 +111,7 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DLLDIR = @DLLDIR@
 DLLTOOL = @DLLTOOL@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
@@ -148,6 +146,7 @@ LIBICONV = @LIBICONV@
 LIBINTL = @LIBINTL@
 LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
+LIBPREFIX = @LIBPREFIX@
 LIBS = @LIBINTL@ @LIBS@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
@@ -173,6 +172,8 @@ PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PKG_CONFIG = @PKG_CONFIG@
 POSUB = @POSUB@
+QTINC = @QTINC@
+QTLIBS = @QTLIBS@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -183,9 +184,14 @@ STRIP = @STRIP@
 USE_NLS = @USE_NLS@
 VERSION = @VERSION@
 XGETTEXT = @XGETTEXT@
+XMKMF = @XMKMF@
 XML2_CONFIG = @XML2_CONFIG@
 XML_CPPFLAGS = @XML_CPPFLAGS@
 XML_LIBS = @XML_LIBS@
+X_CFLAGS = @X_CFLAGS@
+X_EXTRA_LIBS = @X_EXTRA_LIBS@
+X_LIBS = @X_LIBS@
+X_PRE_LIBS = @X_PRE_LIBS@
 _libcurl_config = @_libcurl_config@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
@@ -204,6 +210,7 @@ build = @build@
 build_alias = @build_alias@
 build_cpu = @build_cpu@
 build_os = @build_os@
+build_target = @build_target@
 build_vendor = @build_vendor@
 builddir = @builddir@
 datadir = @datadir@
@@ -262,17 +269,14 @@ libgnunetmodule_upnp_la_CFLAGS = \
 
 libgnunetmodule_upnp_la_LIBADD = \
  @EXT_LIB_PATH@ @EXT_LIBS@ @XML_LIBS@ @LIBCURL@ \
- $(top_builddir)/src/util/libgnunetutil.la  \
- $(top_builddir)/src/util/cron/libgnunetutil_cron.la 
+ $(top_builddir)/src/util/libgnunetutil.la  
 
 TESTS = $(check_PROGRAMS)
 upnptest_SOURCES = \
  upnptest.c 
 
 upnptest_LDADD = \
- $(top_builddir)/src/util/libgnunetutil.la \
- $(top_builddir)/src/util/loggers/libgnunetutil_logging.la \
- $(top_builddir)/src/util/config_impl/libgnunetutil_config.la
+ $(top_builddir)/src/util/libgnunetutil.la 
 
 all: all-am
 

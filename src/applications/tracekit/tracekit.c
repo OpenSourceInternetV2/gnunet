@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004, 2006 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2006, 2007 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -29,213 +29,225 @@
 #include "gnunet_protocols.h"
 #include "tracekit.h"
 
-static CoreAPIForApplication *coreAPI;
+/**
+ * Maximum number of tracekit requests that we're willing
+ * to route at the same time.
+ */
+#define MAXROUTE 64
 
-static struct MUTEX *lock;
+#define DEBUG_TRACEKIT GNUNET_NO
+
+
+static GNUNET_CoreAPIForPlugins *coreAPI;
+
+static struct GNUNET_Mutex *lock;
 
 static unsigned int clientCount;
 
-static struct ClientHandle **clients;
+static struct GNUNET_ClientHandle **clients;
 
-static struct GE_Context *ectx;
-
-typedef struct
+/**
+ * An entry in the tracekit's routing table.
+ */
+struct RTE
 {
-  PeerIdentity initiator;
-  PeerIdentity replyTo;
-  TIME_T timestamp;
+  GNUNET_PeerIdentity initiator;
+  GNUNET_PeerIdentity replyTo;
+  unsigned int timestamp;
   unsigned int priority;
-} RTE;
+};
 
-#define MAXROUTE 64
-
-static RTE *routeTable[MAXROUTE];
+static struct RTE routeTable[MAXROUTE];
 
 static int
-handlep2pReply (const PeerIdentity * sender, const MESSAGE_HEADER * message)
+handlep2pReply (const GNUNET_PeerIdentity * sender,
+                const GNUNET_MessageHeader * message)
 {
+  struct RTE *rte;
   unsigned int i;
   unsigned int hostCount;
-  P2P_tracekit_reply_MESSAGE *reply;
-  EncName initiator;
-  EncName sen;
+  const P2P_tracekit_reply_MESSAGE *reply;
+#if DEBUG_TRACEKIT
+  GNUNET_EncName enc;
+#endif
+  unsigned int idx;
+  CS_tracekit_reply_MESSAGE *csReply;
 
-  hash2enc (&sender->hashPubKey, &sen);
   hostCount =
     (ntohs (message->size) -
-     sizeof (P2P_tracekit_reply_MESSAGE)) / sizeof (PeerIdentity);
+     sizeof (P2P_tracekit_reply_MESSAGE)) / sizeof (GNUNET_PeerIdentity);
   if (ntohs (message->size) !=
-      sizeof (P2P_tracekit_reply_MESSAGE) + hostCount * sizeof (PeerIdentity))
+      sizeof (P2P_tracekit_reply_MESSAGE) +
+      hostCount * sizeof (GNUNET_PeerIdentity))
     {
-      GE_LOG (ectx,
-              GE_WARNING | GE_BULK | GE_USER,
-              _("Received invalid `%s' message from `%s'.\n"),
-              "P2P_tracekit_probe_MESSAGE", &sen);
-      return SYSERR;
+      GNUNET_GE_BREAK_OP (NULL, 0);
+      return GNUNET_SYSERR;
     }
-  reply = (P2P_tracekit_reply_MESSAGE *) message;
-  hash2enc (&reply->initiatorId.hashPubKey, &initiator);
-  GE_LOG (ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER,
-          "TRACEKIT: Sending reply back to initiator `%s'.\n", &initiator);
-  MUTEX_LOCK (lock);
+  reply = (const P2P_tracekit_reply_MESSAGE *) message;
+#if DEBUG_TRACEKIT
+  GNUNET_hash_to_enc (&reply->initiatorId.hashPubKey, &enc);
+  GNUNET_GE_LOG (coreAPI->ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 "TRACEKIT: Sending reply back to initiator `%s'.\n", &enc);
+#endif
+  GNUNET_mutex_lock (lock);
   for (i = 0; i < MAXROUTE; i++)
     {
-      if (routeTable[i] == NULL)
-        continue;
-      if ((routeTable[i]->timestamp ==
-           (TIME_T) ntohl (reply->initiatorTimestamp))
+      rte = &routeTable[i];
+      if ((rte->timestamp ==
+           (GNUNET_Int32Time) ntohl (reply->initiatorTimestamp))
           && (0 ==
-              memcmp (&routeTable[i]->initiator.hashPubKey,
-                      &reply->initiatorId.hashPubKey, sizeof (HashCode512))))
+              memcmp (&rte->initiator,
+                      &reply->initiatorId, sizeof (GNUNET_HashCode))))
         {
-          GE_LOG (ectx,
-                  GE_DEBUG | GE_REQUEST | GE_USER,
-                  "TRACEKIT: found matching entry in routing table\n");
-          if (0 == memcmp (&coreAPI->myIdentity->hashPubKey,
-                           &routeTable[i]->replyTo.hashPubKey,
-                           sizeof (HashCode512)))
+#if DEBUG_TRACEKIT
+          GNUNET_GE_LOG (coreAPI->ectx,
+                         GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                         "TRACEKIT: found matching entry in routing table\n");
+#endif
+          if (0 == memcmp (coreAPI->myIdentity,
+                           &rte->replyTo, sizeof (GNUNET_HashCode)))
             {
-              unsigned int idx;
-              CS_tracekit_reply_MESSAGE *csReply;
-
               idx = ntohl (reply->clientId);
-              GE_LOG (ectx,
-                      GE_DEBUG | GE_REQUEST | GE_USER,
-                      "TRACEKIT: I am initiator, sending to client.\n");
-              if (idx >= clientCount)
-                {
-                  GE_BREAK (ectx, 0);
-                  continue;     /* discard */
-                }
-              if (clients[idx] == NULL)
-                {
-                  GE_LOG (ectx,
-                          GE_DEBUG | GE_REQUEST | GE_USER,
-                          "TRACEKIT: received response on slot %u, but client already exited.\n",
-                          idx);
-                  continue;     /* discard */
-                }
-
+              if ((idx >= clientCount) || (clients[idx] == NULL))
+                continue;
+#if DEBUG_TRACEKIT
+              GNUNET_GE_LOG (coreAPI->ectx,
+                             GNUNET_GE_DEBUG | GNUNET_GE_REQUEST |
+                             GNUNET_GE_USER,
+                             "TRACEKIT: I am initiator, sending to client %u.\n",
+                             idx);
+#endif
               csReply =
-                MALLOC (sizeof (CS_tracekit_reply_MESSAGE) +
-                        hostCount * sizeof (PeerIdentity));
-              /* build msg */
+                GNUNET_malloc (sizeof (CS_tracekit_reply_MESSAGE) +
+                               hostCount * sizeof (GNUNET_PeerIdentity));
               csReply->header.size
-                =
-                htons (sizeof (CS_tracekit_reply_MESSAGE) +
-                       hostCount * sizeof (PeerIdentity));
-              csReply->header.type = htons (CS_PROTO_tracekit_REPLY);
+                = htons (sizeof (CS_tracekit_reply_MESSAGE) +
+                         hostCount * sizeof (GNUNET_PeerIdentity));
+              csReply->header.type = htons (GNUNET_CS_PROTO_TRACEKIT_REPLY);
               csReply->responderId = reply->responderId;
-              memcpy (&((CS_tracekit_reply_MESSAGE_GENERIC *) csReply)->
-                      peerList[0],
-                      &((P2P_tracekit_reply_MESSAGE_GENERIC *) reply)->
-                      peerList[0], hostCount * sizeof (PeerIdentity));
-              coreAPI->sendToClient (clients[idx], &csReply->header, YES);
-              FREE (csReply);
+              memcpy (&csReply[1],
+                      &reply[1], hostCount * sizeof (GNUNET_PeerIdentity));
+              coreAPI->cs_send_to_client (clients[idx],
+                                          &csReply->header, GNUNET_YES);
+              GNUNET_free (csReply);
             }
           else
             {
-              EncName hop;
-
-              hash2enc (&routeTable[i]->replyTo.hashPubKey, &hop);
-              GE_LOG (ectx,
-                      GE_DEBUG | GE_REQUEST | GE_USER,
-                      "TRACEKIT: forwarding to next hop `%s'\n", &hop);
-              coreAPI->unicast (&routeTable[i]->replyTo,
-                                message, routeTable[i]->priority, 0);
+#if DEBUG_TRACEKIT
+              GNUNET_hash_to_enc (&rte->replyTo.hashPubKey, &enc);
+              GNUNET_GE_LOG (coreAPI->ectx,
+                             GNUNET_GE_DEBUG | GNUNET_GE_REQUEST |
+                             GNUNET_GE_USER,
+                             "TRACEKIT: forwarding to next hop `%s'\n", &enc);
+#endif
+              coreAPI->unicast (&rte->replyTo, message, rte->priority, 0);
             }
         }
     }
-  MUTEX_UNLOCK (lock);
-  return OK;
+  GNUNET_mutex_unlock (lock);
+  return GNUNET_OK;
 }
-
 
 typedef struct
 {
-  PeerIdentity *peers;
-  unsigned int max;
-  int pos;
-} Tracekit_Collect_Trace_Closure;
+  const P2P_tracekit_probe_MESSAGE *pro;
 
+  const GNUNET_PeerIdentity *sender;
+
+} Transmit_Trace_Closure;
+
+/**
+ * Callback used for forwarding the request to
+ * our neighbors (excluding the initiator and
+ * our predecessor)
+ */
 static void
-getPeerCallback (const PeerIdentity * id, void *cls)
+transmit (const GNUNET_PeerIdentity * id, void *cls)
 {
-  Tracekit_Collect_Trace_Closure *closure = cls;
-  if (closure->pos == closure->max)
-    {
-      GROW (closure->peers, closure->max, closure->max + 32);
-    }
-  if (closure->pos < closure->max)
-    {
-      /* check needed since #connections may change anytime! */
-      closure->peers[closure->pos++] = *id;
-    }
+  const Transmit_Trace_Closure *ttc = cls;
+
+  if ((0 != memcmp (id, &ttc->pro->initiatorId, sizeof (GNUNET_PeerIdentity)))
+      && (0 != memcmp (id, &ttc->sender, sizeof (GNUNET_PeerIdentity))))
+    coreAPI->unicast (id, &ttc->pro->header, ntohl (ttc->pro->priority), 0);
 }
 
-static void
-transmit (const PeerIdentity * id, void *cls)
+typedef struct
 {
-  P2P_tracekit_probe_MESSAGE *pro = cls;
-  if (0 != memcmp (id, &pro->initiatorId, sizeof (PeerIdentity)))
-    coreAPI->unicast (id, &pro->header, ntohl (pro->priority), 0);
+  GNUNET_PeerIdentity *peers;
+
+  unsigned int max;
+
+  unsigned int pos;
+
+} Tracekit_Collect_Trace_Closure;
+
+/**
+ * Get a list of the peers that we are connected
+ * to (as one big array).
+ */
+static void
+getPeerCallback (const GNUNET_PeerIdentity * id, void *cls)
+{
+  Tracekit_Collect_Trace_Closure *closure = cls;
+
+  if (closure->pos == closure->max)
+    GNUNET_array_grow (closure->peers, closure->max, closure->max + 32);
+  closure->peers[closure->pos++] = *id;
 }
 
 static int
-handlep2pProbe (const PeerIdentity * sender, const MESSAGE_HEADER * message)
+handlep2pProbe (const GNUNET_PeerIdentity * sender,
+                const GNUNET_MessageHeader * message)
 {
+  const P2P_tracekit_probe_MESSAGE *msg;
+  P2P_tracekit_probe_MESSAGE amsg;
   P2P_tracekit_reply_MESSAGE *reply;
-  P2P_tracekit_probe_MESSAGE *msg;
   Tracekit_Collect_Trace_Closure closure;
-  int i;
+  Transmit_Trace_Closure ttc;
+  unsigned int i;
   int sel;
-  int hops;
-  TIME_T oldest;
-  int count;
+  unsigned int hops;
+  GNUNET_Int32Time oldest;
+  unsigned int count;
   unsigned int size;
-  EncName init;
-  EncName sen;
-  TIME_T now;
+  GNUNET_Int32Time now;
+  struct RTE *rte;
 
-  hash2enc (&sender->hashPubKey, &sen);
   if (ntohs (message->size) != sizeof (P2P_tracekit_probe_MESSAGE))
     {
-      GE_LOG (ectx,
-              GE_WARNING | GE_BULK | GE_USER,
-              _("Received invalid `%s' message from `%s'.\n"),
-              "P2P_tracekit_probe_MESSAGE", &sen);
-      return SYSERR;
+      GNUNET_GE_BREAK_OP (NULL, 0);
+      return GNUNET_SYSERR;
     }
-  GE_LOG (ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER, "TRACEKIT: received probe\n");
-  TIME (&now);
-  msg = (P2P_tracekit_probe_MESSAGE *) message;
-  if ((TIME_T) ntohl (msg->timestamp) > 3600 + now)
+  msg = (const P2P_tracekit_probe_MESSAGE *) message;
+#if DEBUG_TRACEKIT
+  GNUNET_GE_LOG (coreAPI->ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 "TRACEKIT: received probe\n");
+#endif
+  GNUNET_get_time_int32 (&now);
+  if (ntohl (msg->timestamp) > 3600 + now)
     {
-      GE_LOG (ectx,
-              GE_DEBUG | GE_REQUEST | GE_USER,
-              "TRACEKIT: probe has timestamp in the far future (%d > %d), dropping\n",
-              ntohl (msg->timestamp), 3600 + now);
-      return SYSERR;            /* Timestamp is more than 1h in the future. Invalid! */
+#if DEBUG_TRACEKIT
+      GNUNET_GE_LOG (coreAPI->ectx,
+                     GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                     "TRACEKIT: probe has timestamp in the far future (%u > %u), dropping\n",
+                     ntohl (msg->timestamp), 3600 + now);
+#endif
+      return GNUNET_SYSERR;     /* Timestamp is more than 1h in the future. Invalid! */
     }
-  hash2enc (&msg->initiatorId.hashPubKey, &init);
-  MUTEX_LOCK (lock);
+  GNUNET_mutex_lock (lock);
   /* test if already processed */
   for (i = 0; i < MAXROUTE; i++)
     {
-      if (routeTable[i] == NULL)
-        continue;
-      if ((routeTable[i]->timestamp == (TIME_T) ntohl (msg->timestamp)) &&
-          0 == memcmp (&routeTable[i]->initiator.hashPubKey,
-                       &msg->initiatorId.hashPubKey, sizeof (HashCode512)))
+      rte = &routeTable[i];
+      if ((rte->timestamp == ntohl (msg->timestamp))
+          && 0 == memcmp (&rte->initiator,
+                          &msg->initiatorId, sizeof (GNUNET_HashCode)))
         {
-          GE_LOG (ectx,
-                  GE_DEBUG | GE_REQUEST | GE_USER,
-                  "TRACEKIT-PROBE %d from `%s' received twice (slot %d), ignored\n",
-                  ntohl (msg->timestamp), &init, i);
-          MUTEX_UNLOCK (lock);
-          return OK;
+          /* received twice => ignore */
+          GNUNET_mutex_unlock (lock);
+          return GNUNET_OK;
         }
     }
   /* no, find and kill oldest entry */
@@ -243,112 +255,95 @@ handlep2pProbe (const PeerIdentity * sender, const MESSAGE_HEADER * message)
   sel = -1;
   for (i = 0; i < MAXROUTE; i++)
     {
-      if (routeTable[i] == NULL)
+      rte = &routeTable[i];
+      if (oldest > rte->timestamp)
         {
+          oldest = rte->timestamp;
           sel = i;
-          oldest = 0;
-          continue;
-        }
-      if (oldest > routeTable[i]->timestamp)
-        {
-          oldest = routeTable[i]->timestamp;
-          sel = i;
-        }
-      if (routeTable[i]->timestamp < now - 3600)
-        {
-          /* side-effect: drop very old entries */
-          FREE (routeTable[i]);
-          routeTable[i] = NULL;
         }
     }
   if (sel == -1)
     {
-      MUTEX_UNLOCK (lock);
-      GE_LOG (ectx,
-              GE_INFO | GE_REQUEST | GE_USER,
-              _("TRACEKIT: routing table full, trace request dropped\n"));
-      return OK;
+      GNUNET_mutex_unlock (lock);
+#if DEBUG_TRACEKIT
+      GNUNET_GE_LOG (coreAPI->ectx,
+                     GNUNET_GE_INFO | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                     "TRACEKIT: routing table full, trace request dropped\n");
+#endif
+      return GNUNET_OK;
     }
-  if (routeTable[sel] == NULL)
-    routeTable[sel] = MALLOC (sizeof (RTE));
-  routeTable[sel]->timestamp = ntohl (msg->timestamp);
-  routeTable[sel]->priority = ntohl (msg->priority);
-  routeTable[sel]->initiator = msg->initiatorId;
-  routeTable[sel]->replyTo = *sender;
-  MUTEX_UNLOCK (lock);
-  GE_LOG (ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER,
-          "TRACEKIT-PROBE started at %d by peer `%s' received, processing in slot %d with %u hops\n",
-          ntohl (msg->timestamp), &init, sel, ntohl (msg->hopsToGo));
+  rte = &routeTable[sel];
+  rte->timestamp = ntohl (msg->timestamp);
+  rte->priority = ntohl (msg->priority);
+  rte->initiator = msg->initiatorId;
+  rte->replyTo = *sender;
   hops = ntohl (msg->hopsToGo);
+  GNUNET_mutex_unlock (lock);
   /* forward? */
   if (hops > 0)
     {
-      msg->hopsToGo = htonl (hops - 1);
-      coreAPI->forAllConnectedNodes (&transmit, msg);
+      memcpy (&amsg, msg, sizeof (P2P_tracekit_probe_MESSAGE));
+      amsg.hopsToGo = htonl (hops - 1);
+      ttc.pro = &amsg;
+      ttc.sender = sender;
+      coreAPI->forAllConnectedNodes (&transmit, &ttc);
     }
+  /* build local reply */
   closure.peers = NULL;
   closure.max = 0;
   closure.pos = 0;
   coreAPI->forAllConnectedNodes (&getPeerCallback, &closure);
-  /* build local reply */
   while (closure.pos > 0)
     {
       count = closure.pos;
-      if (count > 60000 / sizeof (PeerIdentity))
-        count = 60000 / sizeof (PeerIdentity);
+      if (count > 60000 / sizeof (GNUNET_PeerIdentity))
+        count = 60000 / sizeof (GNUNET_PeerIdentity);
       size =
-        sizeof (P2P_tracekit_reply_MESSAGE) + count * sizeof (PeerIdentity);
-      reply = MALLOC (size);
+        sizeof (P2P_tracekit_reply_MESSAGE) +
+        count * sizeof (GNUNET_PeerIdentity);
+      reply = GNUNET_malloc (size);
       reply->header.size = htons (size);
-      reply->header.type = htons (P2P_PROTO_tracekit_REPLY);
+      reply->header.type = htons (GNUNET_P2P_PROTO_TRACEKIT_REPLY);
       reply->initiatorId = msg->initiatorId;
       reply->responderId = *(coreAPI->myIdentity);
       reply->initiatorTimestamp = msg->timestamp;
       reply->clientId = msg->clientId;
       memcpy (&reply[1],
               &closure.peers[closure.pos - count],
-              count * sizeof (PeerIdentity));
-      if (equalsHashCode512 (&coreAPI->myIdentity->hashPubKey,
-                             &sender->hashPubKey))
-        {
-          handlep2pReply (coreAPI->myIdentity, &reply->header);
-        }
+              count * sizeof (GNUNET_PeerIdentity));
+      if (0 == memcmp (&coreAPI->myIdentity->hashPubKey,
+                       &sender->hashPubKey, sizeof (GNUNET_HashCode)))
+        handlep2pReply (coreAPI->myIdentity, &reply->header);
       else
-        {
-          coreAPI->unicast (sender, &reply->header, ntohl (msg->priority), 0);
-        }
+        coreAPI->unicast (sender, &reply->header, ntohl (msg->priority), 0);
       closure.pos -= count;
-      FREE (reply);
+      GNUNET_free (reply);
     }
-  GROW (closure.peers, closure.max, 0);
-  return OK;
+  GNUNET_array_grow (closure.peers, closure.max, 0);
+  return GNUNET_OK;
 }
 
 static int
-csHandle (struct ClientHandle *client, const MESSAGE_HEADER * message)
+csHandle (struct GNUNET_ClientHandle *client,
+          const GNUNET_MessageHeader * message)
 {
-  int i;
+  const CS_tracekit_probe_MESSAGE *csProbe;
+  unsigned int i;
   int idx;
-  CS_tracekit_probe_MESSAGE *csProbe;
   P2P_tracekit_probe_MESSAGE p2pProbe;
 
-  GE_LOG (ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER,
-          "TRACEKIT: client sends probe request\n");
+  GNUNET_GE_LOG (coreAPI->ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 "TRACEKIT: client sends probe request\n");
 
   /* build probe, broadcast */
-  csProbe = (CS_tracekit_probe_MESSAGE *) message;
+  csProbe = (const CS_tracekit_probe_MESSAGE *) message;
   if (ntohs (csProbe->header.size) != sizeof (CS_tracekit_probe_MESSAGE))
     {
-      GE_LOG (ectx,
-              GE_WARNING | GE_BULK | GE_USER,
-              _("TRACEKIT: received invalid `%s' message\n"),
-              "CS_tracekit_probe_MESSAGE");
-      return SYSERR;
+      GNUNET_GE_BREAK (NULL, 0);
+      return GNUNET_SYSERR;
     }
-
-  MUTEX_LOCK (lock);
+  GNUNET_mutex_lock (lock);
   idx = -1;
   for (i = 0; i < clientCount; i++)
     {
@@ -357,109 +352,101 @@ csHandle (struct ClientHandle *client, const MESSAGE_HEADER * message)
           idx = i;
           break;
         }
-      if ((clients[i] == NULL) && (idx == -1))
-        {
-          idx = i;
-          break;
-        }
+      if (clients[i] == NULL)
+        idx = i;
     }
   if (idx == -1)
     {
-      GROW (clients, clientCount, clientCount + 1);
+      GNUNET_array_grow (clients, clientCount, clientCount + 1);
       idx = clientCount - 1;
     }
   clients[idx] = client;
-  MUTEX_UNLOCK (lock);
-  GE_LOG (ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER,
-          "TRACEKIT: client joins in slot %u.\n", idx);
-
+  GNUNET_mutex_unlock (lock);
+  GNUNET_GE_LOG (coreAPI->ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 "TRACEKIT: client joins in slot %u.\n", idx);
   p2pProbe.header.size = htons (sizeof (P2P_tracekit_probe_MESSAGE));
-  p2pProbe.header.type = htons (P2P_PROTO_tracekit_PROBE);
+  p2pProbe.header.type = htons (GNUNET_P2P_PROTO_TRACEKIT_PROBE);
   p2pProbe.clientId = htonl (idx);
   p2pProbe.hopsToGo = csProbe->hops;
-  p2pProbe.timestamp = htonl (TIME (NULL));
+  p2pProbe.timestamp = htonl (GNUNET_get_time_int32 (NULL));
   p2pProbe.priority = csProbe->priority;
-  memcpy (&p2pProbe.initiatorId, coreAPI->myIdentity, sizeof (PeerIdentity));
+  memcpy (&p2pProbe.initiatorId, coreAPI->myIdentity,
+          sizeof (GNUNET_PeerIdentity));
   handlep2pProbe (coreAPI->myIdentity, &p2pProbe.header);       /* FIRST send to myself! */
-  return OK;
+  return GNUNET_OK;
 }
 
 static void
-clientExitHandler (struct ClientHandle *c)
+clientExitHandler (struct GNUNET_ClientHandle *c)
 {
   int i;
 
-  MUTEX_LOCK (lock);
+  GNUNET_mutex_lock (lock);
   for (i = 0; i < clientCount; i++)
-    if (clients[i] == c)
-      {
-        GE_LOG (ectx,
-                GE_DEBUG | GE_REQUEST | GE_USER,
-                "TRACEKIT: client in slot %u exits.\n", i);
-        clients[i] = NULL;
-        break;
-      }
+    {
+      if (clients[i] == c)
+        {
+          clients[i] = NULL;
+          break;
+        }
+    }
   i = clientCount - 1;
   while ((i >= 0) && (clients[i] == NULL))
     i--;
   i++;
   if (i != clientCount)
-    GROW (clients, clientCount, i);
-  MUTEX_UNLOCK (lock);
+    GNUNET_array_grow (clients, clientCount, i);
+  GNUNET_mutex_unlock (lock);
 }
 
 int
-initialize_module_tracekit (CoreAPIForApplication * capi)
+initialize_module_tracekit (GNUNET_CoreAPIForPlugins * capi)
 {
-  int ok = OK;
+  int ok = GNUNET_OK;
 
-  ectx = capi->ectx;
-  lock = MUTEX_CREATE (NO);
+  lock = GNUNET_mutex_create (GNUNET_NO);
   coreAPI = capi;
-  GE_LOG (ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER,
-          "TRACEKIT registering handlers %d %d and %d\n",
-          P2P_PROTO_tracekit_PROBE,
-          P2P_PROTO_tracekit_REPLY, CS_PROTO_tracekit_PROBE);
-  memset (routeTable, 0, MAXROUTE * sizeof (RTE *));
-  if (SYSERR == capi->registerHandler (P2P_PROTO_tracekit_PROBE,
-                                       &handlep2pProbe))
-    ok = SYSERR;
-  if (SYSERR == capi->registerHandler (P2P_PROTO_tracekit_REPLY,
-                                       &handlep2pReply))
-    ok = SYSERR;
-  if (SYSERR == capi->registerClientExitHandler (&clientExitHandler))
-    ok = SYSERR;
-  if (SYSERR == capi->registerClientHandler (CS_PROTO_tracekit_PROBE,
-                                             (CSHandler) & csHandle))
-    ok = SYSERR;
-  GE_ASSERT (capi->ectx,
-             0 == GC_set_configuration_value_string (capi->cfg,
-                                                     capi->ectx,
-                                                     "ABOUT",
-                                                     "tracekit",
-                                                     gettext_noop
-                                                     ("allows mapping of the network topology")));
+  GNUNET_GE_LOG (coreAPI->ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 "TRACEKIT registering handlers %d %d and %d\n",
+                 GNUNET_P2P_PROTO_TRACEKIT_PROBE,
+                 GNUNET_P2P_PROTO_TRACEKIT_REPLY,
+                 GNUNET_CS_PROTO_TRACEKIT_PROBE);
+  if (GNUNET_SYSERR == capi->registerHandler (GNUNET_P2P_PROTO_TRACEKIT_PROBE,
+                                              &handlep2pProbe))
+    ok = GNUNET_SYSERR;
+  if (GNUNET_SYSERR == capi->registerHandler (GNUNET_P2P_PROTO_TRACEKIT_REPLY,
+                                              &handlep2pReply))
+    ok = GNUNET_SYSERR;
+  if (GNUNET_SYSERR == capi->cs_exit_handler_register (&clientExitHandler))
+    ok = GNUNET_SYSERR;
+  if (GNUNET_SYSERR ==
+      capi->registerClientHandler (GNUNET_CS_PROTO_TRACEKIT_PROBE,
+                                   (GNUNET_ClientRequestHandler) & csHandle))
+    ok = GNUNET_SYSERR;
+  GNUNET_GE_ASSERT (capi->ectx,
+                    0 == GNUNET_GC_set_configuration_value_string (capi->cfg,
+                                                                   capi->ectx,
+                                                                   "ABOUT",
+                                                                   "tracekit",
+                                                                   gettext_noop
+                                                                   ("allows mapping of the network topology")));
   return ok;
 }
 
 void
 done_module_tracekit ()
 {
-  int i;
-
-  coreAPI->unregisterHandler (P2P_PROTO_tracekit_PROBE, &handlep2pProbe);
-  coreAPI->unregisterHandler (P2P_PROTO_tracekit_REPLY, &handlep2pReply);
-  coreAPI->unregisterClientExitHandler (&clientExitHandler);
-  coreAPI->unregisterClientHandler (CS_PROTO_tracekit_PROBE, &csHandle);
-  for (i = 0; i < MAXROUTE; i++)
-    {
-      FREENONNULL (routeTable[i]);
-      routeTable[i] = NULL;
-    }
-  GROW (clients, clientCount, 0);
-  MUTEX_DESTROY (lock);
+  coreAPI->unregisterHandler (GNUNET_P2P_PROTO_TRACEKIT_PROBE,
+                              &handlep2pProbe);
+  coreAPI->unregisterHandler (GNUNET_P2P_PROTO_TRACEKIT_REPLY,
+                              &handlep2pReply);
+  coreAPI->cs_exit_handler_unregister (&clientExitHandler);
+  coreAPI->unregisterClientHandler (GNUNET_CS_PROTO_TRACEKIT_PROBE,
+                                    &csHandle);
+  GNUNET_array_grow (clients, clientCount, 0);
+  GNUNET_mutex_destroy (lock);
   lock = NULL;
   coreAPI = NULL;
 }

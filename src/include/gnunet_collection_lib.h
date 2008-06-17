@@ -40,39 +40,41 @@ extern "C"
 /**
  * Initialize collection module.
  */
-void CO_init (struct GE_Context *ectx, struct GC_Configuration *cfg);
+void GNUNET_CO_init (struct GNUNET_GE_Context *ectx,
+                     struct GNUNET_GC_Configuration *cfg);
 
 /**
  * Shutdown collection module.
  */
-void CO_done (void);
+void GNUNET_CO_done (void);
 
 
 /**
  * Start a collection (also automatically stops
  * an existing collection).
  */
-int CO_startCollection (unsigned int anonymityLevel,
-                        unsigned int priority,
-                        TIME_T updateInterval,
-                        const char *name, const struct ECRS_MetaData *meta);
+int GNUNET_CO_collection_start (unsigned int anonymityLevel,
+                                unsigned int priority,
+                                GNUNET_Int32Time updateInterval,
+                                const char *name,
+                                const struct GNUNET_ECRS_MetaData *meta);
 
 /**
  * Stop collection.
  *
- * @return OK on success, SYSERR if no collection is active
+ * @return GNUNET_OK on success, GNUNET_SYSERR if no collection is active
  */
-int CO_stopCollection (void);
+int GNUNET_CO_collection_stop (void);
 
 /**
  * Are we using a collection?
  *
  * @return NULL if there is no collection, otherwise its name
  */
-char *CO_getCollection (void);
+char *GNUNET_CO_collection_get_name (void);
 
 /**
- * Upload an update of the current collection information to the
+ * GNUNET_ND_UPLOAD an update of the current collection information to the
  * network now.  The function has no effect if the collection has not
  * changed since the last publication.  If we are currently not
  * collecting, this function does nothing.
@@ -86,7 +88,7 @@ char *CO_getCollection (void);
  * However, clients may want to call this function if explicit
  * publication of an update at another time is desired.
  */
-void CO_publishCollectionNow (void);
+void GNUNET_CO_collection_publish_now (void);
 
 /**
  * If we are currently building a collection, publish the given file
@@ -99,7 +101,7 @@ void CO_publishCollectionNow (void);
  * maybe useful if you're inserting files using libECRS directly or
  * need other ways to explicitly extend a collection.
  */
-void CO_publishToCollection (const ECRS_FileInfo * fi);
+void GNUNET_CO_collection_add_item (const GNUNET_ECRS_FileInfo * fi);
 
 #if 0                           /* keep Emacsens' auto-indent happy */
 {

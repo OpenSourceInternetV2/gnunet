@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet
-     (C) 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
+     (C) 2004, 2005, 2006, 2007 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -37,6 +37,9 @@ extern "C"
 #endif
 #endif
 
+typedef int (*GNUNET_ConnectionIterator) (GNUNET_NodeIteratorCallback method,
+                                          void *ni_arg, void *cls);
+
 /**
  * @brief topology service API
  *
@@ -63,7 +66,7 @@ typedef struct
 
   /**
    * Get an estimate of the network size.
-   * @return the estimated number of nodes, SYSERR on error
+   * @return the estimated number of nodes, GNUNET_SYSERR on error
    */
   int (*estimateNetworkSize) (void);
 
@@ -76,12 +79,26 @@ typedef struct
 
   /**
    * Will the topology allow a connection from the specified peer?
-   * @return OK if a connection maybe established, SYSERR if not.
+   * @return GNUNET_OK if a connection maybe established, GNUNET_SYSERR if not.
    */
-  int (*allowConnectionFrom) (const PeerIdentity * peer);
+  int (*allowConnectionFrom) (const GNUNET_PeerIdentity * peer);
 
+  /**
+   * Do we have to try to keep this connection?
+   * @return GNUNET_OK if the connection should be kept, GNUNET_NO if
+   *         the topology does not care, GNUNET_SYSERR if topology
+   *         would like to see the connection dropped.
+   */
+  int (*isConnectionGuarded) (const GNUNET_PeerIdentity * peer,
+                              GNUNET_ConnectionIterator iterator, void *cls);
 
-} Topology_ServiceAPI;
+  /**
+   * How many connections are currently guarded by the
+   * topology?
+   */
+  unsigned int (*countGuardedConnections) (void);
+
+} GNUNET_Topology_ServiceAPI;
 
 #if 0                           /* keep Emacsens' auto-indent happy */
 {

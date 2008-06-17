@@ -33,8 +33,9 @@
 /**
  * Initialize the migration module.
  */
-void initPrefetch (struct GE_Context *ectx,
-                   struct GC_Configuration *cfg, SQstore_ServiceAPI * sq);
+void initPrefetch (struct GNUNET_GE_Context *ectx,
+                   struct GNUNET_GC_Configuration *cfg,
+                   GNUNET_SQstore_ServiceAPI * sq);
 
 void donePrefetch (void);
 
@@ -45,9 +46,9 @@ void donePrefetch (void);
  * @param value set to an approximate match
  * @param type if a particular type is desired, 0
  *        for any type.
- * @return OK if a value was found, SYSERR if not
+ * @return GNUNET_OK if a value was found, GNUNET_SYSERR if not
  */
-int getRandom (HashCode512 * key, Datastore_Value ** value);
+int getRandom (GNUNET_HashCode * key, GNUNET_DatastoreValue ** value);
 
 
 /* end of prefetch.h */

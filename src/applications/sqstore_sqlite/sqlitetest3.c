@@ -25,9 +25,6 @@
 
 #include "platform.h"
 #include "gnunet_util.h"
-#include "gnunet_util_cron.h"
-#include "gnunet_util_crypto.h"
-#include "gnunet_util_config_impl.h"
 #include "gnunet_protocols.h"
 #include "gnunet_sqstore_service.h"
 #include "core.h"
@@ -53,150 +50,153 @@ static unsigned long long stored_entries;
 
 static unsigned long long stored_ops;
 
-static cron_t start_time;
+static GNUNET_CronTime start_time;
 
 static int
-putValue (SQstore_ServiceAPI * api, int i)
+putValue (GNUNET_SQstore_ServiceAPI * api, int i)
 {
-  Datastore_Value *value;
+  GNUNET_DatastoreValue *value;
   size_t size;
-  static HashCode512 key;
+  static GNUNET_HashCode key;
   static int ic;
 
   /* most content is 32k */
-  size = sizeof (Datastore_Value) + 32 * 1024;
+  size = sizeof (GNUNET_DatastoreValue) + 32 * 1024;
 
-  if (weak_randomi (16) == 0)   /* but some of it is less! */
-    size = sizeof (Datastore_Value) + weak_randomi (32 * 1024);
+  if (GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK, 16) == 0)  /* but some of it is less! */
+    size =
+      sizeof (GNUNET_DatastoreValue) +
+      GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK, 32 * 1024);
   size = size - (size & 7);     /* always multiple of 8 */
 
   /* generate random key */
-  key.bits[0] = (unsigned int) get_time ();
-  hash (&key, sizeof (HashCode512), &key);
-  value = MALLOC (size);
+  key.bits[0] = (unsigned int) GNUNET_get_time ();
+  GNUNET_hash (&key, sizeof (GNUNET_HashCode), &key);
+  value = GNUNET_malloc (size);
   value->size = htonl (size);
   value->type = htonl (i);
-  value->prio = htonl (weak_randomi (100));
+  value->prio = htonl (GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK, 100));
   value->anonymityLevel = htonl (i);
   value->expirationTime =
-    htonll (get_time () + 60 * cronHOURS + weak_randomi (1000));
-  memset (&value[1], i, size - sizeof (Datastore_Value));
-  if (OK != api->put (&key, value))
+    GNUNET_htonll (GNUNET_get_time () + 60 * GNUNET_CRON_HOURS +
+                   GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK, 1000));
+  memset (&value[1], i, size - sizeof (GNUNET_DatastoreValue));
+  if (GNUNET_OK != api->put (&key, value))
     {
-      FREE (value);
+      GNUNET_free (value);
       fprintf (stderr, "E");
-      return SYSERR;
+      return GNUNET_SYSERR;
     }
   ic++;
   stored_bytes += ntohl (value->size);
   stored_ops++;
   stored_entries++;
-  FREE (value);
-  return OK;
+  GNUNET_free (value);
+  return GNUNET_OK;
 }
 
 static int
-iterateDummy (const HashCode512 * key, const Datastore_Value * val, void *cls,
-              unsigned long long uid)
+iterateDummy (const GNUNET_HashCode * key, const GNUNET_DatastoreValue * val,
+              void *cls, unsigned long long uid)
 {
-  if (GNUNET_SHUTDOWN_TEST () == YES)
-    return SYSERR;
-  return OK;
+  if (GNUNET_shutdown_test () == GNUNET_YES)
+    return GNUNET_SYSERR;
+  return GNUNET_OK;
 }
 
 static int
-test (SQstore_ServiceAPI * api)
+test (GNUNET_SQstore_ServiceAPI * api)
 {
   int i;
   int j;
   int ret;
-  cron_t start;
-  cron_t end;
+  GNUNET_CronTime start;
+  GNUNET_CronTime end;
 
   for (i = 0; i < ITERATIONS; i++)
     {
       /* insert data equivalent to 1/10th of MAX_SIZE */
-      start = get_time ();
+      start = GNUNET_get_time ();
       for (j = 0; j < PUT_10; j++)
         {
-          if (OK != putValue (api, j))
+          if (GNUNET_OK != putValue (api, j))
             break;
-          if (GNUNET_SHUTDOWN_TEST () == YES)
+          if (GNUNET_shutdown_test () == GNUNET_YES)
             break;
         }
-      end = get_time ();
+      end = GNUNET_get_time ();
       printf ("%3u insertion              took %20llums\n", i, end - start);
-      if (GNUNET_SHUTDOWN_TEST () == YES)
+      if (GNUNET_shutdown_test () == GNUNET_YES)
         break;
-      start = get_time ();
+      start = GNUNET_get_time ();
       ret = api->iterateLowPriority (0, &iterateDummy, api);
-      end = get_time ();
+      end = GNUNET_get_time ();
       printf ("%3u low priority iteration took %20llums (%d)\n", i,
               end - start, ret);
-      if (GNUNET_SHUTDOWN_TEST () == YES)
+      if (GNUNET_shutdown_test () == GNUNET_YES)
         break;
-      start = get_time ();
+      start = GNUNET_get_time ();
       ret = api->iterateExpirationTime (0, &iterateDummy, api);
-      end = get_time ();
+      end = GNUNET_get_time ();
       printf ("%3u expiration t iteration took %20llums (%d)\n", i,
               end - start, ret);
-      if (GNUNET_SHUTDOWN_TEST () == YES)
+      if (GNUNET_shutdown_test () == GNUNET_YES)
         break;
-      start = get_time ();
+      start = GNUNET_get_time ();
       ret = api->iterateNonAnonymous (0, &iterateDummy, api);
-      end = get_time ();
+      end = GNUNET_get_time ();
       printf ("%3u non anonymou iteration took %20llums (%d)\n", i,
               end - start, ret);
-      if (GNUNET_SHUTDOWN_TEST () == YES)
+      if (GNUNET_shutdown_test () == GNUNET_YES)
         break;
-      start = get_time ();
+      start = GNUNET_get_time ();
       ret = api->iterateMigrationOrder (&iterateDummy, api);
-      end = get_time ();
+      end = GNUNET_get_time ();
       printf ("%3u migration or iteration took %20llums (%d)\n", i,
               end - start, ret);
-      if (GNUNET_SHUTDOWN_TEST () == YES)
+      if (GNUNET_shutdown_test () == GNUNET_YES)
         break;
-      start = get_time ();
+      start = GNUNET_get_time ();
       ret = api->iterateAllNow (&iterateDummy, api);
-      end = get_time ();
+      end = GNUNET_get_time ();
       printf ("%3u all now      iteration took %20llums (%d)\n", i,
               end - start, ret);
-      if (GNUNET_SHUTDOWN_TEST () == YES)
+      if (GNUNET_shutdown_test () == GNUNET_YES)
         break;
     }
   api->drop ();
-  return OK;
+  return GNUNET_OK;
 }
 
 int
 main (int argc, char *argv[])
 {
-  SQstore_ServiceAPI *api;
+  GNUNET_SQstore_ServiceAPI *api;
   int ok;
-  struct GC_Configuration *cfg;
-  struct CronManager *cron;
+  struct GNUNET_GC_Configuration *cfg;
+  struct GNUNET_CronManager *cron;
 
-  cfg = GC_create_C_impl ();
-  if (-1 == GC_parse_configuration (cfg, "check.conf"))
+  cfg = GNUNET_GC_create ();
+  if (-1 == GNUNET_GC_parse_configuration (cfg, "check.conf"))
     {
-      GC_free (cfg);
+      GNUNET_GC_free (cfg);
       return -1;
     }
-  cron = cron_create (NULL);
-  initCore (NULL, cfg, cron, NULL);
-  api = requestService ("sqstore");
+  cron = GNUNET_cron_create (NULL);
+  GNUNET_CORE_init (NULL, cfg, cron, NULL);
+  api = GNUNET_CORE_request_service ("sqstore");
   if (api != NULL)
     {
-      start_time = get_time ();
+      start_time = GNUNET_get_time ();
       ok = test (api);
-      releaseService (api);
+      GNUNET_CORE_release_service (api);
     }
   else
-    ok = SYSERR;
-  doneCore ();
-  cron_destroy (cron);
-  GC_free (cfg);
-  if (ok == SYSERR)
+    ok = GNUNET_SYSERR;
+  GNUNET_CORE_done ();
+  GNUNET_cron_destroy (cron);
+  GNUNET_GC_free (cfg);
+  if (ok == GNUNET_SYSERR)
     return 1;
   return 0;
 }

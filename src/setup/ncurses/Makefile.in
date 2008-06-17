@@ -60,7 +60,10 @@ LTLIBRARIES = $(plugin_LTLIBRARIES)
 libgnunetsetup_curses_la_DEPENDENCIES =  \
 	$(top_builddir)/src/util/libgnunetutil.la \
 	$(top_builddir)/src/setup/lib/libgnunetsetup.la
-am_libgnunetsetup_curses_la_OBJECTS = mconf.lo wizard_curs.lo
+am__libgnunetsetup_curses_la_SOURCES_DIST = mconf.c mconf.h \
+	wizard_curs.c wizard_curs.h
+@HAVE_GUILE_TRUE@am__objects_1 = mconf.lo
+am_libgnunetsetup_curses_la_OBJECTS = $(am__objects_1) wizard_curs.lo
 libgnunetsetup_curses_la_OBJECTS =  \
 	$(am_libgnunetsetup_curses_la_OBJECTS)
 libgnunetsetup_curses_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
@@ -79,7 +82,7 @@ LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
 SOURCES = $(libgnunetsetup_curses_la_SOURCES)
-DIST_SOURCES = $(libgnunetsetup_curses_la_SOURCES)
+DIST_SOURCES = $(am__libgnunetsetup_curses_la_SOURCES_DIST)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -103,6 +106,7 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DLLDIR = @DLLDIR@
 DLLTOOL = @DLLTOOL@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
@@ -137,6 +141,7 @@ LIBICONV = @LIBICONV@
 LIBINTL = @LIBINTL@
 LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
+LIBPREFIX = @LIBPREFIX@
 
 # GNU Gettext support
 LIBS = @LIBINTL@ @LIBS@
@@ -164,6 +169,8 @@ PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PKG_CONFIG = @PKG_CONFIG@
 POSUB = @POSUB@
+QTINC = @QTINC@
+QTLIBS = @QTLIBS@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -174,9 +181,14 @@ STRIP = @STRIP@
 USE_NLS = @USE_NLS@
 VERSION = @VERSION@
 XGETTEXT = @XGETTEXT@
+XMKMF = @XMKMF@
 XML2_CONFIG = @XML2_CONFIG@
 XML_CPPFLAGS = @XML_CPPFLAGS@
 XML_LIBS = @XML_LIBS@
+X_CFLAGS = @X_CFLAGS@
+X_EXTRA_LIBS = @X_EXTRA_LIBS@
+X_LIBS = @X_LIBS@
+X_PRE_LIBS = @X_PRE_LIBS@
 _libcurl_config = @_libcurl_config@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
@@ -195,6 +207,7 @@ build = @build@
 build_alias = @build_alias@
 build_cpu = @build_cpu@
 build_os = @build_os@
+build_target = @build_target@
 build_vendor = @build_vendor@
 builddir = @builddir@
 datadir = @datadir@
@@ -235,8 +248,12 @@ plugindir = $(libdir)/GNUnet
 plugin_LTLIBRARIES = \
  libgnunetsetup_curses.la
 
+@HAVE_GUILE_TRUE@GUILE_SRC = \
+@HAVE_GUILE_TRUE@	 mconf.c mconf.h
+
+EXTRA_DIST = mconf.c mconf.h
 libgnunetsetup_curses_la_SOURCES = \
- mconf.c mconf.h \
+ $(GUILE_SRC) \
  wizard_curs.c wizard_curs.h
 
 libgnunetsetup_curses_la_LDFLAGS = \

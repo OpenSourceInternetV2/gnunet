@@ -37,39 +37,40 @@
  * decrypting the packet.  It provides a timestamp and sequence
  * number (to guard against replay attacks).  The header is followed
  * by the 'data' which contains a sequence of GNUnet p2p messages,
- * each with its own MESSAGE_HEADER.
+ * each with its own GNUNET_MessageHeader.
  */
 typedef struct
 {
-  /* hash of the plaintext, used to verify message integrity;
+  /* GNUNET_hash of the plaintext, used to verify message integrity;
      ALSO used as the IV for the symmetric cipher! */
-  HashCode512 hash;
+  GNUNET_HashCode hash;
   /* sequence number, in network byte order, 0 for plaintext messages! */
   unsigned int sequenceNumber;
   /* timestamp  (network byte order), 0 for plaintext messages! */
-  TIME_T timeStamp;
+  GNUNET_Int32Time timeStamp;
   /* desired bandwidth, 0 for plaintext messages! */
   unsigned int bandwidth;
-} P2P_PACKET_HEADER;            /* 76 bytes */
+} GNUNET_TransportPacket_HEADER;        /* 76 bytes */
 
 /* ***************** GNUnet core internals ************ */
 
 /**
  * Initialize this module.
  */
-void initConnection (struct GE_Context *ectx,
-                     struct GC_Configuration *cfg,
-                     struct LoadMonitor *mon, struct CronManager *cron);
+void GNUNET_CORE_connection_init (struct GNUNET_GE_Context *ectx,
+                                  struct GNUNET_GC_Configuration *cfg,
+                                  struct GNUNET_LoadMonitor *mon,
+                                  struct GNUNET_CronManager *cron);
 
 /**
  * Shutdown the connection module.
  */
-void doneConnection (void);
+void GNUNET_CORE_connection_done (void);
 
 /**
  * For debugging.
  */
-void printConnectionBuffer (void);
+void GNUNET_CORE_connection_print_buffer (void);
 
 /**
  * Check the sequence number and timestamp.  Decrypts the
@@ -79,12 +80,13 @@ void printConnectionBuffer (void);
  * @param sender from which peer did we receive the SEQ message
  * @param msg the p2p message (the decrypted message is stored here, too!)
  * @param size the size of the message
- * @return YES if the message was encrypted,
- *         NO if it was in plaintext,
- *         SYSERR if it was malformed
+ * @return GNUNET_YES if the message was encrypted,
+ *         GNUNET_NO if it was in plaintext,
+ *         GNUNET_SYSERR if it was malformed
  */
-int checkHeader (const PeerIdentity * sender,
-                 P2P_PACKET_HEADER * msg, unsigned short size);
+int GNUNET_CORE_connection_check_header (const GNUNET_PeerIdentity * sender,
+                                         GNUNET_TransportPacket_HEADER * msg,
+                                         unsigned short size);
 
 /**
  * Consider switching the transport mechanism used for contacting the
@@ -97,14 +99,17 @@ int checkHeader (const PeerIdentity * sender,
  * @param tsession the transport session that is for grabs
  * @param sender the identity of the other node
  */
-void considerTakeover (const PeerIdentity * sender, TSession * tsession);
+void GNUNET_CORE_connection_consider_takeover (const GNUNET_PeerIdentity *
+                                               sender,
+                                               GNUNET_TSession * tsession);
 
 /* ***************** CORE API methods ************* */
 
 /**
  * Call method for every connected node.
  */
-int forEachConnectedNode (PerNodeCallback method, void *arg);
+int GNUNET_CORE_connection_iterate_peers (GNUNET_NodeIteratorCallback method,
+                                          void *arg);
 
 
 /**
@@ -117,14 +122,18 @@ int forEachConnectedNode (PerNodeCallback method, void *arg);
  *
  * @param session the transport session
  * @param msg the message to transmit, should contain MESSAGE_HEADERs
- * @return OK on success, SYSERR on failure
+ * @return GNUNET_OK on success, GNUNET_SYSERR on failure
  */
-int sendPlaintext (TSession * tsession, const char *msg, unsigned int size);
+int GNUNET_CORE_connection_send_plaintext (GNUNET_TSession * tsession,
+                                           const char *msg,
+                                           unsigned int size);
 
 /**
  * Compute the hashtable index of a host id.
  */
-unsigned int computeIndex (const PeerIdentity * hostId);
+unsigned int GNUNET_CORE_connection_compute_index_of_peer (const
+                                                           GNUNET_PeerIdentity
+                                                           * hostId);
 
 /**
  * Register a callback method that should be invoked whenever a
@@ -144,17 +153,21 @@ unsigned int computeIndex (const PeerIdentity * hostId);
  *   the message, padding is the number of bytes left in that buffer.
  *   The callback method must return the number of bytes written to
  *   that buffer (must be a positive number).
- * @return OK if the handler was registered, SYSERR on error
+ * @return GNUNET_OK if the handler was registered, GNUNET_SYSERR on error
  */
-int registerSendCallback (const unsigned int minimumPadding,
-                          BufferFillCallback callback);
+int GNUNET_CORE_connection_register_send_callback (const unsigned int
+                                                   minimumPadding,
+                                                   GNUNET_BufferFillCallback
+                                                   callback);
 
 /**
- * Unregister a handler that was registered with registerSendCallback.
- * @return OK if the handler was removed, SYSERR on error
+ * Unregister a handler that was registered with GNUNET_CORE_connection_register_send_callback.
+ * @return GNUNET_OK if the handler was removed, GNUNET_SYSERR on error
  */
-int unregisterSendCallback (const unsigned int minimumPadding,
-                            BufferFillCallback callback);
+int GNUNET_CORE_connection_unregister_send_callback (const unsigned int
+                                                     minimumPadding,
+                                                     GNUNET_BufferFillCallback
+                                                     callback);
 
 /**
  * Send an encrypted, on-demand build message to another node.
@@ -166,11 +179,13 @@ int unregisterSendCallback (const unsigned int minimumPadding,
  * @param importance how important is the message?
  * @param maxdelay how long can the message wait?
  */
-void unicastCallback (const PeerIdentity * hostId,
-                      BuildMessageCallback callback,
-                      void *closure,
-                      unsigned short len,
-                      unsigned int importance, unsigned int maxdelay);
+void GNUNET_CORE_connection_send_using_callback (const GNUNET_PeerIdentity *
+                                                 hostId,
+                                                 GNUNET_BuildMessageCallback
+                                                 callback, void *closure,
+                                                 unsigned short len,
+                                                 unsigned int importance,
+                                                 unsigned int maxdelay);
 
 /**
  * Send an encrypted message to another node.
@@ -180,14 +195,15 @@ void unicastCallback (const PeerIdentity * hostId,
  * @param importance how important is the message?
  * @param maxdelay how long can the message be delayed?
  */
-void unicast (const PeerIdentity * receiver,
-              const MESSAGE_HEADER * msg,
-              unsigned int importance, unsigned int maxdelay);
+void GNUNET_CORE_connection_unicast (const GNUNET_PeerIdentity * receiver,
+                                     const GNUNET_MessageHeader * msg,
+                                     unsigned int importance,
+                                     unsigned int maxdelay);
 
 /**
  * Return a pointer to the lock of the connection module.
  */
-struct MUTEX *getConnectionModuleLock (void);
+struct GNUNET_Mutex *GNUNET_CORE_connection_get_lock (void);
 
 
 /* ******************** traffic management ********** */
@@ -196,15 +212,23 @@ struct MUTEX *getConnectionModuleLock (void);
  * How many bpm did we assign this peer (how much traffic
  * may the given peer send to us per minute?)
  */
-int getBandwidthAssignedTo (const PeerIdentity * hostId,
-                            unsigned int *bpm, cron_t * last_seen);
+int GNUNET_CORE_connection_get_bandwidth_assigned_to_peer (const
+                                                           GNUNET_PeerIdentity
+                                                           * hostId,
+                                                           unsigned int *bpm,
+                                                           GNUNET_CronTime *
+                                                           last_seen);
 
 /**
  * Increase the preference for traffic from some other peer.
  * @param node the identity of the other peer
  * @param preference how much should the traffic preference be increased?
  */
-void updateTrafficPreference (const PeerIdentity * node, double preference);
+void GNUNET_CORE_connection_update_traffic_preference_for_peer (const
+                                                                GNUNET_PeerIdentity
+                                                                * node,
+                                                                double
+                                                                preference);
 
 
 /**
@@ -213,7 +237,8 @@ void updateTrafficPreference (const PeerIdentity * node, double preference);
  *
  * @param peer  the peer to disconnect
  */
-void disconnectFromPeer (const PeerIdentity * node);
+void GNUNET_CORE_connection_disconnect_from_peer (const GNUNET_PeerIdentity *
+                                                  node);
 
 
 /**
@@ -223,11 +248,17 @@ void disconnectFromPeer (const PeerIdentity * node);
  *
  * @param key the sessionkey,
  * @param peer the other peer,
- * @param forSending NO if it is the key for receiving,
- *                   YES if it is the key for sending
+ * @param forSending GNUNET_NO if it is the key for receiving,
+ *                   GNUNET_YES if it is the key for sending
  */
-void assignSessionKey (const SESSIONKEY * key,
-                       const PeerIdentity * peer, TIME_T age, int forSending);
+void GNUNET_CORE_connection_assign_session_key_to_peer (const
+                                                        GNUNET_AES_SessionKey
+                                                        * key,
+                                                        const
+                                                        GNUNET_PeerIdentity *
+                                                        peer,
+                                                        GNUNET_Int32Time age,
+                                                        int forSending);
 
 /**
  * Obtain the session key used for traffic from or to a given peer.
@@ -235,35 +266,42 @@ void assignSessionKey (const SESSIONKEY * key,
  * @param key the sessionkey (set)
  * @param age the age of the key (set)
  * @param peer the other peer,
- * @param forSending NO if it is the key for receiving,
- *                   YES if it is the key for sending
- * @return SYSERR if no sessionkey is known to the core,
- *         OK if the sessionkey was set.
+ * @param forSending GNUNET_NO if it is the key for receiving,
+ *                   GNUNET_YES if it is the key for sending
+ * @return GNUNET_SYSERR if no sessionkey is known to the core,
+ *         GNUNET_OK if the sessionkey was set.
  */
-int getCurrentSessionKey (const PeerIdentity * peer,
-                          SESSIONKEY * key, TIME_T * age, int forSending);
+int GNUNET_CORE_connection_get_session_key_of_peer (const GNUNET_PeerIdentity
+                                                    * peer,
+                                                    GNUNET_AES_SessionKey *
+                                                    key,
+                                                    GNUNET_Int32Time * age,
+                                                    int forSending);
 
 
 /**
  * Get the current number of slots in the connection table (as computed
  * from the available bandwidth).
  */
-int getSlotCount (void);
+int GNUNET_CORE_connection_get_slot_count (void);
 
 /**
  * Is the given slot used?
  * @return 0 if not, otherwise number of peers in
  * the slot
  */
-int isSlotUsed (int slot);
+int GNUNET_CORE_connection_is_slot_used (int slot);
 
 /**
  * Get the time of the last encrypted message that was received
  * from the given peer.
  * @param time updated with the time
- * @return SYSERR if we are not connected to the peer at the moment
+ * @return GNUNET_SYSERR if we are not connected to the peer at the moment
  */
-int getLastActivityOf (const PeerIdentity * peer, cron_t * time);
+int GNUNET_CORE_connection_get_last_activity_of_peer (const
+                                                      GNUNET_PeerIdentity *
+                                                      peer,
+                                                      GNUNET_CronTime * time);
 
 
 /**
@@ -271,7 +309,9 @@ int getLastActivityOf (const PeerIdentity * peer, cron_t * time);
  *
  * @param peer the other peer,
  */
-void confirmSessionUp (const PeerIdentity * peer);
+void GNUNET_CORE_connection_mark_session_as_confirmed (const
+                                                       GNUNET_PeerIdentity *
+                                                       peer);
 
 
 /**
@@ -280,9 +320,11 @@ void confirmSessionUp (const PeerIdentity * peer);
  *
  * @param callback the method to call for each
  *        P2P message part that is transmitted
- * @return OK on success, SYSERR if there is a problem
+ * @return GNUNET_OK on success, GNUNET_SYSERR if there is a problem
  */
-int registerSendNotify (MessagePartHandler callback);
+int
+  GNUNET_CORE_connection_register_send_notification_callback
+  (GNUNET_P2PRequestHandler callback);
 
 /**
  * Unregister a handler that is to be called for each
@@ -290,15 +332,18 @@ int registerSendNotify (MessagePartHandler callback);
  *
  * @param callback the method to call for each
  *        P2P message part that is transmitted
- * @return OK on success, SYSERR if there is a problem
+ * @return GNUNET_OK on success, GNUNET_SYSERR if there is a problem
  */
-int unregisterSendNotify (MessagePartHandler callback);
+int
+  GNUNET_CORE_connection_unregister_send_notification_callback
+  (GNUNET_P2PRequestHandler callback);
 
 /**
  * Verify that the given session handle is not in use.
- * @return OK if that is true, SYSERR if not.
+ * @return GNUNET_OK if that is true, GNUNET_SYSERR if not.
  */
-int assertUnused (TSession * tsession);
+int GNUNET_CORE_connection_assert_tsession_unused (GNUNET_TSession *
+                                                   tsession);
 
 #endif
 /* end of connection.h */

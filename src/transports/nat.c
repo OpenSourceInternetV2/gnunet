@@ -30,26 +30,39 @@
 #include "platform.h"
 #include "ip.h"
 
-#define DEBUG_NAT NO
-
-/**
- * Host-Address in a NAT network.  Since the idea behind
- * NAT is that it can not be contacted from the outside,
- * the address is empty.
- */
-typedef struct
-{
-} HostAddress;
+#define DEBUG_NAT GNUNET_NO
 
 /* *********** globals ************* */
 
 /* apis (our advertised API and the core api ) */
-static TransportAPI natAPI;
+static GNUNET_TransportAPI natAPI;
 
-static CoreAPIForTransport *coreAPI;
+static GNUNET_CoreAPIForTransport *coreAPI;
+
+static const char *nat_limited_choices[] = { "YES", "NO", "AUTO", NULL };
 
 
 /* *************** API implementation *************** */
+
+static int
+lan_ip_detected ()
+{
+  GNUNET_IPv4Address addr;
+  unsigned int anum;
+
+  if (GNUNET_SYSERR == GNUNET_IP_get_public_ipv4_address (coreAPI->cfg,
+                                                          coreAPI->ectx,
+                                                          &addr))
+    return GNUNET_YES;          /* kind-of */
+  anum = ntohl (addr.addr);
+  if (((anum >= 0x0a000000) && (anum <= 0x0affffff)) || /* 10.x.x.x */
+      ((anum >= 0xac100000) && (anum <= 0xac10ffff)) || /* 172.16.0.0-172.31.0.0 */
+      ((anum >= 0xc0a80000) && (anum <= 0xc0a8ffff)) || /* 192.168.x.x */
+      ((anum >= 0x7f000000) && (anum <= 0x7fffffff))    /* 127.x.x.x */
+    )
+    return GNUNET_YES;
+  return GNUNET_NO;
+}
 
 /**
  * Verify that a hello-Message is correct (a node is reachable at that
@@ -57,47 +70,61 @@ static CoreAPIForTransport *coreAPI;
  *
  * @param hello the hello message to verify
  *        (the signature/crc have been verified before)
- * @return OK on success, SYSERR on failure
+ * @return GNUNET_OK on success, GNUNET_SYSERR on failure
  */
 static int
-verifyHello (const P2P_hello_MESSAGE * hello)
+verifyHello (const GNUNET_MessageHello * hello)
 {
-  if ((ntohs (hello->senderAddressSize) != sizeof (HostAddress)) ||
-      (ntohs (hello->header.size) != P2P_hello_MESSAGE_size (hello)) ||
-      (ntohs (hello->header.type) != p2p_PROTO_hello))
-    return SYSERR;              /* obviously invalid */
-  if (YES == GC_get_configuration_value_yesno (coreAPI->cfg,
-                                               "NAT", "LIMITED", NO))
+  const char *choice;
+
+  if ((ntohs (hello->senderAddressSize) != 0) ||
+      (ntohs (hello->header.size) != GNUNET_sizeof_hello (hello)) ||
+      (ntohs (hello->header.type) != GNUNET_P2P_PROTO_HELLO))
+    return GNUNET_SYSERR;       /* obviously invalid */
+
+  choice = "AUTO";
+  GNUNET_GC_get_configuration_value_choice (coreAPI->cfg,
+                                            "NAT", "LIMITED",
+                                            nat_limited_choices,
+                                            "AUTO", &choice);
+  if (((0 == strcmp (choice, "YES")) ||
+       ((0 == strcmp (choice, "AUTO")) &&
+        (lan_ip_detected ()))) &&
+      (0 != memcmp (&coreAPI->myIdentity->hashPubKey,
+                    &hello->senderIdentity.hashPubKey,
+                    sizeof (GNUNET_HashCode))))
     {
       /* if WE are a NAT and this is not our hello,
          it is invalid since NAT-to-NAT is not possible! */
-      if (0 == memcmp (&coreAPI->myIdentity->hashPubKey,
-                       &hello->senderIdentity.hashPubKey,
-                       sizeof (HashCode512)))
-        return OK;
-      return SYSERR;
+      return GNUNET_SYSERR;
     }
-  return OK;
+  return GNUNET_OK;
 }
 
 /**
  * Create a hello-Message for the current node. The hello is created
  * without signature and without a timestamp. The GNUnet core will
- * sign the message and add an expiration time.
+ * GNUNET_RSA_sign the message and add an expiration time.
  *
  * @return hello on success, NULL on error
  */
-static P2P_hello_MESSAGE *
+static GNUNET_MessageHello *
 createhello ()
 {
-  P2P_hello_MESSAGE *msg;
+  const char *choice;
+  GNUNET_MessageHello *msg;
 
-  if (NO == GC_get_configuration_value_yesno (coreAPI->cfg,
-                                              "NAT", "LIMITED", NO))
+  choice = "AUTO";
+  GNUNET_GC_get_configuration_value_choice (coreAPI->cfg,
+                                            "NAT", "LIMITED",
+                                            nat_limited_choices,
+                                            "AUTO", &choice);
+  if (((0 == strcmp (choice, "NO")) ||
+       ((0 == strcmp (choice, "AUTO")) && (!lan_ip_detected ()))))
     return NULL;
-  msg = MALLOC (sizeof (P2P_hello_MESSAGE) + sizeof (HostAddress));
-  msg->senderAddressSize = htons (sizeof (HostAddress));
-  msg->protocol = htons (NAT_PROTOCOL_NUMBER);
+  msg = GNUNET_malloc (sizeof (GNUNET_MessageHello));
+  msg->senderAddressSize = htons (0);
+  msg->protocol = htons (GNUNET_TRANSPORT_PROTOCOL_NUMBER_NAT);
   msg->MTU = htonl (0);
   return msg;
 }
@@ -106,13 +133,13 @@ createhello ()
  * Establish a connection to a remote node.
  * @param hello the hello-Message for the target node
  * @param tsessionPtr the session handle that is to be set
- * @return always fails (returns SYSERR)
+ * @return always fails (returns GNUNET_SYSERR)
  */
 static int
-natConnect (const P2P_hello_MESSAGE * hello, TSession ** tsessionPtr,
+natConnect (const GNUNET_MessageHello * hello, GNUNET_TSession ** tsessionPtr,
             int may_reuse)
 {
-  return SYSERR;
+  return GNUNET_SYSERR;
 }
 
 /**
@@ -123,51 +150,51 @@ natConnect (const P2P_hello_MESSAGE * hello, TSession ** tsessionPtr,
  * @param tsession the session handle passed along
  *   from the call to receive that was made by the transport
  *   layer
- * @return OK if the session could be associated,
- *         SYSERR if not.
+ * @return GNUNET_OK if the session could be associated,
+ *         GNUNET_SYSERR if not.
  */
 int
-natAssociate (TSession * tsession)
+natAssociate (GNUNET_TSession * tsession)
 {
-  return SYSERR;                /* NAT connections can never be associated */
+  return GNUNET_SYSERR;         /* NAT connections can never be associated */
 }
 
 /**
  * Send a message to the specified remote node.
  *
- * @param tsession the P2P_hello_MESSAGE identifying the remote node
+ * @param tsession the GNUNET_MessageHello identifying the remote node
  * @param message what to send
  * @param size the size of the message
- * @return SYSERR (always fails)
+ * @return GNUNET_SYSERR (always fails)
  */
 static int
-natSend (TSession * tsession,
+natSend (GNUNET_TSession * tsession,
          const void *message, const unsigned int size, int important)
 {
-  return SYSERR;
+  return GNUNET_SYSERR;
 }
 
 /**
  * Disconnect from a remote node.
  *
  * @param tsession the session that is closed
- * @return always SYSERR
+ * @return always GNUNET_SYSERR
  */
 static int
-natDisconnect (TSession * tsession)
+natDisconnect (GNUNET_TSession * tsession)
 {
-  return SYSERR;
+  return GNUNET_SYSERR;
 }
 
 /**
  * Start the server process to receive inbound traffic.
  *
- * @return OK on success, SYSERR if the operation failed
+ * @return GNUNET_OK on success, GNUNET_SYSERR if the operation failed
  */
 static int
 startTransportServer ()
 {
-  return OK;
+  return GNUNET_OK;
 }
 
 /**
@@ -177,34 +204,35 @@ startTransportServer ()
 static int
 stopTransportServer ()
 {
-  return OK;
+  return GNUNET_OK;
 }
 
 /**
  * Convert NAT address to a string.
  */
 static int
-helloToAddress (const P2P_hello_MESSAGE * hello,
+helloToAddress (const GNUNET_MessageHello * hello,
                 void **sa, unsigned int *sa_len)
 {
-  return getIPaddressFromPID (&hello->senderIdentity, sa, sa_len);
+  return GNUNET_IP_get_address_from_peer_identity (&hello->senderIdentity, sa,
+                                                   sa_len);
 }
 
 static int
-testWouldTry (TSession * tsession, unsigned int size, int important)
+testWouldTry (GNUNET_TSession * tsession, unsigned int size, int important)
 {
-  return SYSERR;
+  return GNUNET_SYSERR;
 }
 
 /**
  * The exported method. Makes the core api available via a global and
  * returns the nat transport API.
  */
-TransportAPI *
-inittransport_nat (CoreAPIForTransport * core)
+GNUNET_TransportAPI *
+inittransport_nat (GNUNET_CoreAPIForTransport * core)
 {
   coreAPI = core;
-  natAPI.protocolNumber = NAT_PROTOCOL_NUMBER;
+  natAPI.protocolNumber = GNUNET_TRANSPORT_PROTOCOL_NUMBER_NAT;
   natAPI.mtu = 0;
   natAPI.cost = 30000;
   natAPI.verifyHello = &verifyHello;

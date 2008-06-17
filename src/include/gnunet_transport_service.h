@@ -40,7 +40,8 @@ extern "C"
 /**
  * Type of the per-transport callback method.
  */
-typedef void (*TransportCallback) (TransportAPI * tapi, void *data);
+typedef void (*GNUNET_TransportCallback) (GNUNET_TransportAPI * tapi,
+                                          void *data);
 
 /**
  * @brief Transport service definition.
@@ -52,7 +53,7 @@ typedef struct
    * Actually start the transport services and begin
    * receiving messages.
    */
-  void (*start) (P2P_PACKETProcessor mpp);
+  void (*start) (GNUNET_TransportPacketProcessor mpp);
 
   /**
    * Stop the transport services, stop receiving messages.
@@ -61,22 +62,22 @@ typedef struct
 
   /**
    * Is this transport mechanism available (for sending)?
-   * @return YES or NO
+   * @return GNUNET_YES or GNUNET_NO
    */
   int (*isAvailable) (unsigned short ttype);
 
   /**
    * Add an implementation of a transport protocol.
    */
-  int (*add) (TransportAPI * tapi);
+  int (*add) (GNUNET_TransportAPI * tapi);
 
   /**
    * Iterate over all available transport mechanisms.
    * @param callback the method to call on each transport API implementation
    * @param data second argument to callback
-   * @return number of transports, SYSERR on error
+   * @return number of transports, GNUNET_SYSERR on error
    */
-  int (*forEach) (TransportCallback callback, void *data);
+  int (*forEach) (GNUNET_TransportCallback callback, void *data);
 
   /**
    * Connect to a remote host using the advertised transport
@@ -90,8 +91,8 @@ typedef struct
    *              (must match when disconnect is called)
    * @return session handle on success, NULL on error
    */
-  TSession *(*connect) (const P2P_hello_MESSAGE * hello, const char *token,
-                        int may_reuse);
+  GNUNET_TSession *(*connect) (const GNUNET_MessageHello * hello,
+                               const char *token, int may_reuse);
 
   /**
    * Connect to another peer, picking any transport that
@@ -104,8 +105,8 @@ typedef struct
    *              (must match when disconnect is called)
    * @return session handle on success, NULL on error
    */
-  TSession *(*connectFreely) (const PeerIdentity * peer, int allowTempList,
-                              const char *token);
+  GNUNET_TSession *(*connectFreely) (const GNUNET_PeerIdentity * peer,
+                                     int allowTempList, const char *token);
 
   /**
    * A (core) Session is to be associated with a transport session. The
@@ -119,10 +120,10 @@ typedef struct
    *   layer
    * @param token string identifying who is holding the reference
    *              (must match when disconnect is called)
-   * @return OK if the session could be associated,
-   *         SYSERR if not.
+   * @return GNUNET_OK if the session could be associated,
+   *         GNUNET_SYSERR if not.
    */
-  int (*associate) (TSession * tsession, const char *token);
+  int (*associate) (GNUNET_TSession * tsession, const char *token);
 
   /**
    * Get the cost of a message in for the given transport mechanism.
@@ -136,10 +137,10 @@ typedef struct
    * @param msg the message to send
    * @param size the size of the message
    * @param important the message is important
-   * @return OK on success, SYSERR on persistent error, NO on
+   * @return GNUNET_OK on success, GNUNET_SYSERR on persistent error, GNUNET_NO on
    *         temporary error
    */
-  int (*send) (TSession * session,
+  int (*send) (GNUNET_TSession * session,
                const void *msg, unsigned int size, int important);
 
   /**
@@ -148,24 +149,24 @@ typedef struct
    * @param token string identifying who is holding the reference
    *              (must match when connect/assciate call)
    *
-   * @return OK on success, SYSERR on error
+   * @return GNUNET_OK on success, GNUNET_SYSERR on error
    */
-  int (*disconnect) (TSession * session, const char *token);
+  int (*disconnect) (GNUNET_TSession * session, const char *token);
 
   /**
    * Verify that a hello is ok. Call a method
    * if the verification was successful.
-   * @return OK if the attempt to verify is on the way,
-   *        SYSERR if the transport mechanism is not supported
+   * @return GNUNET_OK if the attempt to verify is on the way,
+   *        GNUNET_SYSERR if the transport mechanism is not supported
    */
-  int (*verifyhello) (const P2P_hello_MESSAGE * hello);
+  int (*verifyhello) (const GNUNET_MessageHello * hello);
 
   /**
    * Get the network address from a HELLO.
    *
-   * @return OK on success, SYSERR on error
+   * @return GNUNET_OK on success, GNUNET_SYSERR on error
    */
-  int (*helloToAddress) (const P2P_hello_MESSAGE * hello,
+  int (*helloToAddress) (const GNUNET_MessageHello * hello,
                          void **sa, unsigned int *sa_len);
 
   /**
@@ -177,7 +178,7 @@ typedef struct
    * Create a hello advertisement for the given
    * transport type for this node.
    */
-  P2P_hello_MESSAGE *(*createhello) (unsigned short ttype);
+  GNUNET_MessageHello *(*createhello) (unsigned short ttype);
 
   /**
    * Get a message consisting of (if possible) all addresses that this
@@ -202,20 +203,21 @@ typedef struct
    * even bother to construct (and encrypt) this kind
    * of message.
    *
-   * @return YES if the transport would try (i.e. queue
+   * @return GNUNET_YES if the transport would try (i.e. queue
    *         the message or call the OS to send),
-   *         NO if the transport would just drop the message,
-   *         SYSERR if the size/session is invalid
+   *         GNUNET_NO if the transport would just drop the message,
+   *         GNUNET_SYSERR if the size/session is invalid
    */
-  int (*testWouldTry) (TSession * tsession, unsigned int size, int important);
+  int (*testWouldTry) (GNUNET_TSession * tsession, unsigned int size,
+                       int important);
 
   /**
    * Verify that this session is associated (with the given
    * token).
    */
-  int (*assertAssociated) (TSession * tsession, const char *token);
+  int (*assertAssociated) (GNUNET_TSession * tsession, const char *token);
 
-} Transport_ServiceAPI;
+} GNUNET_Transport_ServiceAPI;
 
 #if 0                           /* keep Emacsens' auto-indent happy */
 {

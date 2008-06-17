@@ -25,13 +25,13 @@
 #include <gtk/gtktext.h>
 #include <glade/glade.h>
 
-#define mainXML getMainXML()
+#define mainXML GNUNET_GTK_get_main_glade_XML()
 
-GladeXML *getMainXML (void);
+GladeXML *GNUNET_GTK_get_main_glade_XML (void);
 
 void destroyMainXML (void);
 
-void setLibrary (struct PluginHandle *lib);
+void setLibrary (struct GNUNET_PluginHandle *lib);
 
 GtkWidget *get_xml (const char *dialog_name);
 

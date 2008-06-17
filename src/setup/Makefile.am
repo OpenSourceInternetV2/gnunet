@@ -3,15 +3,20 @@ INCLUDES = -I$(top_srcdir)/src/include
 if HAVE_GTK
  gtk_dir = gtk
 endif
+if HAVE_QT
+ qt_dir = qt
+endif
 if HAVE_DIALOG
  curses_dir = ncurses
 endif
 
 if !MINGW
+if HAVE_GUILE
  textdir=text
 endif
+endif
 
-SUBDIRS = lib $(textdir) . $(curses_dir) $(gtk_dir) .
+SUBDIRS = lib $(textdir) . $(curses_dir) $(gtk_dir) $(qt_dir) .
 
 plugindir = $(libdir)/GNUnet
 
@@ -31,15 +36,10 @@ gnunet_setup_SOURCES = \
 
 gnunet_setup_LDADD = \
  $(top_builddir)/src/setup/lib/libgnunetsetup.la \
- $(top_builddir)/src/util/libgnunetutil.la \
- $(top_builddir)/src/util/loggers/libgnunetutil_logging.la \
- $(top_builddir)/src/util/config_impl/libgnunetutil_config.la 
+ $(top_builddir)/src/util/libgnunetutil.la 
 
 gnunet_win_tool_SOURCE = \
  gnunet-win-tool.c
 
 gnunet_win_tool_LDADD = \
- $(top_builddir)/src/util/libgnunetutil.la \
- $(top_builddir)/src/util/loggers/libgnunetutil_logging.la \
- $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
- $(top_builddir)/src/util/config_impl/libgnunetutil_config.la 
+ $(top_builddir)/src/util/libgnunetutil.la 

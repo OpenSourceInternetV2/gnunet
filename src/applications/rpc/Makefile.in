@@ -61,21 +61,19 @@ pluginLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES) $(plugin_LTLIBRARIES)
 libgnunetmodule_rpc_la_DEPENDENCIES =  \
 	$(top_builddir)/src/util/libgnunetutil.la \
-	$(top_builddir)/src/util/cron/libgnunetutil_cron.la \
-	$(top_builddir)/src/util/containers/libgnunetutil_containers.la \
 	$(top_builddir)/src/applications/rpc/libgnunetrpc_util.la
 am_libgnunetmodule_rpc_la_OBJECTS = rpc.lo
 libgnunetmodule_rpc_la_OBJECTS = $(am_libgnunetmodule_rpc_la_OBJECTS)
 libgnunetmodule_rpc_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(libgnunetmodule_rpc_la_LDFLAGS) $(LDFLAGS) -o $@
-libgnunetrpc_util_la_DEPENDENCIES = $(top_builddir)/src/util/containers/libgnunetutil_containers.la \
+libgnunetrpc_util_la_DEPENDENCIES =  \
 	$(top_builddir)/src/util/libgnunetutil.la
 am_libgnunetrpc_util_la_OBJECTS = parameters.lo
 libgnunetrpc_util_la_OBJECTS = $(am_libgnunetrpc_util_la_OBJECTS)
 am_parameterstest_OBJECTS = parameterstest.$(OBJEXT)
 parameterstest_OBJECTS = $(am_parameterstest_OBJECTS)
-parameterstest_DEPENDENCIES = $(top_builddir)/src/util/containers/libgnunetutil_containers.la \
+parameterstest_DEPENDENCIES =  \
 	$(top_builddir)/src/util/libgnunetutil.la
 DEFAULT_INCLUDES = -I. -I$(top_builddir)@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -116,6 +114,7 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DLLDIR = @DLLDIR@
 DLLTOOL = @DLLTOOL@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
@@ -150,6 +149,7 @@ LIBICONV = @LIBICONV@
 LIBINTL = @LIBINTL@
 LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
+LIBPREFIX = @LIBPREFIX@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
@@ -175,6 +175,8 @@ PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PKG_CONFIG = @PKG_CONFIG@
 POSUB = @POSUB@
+QTINC = @QTINC@
+QTLIBS = @QTLIBS@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -185,9 +187,14 @@ STRIP = @STRIP@
 USE_NLS = @USE_NLS@
 VERSION = @VERSION@
 XGETTEXT = @XGETTEXT@
+XMKMF = @XMKMF@
 XML2_CONFIG = @XML2_CONFIG@
 XML_CPPFLAGS = @XML_CPPFLAGS@
 XML_LIBS = @XML_LIBS@
+X_CFLAGS = @X_CFLAGS@
+X_EXTRA_LIBS = @X_EXTRA_LIBS@
+X_LIBS = @X_LIBS@
+X_PRE_LIBS = @X_PRE_LIBS@
 _libcurl_config = @_libcurl_config@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
@@ -206,6 +213,7 @@ build = @build@
 build_alias = @build_alias@
 build_cpu = @build_cpu@
 build_os = @build_os@
+build_target = @build_target@
 build_vendor = @build_vendor@
 builddir = @builddir@
 datadir = @datadir@
@@ -254,8 +262,6 @@ libgnunetmodule_rpc_la_SOURCES = \
 
 libgnunetmodule_rpc_la_LIBADD = \
   $(top_builddir)/src/util/libgnunetutil.la \
-  $(top_builddir)/src/util/cron/libgnunetutil_cron.la \
-  $(top_builddir)/src/util/containers/libgnunetutil_containers.la \
   $(top_builddir)/src/applications/rpc/libgnunetrpc_util.la
 
 libgnunetmodule_rpc_la_LDFLAGS = \
@@ -265,7 +271,6 @@ libgnunetrpc_util_la_SOURCES = \
   parameters.c 
 
 libgnunetrpc_util_la_LIBADD = \
-  $(top_builddir)/src/util/containers/libgnunetutil_containers.la \
   $(top_builddir)/src/util/libgnunetutil.la 
 
 TESTS = $(check_PROGRAMS)
@@ -273,7 +278,6 @@ parameterstest_SOURCES = \
   parameterstest.c 
 
 parameterstest_LDADD = \
-  $(top_builddir)/src/util/containers/libgnunetutil_containers.la \
   $(top_builddir)/src/util/libgnunetutil.la 
 
 all: all-am

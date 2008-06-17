@@ -29,48 +29,46 @@
 
 #include "gnunet_util.h"
 #include "gnunet_core.h"
-#include "dstore.h"
-
+#include "gnunet_dstore_service.h"
 
 /**
  * Start a DHT get operation.
  */
-void dht_get_start (const HashCode512 * key,
-                    unsigned int type, ResultHandler handler, void *cls);
+int GNUNET_DHT_get_start (const GNUNET_HashCode * key,
+                          unsigned int type, GNUNET_ResultProcessor handler,
+                          void *cls);
 
 /**
  * Stop a DHT get operation (prevents calls to
  * the given iterator).
  */
-void dht_get_stop (const HashCode512 * key,
-                   unsigned int type, ResultHandler handler, void *cls);
+int GNUNET_DHT_get_stop (const GNUNET_HashCode * key,
+                         unsigned int type, GNUNET_ResultProcessor handler,
+                         void *cls);
 
 /**
  * Perform a DHT put operation.  Note that PUT operations always
  * expire after a period of time and the client is responsible for
- * doing periodic refreshs.  The given expiration time is ONLY used to
- * ensure that the datum is certainly deleted by that time (it maybe
- * deleted earlier).
+ * doing periodic refreshs. 
  *
  * @param expirationTime absolute expiration time
  */
-void dht_put (const HashCode512 * key,
-              unsigned int type,
-              unsigned int size, cron_t expirationTime, const char *data);
+int GNUNET_DHT_put (const GNUNET_HashCode * key,
+                    unsigned int type, unsigned int size, const char *data);
 
 /**
  * Initialize routing DHT component.
  *
  * @param capi the core API
- * @return OK on success
+ * @return GNUNET_OK on success
  */
-int init_dht_routing (CoreAPIForApplication * capi);
+int GNUNET_DHT_init_routing (GNUNET_CoreAPIForPlugins * capi);
 
 /**
  * Shutdown routing DHT component.
  *
- * @return OK on success
+ * @return GNUNET_OK on success
  */
-int done_dht_routing (void);
+int GNUNET_DHT_done_routing (void);
 
 #endif

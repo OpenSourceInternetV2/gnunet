@@ -51,14 +51,14 @@
  */
 typedef struct
 {
-  MESSAGE_HEADER header;
+  GNUNET_MessageHeader header;
 
   /**
    * Which peer is the target of the ping? This is important since for
    * plaintext-pings, we need to catch faulty advertisements that
    * advertise a correct address but with the wrong public key.
    */
-  PeerIdentity receiver;
+  GNUNET_PeerIdentity receiver;
 
   /**
    * The challenge is a (pseudo) random number that an adversary that
@@ -70,33 +70,33 @@ typedef struct
 
 } P2P_pingpong_MESSAGE;
 
-#define DEBUG_PINGPONG NO
+#define DEBUG_PINGPONG GNUNET_NO
 
 #define MAX_PING_PONG 256
 
 typedef struct
 {
-  PeerIdentity receiverIdentity;
+  GNUNET_PeerIdentity receiverIdentity;
   int challenge;
   int plaintext;
-  CronJob method;
+  GNUNET_CronJob method;
   void *data;
-  TIME_T sendTime;
+  GNUNET_Int32Time sendTime;
 } PingPongEntry;
 
 static PingPongEntry *pingPongs;
 
-static struct MUTEX *pingPongLock;
+static struct GNUNET_Mutex *pingPongLock;
 
-static CoreAPIForApplication *coreAPI;
+static GNUNET_CoreAPIForPlugins *coreAPI;
 
-static Transport_ServiceAPI *transport;
+static GNUNET_Transport_ServiceAPI *transport;
 
-static Identity_ServiceAPI *identity;
+static GNUNET_Identity_ServiceAPI *identity;
 
-static Stats_ServiceAPI *stats;
+static GNUNET_Stats_ServiceAPI *stats;
 
-static struct GE_Context *ectx;
+static struct GNUNET_GE_Context *ectx;
 
 static int stat_encryptedPongReceived;
 
@@ -120,59 +120,64 @@ static int stat_ciphertextPingSent;
  * We received a PING message, send the PONG reply.
  */
 static int
-pingReceived (const PeerIdentity * sender, const MESSAGE_HEADER * msg)
+pingReceived (const GNUNET_PeerIdentity * sender,
+              const GNUNET_MessageHeader * msg)
 {
   const P2P_pingpong_MESSAGE *pmsg;
   P2P_pingpong_MESSAGE pong;
 
   if (ntohs (msg->size) != sizeof (P2P_pingpong_MESSAGE))
     {
-      GE_LOG (ectx,
-              GE_WARNING | GE_BULK | GE_USER | GE_DEVELOPER,
-              _("Received malformed `%s' message. Dropping.\n"), "ping");
-      return SYSERR;
+      GNUNET_GE_LOG (ectx,
+                     GNUNET_GE_WARNING | GNUNET_GE_BULK | GNUNET_GE_USER |
+                     GNUNET_GE_DEVELOPER,
+                     _("Received malformed `%s' message. Dropping.\n"),
+                     "ping");
+      return GNUNET_SYSERR;
     }
   if (stats != NULL)
     stats->change (stat_pingReceived, 1);
   pmsg = (const P2P_pingpong_MESSAGE *) msg;
   if (0 != memcmp (coreAPI->myIdentity,
-                   &pmsg->receiver, sizeof (PeerIdentity)))
+                   &pmsg->receiver, sizeof (GNUNET_PeerIdentity)))
     {
-      GE_LOG (ectx,
-              GE_WARNING | GE_BULK | GE_ADMIN,
-              _("Received ping for another peer. Dropping.\n"));
-      return SYSERR;            /* not for us */
+      GNUNET_GE_LOG (ectx,
+                     GNUNET_GE_WARNING | GNUNET_GE_BULK | GNUNET_GE_ADMIN,
+                     _("Received ping for another peer. Dropping.\n"));
+      return GNUNET_SYSERR;     /* not for us */
     }
 
 #if DEBUG_PINGPONG
-  EncName enc;
+  GNUNET_EncName enc;
 
-  hash2enc (&sender->hashPubKey, &enc);
-  GE_LOG (ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER,
-          "Received ping from peer %s.\n", &enc);
+  GNUNET_hash_to_enc (&sender->hashPubKey, &enc);
+  GNUNET_GE_LOG (ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 "Received ping from peer %s.\n", &enc);
 #endif
   pong = *pmsg;
-  pong.header.type = htons (p2p_PROTO_PONG);
+  pong.header.type = htons (GNUNET_P2P_PROTO_PONG);
   if (stats != NULL)
     stats->change (stat_pingReceived, 1);
-  coreAPI->unicast (sender, &pong.header, EXTREME_PRIORITY, 0); /* send now! */
+  coreAPI->unicast (sender, &pong.header, GNUNET_EXTREME_PRIORITY, 0);  /* send now! */
   if (stats != NULL)
     stats->change (stat_pongSent, 1);
-  return OK;
+  return GNUNET_OK;
 }
 
 static int
-sendPlaintext (const PeerIdentity * peer, const P2P_pingpong_MESSAGE * msg)
+connection_send_plaintext (const GNUNET_PeerIdentity * peer,
+                           const P2P_pingpong_MESSAGE * msg)
 {
-  TSession *mytsession;
+  GNUNET_TSession *mytsession;
   int ret;
 
-  mytsession = transport->connectFreely (peer, YES, __FILE__);
+  mytsession = transport->connectFreely (peer, GNUNET_YES, __FILE__);
   if (mytsession == NULL)
-    return SYSERR;
-  ret = coreAPI->sendPlaintext (mytsession,
-                                (char *) msg, sizeof (P2P_pingpong_MESSAGE));
+    return GNUNET_SYSERR;
+  ret = coreAPI->connection_send_plaintext (mytsession,
+                                            (char *) msg,
+                                            sizeof (P2P_pingpong_MESSAGE));
   transport->disconnect (mytsession, __FILE__);
   return ret;
 }
@@ -182,11 +187,12 @@ sendPlaintext (const PeerIdentity * peer, const P2P_pingpong_MESSAGE * msg)
  * connection module that the session is still life.
  */
 static int
-plaintextPingReceived (const PeerIdentity * sender,
-                       const MESSAGE_HEADER * hmsg, TSession * tsession)
+plaintextPingReceived (const GNUNET_PeerIdentity * sender,
+                       const GNUNET_MessageHeader * hmsg,
+                       GNUNET_TSession * tsession)
 {
 #if DEBUG_PINGPONG
-  EncName enc;
+  GNUNET_EncName enc;
 #endif
   const P2P_pingpong_MESSAGE *pmsg;
   P2P_pingpong_MESSAGE pong;
@@ -194,41 +200,43 @@ plaintextPingReceived (const PeerIdentity * sender,
 
   if (ntohs (hmsg->size) != sizeof (P2P_pingpong_MESSAGE))
     {
-      GE_LOG (ectx,
-              GE_WARNING | GE_BULK | GE_USER | GE_DEVELOPER,
-              _("Received malformed `%s' message. Dropping.\n"), "ping");
-      GE_BREAK_OP (NULL, 0);
-      return SYSERR;
+      GNUNET_GE_LOG (ectx,
+                     GNUNET_GE_WARNING | GNUNET_GE_BULK | GNUNET_GE_USER |
+                     GNUNET_GE_DEVELOPER,
+                     _("Received malformed `%s' message. Dropping.\n"),
+                     "ping");
+      GNUNET_GE_BREAK_OP (NULL, 0);
+      return GNUNET_SYSERR;
     }
   pmsg = (const P2P_pingpong_MESSAGE *) hmsg;
   if (0 != memcmp (coreAPI->myIdentity,
-                   &pmsg->receiver, sizeof (PeerIdentity)))
+                   &pmsg->receiver, sizeof (GNUNET_PeerIdentity)))
     {
-      GE_LOG (ectx,
-              GE_INFO | GE_REQUEST | GE_ADMIN,
-              _("Received PING not destined for us!\n"));
-      GE_BREAK_OP (NULL, 0);
-      return SYSERR;            /* not for us */
+      GNUNET_GE_LOG (ectx,
+                     GNUNET_GE_INFO | GNUNET_GE_REQUEST | GNUNET_GE_ADMIN,
+                     _("Received PING not destined for us!\n"));
+      GNUNET_GE_BREAK_OP (NULL, 0);
+      return GNUNET_SYSERR;     /* not for us */
     }
 
 #if DEBUG_PINGPONG
-  hash2enc (&sender->hashPubKey, &enc);
-  GE_LOG (ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER,
-          "Received plaintext ping from peer %s.\n", &enc);
+  GNUNET_hash_to_enc (&sender->hashPubKey, &enc);
+  GNUNET_GE_LOG (ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 "Received plaintext ping from peer %s.\n", &enc);
 #endif
   pong = *pmsg;
-  pong.header.type = htons (p2p_PROTO_PONG);
+  pong.header.type = htons (GNUNET_P2P_PROTO_PONG);
   /* allow using a different transport for sending the reply, the
      transport may have been uni-directional! */
-  ret = SYSERR;
+  ret = GNUNET_SYSERR;
   if (tsession != NULL)
-    ret = coreAPI->sendPlaintext (tsession,
-                                  (char *) &pong,
-                                  sizeof (P2P_pingpong_MESSAGE));
-  if (ret != OK)
-    ret = sendPlaintext (sender, &pong);
-  if (ret == OK)
+    ret = coreAPI->connection_send_plaintext (tsession,
+                                              (char *) &pong,
+                                              sizeof (P2P_pingpong_MESSAGE));
+  if (ret != GNUNET_OK)
+    ret = connection_send_plaintext (sender, &pong);
+  if (ret == GNUNET_OK)
     {
       if (stats != NULL)
         stats->change (stat_plaintextPongSent, 1);
@@ -245,42 +253,46 @@ plaintextPingReceived (const PeerIdentity * sender,
  * Handler for a pong.
  */
 static int
-pongReceived (const PeerIdentity * sender, const MESSAGE_HEADER * msg)
+pongReceived (const GNUNET_PeerIdentity * sender,
+              const GNUNET_MessageHeader * msg)
 {
   int i;
   const P2P_pingpong_MESSAGE *pmsg;
   PingPongEntry *entry;
   int matched;
 #if DEBUG_PINGPONG
-  EncName enc;
+  GNUNET_EncName enc;
 #endif
 
   pmsg = (const P2P_pingpong_MESSAGE *) msg;
   if ((ntohs (msg->size) != sizeof (P2P_pingpong_MESSAGE)) ||
-      (0 != memcmp (sender, &pmsg->receiver, sizeof (PeerIdentity))))
+      (0 != memcmp (sender, &pmsg->receiver, sizeof (GNUNET_PeerIdentity))))
     {
-      GE_LOG (ectx,
-              GE_WARNING | GE_BULK | GE_USER | GE_DEVELOPER,
-              _("Received malformed `%s' message. Dropping.\n"), "pong");
-      return SYSERR;            /* bad pong */
+      GNUNET_GE_LOG (ectx,
+                     GNUNET_GE_WARNING | GNUNET_GE_BULK | GNUNET_GE_USER |
+                     GNUNET_GE_DEVELOPER,
+                     _("Received malformed `%s' message. Dropping.\n"),
+                     "pong");
+      return GNUNET_SYSERR;     /* bad pong */
     }
 #if DEBUG_PINGPONG
-  hash2enc (&sender->hashPubKey, &enc);
-  GE_LOG (ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER,
-          "Received PONG from `%s'.\n", &enc);
+  GNUNET_hash_to_enc (&sender->hashPubKey, &enc);
+  GNUNET_GE_LOG (ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 "Received PONG from `%s'.\n", &enc);
 #endif
   matched = 0;
   if (stats != NULL)
     stats->change (stat_encryptedPongReceived, 1);
-  MUTEX_LOCK (pingPongLock);
+  GNUNET_mutex_lock (pingPongLock);
   for (i = 0; i < MAX_PING_PONG; i++)
     {
       entry = &pingPongs[i];
       if (((int) ntohl (pmsg->challenge) == entry->challenge) &&
           (0 == memcmp (sender,
                         &entry->receiverIdentity,
-                        sizeof (PeerIdentity))) && (entry->plaintext == NO))
+                        sizeof (GNUNET_PeerIdentity)))
+          && (entry->plaintext == GNUNET_NO))
         {
           entry->method (entry->data);
           /* entry was valid for one time only */
@@ -288,60 +300,65 @@ pongReceived (const PeerIdentity * sender, const MESSAGE_HEADER * msg)
           matched++;
         }
     }
-  MUTEX_UNLOCK (pingPongLock);
+  GNUNET_mutex_unlock (pingPongLock);
 #if DEBUG_PINGPONG
-  hash2enc (&sender->hashPubKey, &enc);
-  GE_LOG (ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER,
-          "Received PONG from `%s' matched %u peers.\n", &enc, matched);
+  GNUNET_hash_to_enc (&sender->hashPubKey, &enc);
+  GNUNET_GE_LOG (ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 "Received PONG from `%s' matched %u peers.\n", &enc,
+                 matched);
 #endif
   if (matched == 0)
     {
 #if DEBUG_PINGPONG
-      GE_LOG (ectx,
-              GE_WARNING | GE_BULK | GE_ADMIN,
-              _("Could not match PONG against any PING. "
-                "Try increasing MAX_PING_PONG constant.\n"));
+      GNUNET_GE_LOG (ectx,
+                     GNUNET_GE_WARNING | GNUNET_GE_BULK | GNUNET_GE_ADMIN,
+                     _("Could not match PONG against any PING. "
+                       "Try increasing MAX_PING_PONG constant.\n"));
 #endif
     }
-  return OK;
+  return GNUNET_OK;
 }
 
 /**
  * Handler for a pong.
  */
 static int
-plaintextPongReceived (const PeerIdentity * sender,
-                       const MESSAGE_HEADER * msg, TSession * session)
+plaintextPongReceived (const GNUNET_PeerIdentity * sender,
+                       const GNUNET_MessageHeader * msg,
+                       GNUNET_TSession * session)
 {
   int i;
   const P2P_pingpong_MESSAGE *pmsg;
   PingPongEntry *entry;
   int matched;
 #if DEBUG_PINGPONG
-  EncName enc;
+  GNUNET_EncName enc;
 #endif
 
   pmsg = (const P2P_pingpong_MESSAGE *) msg;
   if ((ntohs (msg->size) != sizeof (P2P_pingpong_MESSAGE)) ||
-      (0 != memcmp (sender, &pmsg->receiver, sizeof (PeerIdentity))))
+      (0 != memcmp (sender, &pmsg->receiver, sizeof (GNUNET_PeerIdentity))))
     {
-      GE_LOG (ectx,
-              GE_WARNING | GE_BULK | GE_USER | GE_DEVELOPER,
-              _("Received malformed `%s' message. Dropping.\n"), "pong");
-      return SYSERR;            /* bad pong */
+      GNUNET_GE_LOG (ectx,
+                     GNUNET_GE_WARNING | GNUNET_GE_BULK | GNUNET_GE_USER |
+                     GNUNET_GE_DEVELOPER,
+                     _("Received malformed `%s' message. Dropping.\n"),
+                     "pong");
+      return GNUNET_SYSERR;     /* bad pong */
     }
   if (stats != NULL)
     stats->change (stat_plaintextPongReceived, 1);
   matched = 0;
-  MUTEX_LOCK (pingPongLock);
+  GNUNET_mutex_lock (pingPongLock);
   for (i = 0; i < MAX_PING_PONG; i++)
     {
       entry = &pingPongs[i];
       if (((int) ntohl (pmsg->challenge) == entry->challenge) &&
           (0 == memcmp (sender,
                         &entry->receiverIdentity,
-                        sizeof (PeerIdentity))) && (entry->plaintext == YES))
+                        sizeof (GNUNET_PeerIdentity)))
+          && (entry->plaintext == GNUNET_YES))
         {
           entry->method (entry->data);
           /* entry was valid for one time only */
@@ -349,24 +366,24 @@ plaintextPongReceived (const PeerIdentity * sender,
           matched++;
         }
     }
-  MUTEX_UNLOCK (pingPongLock);
+  GNUNET_mutex_unlock (pingPongLock);
 #if DEBUG_PINGPONG
-  hash2enc (&sender->hashPubKey, &enc);
-  GE_LOG (ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER,
-          "Received plaintext PONG from `%s' matched %u peers.\n",
-          &enc, matched);
+  GNUNET_hash_to_enc (&sender->hashPubKey, &enc);
+  GNUNET_GE_LOG (ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 "Received plaintext PONG from `%s' matched %u peers.\n",
+                 &enc, matched);
 #endif
   if (matched == 0)
     {
 #if DEBUG_PINGPONG
-      GE_LOG (ectx,
-              GE_WARNING | GE_BULK | GE_ADMIN,
-              _("Could not match PONG against any PING. "
-                "Try increasing MAX_PING_PONG constant.\n"));
+      GNUNET_GE_LOG (ectx,
+                     GNUNET_GE_WARNING | GNUNET_GE_BULK | GNUNET_GE_ADMIN,
+                     _("Could not match PONG against any PING. "
+                       "Try increasing MAX_PING_PONG constant.\n"));
 #endif
     }
-  return OK;
+  return GNUNET_OK;
 }
 
 /**
@@ -378,22 +395,22 @@ plaintextPongReceived (const PeerIdentity * sender,
  * @param receiver the peer that should be PINGed
  * @param method the method to call if a PONG comes back
  * @param data an argument to pass to the method.
- * @param plaintext is the PONG expected to be in plaintext (YES/NO)
+ * @param plaintext is the PONG expected to be in plaintext (GNUNET_YES/GNUNET_NO)
  * @returns NULL on error, otherwise the PING message
  */
-static MESSAGE_HEADER *
-createPing (const PeerIdentity * receiver,
-            CronJob method, void *data, int plaintext, int challenge)
+static GNUNET_MessageHeader *
+createPing (const GNUNET_PeerIdentity * receiver,
+            GNUNET_CronJob method, void *data, int plaintext, int challenge)
 {
   int i;
   int j;
-  TIME_T min;
+  GNUNET_Int32Time min;
   PingPongEntry *entry;
-  TIME_T now;
+  GNUNET_Int32Time now;
   P2P_pingpong_MESSAGE *pmsg;
 
-  MUTEX_LOCK (pingPongLock);
-  now = TIME (&min);            /* set both, tricky... */
+  GNUNET_mutex_lock (pingPongLock);
+  now = GNUNET_get_time_int32 (&min);   /* set both, tricky... */
 
   j = -1;
   for (i = 0; i < MAX_PING_PONG; i++)
@@ -404,27 +421,27 @@ createPing (const PeerIdentity * receiver,
       }
   if (j == -1)
     {                           /* all send this second!? */
-      GE_LOG (ectx,
-              GE_WARNING | GE_BULK | GE_ADMIN,
-              _("Cannot create PING, table full. "
-                "Try increasing MAX_PING_PONG.\n"));
-      MUTEX_UNLOCK (pingPongLock);
+      GNUNET_GE_LOG (ectx,
+                     GNUNET_GE_WARNING | GNUNET_GE_BULK | GNUNET_GE_ADMIN,
+                     _("Cannot create PING, table full. "
+                       "Try increasing MAX_PING_PONG.\n"));
+      GNUNET_mutex_unlock (pingPongLock);
       return NULL;
     }
   entry = &pingPongs[j];
   entry->sendTime = now;
   entry->method = method;
   entry->plaintext = plaintext;
-  FREENONNULL (entry->data);
+  GNUNET_free_non_null (entry->data);
   entry->data = data;
   entry->receiverIdentity = *receiver;
-  pmsg = MALLOC (sizeof (P2P_pingpong_MESSAGE));
+  pmsg = GNUNET_malloc (sizeof (P2P_pingpong_MESSAGE));
   pmsg->header.size = htons (sizeof (P2P_pingpong_MESSAGE));
-  pmsg->header.type = htons (p2p_PROTO_PING);
+  pmsg->header.type = htons (GNUNET_P2P_PROTO_PING);
   pmsg->receiver = *receiver;
   entry->challenge = challenge;
   pmsg->challenge = htonl (challenge);
-  MUTEX_UNLOCK (pingPongLock);
+  GNUNET_mutex_unlock (pingPongLock);
   if (stats != NULL)
     stats->change (stat_pingCreated, 1);
   return &pmsg->header;
@@ -434,65 +451,68 @@ createPing (const PeerIdentity * receiver,
  * Ping a host an call a method if a reply comes back.
  *
  * @param receiver the peer that should be PINGed
- * @param usePlaintext send the PING in plaintext (YES/NO)
+ * @param usePlaintext send the PING in plaintext (GNUNET_YES/GNUNET_NO)
  * @param method the method to call if a PONG comes back
  * @param data an argument to pass to the method.
- * @returns OK on success, SYSERR on error
+ * @returns GNUNET_OK on success, GNUNET_SYSERR on error
  */
 static int
-initiatePing (const PeerIdentity * receiver,
-              CronJob method, void *data, int usePlaintext, int challenge)
+initiatePing (const GNUNET_PeerIdentity * receiver,
+              GNUNET_CronJob method, void *data, int usePlaintext,
+              int challenge)
 {
-  MESSAGE_HEADER *pmsg;
+  GNUNET_MessageHeader *pmsg;
 
   pmsg = createPing (receiver, method, data, usePlaintext, challenge);
   if (pmsg == NULL)
-    return SYSERR;
-  if (usePlaintext == YES)
+    return GNUNET_SYSERR;
+  if (usePlaintext == GNUNET_YES)
     {
-      if (OK != sendPlaintext (receiver, (const P2P_pingpong_MESSAGE *) pmsg))
+      if (GNUNET_OK !=
+          connection_send_plaintext (receiver,
+                                     (const P2P_pingpong_MESSAGE *) pmsg))
         {
-          FREE (pmsg);
-          return SYSERR;
+          GNUNET_free (pmsg);
+          return GNUNET_SYSERR;
         }
       if (stats != NULL)
         stats->change (stat_plaintextPingSent, 1);
     }
   else
     {
-      coreAPI->unicast (receiver, pmsg, EXTREME_PRIORITY, 0);
+      coreAPI->unicast (receiver, pmsg, GNUNET_EXTREME_PRIORITY, 0);
       if (stats != NULL)
         stats->change (stat_ciphertextPingSent, 1);
     }
-  FREE (pmsg);
-  return OK;
+  GNUNET_free (pmsg);
+  return GNUNET_OK;
 }
 
 /**
  * Initialize the pingpong module.
  */
-Pingpong_ServiceAPI *
-provide_module_pingpong (CoreAPIForApplication * capi)
+GNUNET_Pingpong_ServiceAPI *
+provide_module_pingpong (GNUNET_CoreAPIForPlugins * capi)
 {
-  static Pingpong_ServiceAPI ret;
+  static GNUNET_Pingpong_ServiceAPI ret;
 
   ectx = capi->ectx;
-  GE_ASSERT (ectx, sizeof (P2P_pingpong_MESSAGE) == 72);
+  GNUNET_GE_ASSERT (ectx, sizeof (P2P_pingpong_MESSAGE) == 72);
   coreAPI = capi;
-  identity = capi->requestService ("identity");
+  identity = capi->request_service ("identity");
   if (identity == NULL)
     {
-      GE_BREAK (capi->ectx, 0);
+      GNUNET_GE_BREAK (capi->ectx, 0);
       return NULL;
     }
-  transport = capi->requestService ("transport");
+  transport = capi->request_service ("transport");
   if (transport == NULL)
     {
-      GE_BREAK (capi->ectx, 0);
-      capi->releaseService (identity);
+      GNUNET_GE_BREAK (capi->ectx, 0);
+      capi->release_service (identity);
       return NULL;
     }
-  stats = capi->requestService ("stats");
+  stats = capi->request_service ("stats");
   if (stats != NULL)
     {
       stat_encryptedPongReceived
@@ -517,18 +537,21 @@ provide_module_pingpong (CoreAPIForApplication * capi)
         create (gettext_noop ("# plaintext PONG transmissions failed"));
 
     }
-  pingPongLock = capi->getConnectionModuleLock ();
+  pingPongLock = capi->connection_get_lock ();
   pingPongs =
-    (PingPongEntry *) MALLOC (sizeof (PingPongEntry) * MAX_PING_PONG);
+    (PingPongEntry *) GNUNET_malloc (sizeof (PingPongEntry) * MAX_PING_PONG);
   memset (pingPongs, 0, sizeof (PingPongEntry) * MAX_PING_PONG);
-  GE_LOG (ectx,
-          GE_DEBUG | GE_USER | GE_REQUEST,
-          _("`%s' registering handlers %d %d (plaintext and ciphertext)\n"),
-          "pingpong", p2p_PROTO_PING, p2p_PROTO_PONG);
-  capi->registerHandler (p2p_PROTO_PING, &pingReceived);
-  capi->registerHandler (p2p_PROTO_PONG, &pongReceived);
-  capi->registerPlaintextHandler (p2p_PROTO_PING, &plaintextPingReceived);
-  capi->registerPlaintextHandler (p2p_PROTO_PONG, &plaintextPongReceived);
+  GNUNET_GE_LOG (ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_USER | GNUNET_GE_REQUEST,
+                 _
+                 ("`%s' registering handlers %d %d (plaintext and ciphertext)\n"),
+                 "pingpong", GNUNET_P2P_PROTO_PING, GNUNET_P2P_PROTO_PONG);
+  capi->registerHandler (GNUNET_P2P_PROTO_PING, &pingReceived);
+  capi->registerHandler (GNUNET_P2P_PROTO_PONG, &pongReceived);
+  capi->plaintext_register_handler (GNUNET_P2P_PROTO_PING,
+                                    &plaintextPingReceived);
+  capi->plaintext_register_handler (GNUNET_P2P_PROTO_PONG,
+                                    &plaintextPongReceived);
   ret.ping = &initiatePing;
   ret.pingUser = &createPing;
   ret.ping_size = sizeof (P2P_pingpong_MESSAGE);
@@ -543,23 +566,23 @@ release_module_pingpong ()
 {
   int i;
 
-  coreAPI->releaseService (stats);
+  coreAPI->release_service (stats);
   stats = NULL;
-  coreAPI->releaseService (transport);
+  coreAPI->release_service (transport);
   transport = NULL;
-  coreAPI->releaseService (identity);
+  coreAPI->release_service (identity);
   identity = NULL;
   for (i = 0; i < MAX_PING_PONG; i++)
-    FREENONNULL (pingPongs[i].data);
-  FREE (pingPongs);
-  coreAPI->unregisterHandler (p2p_PROTO_PING, &pingReceived);
-  coreAPI->unregisterHandler (p2p_PROTO_PONG, &pongReceived);
-  coreAPI->unregisterPlaintextHandler (p2p_PROTO_PING,
-                                       &plaintextPingReceived);
-  coreAPI->unregisterPlaintextHandler (p2p_PROTO_PONG,
-                                       &plaintextPongReceived);
+    GNUNET_free_non_null (pingPongs[i].data);
+  GNUNET_free (pingPongs);
+  coreAPI->unregisterHandler (GNUNET_P2P_PROTO_PING, &pingReceived);
+  coreAPI->unregisterHandler (GNUNET_P2P_PROTO_PONG, &pongReceived);
+  coreAPI->plaintext_unregister_handler (GNUNET_P2P_PROTO_PING,
+                                         &plaintextPingReceived);
+  coreAPI->plaintext_unregister_handler (GNUNET_P2P_PROTO_PONG,
+                                         &plaintextPongReceived);
   coreAPI = NULL;
-  return OK;
+  return GNUNET_OK;
 }
 
 /* end of pingpong.c */

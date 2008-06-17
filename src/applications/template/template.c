@@ -29,60 +29,65 @@
 #include "gnunet_core.h"
 #include "gnunet_protocols.h"
 
-static CoreAPIForApplication *coreAPI = NULL;
-static struct ClientHandle *client;
-static struct MUTEX *lock;
+static GNUNET_CoreAPIForPlugins *coreAPI = NULL;
+static struct GNUNET_ClientHandle *client;
+static struct GNUNET_Mutex *lock;
 
 static int
-handlep2pMSG (const PeerIdentity * sender, const MESSAGE_HEADER * message)
+handlep2pMSG (const GNUNET_PeerIdentity * sender,
+              const GNUNET_MessageHeader * message)
 {
-  return OK;
+  return GNUNET_OK;
 }
 
 static int
-csHandle (struct ClientHandle *client, const MESSAGE_HEADER * message)
+csHandle (struct GNUNET_ClientHandle *client,
+          const GNUNET_MessageHeader * message)
 {
-  return OK;
+  return GNUNET_OK;
 }
 
 static void
-clientExitHandler (struct ClientHandle *c)
+clientExitHandler (struct GNUNET_ClientHandle *c)
 {
-  MUTEX_LOCK (lock);
+  GNUNET_mutex_lock (lock);
   if (c == client)
     client = NULL;
-  MUTEX_UNLOCK (lock);
+  GNUNET_mutex_unlock (lock);
 }
 
 int
-initialize_module_template (CoreAPIForApplication * capi)
+initialize_module_template (GNUNET_CoreAPIForPlugins * capi)
 {
-  int ok = OK;
+  int ok = GNUNET_OK;
 
-  lock = MUTEX_CREATE (NO);
+  lock = GNUNET_mutex_create (GNUNET_NO);
   client = NULL;
   coreAPI = capi;
 
-  GE_LOG (capi->ectx,
-          GE_DEBUG | GE_REQUEST | GE_USER,
-          _("`%s' registering client handler %d and %d\n"),
-          "template", CS_PROTO_MAX_USED, P2P_PROTO_MAX_USED);
-  if (SYSERR == capi->registerHandler (P2P_PROTO_MAX_USED, &handlep2pMSG))
-    ok = SYSERR;
-  if (SYSERR == capi->registerClientExitHandler (&clientExitHandler))
-    ok = SYSERR;
-  if (SYSERR == capi->registerClientHandler (CS_PROTO_MAX_USED, &csHandle))
-    ok = SYSERR;
+  GNUNET_GE_LOG (capi->ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 _("`%s' registering client handler %d and %d\n"),
+                 "template", GNUNET_CS_PROTO_MAX_USED,
+                 GNUNET_P2P_PROTO_MAX_USED);
+  if (GNUNET_SYSERR ==
+      capi->registerHandler (GNUNET_P2P_PROTO_MAX_USED, &handlep2pMSG))
+    ok = GNUNET_SYSERR;
+  if (GNUNET_SYSERR == capi->cs_exit_handler_register (&clientExitHandler))
+    ok = GNUNET_SYSERR;
+  if (GNUNET_SYSERR ==
+      capi->registerClientHandler (GNUNET_CS_PROTO_MAX_USED, &csHandle))
+    ok = GNUNET_SYSERR;
   return ok;
 }
 
 void
 done_module_template ()
 {
-  coreAPI->unregisterHandler (P2P_PROTO_MAX_USED, &handlep2pMSG);
-  coreAPI->unregisterClientExitHandler (&clientExitHandler);
-  coreAPI->unregisterClientHandler (CS_PROTO_MAX_USED, &csHandle);
-  MUTEX_DESTROY (lock);
+  coreAPI->unregisterHandler (GNUNET_P2P_PROTO_MAX_USED, &handlep2pMSG);
+  coreAPI->cs_exit_handler_unregister (&clientExitHandler);
+  coreAPI->unregisterClientHandler (GNUNET_CS_PROTO_MAX_USED, &csHandle);
+  GNUNET_mutex_destroy (lock);
   coreAPI = NULL;
 }
 

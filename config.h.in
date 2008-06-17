@@ -15,6 +15,10 @@
 /* This is a FreeBSD system */
 #undef FREEBSD
 
+/* This should be the default choice for the name of the first network
+   interface */
+#undef GNUNET_DEFAULT_INTERFACE
+
 /* We have GNU adns */
 #undef HAVE_ADNS
 
@@ -106,6 +110,9 @@
 
 /* Define to 1 if the system has the type `error_t'. */
 #undef HAVE_ERROR_T
+
+/* We have libesmtp */
+#undef HAVE_ESMTP
 
 /* Define to 1 if you have the <extractor.h> header file. */
 #undef HAVE_EXTRACTOR_H
@@ -214,6 +221,9 @@
 
 /* Define if you have the libdl library or equivalent. */
 #undef HAVE_LIBDL
+
+/* Define to 1 if you have the <libesmtp.h> header file. */
+#undef HAVE_LIBESMTP_H
 
 /* Define to 1 if you have the `guile' library (-lguile). */
 #undef HAVE_LIBGUILE
@@ -343,6 +353,12 @@
 
 /* Define to 1 if you have the `putenv' function. */
 #undef HAVE_PUTENV
+
+/* We have Qt */
+#undef HAVE_QT
+
+/* Define to 1 if you have the <Qt/qpixmap.h> header file. */
+#undef HAVE_QT_QPIXMAP_H
 
 /* Define to 1 if you have the `rand' function. */
 #undef HAVE_RAND
@@ -688,6 +704,9 @@
 
 /* This is a Windows system */
 #undef WINDOWS
+
+/* Define to 1 if the X Window System is missing or not being used. */
+#undef X_DISPLAY_MISSING
 
 /* Number of bits in a file offset, on hosts where this is settable. */
 #undef _FILE_OFFSET_BITS

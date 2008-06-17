@@ -60,9 +60,7 @@ am__installdirs = "$(DESTDIR)$(plugindir)"
 pluginLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(plugin_LTLIBRARIES)
 libgnunetmodule_advertising_la_DEPENDENCIES =  \
-	$(top_builddir)/src/util/libgnunetutil.la \
-	$(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
-	$(top_builddir)/src/util/cron/libgnunetutil_cron.la
+	$(top_builddir)/src/util/libgnunetutil.la
 am_libgnunetmodule_advertising_la_OBJECTS = advertising.lo \
 	bootstrap.lo
 libgnunetmodule_advertising_la_OBJECTS =  \
@@ -76,25 +74,19 @@ am_advertisingtest_http_OBJECTS = advertising_test.$(OBJEXT)
 advertisingtest_http_OBJECTS = $(am_advertisingtest_http_OBJECTS)
 advertisingtest_http_DEPENDENCIES =  \
 	$(top_builddir)/src/applications/stats/libgnunetstats_api.la \
-	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
 	$(top_builddir)/src/applications/testing/libgnunettesting_api.la \
-	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
 	$(top_builddir)/src/util/libgnunetutil.la
 am_advertisingtest_tcp_OBJECTS = advertising_test.$(OBJEXT)
 advertisingtest_tcp_OBJECTS = $(am_advertisingtest_tcp_OBJECTS)
 advertisingtest_tcp_DEPENDENCIES =  \
 	$(top_builddir)/src/applications/stats/libgnunetstats_api.la \
-	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
 	$(top_builddir)/src/applications/testing/libgnunettesting_api.la \
-	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
 	$(top_builddir)/src/util/libgnunetutil.la
 am_advertisingtest_udp_OBJECTS = advertising_test.$(OBJEXT)
 advertisingtest_udp_OBJECTS = $(am_advertisingtest_udp_OBJECTS)
 advertisingtest_udp_DEPENDENCIES =  \
 	$(top_builddir)/src/applications/stats/libgnunetstats_api.la \
-	$(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
 	$(top_builddir)/src/applications/testing/libgnunettesting_api.la \
-	$(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
 	$(top_builddir)/src/util/libgnunetutil.la
 DEFAULT_INCLUDES = -I. -I$(top_builddir)@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -137,6 +129,7 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DLLDIR = @DLLDIR@
 DLLTOOL = @DLLTOOL@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
@@ -171,6 +164,7 @@ LIBICONV = @LIBICONV@
 LIBINTL = @LIBINTL@
 LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
+LIBPREFIX = @LIBPREFIX@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
@@ -196,6 +190,8 @@ PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PKG_CONFIG = @PKG_CONFIG@
 POSUB = @POSUB@
+QTINC = @QTINC@
+QTLIBS = @QTLIBS@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -206,9 +202,14 @@ STRIP = @STRIP@
 USE_NLS = @USE_NLS@
 VERSION = @VERSION@
 XGETTEXT = @XGETTEXT@
+XMKMF = @XMKMF@
 XML2_CONFIG = @XML2_CONFIG@
 XML_CPPFLAGS = @XML_CPPFLAGS@
 XML_LIBS = @XML_LIBS@
+X_CFLAGS = @X_CFLAGS@
+X_EXTRA_LIBS = @X_EXTRA_LIBS@
+X_LIBS = @X_LIBS@
+X_PRE_LIBS = @X_PRE_LIBS@
 _libcurl_config = @_libcurl_config@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
@@ -227,6 +228,7 @@ build = @build@
 build_alias = @build_alias@
 build_cpu = @build_cpu@
 build_os = @build_os@
+build_target = @build_target@
 build_vendor = @build_vendor@
 builddir = @builddir@
 datadir = @datadir@
@@ -273,9 +275,7 @@ libgnunetmodule_advertising_la_SOURCES = \
   bootstrap.h
 
 libgnunetmodule_advertising_la_LIBADD = \
- $(top_builddir)/src/util/libgnunetutil.la \
- $(top_builddir)/src/util/crypto/libgnunetutil_crypto.la \
- $(top_builddir)/src/util/cron/libgnunetutil_cron.la
+ $(top_builddir)/src/util/libgnunetutil.la 
 
 libgnunetmodule_advertising_la_LDFLAGS = \
   -export-dynamic -avoid-version -module
@@ -287,9 +287,7 @@ advertisingtest_tcp_SOURCES = \
 
 advertisingtest_tcp_LDADD = \
   $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
-  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
   $(top_builddir)/src/applications/testing/libgnunettesting_api.la \
-  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
   $(top_builddir)/src/util/libgnunetutil.la 
 
 advertisingtest_udp_SOURCES = \
@@ -297,9 +295,7 @@ advertisingtest_udp_SOURCES = \
 
 advertisingtest_udp_LDADD = \
   $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
-  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
   $(top_builddir)/src/applications/testing/libgnunettesting_api.la \
-  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
   $(top_builddir)/src/util/libgnunetutil.la 
 
 advertisingtest_http_SOURCES = \
@@ -307,9 +303,7 @@ advertisingtest_http_SOURCES = \
 
 advertisingtest_http_LDADD = \
   $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
-  $(top_builddir)/src/util/network_client/libgnunetutil_network_client.la \
   $(top_builddir)/src/applications/testing/libgnunettesting_api.la \
-  $(top_builddir)/src/util/config_impl/libgnunetutil_config.la \
   $(top_builddir)/src/util/libgnunetutil.la 
 
 EXTRA_DIST = \

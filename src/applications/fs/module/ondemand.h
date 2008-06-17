@@ -35,23 +35,23 @@
 
 /**
  * Creates a symlink to the given file in the shared directory
- * @return SYSERR on error, NO if symlinking failed,
- *         YES on success
+ * @return GNUNET_SYSERR on error, GNUNET_NO if symlinking failed,
+ *         GNUNET_YES on success
  */
-int ONDEMAND_initIndex (struct GE_Context *cectx,
-                        const HashCode512 * fileId, const char *fn);
+int ONDEMAND_initIndex (struct GNUNET_GE_Context *cectx,
+                        const GNUNET_HashCode * fileId, const char *fn);
 
 /**
- * @return NO if already present, YES on success,
- *  SYSERR on other error (i.e. datastore full)
+ * @return GNUNET_NO if already present, GNUNET_YES on success,
+ *  GNUNET_SYSERR on other error (i.e. datastore full)
  */
-int ONDEMAND_index (struct GE_Context *cectx,
-                    Datastore_ServiceAPI * datastore,
+int ONDEMAND_index (struct GNUNET_GE_Context *cectx,
+                    GNUNET_Datastore_ServiceAPI * datastore,
                     unsigned int prio,
-                    cron_t expiration,
+                    GNUNET_CronTime expiration,
                     unsigned long long fileOffset,
                     unsigned int anonymityLevel,
-                    const HashCode512 * fileId,
+                    const GNUNET_HashCode * fileId,
                     unsigned int size, const DBlock * content);
 
 /**
@@ -60,11 +60,12 @@ int ONDEMAND_index (struct GE_Context *cectx,
  * the resulting DSV in enc.  If the on-demand
  * encoding fails because the file is no longer there,
  * this function also removes the OD-Entry
- * @return OK on success, SYSERR if there was an error
+ * @return GNUNET_OK on success, GNUNET_SYSERR if there was an error
  */
-int ONDEMAND_getIndexed (Datastore_ServiceAPI * datastore,
-                         const Datastore_Value * odb,
-                         const HashCode512 * query, Datastore_Value ** enc);
+int ONDEMAND_getIndexed (GNUNET_Datastore_ServiceAPI * datastore,
+                         const GNUNET_DatastoreValue * odb,
+                         const GNUNET_HashCode * query,
+                         GNUNET_DatastoreValue ** enc);
 
 /**
  * Unindex the file with the given ID.  Removes the file from the
@@ -76,19 +77,19 @@ int ONDEMAND_getIndexed (Datastore_ServiceAPI * datastore,
  *        up the file properly when computing
  *        the keys of the odb blocks).
  */
-int ONDEMAND_unindex (struct GE_Context *cectx,
-                      Datastore_ServiceAPI * datastore,
-                      unsigned int blocksize, const HashCode512 * fileId);
+int ONDEMAND_unindex (struct GNUNET_GE_Context *cectx,
+                      GNUNET_Datastore_ServiceAPI * datastore,
+                      unsigned int blocksize, const GNUNET_HashCode * fileId);
 
 /**
  * Test if the file with the given ID is
  * indexed.
- * @return YES if so, NO if not.
+ * @return GNUNET_YES if so, GNUNET_NO if not.
  */
-int ONDEMAND_testindexed (Datastore_ServiceAPI * datastore,
-                          const HashCode512 * fileId);
+int ONDEMAND_testindexed (GNUNET_Datastore_ServiceAPI * datastore,
+                          const GNUNET_HashCode * fileId);
 
-int ONDEMAND_init (CoreAPIForApplication * capi);
+int ONDEMAND_init (GNUNET_CoreAPIForPlugins * capi);
 
 int ONDEMAND_done (void);
 

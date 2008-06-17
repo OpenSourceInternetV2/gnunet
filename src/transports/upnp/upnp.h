@@ -45,8 +45,8 @@ extern "C"
  * public IP address of the IGD, and control it for forwarding ports.
  * The result will be cached for further use.
  */
-int gaim_upnp_discover (struct GE_Context *ectx,
-                        struct GC_Configuration *cfg, int sock);
+int gaim_upnp_discover (struct GNUNET_GE_Context *ectx,
+                        struct GNUNET_GC_Configuration *cfg, int sock);
 
 /**
  * Gets the IP address from a UPnP enabled IGD that sits on the local
@@ -65,13 +65,13 @@ const char *gaim_upnp_get_public_ip (void);
  *
  * @param portmap The port to map to this client
  * @param protocol The protocol to map, either "TCP" or "UDP"
- * @param do_add TRUE/YES to add, FALSE/NO to remove
+ * @param do_add TRUE/GNUNET_YES to add, FALSE/GNUNET_NO to remove
  * @param cb an optional callback function to be notified when the mapping
  *           addition is complete
  * @param cb_data Extra data to be passed to the callback
  */
-int gaim_upnp_change_port_mapping (struct GE_Context *ectx,
-                                   struct GC_Configuration *cfg,
+int gaim_upnp_change_port_mapping (struct GNUNET_GE_Context *ectx,
+                                   struct GNUNET_GC_Configuration *cfg,
                                    int do_add,
                                    unsigned short portmap,
                                    const char *protocol);

@@ -93,6 +93,7 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DLLDIR = @DLLDIR@
 DLLTOOL = @DLLTOOL@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
@@ -127,6 +128,7 @@ LIBICONV = @LIBICONV@
 LIBINTL = @LIBINTL@
 LIBLTDL = @LIBLTDL@
 LIBOBJS = @LIBOBJS@
+LIBPREFIX = @LIBPREFIX@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
@@ -152,6 +154,8 @@ PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PKG_CONFIG = @PKG_CONFIG@
 POSUB = @POSUB@
+QTINC = @QTINC@
+QTLIBS = @QTLIBS@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -162,9 +166,14 @@ STRIP = @STRIP@
 USE_NLS = @USE_NLS@
 VERSION = @VERSION@
 XGETTEXT = @XGETTEXT@
+XMKMF = @XMKMF@
 XML2_CONFIG = @XML2_CONFIG@
 XML_CPPFLAGS = @XML_CPPFLAGS@
 XML_LIBS = @XML_LIBS@
+X_CFLAGS = @X_CFLAGS@
+X_EXTRA_LIBS = @X_EXTRA_LIBS@
+X_LIBS = @X_LIBS@
+X_PRE_LIBS = @X_PRE_LIBS@
 _libcurl_config = @_libcurl_config@
 abs_builddir = @abs_builddir@
 abs_srcdir = @abs_srcdir@
@@ -183,6 +192,7 @@ build = @build@
 build_alias = @build_alias@
 build_cpu = @build_cpu@
 build_os = @build_os@
+build_target = @build_target@
 build_vendor = @build_vendor@
 builddir = @builddir@
 datadir = @datadir@
@@ -252,6 +262,7 @@ gnunetinclude_HEADERS = \
   gnunet_namespace_lib.h \
   gnunet_pingpong_service.h \
   gnunet_protocols.h \
+  gnunet_rpc_lib.h \
   gnunet_rpc_service.h \
   gnunet_session_service.h \
   gnunet_setup_lib.h \
@@ -261,6 +272,7 @@ gnunetinclude_HEADERS = \
   gnunet_stats_service.h \
   gnunet_testing_lib.h \
   gnunet_topology_service.h \
+  gnunet_tracekit_lib.h \
   gnunet_traffic_lib.h \
   gnunet_traffic_service.h \
   gnunet_transport.h \
@@ -271,7 +283,6 @@ gnunetinclude_HEADERS = \
   gnunet_util_boot.h \
   gnunet_util_common.h \
   gnunet_util_config.h \
-  gnunet_util_config_impl.h \
   gnunet_util_containers.h \
   gnunet_util_core.h \
   gnunet_util_cron.h \

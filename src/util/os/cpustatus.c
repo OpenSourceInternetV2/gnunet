@@ -58,13 +58,13 @@
 static processor_cpu_load_info_t prev_cpu_load;
 #endif
 
-#define DEBUG_STATUSCALLS NO
+#define DEBUG_STATUSCALLS GNUNET_NO
 
 #ifdef LINUX
 static FILE *proc_stat;
 #endif
 
-static struct MUTEX *statusMutex;
+static struct GNUNET_Mutex *statusMutex;
 
 /**
  * Current CPU load, as percentage of CPU cycles not idle or
@@ -98,12 +98,12 @@ initMachCpuStats ()
                               &cpu_msg_count);
   if (kret != KERN_SUCCESS)
     {
-      GE_LOG (NULL,
-              GE_ERROR | GE_USER | GE_ADMIN | GE_BULK,
-              "host_processor_info failed.");
-      return SYSERR;
+      GNUNET_GE_LOG (NULL,
+                     GNUNET_GE_ERROR | GNUNET_GE_USER | GNUNET_GE_ADMIN |
+                     GNUNET_GE_BULK, "host_processor_info failed.");
+      return GNUNET_SYSERR;
     }
-  prev_cpu_load = MALLOC (cpu_count * sizeof (*prev_cpu_load));
+  prev_cpu_load = GNUNET_malloc (cpu_count * sizeof (*prev_cpu_load));
   for (i = 0; i < cpu_count; i++)
     {
       for (j = 0; j < CPU_STATE_MAX; j++)
@@ -114,7 +114,7 @@ initMachCpuStats ()
   vm_deallocate (mach_task_self (),
                  (vm_address_t) cpu_load,
                  (vm_size_t) (cpu_msg_count * sizeof (*cpu_load)));
-  return OK;
+  return GNUNET_OK;
 }
 #endif
 
@@ -136,7 +136,7 @@ updateUsage ()
   if (proc_stat != NULL)
     {
       static unsigned long long last_cpu_results[5] = { 0, 0, 0, 0, 0 };
-      static int have_last_cpu = NO;
+      static int have_last_cpu = GNUNET_NO;
       int ret;
       char line[256];
       unsigned long long user_read, system_read, nice_read, idle_read,
@@ -149,9 +149,10 @@ updateUsage ()
       fflush (proc_stat);
       if (NULL == fgets (line, 256, proc_stat))
         {
-          GE_LOG_STRERROR_FILE (NULL,
-                                GE_ERROR | GE_USER | GE_ADMIN | GE_BULK,
-                                "fgets", "/proc/stat");
+          GNUNET_GE_LOG_STRERROR_FILE (NULL,
+                                       GNUNET_GE_ERROR | GNUNET_GE_USER |
+                                       GNUNET_GE_ADMIN | GNUNET_GE_BULK,
+                                       "fgets", "/proc/stat");
           fclose (proc_stat);
           proc_stat = NULL;     /* don't try again */
         }
@@ -163,12 +164,13 @@ updateUsage ()
                         &system_read, &nice_read, &idle_read, &iowait_read);
           if (ret < 4)
             {
-              GE_LOG_STRERROR_FILE (NULL,
-                                    GE_ERROR | GE_USER | GE_ADMIN | GE_BULK,
-                                    "fgets-sscanf", "/proc/stat");
+              GNUNET_GE_LOG_STRERROR_FILE (NULL,
+                                           GNUNET_GE_ERROR | GNUNET_GE_USER |
+                                           GNUNET_GE_ADMIN | GNUNET_GE_BULK,
+                                           "fgets-sscanf", "/proc/stat");
               fclose (proc_stat);
               proc_stat = NULL; /* don't try again */
-              have_last_cpu = NO;
+              have_last_cpu = GNUNET_NO;
             }
           else
             {
@@ -181,7 +183,7 @@ updateUsage ()
               /* Calculate the % usage */
               usage_time = user + system + nice;
               total_time = usage_time + idle + iowait;
-              if ((total_time > 0) && (have_last_cpu == YES))
+              if ((total_time > 0) && (have_last_cpu == GNUNET_YES))
                 {
                   currentCPULoad = (int) (100L * usage_time / total_time);
                   if (ret > 4)
@@ -195,8 +197,8 @@ updateUsage ()
               last_cpu_results[2] = nice_read;
               last_cpu_results[3] = idle_read;
               last_cpu_results[4] = iowait_read;
-              have_last_cpu = YES;
-              return OK;
+              have_last_cpu = GNUNET_YES;
+              return GNUNET_OK;
             }
         }
     }
@@ -291,14 +293,14 @@ updateUsage ()
                        (vm_address_t) cpu_load,
                        (vm_size_t) (cpu_msg_count * sizeof (*cpu_load)));
         currentIOLoad = -1;     /* FIXME-OSX! */
-        return OK;
+        return GNUNET_OK;
       }
     else
       {
-        GE_LOG (NULL,
-                GE_ERROR | GE_USER | GE_ADMIN | GE_BULK,
-                "host_processor_info failed.");
-        return SYSERR;
+        GNUNET_GE_LOG (NULL,
+                       GNUNET_GE_ERROR | GNUNET_GE_USER | GNUNET_GE_ADMIN |
+                       GNUNET_GE_BULK, "host_processor_info failed.");
+        return GNUNET_SYSERR;
       }
   }
 #endif
@@ -321,9 +323,10 @@ updateUsage ()
     kc = kstat_open ();
     if (kc == NULL)
       {
-        GE_LOG_STRERROR (NULL,
-                         GE_ERROR | GE_USER | GE_ADMIN | GE_BULK,
-                         "kstat_open");
+        GNUNET_GE_LOG_STRERROR (NULL,
+                                GNUNET_GE_ERROR | GNUNET_GE_USER |
+                                GNUNET_GE_ADMIN | GNUNET_GE_BULK,
+                                "kstat_open");
         goto ABORT_KSTAT;
       }
 
@@ -348,9 +351,9 @@ updateUsage ()
           }
       }
     if (0 != kstat_close (kc))
-      GE_LOG_STRERROR (NULL,
-                       GE_ERROR | GE_ADMIN | GE_USER | GE_BULK,
-                       "kstat_close");
+      GNUNET_GE_LOG_STRERROR (NULL,
+                              GNUNET_GE_ERROR | GNUNET_GE_ADMIN |
+                              GNUNET_GE_USER | GNUNET_GE_BULK, "kstat_close");
     if ((idlecount == 0) && (totalcount == 0))
       goto ABORT_KSTAT;         /* no stats found => abort */
     deltaidle = idlecount - last_idlecount;
@@ -369,10 +372,10 @@ updateUsage ()
     currentIOLoad = -1;         /* FIXME-SOLARIS! */
     last_idlecount = idlecount;
     last_totalcount = totalcount;
-    return OK;
+    return GNUNET_OK;
   ABORT_KSTAT:
     kstat_once = 1;             /* failed, don't try again */
-    return SYSERR;
+    return GNUNET_SYSERR;
   }
 #endif
 
@@ -391,18 +394,19 @@ updateUsage ()
         if (warnOnce == 0)
           {
             warnOnce = 1;
-            GE_LOG_STRERROR (NULL,
-                             GE_ERROR | GE_USER | GE_ADMIN | GE_BULK,
-                             "getloadavg");
+            GNUNET_GE_LOG_STRERROR (NULL,
+                                    GNUNET_GE_ERROR | GNUNET_GE_USER |
+                                    GNUNET_GE_ADMIN | GNUNET_GE_BULK,
+                                    "getloadavg");
           }
-        return SYSERR;
+        return GNUNET_SYSERR;
       }
     else
       {
         /* success with getloadavg */
         currentCPULoad = (int) (100 * loadavg);
         currentIOLoad = -1;     /* FIXME */
-        return OK;
+        return GNUNET_OK;
       }
   }
 #endif
@@ -446,7 +450,7 @@ updateUsage ()
           dLastUser = dUser;
 
           currentIOLoad = -1;   /* FIXME-MINGW */
-          return OK;
+          return GNUNET_OK;
         }
       else
         {
@@ -456,11 +460,12 @@ updateUsage ()
           if (once == 0)
             {
               once = 1;
-              GE_LOG (NULL,
-                      GE_ERROR | GE_USER | GE_ADMIN | GE_BULK,
-                      _("Cannot query the CPU usage (Windows NT).\n"));
+              GNUNET_GE_LOG (NULL,
+                             GNUNET_GE_ERROR | GNUNET_GE_USER |
+                             GNUNET_GE_ADMIN | GNUNET_GE_BULK,
+                             _("Cannot query the CPU usage (Windows NT).\n"));
             }
-          return SYSERR;
+          return GNUNET_SYSERR;
         }
     }
   else
@@ -478,9 +483,10 @@ updateUsage ()
           if (once == 0)
             {
               once = 1;
-              GE_LOG (NULL,
-                      GE_USER | GE_ADMIN | GE_ERROR | GE_BULK,
-                      _("Cannot query the CPU usage (Win 9x)\n"));
+              GNUNET_GE_LOG (NULL,
+                             GNUNET_GE_USER | GNUNET_GE_ADMIN |
+                             GNUNET_GE_ERROR | GNUNET_GE_BULK,
+                             _("Cannot query the CPU usage (Win 9x)\n"));
             }
         }
 
@@ -513,7 +519,7 @@ updateUsage ()
                        NULL, &dwType, (LPBYTE) & dwDummy, &dwDataSize);
       RegCloseKey (hKey);
 
-      return OK;
+      return GNUNET_OK;
     }
 #endif
 
@@ -521,7 +527,7 @@ updateUsage ()
      specific alternative defined
      => default: error
    */
-  return SYSERR;
+  return GNUNET_SYSERR;
 }
 
 /**
@@ -530,13 +536,15 @@ updateUsage ()
  * that lock has already been obtained.
  */
 static void
-updateAgedLoad (struct GE_Context *ectx, struct GC_Configuration *cfg)
+updateAgedLoad (struct GNUNET_GE_Context *ectx,
+                struct GNUNET_GC_Configuration *cfg)
 {
-  static cron_t lastCall;
-  cron_t now;
+  static GNUNET_CronTime lastCall;
+  GNUNET_CronTime now;
 
-  now = get_time ();
-  if ((agedCPULoad == -1) || (now - lastCall > 500 * cronMILLIS))
+  now = GNUNET_get_time ();
+  if ((agedCPULoad == -1)
+      || (now - lastCall > 500 * GNUNET_CRON_MILLISECONDS))
     {
       /* use smoothing, but do NOT update lastRet at frequencies higher
          than 500ms; this makes the smoothing (mostly) independent from
@@ -587,20 +595,21 @@ updateAgedLoad (struct GE_Context *ectx, struct GC_Configuration *cfg)
  *        (100 is equivalent to full load)
  */
 int
-os_cpu_get_load (struct GE_Context *ectx, struct GC_Configuration *cfg)
+GNUNET_cpu_get_load (struct GNUNET_GE_Context *ectx,
+                     struct GNUNET_GC_Configuration *cfg)
 {
   unsigned long long maxCPULoad;
   int ret;
 
-  MUTEX_LOCK (statusMutex);
+  GNUNET_mutex_lock (statusMutex);
   updateAgedLoad (ectx, cfg);
   ret = agedCPULoad;
-  MUTEX_UNLOCK (statusMutex);
+  GNUNET_mutex_unlock (statusMutex);
   if (ret == -1)
     return -1;
-  if (-1 == GC_get_configuration_value_number (cfg, "LOAD", "MAXCPULOAD", 0, 10000,     /* more than 1 CPU possible */
-                                               100, &maxCPULoad))
-    return SYSERR;
+  if (-1 == GNUNET_GC_get_configuration_value_number (cfg, "LOAD", "MAXCPULOAD", 0, 10000,      /* more than 1 CPU possible */
+                                                      100, &maxCPULoad))
+    return GNUNET_SYSERR;
   return (100 * ret) / maxCPULoad;
 }
 
@@ -611,37 +620,39 @@ os_cpu_get_load (struct GE_Context *ectx, struct GC_Configuration *cfg)
  *        (100 is equivalent to full load)
  */
 int
-os_disk_get_load (struct GE_Context *ectx, struct GC_Configuration *cfg)
+GNUNET_disk_get_load (struct GNUNET_GE_Context *ectx,
+                      struct GNUNET_GC_Configuration *cfg)
 {
   unsigned long long maxIOLoad;
   int ret;
 
-  MUTEX_LOCK (statusMutex);
+  GNUNET_mutex_lock (statusMutex);
   updateAgedLoad (ectx, cfg);
   ret = agedIOLoad;
-  MUTEX_UNLOCK (statusMutex);
+  GNUNET_mutex_unlock (statusMutex);
   if (ret == -1)
     return -1;
-  if (-1 == GC_get_configuration_value_number (cfg, "LOAD", "MAXIOLOAD", 0, 10000,      /* more than 1 CPU possible */
-                                               100, &maxIOLoad))
-    return SYSERR;
+  if (-1 == GNUNET_GC_get_configuration_value_number (cfg, "LOAD", "MAXIOLOAD", 0, 10000,       /* more than 1 CPU possible */
+                                                      100, &maxIOLoad))
+    return GNUNET_SYSERR;
   return (100 * ret) / maxIOLoad;
 }
 
 /**
  * The following method is called in order to initialize the status calls
  * routines.  After that it is safe to call each of the status calls separately
- * @return OK on success and SYSERR on error (or calls errexit).
+ * @return GNUNET_OK on success and GNUNET_SYSERR on error (or calls errexit).
  */
-void __attribute__ ((constructor)) gnunet_cpustats_ltdl_init ()
+void __attribute__ ((constructor)) GNUNET_cpustats_ltdl_init ()
 {
-  statusMutex = MUTEX_CREATE (NO);
+  statusMutex = GNUNET_mutex_create (GNUNET_NO);
 #ifdef LINUX
   proc_stat = fopen ("/proc/stat", "r");
   if (NULL == proc_stat)
-    GE_LOG_STRERROR_FILE (NULL,
-                          GE_ERROR | GE_USER | GE_ADMIN | GE_BULK,
-                          "fopen", "/proc/stat");
+    GNUNET_GE_LOG_STRERROR_FILE (NULL,
+                                 GNUNET_GE_ERROR | GNUNET_GE_USER |
+                                 GNUNET_GE_ADMIN | GNUNET_GE_BULK, "fopen",
+                                 "/proc/stat");
 #elif OSX
   initMachCpuStats ();
 #elif MINGW
@@ -653,7 +664,7 @@ void __attribute__ ((constructor)) gnunet_cpustats_ltdl_init ()
 /**
  * Shutdown the status calls module.
  */
-void __attribute__ ((destructor)) gnunet_cpustats_ltdl_fini ()
+void __attribute__ ((destructor)) GNUNET_cpustats_ltdl_fini ()
 {
 #ifdef LINUX
   if (proc_stat != NULL)
@@ -662,11 +673,11 @@ void __attribute__ ((destructor)) gnunet_cpustats_ltdl_fini ()
       proc_stat = NULL;
     }
 #elif OSX
-  FREENONNULL (prev_cpu_load);
+  GNUNET_free_non_null (prev_cpu_load);
 #elif MINGW
   ShutdownWinEnv ();
 #endif
-  MUTEX_DESTROY (statusMutex);
+  GNUNET_mutex_destroy (statusMutex);
 }
 
 

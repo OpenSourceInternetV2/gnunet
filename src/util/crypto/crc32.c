@@ -52,7 +52,7 @@ static uLong crc_table[256];
  * with the ccorrect final value.  Thus, it is safe to call
  * even on a table that someone else is using concurrently.
  */
-void __attribute__ ((constructor)) crc32_init (void)
+void __attribute__ ((constructor)) GNUNET_crc32_init ()
 {
   unsigned int i, j;
   uLong h = 1;
@@ -79,7 +79,7 @@ void __attribute__ ((constructor)) crc32_init (void)
 static uLong
 crc32 (uLong crc, const char *buf, size_t len)
 {
-  GE_ASSERT (NULL, crc_table[255] != 0);
+  GNUNET_GE_ASSERT (NULL, crc_table[255] != 0);
   crc ^= 0xffffffff;
   while (len--)
     crc = (crc >> 8) ^ crc_table[(crc ^ *buf++) & 0xff];
@@ -95,7 +95,7 @@ crc32 (uLong crc, const char *buf, size_t len)
  * @return the resulting CRC32 checksum
  */
 int
-crc32N (const void *buf, int len)
+GNUNET_crc32_n (const void *buf, unsigned int len)
 {
   uLong crc;
   crc = crc32 (0L, Z_NULL, 0);
