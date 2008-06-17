@@ -1,3 +1,25 @@
+gnunet (0.6.4a-5) unstable; urgency=low
+
+  * debian/control: Note: awk is, by dependency, essential, so there is no
+    need to add it as a dependency.
+
+  * debian/gnunet.postinst: Replaced mawk with awk which is provided either by
+    mawk, gawk, or original-awk (Closes: #277915).
+    Changed compared version for the upgrade to 0.6.4a-5 since some people
+    should have gnunet not yet configured with 0.6.4a-4.
+
+  * debian/gnunet.config: Replaced mawk with awk.
+    Changed compared version for the upgrade to 0.6.4a-5 since some people
+    should have gnunet not yet configured with 0.6.4a-4.
+    Lowered the warning note priority to medium.
+    Removed reset of the warning note. 
+    Removed unneeded comments.
+    Only warn user if configuration values are not yet compliant.
+
+  * debian/gnunet.preinst: Removed since it's empty
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Sat, 23 Oct 2004 15:31:05 +0200
+
 gnunet (0.6.4a-4) unstable; urgency=low
 
   * Many new improvements to allow gnunetd to run as non-root

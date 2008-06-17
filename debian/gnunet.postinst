@@ -23,7 +23,7 @@ case "$1" in
     	# Source debconf library.
 	. /usr/share/debconf/confmodule
 	
-	if dpkg --compare-versions "$2" lt "0.6.4a-4" && \
+	if dpkg --compare-versions "$2" lt "0.6.4a-5" && \
 	[ -e /etc/gnunet.conf ]; then
 
 		echo -n "Backuping configuration file (/etc/gnunet.conf to /etc/gnunet.conf.old)"
@@ -39,9 +39,9 @@ case "$1" in
 	
 		# Try to read configuration values
 		TMP_FILE=`/bin/tempfile`
-		/bin/grep "^GNUNETD_HOME" /etc/gnunet.conf | /usr/bin/mawk ' { print $1$2$3 }' > $TMP_FILE
-		/bin/grep "^PIDFILE" /etc/gnunet.conf | /usr/bin/mawk ' { print $1$2$3 }' >> $TMP_FILE
-		/bin/grep "^LOGFILE" /etc/gnunet.conf | /usr/bin/mawk ' { print $1$2$3 }' >> $TMP_FILE
+		/bin/grep "^GNUNETD_HOME" /etc/gnunet.conf | /usr/bin/awk ' { print $1$2$3 }' > $TMP_FILE
+		/bin/grep "^PIDFILE" /etc/gnunet.conf | /usr/bin/awk ' { print $1$2$3 }' >> $TMP_FILE
+		/bin/grep "^LOGFILE" /etc/gnunet.conf | /usr/bin/awk ' { print $1$2$3 }' >> $TMP_FILE
 		# Cross fingers
 		. $TMP_FILE || true
 	
