@@ -9,7 +9,7 @@ Homepage: http://www.gnunet.org/
 
 Package: gnunet
 Architecture: all
-Depends: gnunet-client (>= ${binary:Version}), gnunet-server (>= ${binary:Version}), gnunet-tools (>= ${binary:Version})
+Depends: gnunet-client (= ${binary:Version}), gnunet-server (= ${binary:Version}), gnunet-tools (= ${binary:Version})
 Description: secure, trust-based peer-to-peer framework (meta)
  GNUnet is a peer-to-peer framework which focuses on providing security. All
  link-to-link messages in the network are confidential and authenticated. The
@@ -21,7 +21,7 @@ Description: secure, trust-based peer-to-peer framework (meta)
 
 Package: gnunet-client
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, gettext
+Depends: ${shlibs:Depends}, ${misc:Depends}, gnunet-common (= ${binary:Version}), gettext
 Suggests: libextractor-plugins
 Description: secure, trust-based peer-to-peer framework (client)
  GNUnet is a peer-to-peer framework which focuses on providing security. All
@@ -58,7 +58,7 @@ Description: secure, trust-based peer-to-peer framework (debug)
 
 Package: gnunet-server
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, adduser, gettext, netbase
+Depends: ${shlibs:Depends}, ${misc:Depends}, gnunet-common (= ${binary:Version}), adduser, gettext, netbase
 Conflicts: gnunet-daemon
 Replaces: gnunet-daemon
 Description: secure, trust-based peer-to-peer framework (server)
@@ -83,7 +83,7 @@ Description: secure, trust-based peer-to-peer framework (development)
 
 Package: gnunet-tools
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, gettext
+Depends: ${shlibs:Depends}, ${misc:Depends}, gnunet-common (= ${binary:Version}), gettext
 Description: secure, trust-based peer-to-peer framework (tools)
  GNUnet is a peer-to-peer framework which focuses on providing security. All
  link-to-link messages in the network are confidential and authenticated. The
