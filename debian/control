@@ -18,7 +18,7 @@ Description: secure, trust-based peer-to-peer framework (meta)
  framework provides a transport abstraction layer and can currently encapsulate
  the peer-to-peer traffic in UDP, TCP, or SMTP messages.
  .
- This package is a meta-package depending on gnunet-client, gnunet-server and
+ This package is a metapackage depending on gnunet-client, gnunet-server and
  gnunet-tools.
 
 Package: gnunet-client
