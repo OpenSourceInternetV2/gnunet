@@ -61,12 +61,6 @@ install: build
 
 	mv debian/tmp/usr/bin/remotetest debian/tmp/usr/bin/gnunet-remotetest
 
-	# Installing lintian overrides
-	for LINTIAN in debian/lintian/*; \
-	do \
-		install -D -m 0644 $$LINTIAN debian/`basename $$LINTIAN`/usr/share/lintian/overrides/`basename $$LINTIAN` || exit 1; \
-	done
-
 binary-arch: build install
 	dh_testdir -a
 	dh_testroot -a
@@ -76,6 +70,7 @@ binary-arch: build install
 	dh_installdebconf -a
 	dh_installlogrotate -a
 	dh_installinit -a -n
+	dh_lintian -a
 	dh_link -a
 	dh_strip -a --dbg-package=gnunet-dbg
 	dh_compress -a
@@ -93,6 +88,7 @@ binary-indep: build install
 	dh_installchangelogs -i ChangeLog
 	dh_installdocs -i
 	dh_install -i
+	dh_lintian -i
 	dh_link -i
 	dh_compress -i
 	dh_fixperms -i
