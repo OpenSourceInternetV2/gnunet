@@ -7,12 +7,57 @@
 # Even minor modifications require translation updates and such
 # changes should be coordinated with translators and reviewers.
 
+# Obsolete, should be removed
+Template: gnunet-daemon/warning
+Type: note
+_Description: Former installation of GNUnet detected
+ Since there are important changes in this version, the installer
+ will need to modify the GNUnet configuration file (/etc/gnunet.conf).
+ .
+ The installation process will backup /etc/gnunet.conf to
+ /etc/gnunet.conf.old, and will automatically build a new configuration
+ file.
+ .
+ Every personal settings will be preserved as much as possible.
+
+# Obsolete, should be removed
+Template: gnunet-daemon/failed
+Type: note
+_Description: Warning
+ For some obscure reason, the installer have failed to discover
+ the configuration settings in /etc/gnunet.conf.
+ .
+ The old configuration file will be moved to /etc/gnunet.conf.old.
+ .
+ Since some changes are *mandatory* in this file, a
+ fresh default configuration file will now be installed
+ .
+ Please take a look and make necessary changes in it if needed after
+ installation.
+
+# Obsolete, should be removed
+Template: gnunet-daemon/prior_07
+Type: note
+_Description: Upgrade from a version prior to 0.7.0
+ It seems that you are upgrading GNUnet from a version prior to 0.7.x.
+ GNUnet 0.7.x introduced new configuration files and a new database
+ storage format which is not compatible with versions prior to 0.7.x.
+ .
+ GNUnet cannot convert your database format to the new format.
+ .
+ Your database storage will be automatically moved to /var/lib/GNUnet.prior07,
+ and the gnunet package will build a new empty storage for you.
+ .
+ Your /etc/gnunet.conf file will also be moved to /etc/gnunet.conf.prior07
+ and replaced by /etc/gnunetd.conf which you can modify later by running
+ "gnunet-setup -d -c /etc/gnunetd.conf", as root.
+
 Template: gnunet-daemon/launch_at_startup
 Type: boolean
 Default: true
 _Description: Should the GNUnet daemon be launched on boot?
- If you choose this option, a GNUnet server will be started each time
- the system is launched. Otherwise, you will need to launch
+ If you choose this option, a GNUnet server will be launched each time
+ the system is started. Otherwise, you will need to launch
  GNUnet each time you want to use it.
 
 Template: gnunet-daemon/gnunet_user

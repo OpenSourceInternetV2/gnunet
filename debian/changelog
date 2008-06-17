@@ -1,3 +1,13 @@
+gnunet (0.7.2b-1) unstable; urgency=low
+
+  * New upstream release.
+  * Updated po files according to the work from the debian-l10n-english team
+    (Closes: #430802).
+  * Added updated French debconf translation from Christian Perrier
+    <bubulle@debian.org> (Closes: #431384).
+
+ -- Daniel Baumann <daniel@debian.org>  Tue, 14 Aug 2007 14:39:00 +0200
+
 gnunet (0.7.2-1) unstable; urgency=low
 
   * New upstream release (Closes: #429478).
