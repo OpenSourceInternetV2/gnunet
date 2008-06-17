@@ -1,3 +1,9 @@
+gnunet (0.7.2c-1) unstable; urgency=low
+
+  * New upstream release.
+
+ -- Daniel Baumann <daniel@debian.org>  Tue,  9 Oct 2007 10:20:00 +0200
+
 gnunet (0.7.2b-6) unstable; urgency=low
 
   * Adding debug package.

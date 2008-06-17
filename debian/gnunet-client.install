@@ -1,4 +1,3 @@
-/usr/bin/gnunet-dht-query
 /usr/bin/gnunet-directory
 /usr/bin/gnunet-download
 /usr/bin/gnunet-download-manager.scm
@@ -7,7 +6,6 @@
 /usr/bin/gnunet-search
 /usr/bin/gnunet-stats
 /usr/bin/gnunet-tbench
-/usr/bin/gnunet-template
 /usr/bin/gnunet-tracekit
 /usr/bin/gnunet-vpn
 /usr/lib/libgnunetcollection.so.*
