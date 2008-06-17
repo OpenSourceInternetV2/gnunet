@@ -100,7 +100,7 @@ void  generate_gnunetd_conf (FILE * f) {
  fprintf(f, "%s\n","# If you do not specify a HOSTLISTURL, you must copy valid hostkeys to");
  fprintf(f, "%s\n","# data/hosts manually.");
  fprintf(f, "%s\n","# Default: HOSTLISTURL = \"http://www.ovmj.org/GNUnet/download/hostlist http://www.woodtick.co.uk/hostlist\"");
- fprintf(f, "%s\n","HOSTLISTURL = \"http://www.ovmj.org/GNUnet/download/hostlist http://www.woodtick.co.uk/hostlist\"");
+ fprintf(f, "%s\n","HOSTLISTURL = \"http://www.ovmj.org/GNUnet/download/hostlist http://gnunet.wensley.org.uk/hostlist\"");
  fprintf(f, "%s\n","");
  fprintf(f, "%s\n","# If you have to use a proxy for outbound HTTP connections,");
  fprintf(f, "%s\n","# specify the proxy configuration here.  Default is no proxy.");

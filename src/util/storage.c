@@ -615,7 +615,11 @@ void close_(int fd,
 #endif
 	LOG(LOG_INFO,
 	    _("'%s' failed at %s:%d with error: %s\n"), 
+#ifdef MINGW
 	    "CloseHandle",
+#else
+	    "close",
+#endif
 	    filename,
 	    linenumber, STRERROR(errno));
       }

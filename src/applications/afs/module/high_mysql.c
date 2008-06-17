@@ -892,8 +892,12 @@ unsigned int getMinimumPriority(HighDBHandle handle) {
     MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
     return 0; /* no entries in DB */
   }
-  if ((sql_row=mysql_fetch_row(sql_res))) 
-    minPrio = atol(sql_row[0]);  
+  if (NULL != (sql_row=mysql_fetch_row(sql_res))) {
+    if (sql_row[0] != NULL)
+      minPrio = atol(sql_row[0]);  
+    else
+      minPrio = 0; /* error? */
+  }
   mysql_free_result(sql_res);
   MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
 

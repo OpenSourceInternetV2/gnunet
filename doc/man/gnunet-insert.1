@@ -1,4 +1,4 @@
-.TH GNUNET-INSERT "1" "2 May 2004" "GNUnet"
+.TH GNUNET-INSERT "1" "19 Sept 2004" "GNUnet"
 .SH NAME
 gnunet-insert \- a command line interface for inserting new content into GNUnet
 .SH SYNOPSIS
@@ -94,20 +94,45 @@ a file and then leave the network, it will almost always NOT be available
 anymore.
 
 .TP
-\fB\-h\fR, \fB\-\-help\fR
-Print a brief help page with all the options.
+\fB\-b\fR, \fB\-\-builddir\fR
+Build a directory.  With this option, gnunet\-insert will create a directory containing all the files specified at the command-line and insert that directory into GNUnet.  This allows grouping multiple files together.  Together with the \-R option, gnunet\-insert can be used to mirror an entire directory tree in GNUnet.  The directory structure is preserved (not all files are placed at the top\-level directory).  
 
 .TP
 \fB\-c \fIFILENAME\fR, \fB\-\-config=FILENAME\fR
 Use alternate config file (if this option is not specified, the default is ~/.gnunet/gnunet.conf).
 
 .TP
-\fB\-v\fR, \fB\-\-version\fR
-Print the version number.
+\fB\-e \fIFILENAME\fR, \fB\-\-sprev=\fIFILENAME\fR
+Specifies the previous SBlock file that contains the necessary information to update a periodical SBlock. On the first time of inserting a periodical, use \-o to create the file, without \-e. Filenames in \-o and \-e can be the same.
+
+.TP
+\fB\-f \fINAME\fR, \fB\-\-name=\fINAME\fR
+Executive summary: You probably don't need it.
+
+If a single file is inserted with RBlocks or an SBlock, use NAME as the published name for that file.  If multiple files are specified and no directory is created, NAME is again used for all of these files. In both cases, if this option is not given, the default is to preserve the actual filenames without the path.
+
+If a directory is created from multiple files mentioned on the command line, NAME is used for the directory. The names for the individual files are still the original filenames without path. If a directory is created recursively from a single filename on the command line and if NAME is not specified, the last component of the specified filename is used for the directory.  If a directory is created from multiple filenames specified on the command line, "not set" is used for the name of the directory.
+
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print a brief help page with all the options.
+
+.TP
+\fB\-k \fIKEYWORD\fR, \fB\-\-key=KEYWORD\fR
+additional key to index the content with (to add multiple keys, specify multiple times). Each additional key is case-sensitive. Can be specified multiple times.  The keyword is only applied to the top\-level files or directories.
+
+.TP
+\fB\-K \fIKEYWORD\fR, \fB\-\-global-key=KEYWORD\fR
+additional key to index the content with.  Keywords specified with \-K are applied to files and directories encountered on the command\-line or in the recursive scan.  This is the only difference to the \-k option.  This option can be specified multiple times.
 
 .TP
 \fB\-L \fILOGLEVEL\fR, \fB\-\-loglevel=\fILOGLEVEL\fR
 Change the loglevel.  Possible values for LOGLEVEL are NOTHING, FATAL, ERROR, FAILURE, WARNING, MESSAGE, INFO, DEBUG, CRON and EVERYTHING.
+
+.TP
+\fB\-v\fR, \fB\-\-version\fR
+Print the version number.
+
 .TP
 \fB\-V\fR, \fB\-\-verbose\fR
 Be verbose.  Using this option causes gnunet-insert to print progress information and at the end the file identification that can be used to  download the file from GNUnet.
@@ -117,24 +142,12 @@ Be verbose.  Using this option causes gnunet-insert to print progress informatio
 Process directories recursively.  Without this option, directories are ignored.  With this option, gnunet-insert will process files in directories recursively.  
 
 .TP
-\fB\-b\fR, \fB\-\-builddir\fR
-Build a directory.  With this option, gnunet\-insert will create a directory containing all the files specified at the command-line and insert that directory into GNUnet.  This allows grouping multiple files together.  Together with the \-R option, gnunet\-insert can be used to mirror an entire directory tree in GNUnet.  The directory structure is preserved (not all files are placed at the top\-level directory).  
-
-.TP
 \fB\-E\fR, \fB\-\-extract\fR
 Print the list of keywords that will be extracted.  Do not perform any indexing or insertion.
 
 .TP
 \fB\-l\fR, \fB\-\-link\fR
 When indexing a file, gnunet\-insert will create a copy of the file in the "share" directory of gnunetd.  If that directory happens to be on the local machine (i.e. gnunetd runs on localhost) then gnunet-insert can instead just use a link.  This will not work over the network, if the file-permissions do not allow gnunetd to read the file or if the file maybe changed afterwards.  Hence the default is to be inefficient and to make a copy.  With this option you can cause gnunet\-insert to TRY to make a link.  If the link does not work for some reason that GNUnet can detect, gnunet-insert will fall back to creating a copy.
-
-.TP
-\fB\-k \fIKEYWORD\fR, \fB\-\-key=KEYWORD\fR
-additional key to index the content with (to add multiple keys, specify multiple times). Each additional key is case-sensitive. Can be specified multiple times.  The keyword is only applied to the top\-level file or directory.
-
-.TP
-\fB\-K \fIKEYWORD\fR, \fB\-\-global-key=KEYWORD\fR
-additional key to index the content with.  Keywords specified with \-K are applied to files and directories encountered on the command\-line or in the recursive scan.  This is the only difference to the \-k option.  This option can be specified multiple times.
 
 .TP
 \fB\-s \fINAME\fR, \fB\-\-pseudonym=\fINAME\fR
@@ -165,10 +178,6 @@ SBlocks. The option works best when used together with \-e. Default time is the 
 Specifies the next ID of a future version of the SBlock.  This option is only valid together with the \-s option and together with either the option -b or only a single filename on the command\-line.  This option can be used to specify what the identifier of an updated version will look like.  Without the \-i option, a one\-shot update SBlock is used (a\-periodic).  With the \-i option, the difference between  the current ID (this) and the next ID is used to compute all future IDs.  Note that specifying \-i and \-N without \-t hardly ever makes sense. 
 
 The ID can be given in HEX notation, otherwise the HEX code is derived by hashing the given ID string.
-
-.TP
-\fB\-e \fIFILENAME\fR, \fB\-\-sprev=\fIFILENAME\fR
-Specifies the previous SBlock file that contains the necessary information to update a periodical SBlock. On the first time of inserting a periodical, use \-o to create the file, without \-e. Filenames in \-o and \-e can be the same.
 
 .TP
 \fB\-o \fIFILENAME\fR, \fB\-\-sout=\fIFILENAME\fR
@@ -221,13 +230,6 @@ Executive summary: You probably don't need it.
 
 With this option, gnunet\-insert will not create individual RBlocks for all files except for keywords specified with the \-K option.  With \-X, gnunet\-insert will  create an RBlock for each keyword infered from the files.  It does not disable the use of libextractor for finding the description and mime\-types for these files.  
 
-.TP
-\fB\-f \fINAME\fR, \fB\-\-name=\fINAME\fR
-Executive summary: You probably don't need it.
-
-If a single file is inserted with RBlocks or an SBlock, use NAME as the published name for that file.  If multiple files are specified and no directory is created, NAME is again used for all of these files. In both cases, if this option is not given, the default is to preserve the actual filenames without the path.
-
-If a directory is created, NAME is used for the directory. The names for the individual files are still the original filenames without path. If a directory is created recursively from a single filename on the command line and if NAME is not specified, the last component of the specified filename is used for the directory.  If a directory is created from multiple filenames specified on the command line, "not set" is used for the name of the directory.
 
 .SH EXAMPLES
 .PP

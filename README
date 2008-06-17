@@ -83,7 +83,7 @@ MySQL, GDBM, BerkeleyDB and TDB.  You can also use a simple directory,
 but this will be slow.
 
 autoconf >= 2.57 is recommended for compiling the CVS version.
-libextractor >= 0.3.3 is highly recommended.
+libextractor >= 0.3.6 is highly recommended.
 
 
 Configuration
@@ -102,7 +102,7 @@ can be changed at run-time this way (e.g. to change any port number,
 you must fully restart gnunetd).
 
 In order to use the SMTP transport service, you should read
-http://www.ovmj.org/GNUnet/smtp.php3 first!  Note that if you have a
+http://ovmj.org/GNUnet/smtp.php3 first!  Note that if you have a
 globally addressable IP or full control over your NAT box, the TCP or
 UDP services will suffice.
 
@@ -122,7 +122,7 @@ gnunetd by periodically executing
 
 If the solution with the URL is not feasible for your situation, you
 can also add hosts manually.  The GNUnet webpage has a public
-directory of hostkeys under http://www.ovmj.org/GNUnet/hosts/.  You
+directory of hostkeys under http://ovmj.org/GNUnet/hosts/.  You
 can of course use any other source for these files.  Copy the hostkeys
 to "$GNUNETD-HOME/.gnunet/data/hosts/" (where $GNUNETD_HOME is the
 directory specified in the /etc/gnunet.conf configuration file).
@@ -163,7 +163,8 @@ Stay tuned
 ==========
 
 * http://www.gnu.org/software/GNUnet/
-* http://www.ovmj.org/GNUnet/
+* http://ovmj.org/GNUnet/
+* http://ovmj.org/~mantis/
 * http://mail.gnu.org/mailman/listinfo/gnunet-developers
 * http://mail.gnu.org/mailman/listinfo/help-gnunet
 * http://mail.gnu.org/mailman/listinfo/info-gnunet

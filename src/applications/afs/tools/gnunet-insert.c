@@ -230,7 +230,7 @@ static int parseOptions(int argc,
     };    
     c = GNgetopt_long(argc,
 		      argv, 
-		      "vhdc:Ee:L:H:bD:Sf:i:lK:k:m:nN:o:p:P:Rs:t:T:uVxX", 
+		      "bc:dD:e:Ef:hH:i:lL:k:K:m:nN:o:p:P:Rs:St:T:uvVxX", 
 		      long_options, 
 		      &option_index);    
     if (c == -1) 
@@ -463,6 +463,8 @@ static int parseOptions(int argc,
   }
   setConfigurationStringList(&argv[GNoptind],
 			     argc - GNoptind);
+
+
   return OK;
 }
 
@@ -495,11 +497,10 @@ static void insertRBlock(GNUNET_TCP_SOCKET * sock,
 int main(int argc, char ** argv) {
   RootNode * roots;
   int i;
+  int j;
   char * pname;
   Hostkey pseudonym;
   HashCode160 hc;
-  HexName hex1;
-  HexName hex2;
   char ** fileNames;
   char * fileName;
   int fileNameCount;
@@ -510,13 +511,14 @@ int main(int argc, char ** argv) {
   char * shortFN;
 #if USE_LIBEXTRACTOR
   EXTRACTOR_ExtractorList * extractors;
-  char ** keywords;
-  int num_keywords;
 #endif
   int interval;
   int skip;
   GNUNET_TCP_SOCKET * sock;
   int verbose;
+  char * timestr;
+  SBlock pb; 	
+  char * prevname;
   
   if (SYSERR == initUtil(argc, argv, &parseOptions)) 
     return 0;
@@ -544,24 +546,10 @@ int main(int argc, char ** argv) {
     }
     FREENONNULL(password);
     FREE(pname);
-  } else
+  } else {
     pseudonym = NULL;
-  /* fixme: other sanity checks here? */
-
+  }
   fileNameCount = getConfigurationStringList(&fileNames);
-
-  if ( ( testConfigurationString("GNUNET-INSERT",
-				"BUILDDIR",
-				"YES") ||
-	 testConfigurationString("GNUNET-INSERT",
-				 "RECURSIVE",
-				 "YES") ||
-	 (fileNameCount > 1) )
-       && (NULL != getConfigurationString("GNUNET-INSERT",
-					  "FILENAMEROOT") ) )
-    errexit(_("The options '%s', '%s' or multiple file"
-	      " arguments cannot be used together with option '%s'.\n"),
-	    "-b", "-r", "-f");
 
   if (pseudonym == NULL) {
     if (NULL != getConfigurationString("GNUNET-INSERT",
@@ -585,244 +573,29 @@ int main(int argc, char ** argv) {
 				"YES"))
       errexit(_("Option '%s' makes no sense without option '%s'.\n"),
 	      "-S", "-s");
-  }
-#if USE_LIBEXTRACTOR
-    if (testConfigurationString("GNUNET-INSERT",
-				"EXTRACT-KEYWORDS",
-				"NO") &&
-	testConfigurationString("GNUNET-INSERT",
-				"ADDITIONAL-RBLOCKS",
-				"NO") )
-      printf(_("Option '%s' is implied by option '%s'.\n"),
-	     "-X", "-x");
-#endif
-  
-  
-  /* fundamental init */
-  sock = getClientSocket();
-  if (sock == NULL)
-    errexit(_("Could not connect to gnunetd.\n"));
-#if USE_LIBEXTRACTOR
-  extractors = getExtractors();
-#endif
-  mimetype = getConfigurationString("GNUNET-INSERT",
-				    "MIMETYPE");
+    if ( (fileNameCount > 1) && 
+	 (! testConfigurationString("GNUNET-INSERT",
+				    "BUILDDIR",
+				    "YES")) ) 
+      errexit(_("Cannot insert multiple files into namespace in one pass without using directory."));    
 
-  roots = MALLOC(sizeof(RootNode) * fileNameCount);
-  skip = 0;
-  fileName = NULL;
-  for (i=0;i<fileNameCount;i++) {
-    FREENONNULL(fileName);
-    fileName = expandFileName(fileNames[i]);
-    r = insertRecursively(sock,
-			  fileName,
-			  &fid,
-			  (const char**) gloKeywords,
-			  gloKeywordCnt,
-#if USE_LIBEXTRACTOR
-			  extractors,
-#else
-			  NULL,
-#endif
-			  &printstatus,
-			  &verbose,
-			  (InsertWrapper)&doFile,
-			  &verbose);    
-    if (r != NULL) {
-      memcpy(&roots[i], r, sizeof(RootNode));
-      FREE(r);
-    } else
-      skip++;
-  }
-  if ( (fileNameCount == 1) &&
-       isDirectory(fileName) ) {
-    FREENONNULL(mimetype);
-    mimetype = STRDUP(GNUNET_DIRECTORY_MIME);
-  }
-
-
-  shortFN = getConfigurationString("GNUNET-INSERT",
-				   "FILENAME");
-  if ( (shortFN == NULL) && (fileName != NULL)) {
-    shortFN = &fileName[strlen(fileName)-1];
-    while (shortFN[-1] != DIR_SEPARATOR)
-      shortFN--;
-    shortFN = STRDUP(shortFN);
-  }
-  fileNameCount -= skip;
-  /* if build directory and > 1 file, build directory
-     and reduce to 1 file */
-  if ( (fileNameCount > 1) &&
-       testConfigurationString("GNUNET-INSERT",
-			       "BUILDDIR",
-			       "YES") ) {
-    FREENONNULL(fileName);
-    fileName = getConfigurationString("GNUNET-INSERT",
-				      "FILENAMEROOT");
-    if (fileName == NULL)
-      fileName = STRDUP(_("no filename specified"));
-    i = insertDirectory(sock,
-			fileNameCount,
-			roots,
-			fileName,
-			&fid,
-			&printstatus,
-			&verbose);
-    if (i == SYSERR) {
-      skip += fileNameCount;
-      fileNameCount = 0;
-    } else {      
-      if (testConfigurationString("GNUNET-INSERT",
-				  "PRINTURL",
-				  "YES")) {
-	char * fstring;
-	fstring = createFileURI(&fid);	
-	printf("%s\n",
-	       fstring);
-	FREE(fstring);
-      }
-      if (verbose == YES) {
-	char * fstring;
-	fstring = createFileURI(&fid);	
-	printf(_("Directory %s successfully indexed -- %s\n"),
-	       fileName,
-	       fstring);
-	FREE(fstring);
-      }
-
-      description = getConfigurationString("GNUNET-INSERT",
-					   "DESCRIPTION");
-      if (description == NULL)
-        description = STRDUP("No description supplied.");
-      r = buildDirectoryRBlock(sock,
-			       &fid,
-			       fileName,
-			       description,
-			       (const char**) gloKeywords,
-			       gloKeywordCnt);
-      FREE(description);
-      FREE(r);
-      mimetype = STRDUP(GNUNET_DIRECTORY_MIME);
-      skip = fileNameCount - 1;
-      fileNameCount = 1;
-    }
-  }
-  FREE(roots);
-
-#if USE_LIBEXTRACTOR
-  num_keywords = 0;
-  keywords = NULL;
-#endif
-
-  /* if fileNameCount == 1 and !isDirectory(fileName): run libextractor! */
-  description = getConfigurationString("GNUNET-INSERT",
-				       "DESCRIPTION");
-  if ( (fileNameCount == 1) &&
-       (!isDirectory(fileName)) ) {
-#if USE_LIBEXTRACTOR
-    if (!testConfigurationString("GNUNET-INSERT",
-				 "EXTRACT-KEYWORDS",
-				 "NO")) {
-      extractKeywordsMulti(fileName,
-			   &description,
-			   &mimetype,
-			   &keywords,
-			   &num_keywords,
-			   extractors);
-    }
-#endif
-  }
-  if (mimetype == NULL)
-    mimetype = STRDUP("unknown");
-  if (description == NULL)
-    description = STRDUP(_("No description supplied."));
-  
-  /* if a directory, add mimetype as key unless forbidden */
-  if (strcmp(mimetype,GNUNET_DIRECTORY_MIME)==0 &&
-      !testConfigurationString("GNUNET-INSERT",
-                               "ADDITIONAL-RBLOCKS",
-                               "NO")) {
-      GROW(topKeywords,
-           topKeywordCnt,
-           topKeywordCnt+1);
-      topKeywords[topKeywordCnt-1] = STRDUP(GNUNET_DIRECTORY_MIME);
-  }
-
-  /* if fileNameCount == 1, add RBlocks for all keywords */
-  if ( fileNameCount == 1) {
-    r = createRootNode(&fid,
-		       description,
-		       shortFN,
-		       mimetype);
-    for (i=0;i<gloKeywordCnt;i++) {
-      insertRBlock(sock, 
-		   r, 
-		   gloKeywords[i]);    
-      printf(_("Inserting file '%s' (%s, %s) under keyword '%s'.\n"),
-	     shortFN, description, mimetype, gloKeywords[i]);
-    }
-    for (i=0;i<topKeywordCnt;i++) {
-      insertRBlock(sock,
-		   r,
-		   topKeywords[i]);    
-      printf(_("Inserting file '%s' (%s, %s) under keyword '%s'.\n"),
-	     shortFN, description, mimetype, topKeywords[i]);
-    }
-#if USE_LIBEXTRACTOR
-    if (! testConfigurationString("GNUNET-INSERT",
-				  "ADDITIONAL-RBLOCKS",
-				  "NO") )
-      for (i=0;i<num_keywords;i++) {
-	insertRBlock(sock,
-		     r,
-		     keywords[i]);    
-	printf(_("Inserting file '%s' (%s, %s) under keyword '%s'.\n"),
-	       shortFN, description, mimetype, keywords[i]);
-      }
-#endif
-    FREE(r);
-  }
-
-  /* if SBlock and == 1 file, create SBlock */
-  if ( (pseudonym != NULL) &&
-       (fileNameCount == 1) ) {
-    HashCode160 thisId;
-    HashCode160 nextId;
-    char * hx;
-    char * prevname;
-    SBlock * sb;
-    TIME_T creationTime;
-    TIME_T now;
-    char * timestr;
-   
     timestr = getConfigurationString("GNUNET-INSERT",
                     		     "INSERTTIME");
-    if(timestr != NULL) {
+    if (timestr != NULL) {
       struct tm t;
-
-      if((NULL == strptime(timestr, "%j-%m-%Y %R", &t))) {
+      if ((NULL == strptime(timestr, 
+			    "%j-%m-%Y %R", 
+			    &t))) {
 	LOG_STRERROR(LOG_FATAL, "strptime");
         errexit(_("Parsing time failed. Use 'DD-MM-YY HH:MM' format.\n"));
       }
-      now = mktime(&t);
       FREE(timestr);
-      /* On my system, the printed time is in advance +1h 
-	 to what was specified? -- It is in UTC! */
-      timestr = GN_CTIME(&now);
-      LOG(LOG_DEBUG, 
-          "Read time %s.\n", 
-	  timestr);
-      FREE(timestr);
-    } else {
-      /* use current time */
-      TIME(&now);
     }
-
+    
     prevname = getConfigurationString("GNUNET-INSERT",
     				      "PREVIOUS_SBLOCK");
-    if(prevname != NULL) {
+    if (prevname != NULL) {
       /* options from the previous sblock override */
-      SBlock pb; 	
       PublicKey pkey;
       
       if (sizeof(SBlock) != readFile(prevname,
@@ -843,14 +616,297 @@ int main(int argc, char ** argv) {
         errexit(_("Verification of SBlock in file '%s' failed\n"), 
 		prevname);
       }
+      FREE(prevname);
       interval = ntohl(pb.updateInterval);
 
-      /* now, compute CURRENT ID and next ID */
+      if (interval == SBLOCK_UPDATE_NONE) 
+	errexit(_("Trying to update nonupdatable SBlock.\n")); 
+    }
+  }
+#if USE_LIBEXTRACTOR
+  if (testConfigurationString("GNUNET-INSERT",
+			      "EXTRACT-KEYWORDS",
+			      "NO") &&
+      testConfigurationString("GNUNET-INSERT",
+			      "ADDITIONAL-RBLOCKS",
+			      "NO") )
+    printf(_("Option '%s' is implied by option '%s'.\n"),
+	   "-X", "-x");
+  extractors = getExtractors();
+#endif
+  
+  /* fixme: other sanity checks here? */
+
+
+  
+  /* fundamental init */
+  sock = getClientSocket();
+  if (sock == NULL)
+    errexit(_("Could not connect to gnunetd.\n"));
+
+  
+  /* first insert all of the top-level files or directories */
+  roots = MALLOC(sizeof(RootNode) * fileNameCount);
+  skip = 0; /* number of failed insertions... */
+  for (i=0;i<fileNameCount;i++) {
+    fileName = expandFileName(fileNames[i]);
+    r = insertRecursively(sock,
+			  fileName,
+			  &fid,
+			  (const char**) gloKeywords,
+			  gloKeywordCnt,
+#if USE_LIBEXTRACTOR
+			  extractors,
+#else
+			  NULL,
+#endif
+			  &printstatus,
+			  &verbose,
+			  (InsertWrapper)&doFile,
+			  &verbose);    
+    if (r != NULL) {
+      roots[i-skip] = *r;
+      FREE(r);
+    } else {
+      FREE(fileNames[i]);
+      for (j=i;j<fileNameCount-1;j++)
+	fileNames[j] = fileNames[j+1];
+      skip++;
+    }
+    FREE(fileName);
+  }
+  GROW(roots,
+       fileNameCount,
+       fileNameCount - skip);
+
+  /* if build directory option given and we have more than one file,
+     build directory and reduce to directory containing these files */
+  if ( (fileNameCount > 1) &&
+       testConfigurationString("GNUNET-INSERT",
+			       "BUILDDIR",
+			       "YES") ) {
+    fileName = getConfigurationString("GNUNET-INSERT",
+				      "FILENAMEROOT");
+    if (fileName == NULL)
+      fileName = STRDUP(_("no filename specified"));
+    i = insertDirectory(sock,
+			fileNameCount,
+			roots,
+			fileName,
+			&fid,
+			&printstatus,
+			&verbose);
+    for (j=0;j<fileNameCount;j++)
+      FREE(fileNames[j]);
+    if (i == SYSERR) {
+      /* oops */
+      GROW(fileNames,	   
+	   fileNameCount,
+	   0); 
+      FREE(roots);
+      roots = NULL;
+    } else { 
+      GROW(fileNames,	   
+	   fileNameCount,
+	   1); 
+      fileNames[0] = STRDUP(fileName);
+      if (testConfigurationString("GNUNET-INSERT",
+				  "PRINTURL",
+				  "YES")) {
+	char * fstring;
+	fstring = createFileURI(&fid);	
+	printf("%s\n",
+	       fstring);
+	FREE(fstring);
+      }
+      if (verbose == YES) {
+	char * fstring;
+	fstring = createFileURI(&fid);	
+	printf(_("Directory %s successfully indexed -- %s\n"),
+	       fileName,
+	       fstring);
+	FREE(fstring);
+      }    
+      description = getConfigurationString("GNUNET-INSERT",
+					   "DESCRIPTION");
+      if (description == NULL)
+        description = STRDUP("No description supplied.");
+      r = buildDirectoryRBlock(sock,
+			       &fid,
+			       fileName,
+			       description,
+			       (const char**) gloKeywords,
+			       gloKeywordCnt);
+      FREE(description);
+      GROW(roots,
+	   fileNameCount, 
+	   1);
+      roots[0] = *r;
+      FREE(r);
+      FREENONNULL(setConfigurationString("GNUNET-INSERT",
+					 "MIMETYPE",
+					 GNUNET_DIRECTORY_MIME));
+    }
+    FREE(fileName);
+  }
+
+
+  /* create and insert RBlocks for all "-k", "-K" and LE keywords */
+  for (i=0;i<fileNameCount;i++) {
+#if USE_LIBEXTRACTOR
+    char ** keywords = NULL;
+    int num_keywords = 0;
+#endif
+
+    fileName = expandFileName(fileNames[i]);
+
+    if (! testConfigurationString("GNUNET-INSERT",
+				  "BUILDDIR",
+				  "YES")) {
+      shortFN = getConfigurationString("GNUNET-INSERT",
+				       "FILENAMEROOT");
+      if ( (fileNameCount > 1) &&
+	   (shortFN != NULL) &&
+	   (i == 0) ) {
+	LOG(LOG_WARNING,
+	    _("Filename (option '%s') specified but multiple files given on the command line and not building directory.  Will use the same filename for multiple files."),
+	    "-f");
+      }
+      if ( (shortFN == NULL) && (fileName != NULL)) {
+	shortFN = &fileName[strlen(fileName)-1];
+	while ( (shortFN[-1] != DIR_SEPARATOR) &&
+		(shortFN != fileName) )
+	  shortFN--;
+	shortFN = STRDUP(shortFN);
+      }
+    } else {
+      shortFN = &fileName[strlen(fileName)-1];
+      while ( (shortFN[-1] != DIR_SEPARATOR) &&
+	      (shortFN != fileName) )
+	shortFN--;
+      shortFN = STRDUP(shortFN);      
+    }
+
+    mimetype = getConfigurationString("GNUNET-INSERT",
+				      "MIMETYPE");
+    description = getConfigurationString("GNUNET-INSERT",
+					 "DESCRIPTION");
+#if USE_LIBEXTRACTOR
+    extractKeywordsMulti(fileName,
+			 &description,
+			 &mimetype,
+			 &keywords,
+			 &num_keywords,
+			 extractors);
+#endif   
+    if (mimetype == NULL)
+      mimetype = STRDUP("unknown");
+    if (description == NULL)
+      description = STRDUP("No description supplied.");  
+
+    r = createRootNode(&roots[i].header.fileIdentifier,
+		       description,
+		       shortFN,
+		       mimetype);
+
+    /* if a directory, add mimetype as key unless forbidden */
+    if ( (! testConfigurationString("GNUNET-INSERT",
+				    "ADDITIONAL-RBLOCKS",
+				    "NO")) &&
+	 (0 != strcmp(mimetype, "unknown")) ) {
+      insertRBlock(sock,
+		   r,
+		   mimetype);
+      printf(_("Inserting file '%s' (%s, %s) under keyword '%s'.\n"),
+	     shortFN, description, mimetype, mimetype);
+    }
+
+#if USE_LIBEXTRACTOR
+    for (j=0;j<num_keywords;j++) {
+      insertRBlock(sock,
+		   r,
+		   keywords[j]);    
+      printf(_("Inserting file '%s' (%s, %s) under keyword '%s'.\n"),
+	     shortFN, description, mimetype, keywords[j]);
+    }
+    for (j=0;j<num_keywords;j++) 
+      FREE(keywords[j]);
+    GROW(keywords, num_keywords, 0);    
+#endif
+    for (j=0;j<gloKeywordCnt;j++) {
+      insertRBlock(sock, 
+		   r, 
+		   gloKeywords[j]);    
+      printf(_("Inserting file '%s' (%s, %s) under keyword '%s'.\n"),
+	     shortFN, description, mimetype, gloKeywords[j]);
+    }
+    for (j=0;j<topKeywordCnt;j++) {
+      insertRBlock(sock,
+		   r,
+		   topKeywords[j]);    
+      printf(_("Inserting file '%s' (%s, %s) under keyword '%s'.\n"),
+	     shortFN, description, mimetype, topKeywords[j]);
+    }
+    FREE(r);
+    FREE(shortFN);
+    FREE(fileName);
+    FREE(mimetype);
+    FREE(description);
+  } /* end top-level processing for all files (for i=0;i<fileNameCount;i++) */
+
+
+
+  /* if SBlock requested and just one file left here, create SBlock */
+  if (pseudonym != NULL) {
+    HashCode160 thisId;
+    HashCode160 nextId;
+    char * hx;
+    SBlock * sb;
+    TIME_T creationTime;
+    TIME_T now;
+
+    GNUNET_ASSERT(fileNameCount == 1);
+    shortFN = getConfigurationString("GNUNET-INSERT",
+				     "FILENAME");
+    if ( (shortFN == NULL) && (fileName != NULL)) {
+      shortFN = &fileName[strlen(fileName)-1];
+      while ( (shortFN[-1] != DIR_SEPARATOR) &&
+	      (shortFN != fileName) )
+	shortFN--;
+      shortFN = STRDUP(shortFN);
+    }  
+    timestr = getConfigurationString("GNUNET-INSERT",
+                    		     "INSERTTIME");
+    if (timestr != NULL) {
+      struct tm t;
+
+      /* we can assert here: input was verified earlier! */
+      GNUNET_ASSERT(NULL != strptime(timestr, "%j-%m-%Y %R", &t));
+      now = mktime(&t);
+      FREE(timestr);
+      /* On my system, the printed time is in advance +1h 
+	 to what was specified? -- It is in UTC! */
+      timestr = GN_CTIME(&now);
+      LOG(LOG_DEBUG, 
+          "Read time '%s'.\n", 
+	  timestr);
+      FREE(timestr);
+    } else {
+      /* use current time */
+      TIME(&now);
+    }
+
+    /* determine update frequency / policy */
+    prevname = getConfigurationString("GNUNET-INSERT",
+    				      "PREVIOUS_SBLOCK");
+    if (prevname != NULL) {
+      FREE(prevname);
+      /* now, compute CURRENT ID and next ID from SBlock 'pb' */
       computeIdAtTime(&pb,
       	              now,
 		      &thisId); 
-      if ( (interval != SBLOCK_UPDATE_NONE) &&
-           (interval != SBLOCK_UPDATE_SPORADIC) ) {  
+      /* interval was read and verified earlier... */
+      if (interval != SBLOCK_UPDATE_SPORADIC) {  
         int delta;
 	
         /* periodic update */
@@ -864,22 +920,18 @@ int main(int argc, char ** argv) {
         addHashCodes(&thisId,
 		     &pb.identifierIncrement,
 		     &nextId); /* n = k + inc */
-      } else {
+      } else { /* interval == SBLOCK_UPDATE_SPORADIC */
         creationTime = now;
-        if (interval == SBLOCK_UPDATE_SPORADIC) {
-          LOG(LOG_DEBUG,
-              "Sporadic update in sblock.\n");
-          hx = getConfigurationString("GNUNET-INSERT",
-                                      "NEXTHASH");
-          if (hx == NULL) {
-            makeRandomId(&nextId);
-          } else {
-            tryhex2hashOrHashString(hx, &nextId);
-            FREE(hx);
-          }
-        } else {
-          errexit(_("Trying to update nonupdatable SBlock.\n"));
-        }
+	LOG(LOG_DEBUG,
+	    "Sporadic update in sblock.\n");
+	hx = getConfigurationString("GNUNET-INSERT",
+				    "NEXTHASH");
+	if (hx == NULL) {
+	  makeRandomId(&nextId);
+	} else {
+	  tryhex2hashOrHashString(hx, &nextId);
+	  FREE(hx);
+	}
       }
     } else {
       /* no previous sblock specified */
@@ -916,6 +968,7 @@ int main(int argc, char ** argv) {
         interval = SBLOCK_UPDATE_SPORADIC;
     }
   
+    /* finally we can create the SBlock */
     sb = buildSBlock(pseudonym,
 		     &fid,
 		     description,
@@ -926,16 +979,13 @@ int main(int argc, char ** argv) {
 		     &thisId,
 		     &nextId);
     freeHostkey(pseudonym);
-    hash2hex(&thisId,
-	     &hex1);
     hash(&sb->subspace,
 	 sizeof(PublicKey),
 	 &hc);
-    hash2hex(&hc,
-	     &hex2);
     if (OK == insertSBlock(sock,
 			   sb)) {
       char * outname;
+      char * uri;
       
       outname = getConfigurationString("GNUNET-INSERT",
       				       "OUTPUT_SBLOCK");
@@ -950,22 +1000,25 @@ int main(int argc, char ** argv) {
 		  sizeof(SBlock),
 		  "600");
 	FREE(outname);
-      }     
-      /* FIXME: until URI is decided for sblocks, stick to SPACE KEY -format */
+      } 
+      uri = createSubspaceURI(&hc,
+			      &thisId);
       printf(_("File '%s' (%s, %s) successfully inserted into namespace under\n"
-	       "  %s %s\n"),
-	     shortFN, description, mimetype,
-	     (char*)&hex2,
-	     (char*)&hex1);
-    } else
+	       "\t'%s'\n"),
+	     shortFN,
+	     description, 
+	     mimetype,
+	     uri);
+      FREE(uri);
+    } else {
       printf(_("Insertion of file into namespace failed.\n"));
+    }
     FREE(sb);
+    FREE(shortFN);
   }
 
+  /* shutdown */
 #if USE_LIBEXTRACTOR
-  for (i=0;i<num_keywords;i++) 
-    FREE(keywords[i]);
-  GROW(keywords, num_keywords, 0);
   EXTRACTOR_removeAll(extractors);
 #endif
   for (i=0;i<fileNameCount+skip;i++)
@@ -980,7 +1033,7 @@ int main(int argc, char ** argv) {
   GROW(gloKeywords, gloKeywordCnt, 0);
   FREE(mimetype);
   FREE(description);
-  FREE(shortFN);
+  FREE(roots);
   releaseClientSocket(sock); 
   doneUtil();
   return 0;

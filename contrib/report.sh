@@ -53,7 +53,7 @@ fi
 TEST=`$WHICH autoconf 2>/dev/null`
 if test -n "$TEST"; then
   autoconf --version |\
-    head -1 |\
+    head -n 1 |\
     awk '{\
 	if (length($4) == 0) {\
 		print "autoconf       : "$3\
@@ -67,7 +67,7 @@ fi
 TEST=`$WHICH automake 2>/dev/null`
 if test -n "$TEST"; then
   automake --version 2>/dev/null |\
-    head -1 |\
+    head -n 1 |\
     awk '{print "automake       : "$4}'
 else
   echo "automake       : Not Found"
@@ -76,7 +76,7 @@ fi
 TEST=`$WHICH libtool 2>/dev/null`
 if test -n "$TEST"; then
   libtool --version 2>/dev/null |\
-    head -1 |\
+    head -n 1 |\
     awk '{print "libtool        : "$4}'
 else
   echo "libtool        : Not Found"
@@ -85,7 +85,7 @@ fi
 TEST=`$WHICH extract 2>/dev/null`
 if test -n "$TEST"; then
   extract -v 2>/dev/null |\
-    head -1 |\
+    head -n 1 |\
     awk '{print "libextractor   : "$2}'
 else
   echo "libextractor   : Not Found"
@@ -126,10 +126,19 @@ fi
 TEST=`$WHICH glib-config 2> /dev/null`
 if test -n "$TEST"; then
   glib-config --version 2> /dev/null | \
-    awk '{print "glib           : "$1}'
+    awk '{print "glib1          : "$1}'
 else
-  echo "glib           : Not Found"
+  echo "glib1          : Not Found"
 fi
+
+#TEST=`$WHICH glib-config2 2> /dev/null`
+if test -n "$TEST"; then
+  pkg-config --modversion glib-2.0 2> /dev/null | \
+    awk '{print "glib2          : "$1}'
+else
+  echo "glib2          : Not Found"
+fi
+
 
 TEST=`$WHICH gtk-config 2> /dev/null`
 if test -n "$TEST"; then
@@ -139,12 +148,33 @@ else
   echo "gtk+           : Not Found"
 fi
 
-TEST=`$WHICH rpm 2> /dev/null`
+
+TEST=`$WHICH gtk-config 2> /dev/null`
 if test -n "$TEST"; then
-  rpm -q gmp | sed -e "s/gmp-//" 2> /dev/null | \
-    awk '{print "GMP            : "$1}'
+  pkg-config --modversion gtk+-2.0 2> /dev/null | \
+    awk '{print "gtk2+          : "$1}'
 else
-  echo "GMP            : Test not available"
+  echo "gtk2+          : Not Found"
+fi
+
+TEST=`$WHICH dpkg 2> /dev/null`
+if test -n "$TEST"; then
+  LINES=`dpkg -s libgmp3-dev | grep Version | wc -l`
+  if test "$LINES" == "1"
+  then
+    VERSION=`dpkg -s libgmp3-dev | grep Version | awk '{print $2}'`
+    echo "GMP            : libgmp3-dev-$VERSION.deb"
+  else
+    echo "GMP            : dpkg: libgmp3-dev not installed"
+  fi
+else
+  TEST=`$WHICH rpm 2> /dev/null`
+  if test -n "$TEST"; then
+    rpm -q gmp | sed -e "s/gmp-//" 2> /dev/null | \
+      awk '{print "GMP            : "$1.rpm}'
+  else
+    echo "GMP            : Test not available"
+  fi
 fi
 
 TEST=`$WHICH gettext 2> /dev/null`

@@ -166,13 +166,12 @@ int main(int argc, char * argv[]) {
   HashCode160 in;
   Hostkey hostkey;
 
-  initRAND();  
-  initStatistics();
- 
-  makeRandomId(&in);
-#if ! USE_OPENSSL
+#if USE_GCRYPT
   initLockingGcrypt();
 #endif
+  initRAND();  
+  initStatistics(); 
+  makeRandomId(&in);
 
   hostkey = makeKblockKey(&in);
   if (hostkey == NULL) {

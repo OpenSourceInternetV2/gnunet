@@ -262,7 +262,6 @@ static int processHelper(CS_HEADER * msg,
 	ptyp, 
 	max_registeredType);
     MUTEX_UNLOCK(&handlerlock);
-    terminateClientConnection(sender);
     return SYSERR;
   }
   callback = handlers[ptyp];
@@ -342,9 +341,7 @@ static int readAndProcess(ClientHandle handle) {
 	 &handle->readBuffer[len],
 	 handle->readBufferPos - len);
   handle->readBufferPos -= len;	   
-  if (ret == SYSERR)
-    terminateClientConnection(handle);
-  return OK;
+  return ret;
 }
 
 /**

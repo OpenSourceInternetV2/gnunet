@@ -26,20 +26,20 @@ libgnunetdht_datastore_memory_la_LDFLAGS = \
 
 
 check_PROGRAMS = \
-  datastore_memory_test \
-  dht_test
+  datastore_memory_test
+# dht_test
 
 TESTS = $(check_PROGRAMS)
 
 datastore_memory_test_SOURCES = \
   datastore_memory_test.c
 datastore_memory_test_LDADD = \
+  $(top_builddir)/src/applications/dht/module/libgnunetdht_datastore_memory.la \
   $(top_builddir)/src/util/libgnunetutil.la 
 
 
-dht_test_SOURCES = \
-  dht_test.c
-dht_test_LDADD = \
-  $(top_builddir)/src/applications/rpc/libgnunetrpc_protocol.la \
-  $(top_builddir)/src/applications/dht/module/libgnunetdht_protocol.la \
-  $(top_builddir)/src/util/libgnunetutil.la 
+#dht_test_SOURCES = \
+#  dht_test.c
+#dht_test_LDADD = \
+#  $(top_builddir)/src/applications/rpc/libgnunetrpc_protocol.la \
+#  $(top_builddir)/src/util/libgnunetutil.la 

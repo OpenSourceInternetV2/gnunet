@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -21,7 +21,7 @@
 /**
  * @file applications/tracekit/tracekit.h
  * @author Christian Grothoff
- **/
+ */
 
 #ifndef TRACEKIT_H
 #define TRACEKIT_H
@@ -33,28 +33,28 @@ typedef struct {
 
   /**
    * When was this probe started? (NBO)
-   **/
+   */
   TIME_T timestamp;
   
   /**
    * How many more hops should this probe go (NBO)
-   **/
+   */
   unsigned int hopsToGo;
 
   /**
    * How important is the probe for the sender? (NBO)
-   **/
+   */
   unsigned int priority;
 
   /**
    * Internal client id of the sender.
-   **/
-  int clientId;
+   */
+  unsigned int clientId;
 
   /**
    * Which peer is the ultimate receiver of this
    * information?
-   **/
+   */
   HostIdentity initiatorId;
 
 } TRACEKIT_p2p_PROBE;
@@ -65,25 +65,25 @@ typedef struct {
   /**
    * Which peer is the ultimate receiver of this
    * information?
-   **/
+   */
   HostIdentity initiatorId;
 
   /**
    * Which peer is the ultimate responder responsible
    * for sending this reply?
-   **/
+   */
   HostIdentity responderId;
   
   /**
    * At what time was the initator sending the
    * request?
-   **/
+   */
   TIME_T initiatorTimestamp;
 
   /**
    * Internal client Id of the sender.
-   **/
-  int clientId;
+   */
+  unsigned int clientId;
 
 } TRACEKIT_p2p_REPLY;
 
@@ -93,7 +93,7 @@ typedef struct {
   /**
    * List of peers that the responder is
    * currently connected to.
-   **/
+   */
   HostIdentity peerList[1];
 } TRACEKIT_p2p_REPLY_GENERIC;
   
@@ -103,12 +103,12 @@ typedef struct {
 
   /**
    * How many more hops should this probe go (NBO)
-   **/
+   */
   unsigned int hops;
 
   /**
    * How important is the probe for the sender? (NBO)
-   **/
+   */
   unsigned int priority;
 } TRACEKIT_CS_PROBE;
 
@@ -118,7 +118,7 @@ typedef struct {
   /**
    * Which peer is the ultimate responder responsible
    * for sending this reply?
-   **/
+   */
   HostIdentity responderId;
   
 } TRACEKIT_CS_REPLY;
@@ -129,7 +129,7 @@ typedef struct {
   /**
    * List of peers that the responder is
    * currently connected to.
-   **/
+   */
   HostIdentity peerList[1];
 } TRACEKIT_CS_REPLY_GENERIC;
 

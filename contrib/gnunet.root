@@ -60,14 +60,14 @@ LOGLEVEL        = WARNING
 # nothing, logs are written to stderr (and note that if gnunetd runs
 # in the background, stderr is closed and all logs are discarded).
 # Default: LOGFILE         = $GNUNETD_HOME/logs
-LOGFILE         = /var/log/gnunetd.log
+LOGFILE         = $GNUNETD_HOME/logs
 
 # In which file should gnunetd write the process-id of the server?  If
 # you run gnunetd as root, you may want to choose
 # /var/run/gnunetd.pid. It's not the default since gnunetd may not
 # have write rights at that location.
 # Default: PIDFILE         = $GNUNETD_HOME/gnunetd.pid
-PIDFILE         = /var/run/gnunetd.pid
+PIDFILE         = $GNUNETD_HOME/gnunetd.pid
 
 # This directory should be made available periodically --- it contains
 # information how to join GNUnet that is in no way private to the
@@ -98,7 +98,7 @@ HOSTS   	= $GNUNETD_HOME/data/hosts/
 # If you do not specify a HOSTLISTURL, you must copy valid hostkeys to
 # data/hosts manually.
 # Default: HOSTLISTURL = "http://www.ovmj.org/GNUnet/download/hostlist http://www.woodtick.co.uk/hostlist"
-HOSTLISTURL = "http://www.ovmj.org/GNUnet/download/hostlist http://www.woodtick.co.uk/hostlist"
+HOSTLISTURL = "http://www.ovmj.org/GNUnet/download/hostlist http://gnunet.wensley.org.uk/hostlist"
 
 # If you have to use a proxy for outbound HTTP connections,
 # specify the proxy configuration here.  Default is no proxy.

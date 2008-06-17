@@ -1,12 +1,11 @@
 Primary developers (at the moment):
-Blake Matheny <bmatheny@purdue.edu>
 Christian Grothoff <christian@grothoff.org>
 Glenn McGrath <bug1@iinet.net.au>
 Igor Wronsky <iwronsky@users.sourceforge.net>
-Krista Bennett <kbennett@cerias.purdue.edu>
 Nils Durner <N.Durner@t-online.de>
 
 Code contributions also came from:
+Blake Matheny <bmatheny@purdue.edu>
 Eric Haumant
 Gerd Knorr <kraxel@bytesex.org>
 Hendrik Pagenhardt <Hendrik.Pagenhardt@gmx.net>
@@ -14,6 +13,7 @@ Ioana Patrascu <ioanapatrascu@yahoo.com>
 <january@hushmail.com>
 James Blackwell <jblack@linuxguru.net>
 Jürgen Appel <jappel@linux01.gwdg.de>
+Krista Bennett <kbennett@cerias.purdue.edu>
 Larry Waldo
 Ludovic Courtès <ludo@chbouib.org>
 Paul Ruth <ruth@cs.purdue.edu>
@@ -48,4 +48,4 @@ AFS Face    : Alex Jones <alexrjones@ntlworld.com>
 
 Maintainers:
 FreeBSD Port - Kirill Ponomarew <ponomarew@oberon.net>
-Debian Package - Glenn McGrath <bug1@iinet.net.au>
+Debian Package - Daniel Baumann <daniel.baumann@panthera-systems.net> and Arnaud Kyheng <Arnaud.Kyheng@free.fr> 

@@ -171,20 +171,19 @@ void doneLockingGcrypt();
 int main(int argc, char * argv[]) {
   int failureCount = 0;
 
-  initRAND();  
-  initStatistics();
- 
-#if ! USE_OPENSSL
+#if USE_GCRYPT
   initLockingGcrypt();
 #endif
- if (OK != testEncryptDecrypt())
+  initRAND();  
+  initStatistics(); 
+  if (OK != testEncryptDecrypt())
      failureCount++;
   if (OK != testSignVerify())
     failureCount++;       
   if (OK != testHostkeyEncoding()) 
     failureCount++;
   doneStatistics();
-#if ! USE_OPENSSL
+#if USE_GCRYPT
   doneLockingGcrypt();
 #endif
 

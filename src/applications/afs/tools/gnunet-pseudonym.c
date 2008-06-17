@@ -332,7 +332,7 @@ int main(int argc, char *argv[]) {
 	
 	memset(&k,0, sizeof(HashCode160));	
 	encryptSBlock(&k, 
-		      (const SBlock*) &info[i], 
+		      (const SBlock*) nblock,
 		      (SBlock*) &out);
 	if (OK != insertSBlock(sock,
 			       (const SBlock *) &out)) 

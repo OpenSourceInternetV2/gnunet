@@ -13,4 +13,4 @@ EXTRA_DIST = \
  junkinsert.sh \
  junklookup.sh \
  namespacehelper.sh \
- report.sh $(bin_SCRIPTS)
+ report.sh

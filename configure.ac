@@ -21,8 +21,8 @@
 #
 #
 AC_PREREQ(2.57)
-AC_INIT([GNUnet], [0.6.4],[bug-gnunet@gnu.org])
-AM_INIT_AUTOMAKE([GNUnet], [0.6.4])
+AC_INIT([GNUnet], [0.6.4a],[bug-gnunet@gnu.org])
+AM_INIT_AUTOMAKE([GNUnet], [0.6.4a])
 AM_CONFIG_HEADER([config.h])
 
 AH_TOP([#define _GNU_SOURCE  1])
@@ -151,43 +151,27 @@ then
 fi
 
 # openssl
-AC_MSG_CHECKING(for openssl)
-if test "$build_target" = "mingw" -o "$build_target" = "cygwin"
-then
-  check_openssl=1
-  AC_MSG_RESULT([yes])
-else
-  AC_ARG_WITH(crypto, 
-     [  --with-crypto=PFX       Base of OpenSSL installation],
-     [AC_MSG_RESULT("$with_crypto")
-      case $with_crypto in
-      no) check_openssl=0
-          ;;
-      *) check_openssl=1
-          ;;
-      esac],
-     [AC_MSG_RESULT([--with-crypto not specified, not using openssl])])   
-fi
-
 openssl=0
-if test "$check_openssl" = "1"
-then
-  case $with_crypto in
-  no) openssl=0
-      ;;
-  yes) AC_CHECK_LIB([crypto], [RSA_generate_key],
-        [AC_CHECK_HEADERS([openssl/rsa.h openssl/blowfish.h],
-         [AM_GNUNET_SSL_VERSION
-          openssl=1])])
-      ;;
-  *) LDFLAGS="$LDFLAGS -L$with_crypto/lib"
-     CPPFLAGS="$CPPFLAGS -I$with_crypto/include"
-     AC_CHECK_LIB([crypto], [RSA_generate_key],
-      [AC_CHECK_HEADERS([openssl/rsa.h openssl/blowfish.h], openssl=1)])
-      ;;
-  esac
-fi
-
+AC_ARG_WITH(crypto,
+  [  --with-crypto=PFX        Base of OpenSSL installation],
+  [AC_MSG_RESULT("$with_crypto")
+   case $with_crypto in
+   no) openssl=0
+       ;;
+   yes) AC_CHECK_LIB([crypto], [RSA_generate_key],
+         [AC_CHECK_HEADERS([openssl/rsa.h openssl/blowfish.h],
+          openssl=1)])
+       ;;
+   *) LDFLAGS="$LDFLAGS -L$with_crypto/lib"
+      CPPFLAGS="$CPPFLAGS -I$with_crypto/include"
+      AC_CHECK_LIB([crypto], [RSA_generate_key],
+       [AC_CHECK_HEADERS([openssl/rsa.h openssl/blowfish.h], 
+         openssl=1)])
+       ;;
+   esac],
+   [AC_CHECK_LIB([crypto], [RSA_generate_key],
+     [AC_CHECK_HEADERS([openssl/rsa.h openssl/blowfish.h],
+      openssl=1)])])
 
 if test $openssl == 0 
 then
@@ -423,7 +407,7 @@ AC_CHECK_LIB(nsl, gethostbyname)
 AC_CHECK_LIB(socket, socket)
 AC_CHECK_LIB(m, log)
 AC_CHECK_LIB(c, getloadavg, AC_DEFINE(HAVE_GETLOADAVG,1,[getloadavg supported]))
-AC_CHECK_LIB(gmp, __gmpz_set)
+AC_CHECK_LIB(gmp, __gmpz_set,, AC_MSG_ERROR([GNUnet requires the GNU MP library (libgmp)]))
 
 # check for gtk >= 2.0.0 (which version do we truely need? I use 2.4)
 AC_MSG_CHECKING(for gtk)
@@ -438,8 +422,15 @@ AM_GNU_GETTEXT([external])
 # Checks for standard header files.
 AC_HEADER_DIRENT
 AC_HEADER_STDC
-AC_CHECK_HEADERS([sys/mount.h sys/param.h sys/statvfs.h sys/vfs.h arpa/inet.h fcntl.h libintl.h limits.h netdb.h netinet/in.h stdlib.h string.h sys/ioctl.h sys/socket.h sys/time.h unistd.h kstat.h sys/sysinfo.h kvm.h gmp.h locale.h sys/file.h])
 
+# Check for headers that are ALWAYS required
+AC_CHECK_HEADERS([fcntl.h math.h errno.h limits.h stdio.h locale.h sys/stat.h sys/types.h pthread.h],,AC_MSG_ERROR([Compiling GNUnet requires standard UNIX headers files]))
+
+# Checks for headers that are only required on some systems or opional (and where we do NOT abort if they are not there)
+AC_CHECK_HEADERS([sys/mount.h sys/param.h sys/statvfs.h sys/vfs.h arpa/inet.h fcntl.h libintl.h netdb.h netinet/in.h sys/ioctl.h sys/socket.h sys/time.h unistd.h kstat.h sys/sysinfo.h kvm.h sys/file.h])
+
+# Check for GMP header (and abort if not present)
+AC_CHECK_HEADERS([gmp.h],,AC_MSG_ERROR([Compiling GNUnet requires gmp.h (from the GNU MP library, libgmp)]))
 
 
 # Checks for standard typedefs, structures, and compiler characteristics.
@@ -606,6 +597,12 @@ AC_OUTPUT
 if test "$mysqlfail" = "true"
 then
   AC_MSG_NOTICE([NOTICE: MySQL found, but too old. MySQL support will not be compiled.])
+fi
+
+# guile 
+if test "x$guile" = "x0"
+then
+  AC_MSG_NOTICE([NOTICE: Guile not found, gnunet-download-manager will not be installed.])
 fi
 
 if test "$ipv6" = "0"

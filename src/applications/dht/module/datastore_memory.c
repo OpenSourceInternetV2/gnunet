@@ -98,6 +98,7 @@ static int lookup(void * closure,
 		 results[i].dataLength);
 	}
       }
+      MUTEX_UNLOCK(&ds->lock);
       return count;
     }
     pos = pos->next;
@@ -145,8 +146,10 @@ static int store(void * closure,
 	  }
 	/* intentional fall-through!!! */
       case DHT_FLAGS__APPEND:
-	if (ds->max_memory < value->dataLength)
+	if (ds->max_memory < value->dataLength) {
+	  MUTEX_UNLOCK(&ds->lock);
 	  return DHT_ERRORCODES__OUT_OF_SPACE;	
+	}
 	ds->max_memory -= value->dataLength;
 	GROW(pos->values,
 	     pos->count,
@@ -160,8 +163,10 @@ static int store(void * closure,
 	return OK;
       case DHT_FLAGS__OVERWRITE:
 	if (ds->max_memory + pos->values[0].dataLength < 
-	    value->dataLength)
+	    value->dataLength) {
+	  MUTEX_UNLOCK(&ds->lock);
 	  return DHT_ERRORCODES__OUT_OF_SPACE;	
+	}
 	ds->max_memory -= value->dataLength - pos->values[0].dataLength;
 	FREE(pos->values[0].data);
 	pos->values[0].data = MALLOC(value->dataLength);
@@ -178,8 +183,10 @@ static int store(void * closure,
     pos = pos->next;
   }
   /* no key matched, create fresh entry */
-  if (ds->max_memory < sizeof(HT_Entry) + sizeof(DHT_DataContainer) + value->dataLength)
+  if (ds->max_memory < sizeof(HT_Entry) + sizeof(DHT_DataContainer) + value->dataLength) {
+    MUTEX_UNLOCK(&ds->lock);
     return DHT_ERRORCODES__OUT_OF_SPACE;
+  }
   ds->max_memory -= sizeof(HT_Entry) + sizeof(DHT_DataContainer) + value->dataLength;
 
   pos = MALLOC(sizeof(HT_Entry));
@@ -192,6 +199,7 @@ static int store(void * closure,
   memcpy(pos->values[0].data,
 	 value->data,
 	 value->dataLength);
+  pos->next = ds->first;
   ds->first = pos;
   MUTEX_UNLOCK(&ds->lock);
 
@@ -265,14 +273,12 @@ static int ds_remove(void * closure,
 	ds->max_memory += sizeof(HT_Entry);
       }
       MUTEX_UNLOCK(&ds->lock);
-
       return OK;
     }
     prev = pos;
     pos = pos->next;
   }
   MUTEX_UNLOCK(&ds->lock);
-
   return SYSERR; /* not found */
 }
 

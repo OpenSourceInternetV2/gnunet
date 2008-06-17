@@ -33,7 +33,7 @@
  */
 #define PROVIDE_RPC_TEST YES
 
-#define DEBUG_RPC NO
+#define DEBUG_RPC YES
 
 /**
  * Access to GNUnet core API.
@@ -83,26 +83,16 @@ static int RPC_register(const char *name,
 			RPC_Function callback) {
   RegisteredRPC * rrpc;
 
-  if (name == NULL) {
-    LOG(LOG_ERROR,
-	"%s called with name == NULL!\n",
-	__FUNCTION__);
-    return SYSERR;
-  }
-  if (callback == NULL) {
-    LOG(LOG_ERROR,
-	"%s called with callback == NULL!\n",
-	__FUNCTION__);
-    return SYSERR;
-  }
+  GNUNET_ASSERT(name != NULL);
+  GNUNET_ASSERT(callback != NULL);
   MUTEX_LOCK (&rpcLock);
   rrpc = vectorGetFirst(list_of_callbacks);
   while (rrpc != NULL) {
     if (0 == strcmp(rrpc->name, name)) {
       MUTEX_UNLOCK (&rpcLock);
       LOG(LOG_WARNING,
-	  "%s::%s - RPC %s:%p could not be registered:"
-	  " another callback is already using this name (%p)\n",
+	  _("%s::%s - RPC %s:%p could not be registered:"
+	    " another callback is already using this name (%p)\n"),
 	  __FILE__, __FUNCTION__, 
 	  name, callback, rrpc->callback);
       return SYSERR;
@@ -133,26 +123,16 @@ static int RPC_register_async(const char *name,
 			      ASYNC_RPC_Function callback) {
   RegisteredRPC * rrpc;
 
-  if (name == NULL) {
-    LOG(LOG_ERROR,
-	"%s called with name == NULL!\n",
-	__FUNCTION__);
-    return SYSERR;
-  }
-  if (callback == NULL) {
-    LOG(LOG_ERROR,
-	"%s called with callback == NULL!\n",
-	__FUNCTION__);
-    return SYSERR;
-  }
+  GNUNET_ASSERT(name != NULL);
+  GNUNET_ASSERT(callback != NULL);
   MUTEX_LOCK (&rpcLock);
   rrpc = vectorGetFirst(list_of_callbacks);
   while (rrpc != NULL) {
     if (0 == strcmp(rrpc->name, name)) {
       MUTEX_UNLOCK (&rpcLock);
       LOG(LOG_WARNING,
-	  "%s::%s - RPC %s:%p could not be registered:"
-	  " another callback is already using this name (%p)\n",
+	  _("%s::%s - RPC %s:%p could not be registered:"
+	    " another callback is already using this name (%p)\n"),
 	  __FILE__, __FUNCTION__, 
 	  name, callback, rrpc->callback);
       return SYSERR;
@@ -185,12 +165,7 @@ static int RPC_unregister(const char *name,
 			  RPC_Function callback) {
   RegisteredRPC * rrpc;
 
-  if (name == NULL) {
-    LOG(LOG_ERROR,
-	"%s called with name == NULL!\n",
-	__FUNCTION__);
-    return SYSERR;
-  }
+  GNUNET_ASSERT(name != NULL);
   MUTEX_LOCK(&rpcLock);
   rrpc = vectorGetFirst(list_of_callbacks);
   while (rrpc != NULL) {
@@ -198,8 +173,8 @@ static int RPC_unregister(const char *name,
       if ( (rrpc->callback != callback) &&
 	   (callback != NULL) ) {
 	LOG(LOG_WARNING,
-	    "%s::%s - RPC %s:%p could not be unregistered:"
-	    " another callback registered under that name: %p\n",
+	    _("%s::%s - RPC %s:%p could not be unregistered:"
+	      " another callback registered under that name: %p\n"),
 	    __FILE__, __FUNCTION__, 
 	    name, callback, rrpc->callback);		
 	MUTEX_UNLOCK (&rpcLock);
@@ -219,7 +194,7 @@ static int RPC_unregister(const char *name,
   }
   MUTEX_UNLOCK(&rpcLock);
   LOG(LOG_WARNING,
-      "%s::%s - RPC %s:%p could not be unregistered: not found\n",
+      _("%s::%s - RPC %s:%p could not be unregistered: not found\n"),
       __FILE__, __FUNCTION__, 
       name, callback);
   return SYSERR; 
@@ -237,12 +212,7 @@ static int RPC_unregister_async(const char *name,
 				ASYNC_RPC_Function callback) {
   RegisteredRPC * rrpc;
 
-  if (name == NULL) {
-    LOG(LOG_ERROR,
-	"%s called with name == NULL!\n",
-	__FUNCTION__);
-    return SYSERR;
-  }
+  GNUNET_ASSERT(name != NULL);
   MUTEX_LOCK(&rpcLock);
   rrpc = vectorGetFirst(list_of_callbacks);
   while (rrpc != NULL) {
@@ -250,8 +220,8 @@ static int RPC_unregister_async(const char *name,
       if ( (rrpc->async_callback != callback) &&
 	   (callback != NULL) ) {
 	LOG(LOG_WARNING,
-	    "%s::%s - RPC %s:%p could not be unregistered:"
-	    " another callback registered under that name: %p\n",
+	    _("%s::%s - RPC %s:%p could not be unregistered:"
+	      " another callback registered under that name: %p\n"),
 	    __FILE__, __FUNCTION__, 
 	    name, callback, rrpc->callback);		
 	MUTEX_UNLOCK (&rpcLock);
@@ -271,7 +241,7 @@ static int RPC_unregister_async(const char *name,
   }
   MUTEX_UNLOCK(&rpcLock);
   LOG(LOG_WARNING,
-      "%s::%s - async RPC %s:%p could not be unregistered: not found\n",
+      _("%s::%s - async RPC %s:%p could not be unregistered: not found\n"),
       __FILE__, __FUNCTION__, 
       name, callback);
   return SYSERR; 
@@ -818,7 +788,7 @@ static void async_rpc_complete_callback(RPC_Param * results,
  * reply.
  */
 static int handleRPCMessageReq(const HostIdentity *sender,
-			       const p2p_HEADER *message) {
+			       const p2p_HEADER * message) {
   RPC_Message * req;
   CallInstance * calls;
   unsigned int sq;
@@ -835,7 +805,7 @@ static int handleRPCMessageReq(const HostIdentity *sender,
   if ( (ntohs(message->requestType) != RPC_p2p_PROTO_REQ) ||
        (ntohs(message->size) < sizeof(RPC_Message)) ) {
     LOG (LOG_WARNING, 
-	 "Invalid message of type %u received.  Dropping.\n",
+	 _("Invalid message of type %u received.  Dropping.\n"),
 	 ntohs(message->requestType));
     return SYSERR;
   }
@@ -938,7 +908,7 @@ static int handleRPCMessageRes(const HostIdentity * sender,
   if ( (ntohs(message->requestType) != RPC_p2p_PROTO_RES) ||
        (ntohs(message->size) < sizeof(RPC_Message)) ) {
     LOG(LOG_WARNING,
-	"Invalid message of type %u received.  Dropping.\n",
+	_("Invalid message of type %u received.  Dropping.\n"),
 	ntohs(message->requestType));
     return SYSERR;
   }
@@ -1018,7 +988,7 @@ static int handleRPCMessageAck(const HostIdentity *sender,
   if ( (ntohs(message->requestType) != RPC_p2p_PROTO_ACK) ||
        (ntohs(message->size) != sizeof(RPC_ACK_Message)) ) {
     LOG (LOG_WARNING,
-	 "Invalid message of type %u received.  Dropping.\n",
+	 _("Invalid message of type %u received.  Dropping.\n"),
          ntohs (message->requestType));
     return SYSERR;
   }
@@ -1216,12 +1186,16 @@ static RPC_Record * RPC_start(const HostIdentity * receiver,
  */
 static int RPC_stop(RPC_Record * record) {
   int ret; 
+  int cronRunning;
 
-  suspendCron();
+  cronRunning = isCronRunning();
+  if (cronRunning)
+    suspendIfNotCron();
   delCronJob((CronJob) &retryRPCJob,
 	     0,
 	     record->call);
-  resumeCron();
+  if (cronRunning)
+    resumeIfNotCron();
   MUTEX_LOCK(&rpcLock);
   if (NULL != vectorRemoveObject(outgoingCalls, record->call)) {
     FREE(record->call->msg);
@@ -1312,7 +1286,7 @@ RPC_ServiceAPI * provide_rpc_protocol(CoreAPIForApplication * capi) {
   outgoingCalls = vectorNew(16);
   list_of_callbacks = vectorNew(16);
   LOG(LOG_DEBUG, 
-      " RPC registering handlers: "
+      "RPC registering handlers: "
       "%d %d %d\n",
       RPC_p2p_PROTO_REQ,
       RPC_p2p_PROTO_RES,
@@ -1389,7 +1363,7 @@ static void async_RPC_Complete_callback(RPC_Param * results,
        (strncmp("Hello RPC World",
 		reply, dl) != 0) ) {
     LOG(LOG_WARNING,
-	"RPC async reply invalid.\n");
+	_("RPC async reply invalid.\n"));
   } else
     LOG(LOG_DEBUG,
 	"RPC async reply received.\n");
@@ -1460,7 +1434,7 @@ int initialize_rpc_protocol(CoreAPIForApplication * capi) {
   gnunet_util_sleep(1 * cronSECONDS);
   if (RPC_ERROR_OK != rpcAPI->RPC_stop(record))
     LOG(LOG_WARNING,
-	"async RPC reply not received.\n");
+	_("async RPC reply not received.\n"));
 
   if (OK != rpcAPI->RPC_unregister("testFunction",
 				   &testCallback)) {

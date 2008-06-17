@@ -1186,10 +1186,10 @@ static int startTransportServer(void) {
     tcp_sock = SOCKET(PF_INET, SOCK_STREAM, 0);
     if (tcp_sock < 0) 
       DIE_STRERROR("socket");
-    if ( SETSOCKOPT(tcp_sock,
-		    SOL_SOCKET, 
-		    SO_REUSEADDR, 
-		    &on, sizeof(on)) < 0 ) 
+    if (SETSOCKOPT(tcp_sock,
+		   SOL_SOCKET, 
+		   SO_REUSEADDR, 
+		   &on, sizeof(on)) < 0 ) 
       DIE_STRERROR("setsockopt");
     memset((char *) &serverAddr, 
 	   0,
@@ -1210,6 +1210,7 @@ static int startTransportServer(void) {
 	  _("Failed to start transport service on port %d.\n"),
 	  getGNUnetTCPPort());
       CLOSE(tcp_sock);
+      tcp_sock = -1;
       SEMAPHORE_FREE(serverSignal);
       serverSignal = NULL;
       return SYSERR;
@@ -1238,13 +1239,16 @@ static int startTransportServer(void) {
  */
 static int stopTransportServer() {
   void * unused;
+  int haveThread;
   
   tcp_shutdown = YES;  
   signalSelect();
   if (serverSignal != NULL) {
+    haveThread = YES;
     SEMAPHORE_DOWN(serverSignal);
     SEMAPHORE_FREE(serverSignal);
-  }
+  } else
+    haveThread = NO;
   serverSignal = NULL; 
   CLOSE(tcp_pipe[1]);
   CLOSE(tcp_pipe[0]);
@@ -1252,7 +1256,8 @@ static int stopTransportServer() {
     CLOSE(tcp_sock);
     tcp_sock = -1;
   }
-  PTHREAD_JOIN(&listenThread, &unused);
+  if (haveThread == YES)
+    PTHREAD_JOIN(&listenThread, &unused);
   return OK;
 }
 
@@ -1323,7 +1328,7 @@ TransportAPI * inittransport_tcp(CoreAPIForTransport * core) {
     mtu = 1460;
   if (mtu < 1200)
     LOG(LOG_ERROR,
-	_("MTU for %s is probably too low (fragmentation not implemented!)\n"),
+	_("MTU for '%s' is probably too low (fragmentation not implemented!)\n"),
 	"TCP");
  
   tcpAPI.protocolNumber       = TCP_PROTOCOL_NUMBER;

@@ -119,7 +119,7 @@ void handleHelper(const char * msg,
     	hash2enc(&sender->hashPubKey,
 		 &enc));
     LOG(LOG_WARNING, 
-	_("Received corrupt message claiming to be from peer '%s'in %s:%d.\n"),
+	_("Received corrupt message claiming to be from peer '%s' in %s:%d.\n"),
 	&enc, __FILE__, __LINE__);
     return;
   }

@@ -51,7 +51,7 @@ static void printHelp() {
     HELP_END,
   };
   formatHelp("dht-join [OPTIONS]",
-	     "Join a DHT table.",
+	     _("Join a DHT."),
 	     help);
 }
 
@@ -122,8 +122,7 @@ static int parseOptions(int argc,
       break;
     default:
       LOG(LOG_FAILURE,
-	  _("Unknown option %c. Aborting. "
-	    "Use --help to get a list of options.\n"),
+	  _("Use --help to get a list of options.\n"),
 	  c);
       return SYSERR;
     } /* end of parsing commandline */
@@ -148,7 +147,7 @@ static void dump(const char * fmt,
 
 #define LOGRET(ret) dump(_("Call to '%s' returns %d.\n"), __FUNCTION__, ret)
 #define LOGKEY(key) do { EncName kn; hash2enc(key, &kn); dump(_("Call to '%s' with key '%s'.\n"), __FUNCTION__, &kn); } while (0)
-#define LOGVAL(val) dump(_("Call to '%s' with value '%*s' (%d bytes).\n"), __FUNCTION__, (val == NULL) ? 0 : val->dataLength, (val == NULL) ? NULL : val->data, (val == NULL) ? 0 : val->dataLength)
+#define LOGVAL(val) dump(_("Call to '%s' with value '%.*s' (%d bytes).\n"), __FUNCTION__, (val == NULL) ? 0 : val->dataLength, (val == NULL) ? NULL : val->data, (val == NULL) ? 0 : val->dataLength)
 
 static int lookup(void * closure,
 		 const HashCode160 * key,
@@ -158,12 +157,14 @@ static int lookup(void * closure,
   int ret;
   DHT_Datastore * cls = (DHT_Datastore*) closure;  
   LOGKEY(key);
-  ret = cls->lookup(closure,
+  ret = cls->lookup(cls->closure,
 		    key,
 		    maxResults,
 		    results,
 		    flags);
-  LOGRET(ret);
+  if (ret >= 1)
+    LOGVAL(results);
+  LOGRET(ret);  
   return ret;
 }
   
@@ -175,7 +176,7 @@ static int store(void * closure,
   DHT_Datastore * cls = (DHT_Datastore*) closure;
   LOGKEY(key);
   LOGVAL(value);
-  ret = cls->store(closure,
+  ret = cls->store(cls->closure,
 		   key,
 		   value,
 		   flags);
@@ -191,7 +192,7 @@ static int removeDS(void * closure,
   DHT_Datastore * cls = (DHT_Datastore*) closure;
   LOGKEY(key);
   LOGVAL(value);
-  ret = cls->remove(closure,
+  ret = cls->remove(cls->closure,
 		    key,
 		    value,
 		    flags);
@@ -205,7 +206,7 @@ static int iterate(void * closure,
 		   void * parg) {
   int ret;
   DHT_Datastore * cls = (DHT_Datastore*) closure;
-  ret = cls->iterate(closure,
+  ret = cls->iterate(cls->closure,
 		     flags,
 		     processor,
 		     parg);
@@ -257,7 +258,7 @@ int main(int argc,
 			 flags)) {
     LOG(LOG_WARNING,
 	_("Error joining DHT.\n"));
-    destroy_datastore_memory((DHT_Datastore*)&myStore.closure);
+    destroy_datastore_memory((DHT_Datastore*)myStore.closure);
     doneShutdownHandlers();
     DHT_LIB_done();
     return 1;
@@ -274,12 +275,12 @@ int main(int argc,
 			  flags)) {
     LOG(LOG_WARNING,
 	_("Error leaving DHT.\n"));
-    destroy_datastore_memory((DHT_Datastore*)&myStore.closure);
+    destroy_datastore_memory((DHT_Datastore*)myStore.closure);
     doneShutdownHandlers();
     DHT_LIB_done();
     return 1;
   } else {
-    destroy_datastore_memory((DHT_Datastore*)&myStore.closure);
+    destroy_datastore_memory((DHT_Datastore*)myStore.closure);
     doneShutdownHandlers();
     DHT_LIB_done();
     return 0;

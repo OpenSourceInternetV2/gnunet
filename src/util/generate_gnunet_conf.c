@@ -93,6 +93,18 @@ void  generate_gnunet_conf (FILE * f) {
  fprintf(f, "%s\n","# Default is 65535 which is \"very high\".");
  fprintf(f, "%s\n","CONTENT-PRIORITY = 65535");
  fprintf(f, "%s\n","");
+ fprintf(f, "%s\n","");
+ fprintf(f, "%s\n","#################################################");
+ fprintf(f, "%s\n","# Default options for gnunet-gtk");
+ fprintf(f, "%s\n","#################################################");
+ fprintf(f, "%s\n","[GNUNET-GTK]");
+ fprintf(f, "%s\n","");
+ fprintf(f, "%s\n","# Path to the gnunet.conf file for gnunetd (for");
+ fprintf(f, "%s\n","# forking gnunetd by gnunet-gtk)");
+ fprintf(f, "%s\n","GNUNETD-CONFIG = /etc/gnunet.conf");
+ fprintf(f, "%s\n","");
+ fprintf(f, "%s\n","");
+ fprintf(f, "%s\n","");
  fprintf(f, "%s\n","##########################################");
  fprintf(f, "%s\n","# Defaults for gnunet-chat");
  fprintf(f, "%s\n","##########################################");

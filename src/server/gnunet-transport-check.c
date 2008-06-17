@@ -496,7 +496,7 @@ static int parser(int argc,
       unsigned int repeat;
       if (1 != sscanf(GNoptarg, "%ud", &repeat)) {
 	LOG(LOG_FAILURE, 
-	    "You must pass a number to the '%s' option.\n",
+	    _("You must pass a number to the '%s' option.\n"),
 	    "-r");
 	return SYSERR;
       } else {
@@ -510,7 +510,7 @@ static int parser(int argc,
       unsigned int repeat;
       if (1 != sscanf(GNoptarg, "%ud", &repeat)) {
 	LOG(LOG_FAILURE, 
-	    "You must pass a number to the '%s' option.\n",
+	    _("You must pass a number to the '%s' option.\n"),
 	    "-X");
 	return SYSERR;
       } else {
@@ -523,7 +523,7 @@ static int parser(int argc,
     case 'T':{
       if (1 != sscanf(GNoptarg, "%llu", &timeout)) {
 	LOG(LOG_FAILURE, 
-	    "You must pass a number to the '%s' option.\n",
+	    _("You must pass a number to the '%s' option.\n"),
 	    "-T");
 	return SYSERR;
       }

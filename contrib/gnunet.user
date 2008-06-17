@@ -91,6 +91,18 @@ COLLECT-FILE-IDENTIFIERS = NO
 # Default is 65535 which is "very high".
 CONTENT-PRIORITY = 65535
 
+
+#################################################
+# Default options for gnunet-gtk
+#################################################
+[GNUNET-GTK]
+
+# Path to the gnunet.conf file for gnunetd (for
+# forking gnunetd by gnunet-gtk)
+GNUNETD-CONFIG = /etc/gnunet.conf
+
+
+
 ##########################################
 # Defaults for gnunet-chat
 ##########################################
@@ -115,8 +127,9 @@ HOPS     = 5
 # How important is the trace message? (default: 1000)
 PRIORITY = 1000
 
-# Output format, 0 is human readable, 1 is dot (default: 1)
-FORMAT   = 1
+# Output format, 0 is human readable, 1 is dot,
+# 2 is vcg (default: 2)
+FORMAT   = 2
 
 
 [GNUNET-TESTBED]
@@ -128,5 +141,5 @@ PORT = 2089
 
 # At which URL does the registration software
 # run?
-# Default is http://www.ovmj.org/GNUnet/testbed/
-REGISTERURL = "http://www.ovmj.org/GNUnet/testbed/"
+# Default is http://ovmj.org/GNUnet/testbed/
+REGISTERURL = "http://ovmj.org/GNUnet/testbed/"

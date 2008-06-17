@@ -53,32 +53,35 @@ static int handleTBenchReq(const HostIdentity * sender,
   TBENCH_p2p_MESSAGE *pmsg = (TBENCH_p2p_MESSAGE*)message;
   
   LOG(LOG_DEBUG, 
-      " handleTBenchReq received iteration %d, message %d",
+      "%s received iteration %d, message %d",
+      __FUNCTION__,
       htons(pmsg->iterationNum), 
       htons(pmsg->packetNum));
   pmsg->header.requestType = htons(TBENCH_p2p_PROTO_REPLY);
   coreAPI->sendToNode(sender, message, 5, 0);    
   return OK;
 }
+
 /* */
 static int handleTBenchReply(const HostIdentity * sender,
 			     const p2p_HEADER * message) {
   TBENCH_p2p_MESSAGE *pmsg = (TBENCH_p2p_MESSAGE*)message;
   
   LOG(LOG_DEBUG, 
-      " handleTBenchReply");
+      "%s",
+      __FUNCTION__);
   MUTEX_LOCK(&lockCnt); 
   if(htons(pmsg->iterationNum) == currIteration) {
     cronTime(&endTime);
     receiveCnt++;
     LOG(LOG_DEBUG,
-	" iteration %d, received reply, %d",
+	"iteration %d, received reply, %d",
 	currIteration, receiveCnt);
     if(receiveCnt >= msgCnt)
       SEMAPHORE_UP(sem);
   } else {
     LOG(LOG_DEBUG,
-	" Old Reply: iteration %d, received reply, %d",
+	"Old Reply: iteration %d, received reply, %d",
 	currIteration, receiveCnt);
   }
   MUTEX_UNLOCK(&lockCnt);
@@ -101,7 +104,8 @@ static void csHandleTBenchRequest(ClientHandle client,
   struct Result *results;
 
   LOG(LOG_DEBUG, 
-      " handleTBenchRequest");
+      "%s",
+      __FUNCTION__);
   icmsg   = (TBENCH_CS_MESSAGE*)message;
  
   opmsg = MALLOC(sizeof(TBENCH_p2p_MESSAGE)+ntohs(icmsg->msgSize)+1);
@@ -114,7 +118,7 @@ static void csHandleTBenchRequest(ClientHandle client,
   results = MALLOC(msgIter * sizeof(struct Result));
 
   LOG(LOG_DEBUG,
-      " TBENCH: msgCnt %d msgIter %d",
+      "TBENCH: msgCnt %d msgIter %d",
       msgCnt, msgIter);
   sem = SEMAPHORE_NEW(0);
 
@@ -134,7 +138,7 @@ static void csHandleTBenchRequest(ClientHandle client,
     opmsg->iterationNum = htons(currIteration);
     receiveCnt = 0;
     LOG(LOG_DEBUG,
-	" Timeout after %u ms",
+	"Timeout after %u ms",
 	ntohl(icmsg->timeOut));
     addCronJob((CronJob)&semaUp,
 	       ntohl(icmsg->timeOut) * cronMILLIS,
@@ -174,7 +178,7 @@ static void csHandleTBenchRequest(ClientHandle client,
   /* Lets see what the raw results are */
   for(i = 0; i <  msgIter; i++){
     LOG(LOG_EVERYTHING, 
-	" iter[%d], packets %d/%d, time %d ms",
+	"iter[%d], packets %d/%d, time %d ms",
 	i,
 	results[i].packets,
 	msgCnt,
@@ -212,7 +216,7 @@ static void csHandleTBenchRequest(ClientHandle client,
   sum_variance_loss = 0.0;
   for(i = 0; i < msgIter; i++){
     LOG(LOG_DEBUG,
-	" TBENCH: iteration=%d msgIter=%d", 
+	"TBENCH: iteration=%d msgIter=%d", 
 	i,
 	msgIter);
     sum_variance_time += (results[i].time - ocmsg->mean_time)*

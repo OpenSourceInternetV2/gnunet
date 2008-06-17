@@ -96,7 +96,7 @@ static PTHREAD_T dispatchThread;
 /**
  * the socket that we receive all data from 
  */
-static int udp_sock;
+static int udp_sock = -1;
 
 /**
  * Statistics handles.
@@ -116,6 +116,14 @@ static int udp_shutdown = YES;
  */
 static CIDRNetwork * filteredNetworks_ = NULL;
 static Mutex configLock;
+
+/**
+ * Keep used port locally, the one in the configuration
+ * may change and then we would not be able to send
+ * the shutdown signal!
+ */
+static unsigned short port;
+
 
 /**
  * Get the GNUnet UDP port from the configuration, or from
@@ -163,7 +171,9 @@ static int passivesock(unsigned short port) {
     sin.sin_family      = AF_INET;
     sin.sin_addr.s_addr = INADDR_ANY;
     sin.sin_port        = htons(port);
-    if (BIND(sock, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
+    if (BIND(sock, 
+	     (struct sockaddr *)&sin, 
+	     sizeof(sin)) < 0) {
       LOG_STRERROR(LOG_FATAL, "bind");
       errexit(_("Failed to bind to UDP port %d.\n"),
 		port);
@@ -333,11 +343,10 @@ static int verifyHelo(const HELO_Message * helo) {
 static int createHELO(HELO_Message ** helo) {
   HELO_Message * msg;
   HostAddress * haddr;
-  unsigned short port;
 
-  port = getGNUnetUDPPort();
-  if (port == 0)
-    return SYSERR; /* UDP transport configured send-only */
+  if ( ( (udp_shutdown == YES) && (getGNUnetUDPPort() == 0) ) ||
+       ( (udp_shutdown == NO) && (port == 0) ) )
+    return SYSERR; /* UDP transport configured send-only */  
 
   msg = MALLOC(sizeof(HELO_Message) + sizeof(HostAddress));
   haddr = (HostAddress*) &((HELO_Message_GENERIC*)msg)->senderAddress[0];
@@ -348,7 +357,10 @@ static int createHELO(HELO_Message ** helo) {
 	_("UDP: Could not determine my public IP address.\n"));
     return SYSERR;
   }
-  haddr->senderPort      = htons(port); 
+  if (udp_shutdown == YES)
+    haddr->senderPort      = htons(getGNUnetUDPPort()); 
+  else
+    haddr->senderPort      = htons(port); 
   haddr->reserved        = htons(0);
   msg->senderAddressSize = htons(sizeof(HostAddress));
   msg->protocol          = htons(UDP_PROTOCOL_NUMBER);
@@ -507,8 +519,6 @@ static int udpDisconnect(TSession * tsession) {
  * @return OK on success, SYSERR if the operation failed
  */
 static int startTransportServer(void) {
-  unsigned short port;
-
    /* initialize UDP network */
   port = getGNUnetUDPPort();
   udp_sock = passivesock(port);
@@ -518,13 +528,17 @@ static int startTransportServer(void) {
     if (0 != PTHREAD_CREATE(&dispatchThread,
 			    (PThreadMain) &listenAndDistribute,
 			    NULL,
-			    4*1024))
+			    4*1024)) {
+      SEMAPHORE_FREE(serverSignal);
+      serverSignal = NULL;
       return SYSERR;
+    }
     SEMAPHORE_DOWN(serverSignal);
-  } else
+  } else {
     memset(&dispatchThread,
 	   0,
 	   sizeof(PTHREAD_T)); /* zero-out */
+  }
   return OK;
 }
 
@@ -533,6 +547,7 @@ static int startTransportServer(void) {
  * restarted later!
  */
 static int stopTransportServer() {
+  GNUNET_ASSERT(udp_sock != -1);    
   if (udp_shutdown == NO) {
     /* stop the thread, first set shutdown
        to YES, then ensure that the thread
@@ -543,15 +558,19 @@ static int stopTransportServer() {
       char msg = '\0';
       struct sockaddr_in sin;
       void * unused;
+      int mySock;
       
+      mySock = SOCKET(PF_INET, SOCK_DGRAM, UDP_PROTOCOL_NUMBER);
+      if (mySock < 0) 
+	DIE_STRERROR("socket");
       /* send to loopback */
       sin.sin_family = AF_INET;
-      sin.sin_port = htons(getGNUnetUDPPort());
+      sin.sin_port = htons(port);
       *(int*)&sin.sin_addr = htonl(0x7F000001); /* 127.0.0.1 = localhost */
-      SENDTO(udp_sock, 
+      SENDTO(mySock, 
 	     &msg, 
 	     sizeof(msg), 
-	     0, /* no flags */
+	     0,
 	     (struct sockaddr*) &sin,
 	     sizeof(sin));
       SEMAPHORE_DOWN(serverSignal);
@@ -560,7 +579,7 @@ static int stopTransportServer() {
     }
   }
   CLOSE(udp_sock);  
-  udp_sock = -1;
+  udp_sock = -1;  
   return OK;
 }
 
@@ -629,7 +648,7 @@ TransportAPI * inittransport_udp(CoreAPIForTransport * core) {
     mtu = MESSAGE_SIZE;
   if (mtu < 1200)
     LOG(LOG_ERROR,
-	_("MTU for %s is probably to low (fragmentation not implemented!)\n"),
+	_("MTU for '%s' is probably to low (fragmentation not implemented!)\n"),
 	"UDP");
 
   udpAPI.protocolNumber       = UDP_PROTOCOL_NUMBER;

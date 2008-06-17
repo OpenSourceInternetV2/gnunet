@@ -63,10 +63,6 @@ void * loadDynamicLibrary(const char * libprefix,
     if ( strstr(lt_dlgetsearchpath(), LTDL_SYSSEARCHPATH) == NULL)
       lt_dladdsearchdir(LTDL_SYSSEARCHPATH);
 #endif 
-#ifdef ELIBDIR
-    if ( strstr(lt_dlgetsearchpath(), ELIBDIR) == NULL)
-      lt_dladdsearchdir(ELIBDIR);
-#endif
 #ifdef PLUGIN_PATH
     if ( strstr(lt_dlgetsearchpath(), PLUGIN_PATH) == NULL)
       lt_dladdsearchdir(PLUGIN_PATH);

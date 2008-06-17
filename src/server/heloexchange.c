@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -126,7 +126,7 @@ static void configurationUpdateCallback() {
 				"HELOEXCHANGE",
 				"YES")) 
       addCronJob(&broadcastHELO,
-		 1 * cronMINUTES, 
+		 15 * cronSECONDS, 
 		 HELO_BROADCAST_FREQUENCY,
 		 NULL); 
     activeCronJobs += ACJ_ANNOUNCE;
@@ -144,7 +144,7 @@ static void configurationUpdateCallback() {
 				  "DISABLE-ADVERTISEMENTS",
 				  "YES")) 
       addCronJob(&broadcastHELO,
-		 1 * cronMINUTES, 
+		 15 * cronSECONDS, 
 		 HELO_BROADCAST_FREQUENCY,
 		 NULL); 
     activeCronJobs += ACJ_FORWARD;
@@ -173,7 +173,7 @@ void initHeloExchange() {
 				"DISABLE-ADVERTISEMENTS",
 				"YES")) {
     addCronJob(&broadcastHELO,
-	       1 * cronMINUTES, 
+	       15 * cronSECONDS, 
 	       HELO_BROADCAST_FREQUENCY,
 	       NULL); 
     activeCronJobs += ACJ_ANNOUNCE;
@@ -562,11 +562,6 @@ static void broadcastHELOTransport(TransportAPI * tapi,
   sd.n = forEachHost(NULL, 
 		     now, 
 		     NULL); /* just count */
-  if (sd.n < 1) {
-    LOG(LOG_WARNING,
-	_("Announcing ourselves pointless: no other peers are known to us so far.\n"));
-    return; /* no point in trying... */
-  }
   if (SYSERR == transportCreateHELO(tapi->protocolNumber,
 				    &sd.m))
     return;
@@ -576,6 +571,12 @@ static void broadcastHELOTransport(TransportAPI * tapi,
       tapi->protocolNumber);
 #endif
   bindAddress(sd.m);
+  if (sd.n < 1) {
+    LOG(LOG_WARNING,
+	_("Announcing ourselves pointless: no other peers are known to us so far.\n"));
+    FREE(sd.m);
+    return; /* no point in trying... */
+  }
   sd.crc = crc32N(sd.m, 
 		  HELO_Message_size(sd.m));
 

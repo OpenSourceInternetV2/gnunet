@@ -261,7 +261,7 @@ void LOG(int minLogLevel,
     
     txt = MALLOC(len + 1);
     if (len != vsnprintf(txt, len, format, args))
-      errexit("Assertion failed at %s:%d\n",
+      errexit(_("Assertion failed at %s:%d\n"),
 	      __FILE__, __LINE__);
     customLog(txt);
     FREE(txt);
@@ -285,14 +285,12 @@ void errexit(const char *format, ...) {
   va_start(args, format);
   if (logfile != NULL) {
     printTime();
-    fprintf(logfile, " ");
     vfprintf(logfile, format, args);
     fflush(logfile);
   } else {
 #ifdef MINGW
     AllocConsole();
 #endif
-    fprintf(stderr, " ");
     vfprintf(stderr, format, args);
   }
   va_end(args);

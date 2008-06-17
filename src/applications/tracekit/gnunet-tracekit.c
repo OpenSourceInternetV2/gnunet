@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -27,7 +27,7 @@
 #include "tracekit.h"
 #include "platform.h"
 
-#define TRACEKIT_VERSION "0.0.1"
+#define TRACEKIT_VERSION "0.0.3"
 
 static Semaphore * doneSem;
 
@@ -48,13 +48,13 @@ static int parseOptions(int argc,
   while (1) {
     static struct GNoption long_options[] = {
       LONG_DEFAULT_OPTIONS,
-      { "wait", 1, 0, 'W' },
       { "depth", 1, 0, 'D' },
       { "format", 1, 0, 'F' },
       { "priority", 1, 0, 'P' },
+      { "wait", 1, 0, 'W' },
       { 0,0,0,0 }
     };    
-    option_index=0;
+    option_index = 0;
     c = GNgetopt_long(argc,
 		      argv, 
 		      "vhdc:L:H:W:D:F:P:", 
@@ -66,43 +66,80 @@ static int parseOptions(int argc,
       continue;
     switch(c) {
     case 'D': {
-      int depth;
-
-      if(!sscanf(GNoptarg,"%d",&depth)) 
-	errexit("-D argument not a number\n");
-      setConfigurationInt("GNUNET-TRACEKIT",
-			  "HOPS",
-			  depth);
+      unsigned int depth;
+      if (1 != sscanf(GNoptarg, "%ud", &depth)) {
+	LOG(LOG_FAILURE, 
+	    _("You must pass a number to the '%s' option.\n"),
+	    "-D");
+	return SYSERR;
+      } else {
+	setConfigurationInt("GNUNET-TRACEKIT",
+			    "HOPS",
+			    depth);
+      }
       break;
     }
     case 'F': {
-      int format;
-
-      if(!sscanf(GNoptarg,"%d",&format)) 
-	errexit("-F argument not a number\n");
-      setConfigurationInt("GNUNET-TRACEKIT",
-			  "FORMAT",
-			  format);
+      unsigned int format;
+      if (1 != sscanf(GNoptarg, "%ud", &format)) {
+	LOG(LOG_FAILURE, 
+	    _("You must pass a number to the '%s' option.\n"),
+	    "-F");
+	return SYSERR;
+      } else {
+	setConfigurationInt("GNUNET-TRACEKIT",
+			    "FORMAT",
+			    format);
+      }
       break;
     }
+    case 'h': {
+      static Help help[] = {
+	HELP_CONFIG,
+	{ 'D', "depth", "DEPTH",
+	  gettext_noop("probe network to the given DEPTH") },
+	{ 'F', "format", "FORMAT",
+	  gettext_noop("specify output format; 0 for human readable output, 1 for dot, 2 for vcg") },
+	HELP_HELP,
+	HELP_LOGLEVEL,
+	{ 'P', "priority", "PRIO",
+	  gettext_noop("use PRIO for the priority of the trace request") },
+	HELP_VERSION,
+	{ 'W', "wait", "DELAY",
+	  gettext_noop("wait DELAY seconds for replies") },
+	HELP_END,
+      };
+      formatHelp("gnunet-tracekit [OPTIONS]",
+		 _("Trace GNUnet network topology."),
+		 help);
+      return SYSERR;
+    }
     case 'P': {
-      int prio;
-
-      if(!sscanf(GNoptarg,"%d",&prio)) 
-	errexit("-P argument not a number\n");
-      setConfigurationInt("GNUNET-TRACEKIT",
-			  "PRIORITY",
-			  prio);
+      unsigned int prio;
+      if (1 != sscanf(GNoptarg, "%ud", &prio)) {
+	LOG(LOG_FAILURE, 
+	    _("You must pass a number to the '%s' option.\n"),
+	    "-P");
+	return SYSERR;
+      } else {
+	setConfigurationInt("GNUNET-TRACEKIT",
+			    "PRIORITY",
+			    prio);
+      }
       break;
     }
     case 'W': {
-      int wait;
-
-      if(!sscanf(GNoptarg,"%d",&wait)) 
-	errexit("-W argument not a number\n");
-      setConfigurationInt("GNUNET-TRACEKIT",
-			  "WAIT",
-			  wait);
+      unsigned int wait;
+      if (1 != sscanf(GNoptarg, "%ud", &wait)) {
+	LOG(LOG_FAILURE, 
+	    _("You must pass a number to the '%s' option.\n"),
+	    "-W");
+	return SYSERR;
+      } else {
+	setConfigurationInt("GNUNET-TRACEKIT",
+			    "WAIT",
+			    wait);
+      }
       break;
     }
     case 'v': 
@@ -110,33 +147,10 @@ static int parseOptions(int argc,
 	     VERSION,
 	     TRACEKIT_VERSION);
       return SYSERR;
-    case 'h': {
-      static Help help[] = {
-	HELP_CONFIG,
-	{ 'D', "depth", "DEPTH",
-	  "probe network to the given DEPTH" },
-	{ 'F', "format", "FORMAT",
-	  "0 for human readable output, 1 for dot" },
-	HELP_HELP,
-	HELP_LOGLEVEL,
-	{ 'P', "priority", "PRIO",
-	  "use PRIO for the priority of the trace request" },
-	HELP_VERSION,
-	{ 'W', "wait", "DELAY",
-	  "wait DELAY seconds for replies" },
-	HELP_END,
-      };
-      formatHelp("gnunet-tracekit [OPTIONS]",
-		 "Trace GNUnet network topology.",
-		 help);
-      return SYSERR;
-    }
     default: 
       LOG(LOG_FAILURE,
-	  " Unknown option %c. Aborting.\n"\
-	  "Use --help to get a list of options.\n",
-	  c);
-      return -1;
+	  _("Use --help to get a list of options.\n"));
+      return SYSERR;
     } /* end of parsing commandline */
   } /* while (1) */
   return OK;
@@ -166,6 +180,8 @@ static void * receiveThread(GNUNET_TCP_SOCKET * sock) {
 			       "FORMAT");
   if (format == 1)
     printf("digraph G {\n");
+  if (format == 2)
+    printf("graph: {\n");
   while (OK == readFromSocket(sock, 
 			      (CS_HEADER**)&buffer)) {
     int count;
@@ -173,8 +189,7 @@ static void * receiveThread(GNUNET_TCP_SOCKET * sock) {
 
     count = ntohs(buffer->header.size) - sizeof(TRACEKIT_CS_REPLY);
     if (count < 0) {
-      LOG(LOG_ERROR,
-	  " invalid reply from gnunetd\n");
+      BREAK();
       break; /* faulty reply */
     }
     hash2enc(&buffer->responderId.hashPubKey,
@@ -197,23 +212,25 @@ static void * receiveThread(GNUNET_TCP_SOCKET * sock) {
     if (ntohs(buffer->header.size) !=
 	sizeof(TRACEKIT_CS_REPLY) +
 	count * sizeof(HostIdentity)) {
-      LOG(LOG_ERROR,
-	  " invalid reply from gnunetd\n");
+      BREAK();
       break;
     }
     if (count == 0) {
       switch (format) {
       case 0:
-	printf("%s is not connected to any peer.\n",
+	printf(_("'%s' is not connected to any peer.\n"),
 	       (char*)&enc);
 	break;
       case 1:
 	printf("  %.*s;\n",
 	       4, (char*)&enc);
 	break;
+      case 2:
+	/* deferred -- vcg needs all node data in one line */
+	break;
       default:
-	printf("Format specification invalid. "
-	       "Use 0 for user-readable, 1 for dot\n");
+	printf(_("Format specification invalid. "
+		 "Use 0 for user-readable, 1 for dot, 2 for vcg.\n"));
 	break;
       }
     } else {
@@ -239,18 +256,23 @@ static void * receiveThread(GNUNET_TCP_SOCKET * sock) {
 		 &other);
 	switch (format) {
 	case 0:
-	  printf("%s connected to %s.\n",
+	  printf(_("'%s' connected to '%s'.\n"),
 		 (char*)&enc,
 		 (char*)&other);
 	  break;
-	case 1: /* DOT */
+	case 1: /* dot */
 	  printf("  \"%.*s\" -> \"%.*s\";\n",
 		 4, (char*)&enc,
 		 4, (char*)&other);
 	  break;
+	case 2: /* vcg */
+	  printf("\tedge: { sourcename: \"%s\" targetname: \"%s\" }\n",
+		 (char*)&enc,
+		 (char*)&other);
+	  break;
 	default: /* undef */
-	  printf("Format specification invalid. "
-		 "Use 0 for user-readable, 1 for dot\n");
+	  printf(_("Format specification invalid. "
+		   "Use 0 for user-readable, 1 for dot\n"));
 	  break;
 	}
       }
@@ -263,26 +285,56 @@ static void * receiveThread(GNUNET_TCP_SOCKET * sock) {
     match = NO;
     for (j=0;j<prCount;j++)
       if (equalsHashCode160(&peersResponding[j].hashPubKey,
-			    &peersSeen[i].hashPubKey))
+			    &peersSeen[i].hashPubKey)) {
 	match = YES;
+	break;
+      }
     if (match == NO) {
       hash2enc(&peersSeen[i].hashPubKey,
 	       &enc);
       switch (format) {
       case 0:
-	printf("Peer %s did not report back.\n",
+	printf(_("Peer '%s' did not report back.\n"),
 	       (char*)&enc);
 	break;
       case 1:
 	printf("  \"%.*s\" [style=filled,color=\".7 .3 1.0\"];\n",
-	       4, (char*)&enc);
+	       4,
+	       (char*)&enc);
+	break;
+      case 2:
+	printf("\tnode: { title: \"%s\" label: \"%.*s\" shape: \"ellipse\" }\n",
+	       (char*)&enc,
+	       4, (char*) &enc);
+	break;
+      default:
+	break;
+      }
+    } else {
+      switch (format) {
+      case 2:
+	hash2enc(&peersSeen[i].hashPubKey,
+		 &enc);
+	printf("\tnode: { title: \"%s\" label: \"%.*s\" }\n",
+	       (char*)&enc, 4, (char*)&enc);
 	break;
       default:
 	break;
       }
     }
   }
+  if (psCount == 0) {
+    switch (format) {
+    case 2:
+      printf("\tnode: { title: \"NO CONNECTIONS\" }\n");
+      break;
+    default:
+      break;
+    }
+  }
   if (format == 1)
+    printf("}\n");
+  if (format == 2)
     printf("}\n");
   SEMAPHORE_UP(doneSem);
   FREE(peersResponding);
@@ -305,15 +357,19 @@ int main(int argc, char ** argv) {
   if (SYSERR == initUtil(argc, argv, &parseOptions))
     return 0; /* parse error, --help, etc. */ 
   sock = getClientSocket();
-  if (sock == NULL)
-    errexit(" could not connect to gnunetd.\n");
+  if (sock == NULL) {
+    LOG(LOG_ERROR,
+	_("Could not connect to gnunetd.\n"));
+    return -1;
+  }
 
   doneSem = SEMAPHORE_NEW(0);
-  PTHREAD_CREATE(&messageReceiveThread, 
-		 (PThreadMain) &receiveThread, 
-		 sock,
-		 128 * 1024);
-
+  if (0 != PTHREAD_CREATE(&messageReceiveThread, 
+			  (PThreadMain) &receiveThread, 
+			  sock,
+			  128 * 1024))
+    DIE_STRERROR("pthread_create");
+  
   probe.header.size 
     = htons(sizeof(TRACEKIT_CS_PROBE));
   probe.header.tcpType
@@ -327,7 +383,7 @@ int main(int argc, char ** argv) {
   if (SYSERR == writeToSocket(sock,
                               &probe.header)) {
     LOG(LOG_ERROR,
-	" could not send request to gnunetd\n");
+	_("Could not send request to gnunetd.\n"));
     return -1;
   }
   startCron();
@@ -337,8 +393,7 @@ int main(int argc, char ** argv) {
   if (sleepTime == 0)
     sleepTime = 5;
   addCronJob((CronJob)&run_shutdown,
-	     cronSECONDS * 
-	     sleepTime,
+	     cronSECONDS * sleepTime,
 	     0,
 	     NULL);
   wait_for_shutdown();

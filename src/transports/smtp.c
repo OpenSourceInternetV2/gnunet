@@ -908,7 +908,7 @@ TransportAPI * inittransport_smtp(CoreAPIForTransport * core) {
     mtu = MESSAGE_SIZE;
   if (mtu < 1200)
     LOG(LOG_ERROR,
-	_("MTU for %s is probably to low (fragmentation not implemented!)\n"),
+	_("MTU for '%s' is probably to low (fragmentation not implemented!)\n"),
 	"SMTP");
 
   smtpAPI.protocolNumber       = SMTP_PROTOCOL_NUMBER;

@@ -35,14 +35,14 @@ static void printHelp() {
     HELP_HELP,
     HELP_LOGLEVEL,
     { 't', "table", "NAME",
-      "query table called NAME" },
+      gettext_noop("query table called NAME") },
     { 'T', "timeout", "TIME",
-      "allow TIME ms to process each command" },
+      gettext_noop("allow TIME ms to process each command") },
     HELP_VERSION,
     HELP_END,
   };
   formatHelp("dht-query [OPTIONS] COMMANDS",
-	     "Query (get KEY, put KEY VALUE, remove KEY VALUE) a DHT table.",
+	     _("Query (get KEY, put KEY VALUE, remove KEY VALUE) a DHT table."),
 	     help);
 }
 
@@ -72,7 +72,7 @@ static int parseOptions(int argc,
       printHelp(); 
       return SYSERR;
     case 't':
-      FREENONNULL(setConfigurationString("DHT-JOIN",
+      FREENONNULL(setConfigurationString("DHT-QUERY",
 					 "TABLE",
 					 GNoptarg));
       break;
@@ -80,7 +80,8 @@ static int parseOptions(int argc,
       unsigned int max;
       if (1 != sscanf(GNoptarg, "%ud", &max)) {
 	LOG(LOG_FAILURE, 
-	    "You must pass a number to the -T option.\n");
+	    _("You must pass a number to the '%s' option.\n"),
+	    "-T");
 	return SYSERR;
       } else {	
 	setConfigurationInt("DHT-QUERY",
@@ -90,12 +91,11 @@ static int parseOptions(int argc,
       break;
     } 
     case 'v': 
-      printf("dht-query v0.0.0\n");
+      printf("dht-query v0.0.1\n");
       return SYSERR;
     default:
       LOG(LOG_FAILURE,
-	  "Unknown option %c. Aborting. "
-	  "Use --help to get a list of options.\n",
+	  _("Use --help to get a list of options.\n"),
 	  c);
       return SYSERR;
     } /* end of parsing commandline */
@@ -123,6 +123,9 @@ static void do_get(GNUNET_TCP_SOCKET * sock,
   results = MALLOC(sizeof(DHT_DataContainer));
   results[0].data = NULL;
   results[0].dataLength = 0; /* unlimited */
+  LOG(LOG_DEBUG,
+      "Issuing '%s(%s)' command.\n",
+      "get", key);
   ret = DHT_LIB_get(&table,
 		    &hc,
 		    getConfigurationInt("DHT-QUERY",
@@ -130,13 +133,15 @@ static void do_get(GNUNET_TCP_SOCKET * sock,
 		    1, /* make this an option? */
 		    &results);
   if (ret == 1) {
-    printf("Get(%s): %*s\n",
+    printf("%s(%s): '%.*s'\n",
+	   "get",
 	   key,
 	   results[0].dataLength,
 	   (char*)results[0].data);
     FREENONNULL(results[0].data);
   } else {
-    printf("Get(%s) operation returned %d\n",
+    printf("%s(%s) operation returned %d\n",
+	   "get",
 	   key,
 	   ret);
   }
@@ -152,16 +157,21 @@ static void do_put(GNUNET_TCP_SOCKET * sock,
   hash(key, strlen(key), &hc);
   dc.dataLength = strlen(value);
   dc.data = value;
+  LOG(LOG_DEBUG,
+      "Issuing '%s(%s,%s)' command.\n",
+      "put", key, value);
   if (OK == DHT_LIB_put(&table,
 			&hc,
 			getConfigurationInt("DHT-QUERY",
 					    "TIMEOUT"),
 			&dc,
 			1)) { /* fixme: make flags option! */
-    printf("put(%s,%s) succeeded\n",
+    printf(_("'%s(%s,%s)' succeeded\n"),
+	   "put",
 	   key, value);
   } else {
-    printf("put(%s,%s) failed.\n",
+    printf(_("'%s(%s,%s)' failed.\n"),
+	   "put",
 	   key, value);
   }	  
 }
@@ -178,16 +188,21 @@ static void do_remove(GNUNET_TCP_SOCKET * sock,
     dc.data = NULL;
   else
     dc.data = value;
+  LOG(LOG_DEBUG,
+      "Issuing '%s(%s,%s)' command.\n",
+      "remove", key, value);
   if (OK == DHT_LIB_remove(&table,
 			   &hc,
 			   getConfigurationInt("DHT-QUERY",
 					       "TIMEOUT"),
 			   &dc,
 			   1)) { /* fixme: make flags option! */
-    printf("remove(%s,%s) succeeded\n",
+    printf(_("'%s(%s,%s)' succeeded\n"),
+	   "remove",
 	   key, value);
   } else {
-    printf("remove(%s,%s) failed.\n",
+    printf(_("'%s(%s,%s)' failed.\n"),
+	   "remove",
 	   key, value);
   }	  
 }
@@ -208,7 +223,8 @@ int main(int argc,
   tableName = getConfigurationString("DHT-QUERY", 
 				     "TABLE");
   if (tableName == NULL) {
-    printf("No table name specified, using 'test'\n");
+    printf(_("No table name specified, using '%s'.\n"),
+	   "test");
     tableName = STRDUP("test");
   }
   if (OK != enc2hash(tableName,
@@ -221,32 +237,41 @@ int main(int argc,
   DHT_LIB_init();
   handle = getClientSocket();
   if (handle == NULL) {
-    fprintf(stderr, "failed to connect to gnunetd\n");
+    fprintf(stderr, 
+	    _("failed to connect to gnunetd\n"));
     return 1;
   }
 
   for (i=0;i<count;i++) {
     if (0 == strcmp("get", commands[i])) {
       if (i+2 > count) 
-	errexit("put requires an argument (key)\n");
+	errexit(_("command '%s' requires an argument ('%s')\n"),
+		"get",
+		"key");
       do_get(handle, commands[++i]);
       continue;
     }
     if (0 == strcmp("put", commands[i])) {
       if (i+3 > count) 
-	errexit("put requires two arguments (key and value)\n");
+	errexit(_("command '%s' requires two arguments ('%s' and '%s')\n"),
+		"put",
+		"key",
+		"value");
       do_put(handle, commands[i+1], commands[i+2]);
       i+=2;
       continue;
     }
     if (0 == strcmp("remove", commands[i])) {
       if (i+3 > count) 
-	errexit("remove requires two arguments (key and value)\n");
+	errexit(_("command '%s' requires two arguments ('%s' and '%s')\n"),
+		"remove",
+		"key",
+		"value");
       do_remove(handle, commands[i+1], commands[i+2]);
       i+=2;
       continue;
     }
-    printf("Unsupported command %s.  Aborting.\n",
+    printf(_("Unsupported command '%s'.  Aborting.\n"),
 	   commands[i]);
     break;
   }

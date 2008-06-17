@@ -2802,7 +2802,7 @@ int acceptSessionKey(const HostIdentity * sender,
 	  hash2enc(&sender->hashPubKey,
 		   &hostName));
     LOG(LOG_INFO, 
-	"Session key exchange denied, slot busy.\n",
+	"Session key exchange with '%s' denied, slot busy.\n",
 	&hostName);
     MUTEX_UNLOCK(&lock);
     return SYSERR;
@@ -2825,7 +2825,7 @@ int acceptSessionKey(const HostIdentity * sender,
 	  hash2enc(&sender->hashPubKey,
 		   &hostName));
     LOG(LOG_DEBUG,
-	"closing old connection with %s, received new SKEY\n",
+	"Closing old connection with '%s', received new session key.\n",
 	&hostName);
 #endif
     shutdownConnection(be);
@@ -2853,13 +2853,14 @@ int acceptSessionKey(const HostIdentity * sender,
       MUTEX_UNLOCK(&lock);
       return SYSERR;
     }
-    if (SYSERR == transportConnect(helo,
+    if (SYSERR == transportConnect(helo,	
 				   &tsession)) {
       IFLOG(LOG_WARNING,
  	    hash2enc(&sender->hashPubKey,
 		     &hostName));
       LOG(LOG_WARNING, 
-	  _("Sessionkey received from peer '%s', but transport failed to connect.\n"));
+	  _("Sessionkey received from peer '%s', but transport failed to connect.\n"),
+	  &hostName);
       FREE(helo);
       MUTEX_UNLOCK(&lock);
       return SYSERR;

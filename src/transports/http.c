@@ -1478,7 +1478,7 @@ TransportAPI * inittransport_http(CoreAPIForTransport * core) {
     mtu = 1400;
   if (mtu < 1200)
     LOG(LOG_ERROR,
-	_("MTU for %s is probably to low (fragmentation not implemented!)\n"),
+	_("MTU for '%s' is probably to low (fragmentation not implemented!)\n"),
 	"HTTP");
  
   proxy = getConfigurationString("GNUNETD", "HTTP-PROXY");

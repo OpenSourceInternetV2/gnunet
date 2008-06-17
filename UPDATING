@@ -8,6 +8,12 @@ If no migration procedure is listed for your version, a
 data-preserving migration may not be possible.  For CVS versions,
 you're on your own.
 
+0.6.4 to 0.6.4a:
+================
+
+Recompile, restart gnunetd, go.
+
+
 0.6.3a to 0.6.4:
 ================
 
@@ -16,6 +22,7 @@ advertise your namespaces.  Short of that, it is:
 
 Make sure that your system meets the new dependencies, then
 recompile, restart gnunetd, go.
+
 
 0.6.2b to 0.6.3a:
 =================

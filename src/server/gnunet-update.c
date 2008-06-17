@@ -148,7 +148,7 @@ static void rename062bCallback(const char * filename,
   strcat(newName, backup);
   FREE(backup);
   if (YES == be_verbose)
-    printf(_("Renamnig file '%s' to '%s'\n"),
+    printf(_("Renaming file '%s' to '%s'\n"),
 	     oldName, newName);
   if (0 != rename(oldName, newName))
     LOG(LOG_ERROR,

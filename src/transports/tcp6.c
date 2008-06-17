@@ -1262,6 +1262,7 @@ static int startTransportServer(void) {
 	  _("Failed to start transport service on port %d.\n"),
 	  getGNUnetTCPPort());
       CLOSE(tcp6_sock);
+      tcp6_sock = -1;
       SEMAPHORE_FREE(serverSignal);
       serverSignal = NULL;
       return SYSERR;
@@ -1289,21 +1290,25 @@ static int startTransportServer(void) {
  */
 static int stopTransportServer() {
   void * unused;
+  int haveThread;
 
-  if (serverSignal == NULL) {
-    BREAK();
-    return SYSERR;
-  }
   tcp6_shutdown = YES;  
   signalSelect();
-  SEMAPHORE_DOWN(serverSignal);
-  SEMAPHORE_FREE(serverSignal);
+  if (serverSignal != NULL) {
+    haveThread = YES;
+    SEMAPHORE_DOWN(serverSignal);
+    SEMAPHORE_FREE(serverSignal);
+  } else
+    haveThread = NO;
   serverSignal = NULL; 
   CLOSE(tcp6_pipe[1]);
   CLOSE(tcp6_pipe[0]);
-  if (tcp6_sock != -1) 
+  if (tcp6_sock != -1) {
     CLOSE(tcp6_sock);
-  PTHREAD_JOIN(&listenThread, &unused);
+    tcp6_sock = -1;
+  }
+  if (haveThread == YES)
+    PTHREAD_JOIN(&listenThread, &unused);
   return OK;
 }
 
@@ -1376,7 +1381,7 @@ TransportAPI * inittransport_tcp6(CoreAPIForTransport * core) {
     mtu = 1440;
   if (mtu < 1200)
     LOG(LOG_ERROR,
-	_("MTU for %s is probably to low (fragmentation not implemented!)\n"),
+	_("MTU for '%s' is probably to low (fragmentation not implemented!)\n"),
 	"TCP6");
  
   tcp6API.protocolNumber       = TCP6_PROTOCOL_NUMBER;
