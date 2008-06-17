@@ -1,6 +1,0 @@
-?package(gnunet-gtk):\
-  needs="X11"\
-  section="Apps/Net"\
-  title="GNUnet" \
-  icon="/usr/share/pixmaps/gnu_in_net.xpm" \
-  command="/usr/bin/gnunet-gtk"

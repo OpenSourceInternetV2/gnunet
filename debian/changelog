@@ -1,3 +1,19 @@
+gnunet (0.7.0a-1) unstable; urgency=low
+
+  * New upstream release.
+  * debian/po/fr.po: Updated french translation. Thanks to Eric (Closes: #336769).
+  * debian/control: Updated dependencies to follow the libstdc++ allocator change.
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Sun, 20 Nov 2005 03:09:15 +0100
+
+gnunet (0.7.0-1) unstable; urgency=low
+
+  * New upstream version.
+  * debian/gnunet.templates: Applied debconf templates patch. Thanks to Clytie Siddall (Closes: #314191).
+  * Backport of gnunet-setup.c and sqlite.c from SVN to fix 919 and 943 issues (cf Mantis on https://gnunet.org/mantis/).
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Sun,  4 Sep 2005 12:49:30 +0200
+
 gnunet (0.6.6b-5) unstable; urgency=low
 
   * debian/control: Bumped policy version to 3.6.2.

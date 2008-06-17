@@ -23,119 +23,13 @@ case "$1" in
     	# Source debconf library.
 	. /usr/share/debconf/confmodule
 	
-	if dpkg --compare-versions "$2" lt "0.6.4a-7" && \
-	[ -e /etc/gnunet.conf ]; then
-
-		TMP_FILE=`/bin/tempfile`
-		echo -n "Backuping configuration file (/etc/gnunet.conf to /etc/gnunet.conf.old)"
-		cp -f /etc/gnunet.conf /etc/gnunet.conf.old || true
-		echo " [done]"
-	
-		if [ -e /etc/default/gnunet ]; then
-			echo -n "Backuping configuration file (/etc/default/gnunet to /etc/default/gnunet.old)"
-			# Moving, we definitly need a fresh one
-			mv -f /etc/default/gnunet /etc/default/gnunet.old || true
-			echo " [done]"
-		fi
-	
-		# Try to read configuration values (now use new gnunet-update -g)		
-		GNUNETD_HOME=`gnunet-update --get=:GNUNETD_HOME`
-		PIDFILE=`gnunet-update --get=GNUNETD:PIDFILE`
-		LOGFILE=`gnunet-update --get=GNUNETD:LOGFILE`
-	
-		# Check values (PS: we will need to be able to extract $GNUNETD_HOME later in postinst
-		if [ ! $PIDFILE ] || [ ! $LOGFILE ] || \
-		[ ! $GNUNETD_HOME ] || [ ! -d "$GNUNETD_HOME" ]; then
-			# Something was wrong
-			echo -n "Installing default configuration file (/etc/gnunet.conf)"
-			rm -f /etc/gnunet.conf > /dev/null 2>&1 || true
-			gnunet-update -c /etc/gnunet.conf > /dev/null 2>&1 || true
-			echo " [done]"
-			# Create new log and pid directory
-			echo -n "Creating new GNUnet logging file directory (/var/log/gnunetd)"
-			mkdir -p /var/log/gnunetd
-			# Using default values anyway
-			mv -f /var/log/gnunetd.log* /var/log/gnunetd/ > /dev/null 2>&1 || true
-			echo " [done]"
-			echo -n "Creating new GNUnet pid file directory (/var/run/gnunetd)"
-			mkdir -p /var/run/gnunetd
-			echo " [done]"
-		else
-			# Update only if needed (if user has never changed his /etc/gnunet.conf, installer will install new default one which is already ok)
-			if [ "$PIDFILE" != "/var/run/gnunetd/gnunetd.pid" ] || [ "$LOGFILE" != "/var/log/gnunetd/gnunetd.log" ]; then
-				echo -n "Updating LOGFILE and PIDFILE values in /etc/gnunet.conf"
-				# Update values in /etc/gnunet.conf
-				OLD_PIDFILE=`/bin/grep "^PIDFILE" /etc/gnunet.conf`
-				NEW_PIDFILE="\n# Do not change this unless you know exactly what you're doing.\n# Changing this value alone, will break the package.\nPIDFILE         = /var/run/gnunetd/gnunetd.pid"
-				sed "s+^$OLD_PIDFILE+$NEW_PIDFILE+g" /etc/gnunet.conf > $TMP_FILE
-				OLD_LOGFILE=`/bin/grep "^LOGFILE" /etc/gnunet.conf`
-				NEW_LOGFILE="\n# Do not change this unless you know exactly what you're doing.\n# Changing this value alone, will break the package.\nLOGFILE         = /var/log/gnunetd/gnunetd.log"
-				sed "s+^$OLD_LOGFILE+$NEW_LOGFILE+g" $TMP_FILE > /etc/gnunet.conf
-				echo " [done]"
-			fi
-			# Create new log and pid directory
-			echo -n "Creating new GNUnet logging file directory (/var/log/gnunetd)"
-			mkdir -p /var/log/gnunetd
-			# Using computed value and default (in case gnunet.conf has been replaced already)
-			mv -f $LOGFILE* /var/log/gnunetd/ > /dev/null 2>&1 || true
-			mv -f /var/log/gnunetd.log* /var/log/gnunetd/ > /dev/null 2>&1 || true
-			echo " [done]"
-			echo -n "Creating new GNUnet pid file directory (/var/run/gnunetd)"
-			mkdir -p /var/run/gnunetd
-			echo " [done]"
-		fi
-	
-		# Cleaning
-		rm -f $TMP_FILE
-	fi
-	
-	
-	if dpkg --compare-versions "$2" lt "0.6.6b-1" && \
-	[ -e /etc/gnunet.conf ]; then
-
-		TMP_FILE=`/bin/tempfile`
-		
-		# Try to read configuration values (use gnunet-update -g)
-		DATABASETYPE=`gnunet-update --get=AFS:DATABASETYPE`
-
-		# Check values
-		if [ ! $DATABASETYPE ]; then
-			# Something was wrong, but do nothing, since this is not mandatory
-			echo "Warning: Can't find default DATABASETYPE value in /etc/gnunet.conf. Aborting database migration."
-		else
-			if [ "$DATABASETYPE" != "gdbm" ]; then
-				# if database type is not "gdbm" (default configuration) then do nothing.
-				# We want to keep user specific configuration if there is any.
-				echo "We found a user specified value of DATABASETYPE in /etc/gnunet.conf. Keeping user settings."
-			else
-				echo "Updating DATABASETYPE value in /etc/gnunet.conf (new default recommended db is sqlite3)"
-				echo -n "Backuping configuration file (/etc/gnunet.conf to /etc/gnunet.conf.olddb)"
-				cp -f /etc/gnunet.conf /etc/gnunet.conf.olddb || true
-				echo " [done]"
-				# Update values in /etc/gnunet.conf
-				OLD_DATABASETYPE=`/bin/grep "^DATABASETYPE" /etc/gnunet.conf`
-				NEW_DATABASETYPE="\n# Default database for the Debian package is now sqlite since 0.6.6b-1.\nDATABASETYPE    = \"sqlite\""
-				sed "s+^$OLD_DATABASETYPE+$NEW_DATABASETYPE+g" /etc/gnunet.conf > $TMP_FILE
-				# Use cat to keep old defaults access rights of gnunet.conf 
-				cat $TMP_FILE > /etc/gnunet.conf
-				# Convert data
-				gnunet-convert || true
-				echo "Updating [done]"
-			fi
-		fi
-		# Cleaning
-		rm -f $TMP_FILE
-	fi
-
-	
 	# Read default values
 	CONFIG_FILE=/etc/default/gnunet
+
 	# This is need to migrate data from 0.6.1b or later
 	echo "Migrating previous GNUnet data (gnunet-update)"
 	gnunet-update
-	# Needed to migrate AFS-Quota which changed from 0.6.4
-	echo "Migrating to new AFS-Quota (gnunet-check -u)"
-	gnunet-check -u || true
+
 	# Read debconf values
 	db_get gnunet/gnunet_user
 	gnunet_user="$RET"
@@ -161,7 +55,7 @@ case "$1" in
 	/bin/chown -R $gnunet_user:$gnunet_group /var/run/gnunetd
 	/bin/chown -R $gnunet_user:$gnunet_group /var/log/gnunetd
 	# Use the new "gnunet-update -g"
-	GNUNETD_HOME=`gnunet-update --get=:GNUNETD_HOME`
+	GNUNETD_HOME=`gnunet-update --get=GNUNETD:GNUNETD_HOME`
 	/bin/chown -R $gnunet_user:$gnunet_group $GNUNETD_HOME
 	echo  " [done]"
 	# Writing new values to configuration file
@@ -175,7 +69,6 @@ case "$1" in
 
 GNUNET_USER=$gnunet_user
 GNUNET_GROUP=$gnunet_group
-LAUNCH_AT_STARTUP=true
 EOF
 
 	cp -f $CONFIG_NEW $CONFIG_FILE

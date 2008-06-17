@@ -9,11 +9,13 @@
 #
 # Version:	@(#)skeleton  1.9  26-Feb-2001  miquels@cistron.nl
 #
+# Additions:	Modified for Debian GNUnet package
+#			by Arnaud Kyheng <Arnaud.Kyheng@free.fr>
 
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 DAEMON=/usr/bin/gnunetd
 NAME=gnunetd
-DESC=GNUnetd
+DESC=GNUnet
 # Assuming default value for PIDFILE. This should not be changed
 PIDFILE=/var/run/gnunetd/$NAME.pid
 
@@ -21,32 +23,26 @@ test -x $DAEMON || exit 0
 
 set -e
 
-# This value is overriden in /etc/default/gnunet if it exists
-LAUNCH_AT_STARTUP=false
 # Get configuration
 if [ -r /etc/default/gnunet ]; then
 	. /etc/default/gnunet
 fi
 
-
 case "$1" in
   start)
-  	# Addition by Arnaud Kyheng <Arnaud.Kyheng@free.fr> for gnunet package
 	# We should not need --background, but if not here, the invoke-rc.d hangs
 	# when using debconf
+	# --quiet removed: For some unknown reason, with gnunet 0.7.0, adding --quiet brake the pidfile creation...
+	#
 	echo -n "Starting $DESC: "
-#	if [ "$LAUNCH_AT_STARTUP" = "true" ]; then
-		start-stop-daemon --start --quiet --background --chuid  $GNUNET_USER --pidfile $PIDFILE \
-			--exec $DAEMON -- -c /etc/gnunet.conf
-		echo "$NAME."
-#	else
-#		echo "disabled (use \"dpkg-reconfigure gnunet\" to change)"
-#	fi
+	start-stop-daemon --start --background --chuid  $GNUNET_USER --pidfile $PIDFILE \
+		--exec $DAEMON -- -c /etc/gnunetd.conf
+	echo "$NAME."
 	;;
   stop)
 	echo -n "Stopping $DESC: "
-	start-stop-daemon --stop --quiet --pidfile $PIDFILE \
-		--exec $DAEMON --oknodo
+	start-stop-daemon --stop --pidfile $PIDFILE \
+		--exec $DAEMON --retry 15 --oknodo
 	echo "$NAME."
 	;;
   #reload)

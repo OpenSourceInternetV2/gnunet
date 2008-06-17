@@ -14,8 +14,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: gnunet\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2004-12-03 08:11+0100\n"
+"Report-Msgid-Bugs-To: Arnaud.Kyheng@free.fr\n"
+"POT-Creation-Date: 2005-09-18 12:58+0200\n"
 "PO-Revision-Date: 2005-05-25 20:44+0200\n"
 "Last-Translator: Miroslav Kure <kurem@debian.cz>\n"
 "Language-Team: Czech <debian-l10n-czech@lists.debian.org>\n"
@@ -95,21 +95,59 @@ msgid ""
 "installation."
 msgstr "Po instalaci jej projděte a případně proveďte nezbytné změny."
 
+#. Type: note
+#. Description
+#: ../gnunet.templates:29
+msgid "Upgrade from a version prior to 0.7.0"
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../gnunet.templates:29
+msgid ""
+"It seems that you are upgrading GNUnet from a version prior to 0.7.x. GNUnet "
+"0.7.x introduced new configuration files and a new database storage format "
+"which is not compatible with versions prior to 0.7.x."
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../gnunet.templates:29
+msgid "GNUnet cannot convert your database format to the new format."
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../gnunet.templates:29
+msgid ""
+"Your database storage will be automatically moved to /var/lib/GNUnet."
+"prior07, and the gnunet package will build a new empty storage for you."
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../gnunet.templates:29
+msgid ""
+"Your /etc/gnunet.conf file will also be moved to /etc/gnunet.conf.prior07 "
+"and replaced by /etc/gnunetd.conf which you can modify later by running "
+"\"gnunet-setup -d -c /etc/gnunetd.conf\", as root."
+msgstr ""
+
 #. Type: boolean
 #. Description
-#: ../gnunet.templates:30
+#: ../gnunet.templates:46
 msgid "Launch at startup?"
 msgstr "Spustit při startu?"
 
 #. Type: boolean
 #. Description
-#: ../gnunet.templates:30
+#: ../gnunet.templates:46
 msgid "Do you want to launch GNUnet as a system service ?"
 msgstr "Chcete spustit GNUnet jako systémovou službu při zavádění systému?"
 
 #. Type: boolean
 #. Description
-#: ../gnunet.templates:30
+#: ../gnunet.templates:46
 msgid ""
 "If you accept here, a GNUnet server will be started each time your machine "
 "starts.  If you decline this option, you need to launch GNUnet each time you "
@@ -121,51 +159,52 @@ msgstr ""
 
 #. Type: string
 #. Description
-#: ../gnunet.templates:40
+#: ../gnunet.templates:56
 msgid "GNUnet user:"
 msgstr "Uživatel GNUnet:"
 
 #. Type: string
 #. Description
-#: ../gnunet.templates:40
+#: ../gnunet.templates:56
 msgid "Define the user owning the GNUnet daemon process."
 msgstr "Zadejte uživatele vlastnícího daemon GNUnet."
 
 #. Type: string
 #. Description
-#: ../gnunet.templates:40
+#: ../gnunet.templates:56
+#, fuzzy
 msgid ""
-"For security reason, the best is to create a new user for this, and make "
-"sure that it owns no data beside GNUnet's ones."
+"For security reasons, it's best to create a new user exclusively for  GNUnet."
 msgstr ""
 "Z bezpečnostních důvodů je nejlepší vytvořit nového uživatele, který "
 "nevlastní kromě GNUnetu žádná jiná data."
 
 #. Type: string
 #. Description
-#: ../gnunet.templates:40
+#: ../gnunet.templates:56
+#, fuzzy
 msgid ""
-"If you go that way, the user will automatically be created (as system user) "
-"and no login will be allowed for it."
+"If you choose this option, that user will automatically be created  as a "
+"system user, for whom no login will be allowed."
 msgstr ""
 "Zvolíte-li tuto cestu, (systémový) uživatel se vytvoří automaticky a bude mu "
 "zakázáno přihlášení."
 
 #. Type: string
 #. Description
-#: ../gnunet.templates:52
+#: ../gnunet.templates:67
 msgid "GNUnet group:"
 msgstr "Skupina GNUnet:"
 
 #. Type: string
 #. Description
-#: ../gnunet.templates:52
+#: ../gnunet.templates:67
 msgid "Define the group owning the GNUnet daemon process."
 msgstr "Zadejte skupinu vlastnící daemon GNUnet."
 
 #. Type: string
 #. Description
-#: ../gnunet.templates:52
+#: ../gnunet.templates:67
 msgid ""
 "For security reason, the best is to create a new group for this, and make "
 "sure that it owns no data beside GNUnet's ones."
@@ -175,7 +214,7 @@ msgstr ""
 
 #. Type: string
 #. Description
-#: ../gnunet.templates:52
+#: ../gnunet.templates:67
 msgid ""
 "Only the members of this group are allowed to start and stop the GNUnet "
 "server and  have access to GNUnet data."
