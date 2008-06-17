@@ -30,6 +30,8 @@
 #include "fs.h"
 #include "anonymity.h"
 #include "gnunet_stats_service.h"
+#include "gnunet_protocols.h"
+#include "ondemand.h"
 
 #define DEBUG_MIGRATION NO
 
@@ -62,6 +64,8 @@ static Stats_ServiceAPI * stats;
 
 static int stat_migration_count;
 
+static int stat_on_demand_migration_attempts;
+
 /**
  * Lock used to access content.
  */
@@ -74,7 +78,6 @@ static Mutex lock;
  * first time).
  */
 static Datastore_Value * content;
-
 				
 /**
  * Callback method for pushing content into the network.
@@ -95,13 +98,16 @@ static unsigned int
 activeMigrationCallback(const PeerIdentity * receiver,
 			void * position,
 			unsigned int padding) {
+  /** key corresponding to content (if content != NULL);
+      yes, must be static! */
+  static HashCode512 key;
   unsigned int ret;
-  HashCode512 key;
   GapWrapper * gw;
   unsigned int size;
   cron_t et;
   cron_t now;
   unsigned int anonymity;
+  Datastore_Value *enc;    
 
   MUTEX_LOCK(&lock);
   if (content != NULL) {
@@ -125,6 +131,21 @@ activeMigrationCallback(const PeerIdentity * receiver,
       return 0;
     }
   }
+  
+  if (ntohl(content->type) == ONDEMAND_BLOCK) {
+    if (ONDEMAND_getIndexed(datastore, content, &key, &enc) != OK) {
+      FREE(content);
+      content = NULL;
+      MUTEX_UNLOCK(&lock);
+      return 0;
+    }
+    if (stats != NULL)
+      stats->change(stat_on_demand_migration_attempts, 1); 
+
+    FREE(content);
+    content = enc;
+  }
+  
   size = sizeof(GapWrapper) + ntohl(content->size) - sizeof(Datastore_Value);
   if (size > padding) {
     MUTEX_UNLOCK(&lock);
@@ -167,7 +188,6 @@ activeMigrationCallback(const PeerIdentity * receiver,
 	"gap's tryMigrate returned %u\n",
 	ret);
 #endif
-
   } else {
 #if DEBUG_MIGRATION
     LOG(LOG_DEBUG,
@@ -200,8 +220,10 @@ void initMigration(CoreAPIForApplication * capi,
   coreAPI->registerSendCallback(512,
 				&activeMigrationCallback);
   stats = capi->requestService("stats");
-  if (stats != NULL) 
+  if (stats != NULL) {
     stat_migration_count = stats->create(gettext_noop("# blocks migrated"));
+    stat_on_demand_migration_attempts = stats->create(gettext_noop("# on-demand block migration attempts"));
+  }
 
 }
 

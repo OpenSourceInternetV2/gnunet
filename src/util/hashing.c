@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -30,8 +30,8 @@
  * @author Christian Grothoff
  */
 
-#include "gnunet_util.h"
 #include "platform.h"
+#include "gnunet_util.h"
 
 #define SHA512_DIGEST_SIZE 64
 #define SHA512_HMAC_BLOCK_SIZE 128
@@ -332,12 +332,7 @@ int getFileHash(const char * filename,
 			&len))
     return SYSERR;
   fh = fileopen(filename,
-#ifdef O_LARGEFILE
-		O_RDONLY | O_LARGEFILE
-#else
-		O_RDONLY
-#endif
-	    );
+		O_RDONLY | O_LARGEFILE);
   if (fh == -1) {
     LOG_FILE_STRERROR(LOG_ERROR, "open", filename);
     return SYSERR;
@@ -370,6 +365,21 @@ int getFileHash(const char * filename,
 	       (unsigned char*) ret);
   FREE(buf);
   return OK;
+}
+
+/**
+ * @brief Create a cryptographically weak hashcode from a buffer
+ * @param z the buffer to hash
+ * @param n the size of z
+ * @return the hashcode
+ */
+unsigned long long weakHash(const char *z, int n){
+  unsigned long long h = 0;
+  while(n > 0) {
+    h = (h << 3) ^ h ^ (unsigned char) *z++;
+    n--;
+  }
+  return h;
 }
 
 /* ***************** binary-ASCII encoding *************** */
@@ -467,6 +477,19 @@ int enc2hash(const char * enc,
   GNUNET_ASSERT(rpos == 0);
   GNUNET_ASSERT(vbit == 0);
   return OK;
+}
+
+/**
+ * @brief Convert a weak 64 bit hash into a string
+ * @param h the hashcode
+ * @param e the string (zero terminated)
+ */
+void encWeakHash(unsigned long long h, char e[14]) {
+  int i;
+
+  for (i = 0; i < 13; i++)
+    e[i] = encTable__[(h << (5 * i)) >> 59];
+  e[13] = 0;
 }
 
 /**

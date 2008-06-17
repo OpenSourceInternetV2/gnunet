@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004, 2005 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -298,9 +298,10 @@ static int csHandleCS_fs_request_insert_MESSAGE(ClientHandle sock,
 	hash2enc(&query,
 		 &enc));
   LOG(LOG_DEBUG,
-      "FS received REQUEST INSERT (query: `%s', type: %u)\n",
+      "FS received REQUEST INSERT (query: `%s', type: %u, priority %u)\n",
       &enc,
-      type);
+      type,
+      ntohl(ri->prio));
 #endif
   datum->type = htonl(type);
   memcpy(&datum[1],
@@ -1222,6 +1223,7 @@ void done_module_fs() {
  * Update FS module.
  */
 void update_module_fs(UpdateAPI * uapi) {
+  /* general sub-module updates */
   uapi->updateModule("datastore");
   uapi->updateModule("dht");
   uapi->updateModule("gap");

@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004, 2005 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -96,14 +96,33 @@ static FSUI_DownloadList * readDownloadList(int fd,
 	 0,
 	 sizeof(FSUI_DownloadList));
   ret->ctx = ctx;
-
-  ret->signalTerminate
-    = SYSERR;
   READINT(ret->is_recursive);
   READINT(ret->is_directory);
   READINT(ret->anonymityLevel);
   READINT(ret->completedDownloadsCount);
-  READINT(ret->finished);
+  READINT(ret->state);
+  switch (ret->state) { /* try to correct errors */
+  case FSUI_DOWNLOAD_ACTIVE:
+    ret->state = FSUI_DOWNLOAD_PENDING;
+    break;
+  case FSUI_DOWNLOAD_PENDING:
+  case FSUI_DOWNLOAD_COMPLETED_JOINED:
+  case FSUI_DOWNLOAD_ABORTED_JOINED:
+  case FSUI_DOWNLOAD_ERROR_JOINED:
+    break;
+  case FSUI_DOWNLOAD_ERROR:
+    ret->state = FSUI_DOWNLOAD_ERROR_JOINED;
+    break;
+  case FSUI_DOWNLOAD_ABORTED:
+    ret->state = FSUI_DOWNLOAD_ABORTED_JOINED;
+    break;
+  case FSUI_DOWNLOAD_COMPLETED:
+    ret->state = FSUI_DOWNLOAD_COMPLETED_JOINED;
+    break;
+  default:
+    ret->state = FSUI_DOWNLOAD_PENDING;
+    break;
+  }
   READINT(big);
   if (big > 1024 * 1024) {
     BREAK();
@@ -133,15 +152,14 @@ static FSUI_DownloadList * readDownloadList(int fd,
   for (i=0;i<ret->completedDownloadsCount;i++) {
     ret->completedDownloads[i]
       = readURI(fd);
-    if (ret->completedDownloads[i] == NULL)
-      ok = NO;
+    if (ret->completedDownloads[i] == NULL) 
+      ok = NO;    
   }
   if (NO == ok) {
     BREAK();
     goto ERR;
   }
   ret->parent = parent;
-  ret->signalTerminate = SYSERR;
   ret->next = readDownloadList(fd,
 			       ctx,
 			       parent);
@@ -227,7 +245,7 @@ static void writeDownloadList(int fd,
   WRITEINT(fd, list->is_directory);
   WRITEINT(fd, list->anonymityLevel);
   WRITEINT(fd, list->completedDownloadsCount);
-  WRITEINT(fd, list->finished);
+  WRITEINT(fd, list->state);
   WRITEINT(fd, strlen(list->filename));
   WRITE(fd,
 	list->filename,
@@ -258,14 +276,11 @@ static int readFileInfo(int fd,
 
   fi->meta = NULL;
   fi->uri = NULL;
-  if (sizeof(unsigned int) !=
-      READ(fd,
-	   &big,
-	   sizeof(unsigned int))) {
+  READINT(size);
+  if (size > 1024 * 1024) {
     BREAK();
     return SYSERR;
   }
-  size = ntohl(big);
   buf = MALLOC(size);
   if (size != READ(fd,
 		   buf,
@@ -292,24 +307,26 @@ static int readFileInfo(int fd,
     return SYSERR;
   }
   return OK;
+ ERR:
+  BREAK();
+  return SYSERR;
 }
 
 static void writeFileInfo(int fd,
 			  const ECRS_FileInfo * fi) {
   unsigned int size;
-  unsigned int big;
   char * buf;
 
-  size = ECRS_sizeofMetaData(fi->meta);
+  size = ECRS_sizeofMetaData(fi->meta,
+			     ECRS_SERIALIZE_FULL | ECRS_SERIALIZE_NO_COMPRESS);
+  if (size > 1024 * 1024)
+    size = 1024 * 1024;
   buf = MALLOC(size);
   ECRS_serializeMetaData(fi->meta,
 			 buf,
 			 size,
-			 NO);
-  big = htonl(size);
-  WRITE(fd,
-	&big,
-	sizeof(unsigned int));
+			 ECRS_SERIALIZE_PART | ECRS_SERIALIZE_NO_COMPRESS);
+  WRITEINT(fd, size);
   WRITE(fd,
 	buf,
 	size);
@@ -357,8 +374,8 @@ struct FSUI_Context * FSUI_start(const char * name,
 
   ret = MALLOC(sizeof(FSUI_Context));
   memset(ret, 0, sizeof(FSUI_Context));
-  ret->activeDownloads.signalTerminate
-    = SYSERR;
+  ret->activeDownloads.state
+    = FSUI_DOWNLOAD_PENDING; /* !? */
   ret->activeDownloads.ctx
     = ret;
   gh = getFileName("GNUNET",

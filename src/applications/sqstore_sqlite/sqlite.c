@@ -776,9 +776,10 @@ static int put(const HashCode512 * key,
 	hash2enc(key,
 		 &enc));
   LOG(LOG_DEBUG,
-      "Storing in database block with type %u and key `%s'.\n",
+      "Storing in database block with type %u, key `%s' and priority %u.\n",
       ntohl(*(int*)&value[1]),
-      &enc);
+      &enc,
+      ntohl(value->prio));
 #endif
 
   if ( (ntohl(value->size) < sizeof(Datastore_Value)) ) {
@@ -1068,7 +1069,7 @@ provide_module_sqstore_sqlite(CoreAPIForApplication * capi) {
   stats = coreAPI->requestService("stats");
   if (stats)
     stat_size
-      = stats->create(gettext_noop("# Bytes in datastore"));
+      = stats->create(gettext_noop("# bytes in datastore"));
 
   api.getSize = &getSize;
   api.put = &put;

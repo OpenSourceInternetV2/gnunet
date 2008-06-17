@@ -1,5 +1,5 @@
 # This file is part of GNUnet.
-# (C) 2001, 2002, 2003, 2004, 2005 Christian Grothoff (and other contributing authors)
+# (C) 2001, 2002, 2003, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
 #
 # GNUnet is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published
@@ -21,8 +21,8 @@
 #
 #
 AC_PREREQ(2.57)
-AC_INIT([GNUnet], [0.7.0c],[bug-gnunet@gnu.org])
-AM_INIT_AUTOMAKE([GNUnet], [0.7.0c])
+AC_INIT([GNUnet], [0.7.0d],[bug-gnunet@gnu.org])
+AM_INIT_AUTOMAKE([GNUnet], [0.7.0d])
 AM_CONFIG_HEADER([config.h])
 
 AH_TOP([#define _GNU_SOURCE  1])
@@ -178,7 +178,6 @@ fi
 AC_CHECK_LIB([kvm],[kvm_open])
 AC_CHECK_LIB([kstat],[kstat_open])
 
-
 # test for libextractor
 extractor=0
 AC_MSG_CHECKING(for libextractor)
@@ -252,6 +251,10 @@ AC_SUBST(SQLITE_LDFLAGS)
 zlib=1
 AC_CHECK_LIB(z, compress,,zlib=0)
 AM_CONDITIONAL(HAVE_ZLIB, test x$zlib = x1)
+if test "$zlib" != 1
+then
+ AC_MSG_ERROR([GNUnet requires zlib])
+fi
 
 # mysql & windows
 AC_CHECK_TYPES([sigset_t, off_t], [], [], [#include <sys/types.h>])
@@ -325,6 +328,11 @@ AM_CONDITIONAL(HAVE_MYSQL, test x$mysql = xtrue)
 LDFLAGS=$SAVE_LDFLAGS
 CPPFLAGS=$SAVE_CPPFLAGS
 
+if test "$sqlite" = 0 -a "$mysql" = 0
+then
+ AC_MSG_ERROR([GNUnet requires SQLite or MySQL])
+fi
+
 # GNUnet Setup
 curses=1
 pdcurses=0
@@ -389,7 +397,7 @@ AC_FUNC_VPRINTF
 AC_HEADER_SYS_WAIT
 AC_TYPE_OFF_T
 AC_TYPE_UID_T
-AC_CHECK_FUNCS([floor gethostname memmove rmdir strncasecmp strrchr strtol atoll dup2 fdatasync ftruncate gethostbyname gettimeofday memset mkdir mkfifo select socket strcasecmp strchr strdup strerror strstr clock_gettime getrusage rand uname setlocale getcwd mktime gmtime_r gmtime strlcpy strlcat ftruncate])
+AC_CHECK_FUNCS([floor gethostname memmove rmdir strncasecmp strrchr strtol atoll dup2 fdatasync ftruncate gethostbyname gettimeofday memset mkdir mkfifo select socket strcasecmp strchr strdup strerror strstr clock_gettime getrusage rand uname setlocale getcwd mktime gmtime_r gmtime strlcpy strlcat ftruncate stat64])
 
 # restore LIBS
 LIBS=$SAVE_LIBS

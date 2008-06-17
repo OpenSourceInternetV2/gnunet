@@ -14,7 +14,7 @@
 
 @SET_MAKE@
 
-SOURCES = $(libgnunetutil_la_SOURCES) $(bloomtest_SOURCES) $(configtest_SOURCES) $(crctest_SOURCES) $(crontest_SOURCES) $(daemontest_SOURCES) $(hashingtest_SOURCES) $(hashtest_SOURCES) $(hostkeytest_SOURCES) $(kblockkey_test_SOURCES) $(semaphoretest_SOURCES) $(shutdowntest_SOURCES) $(statetest_SOURCES) $(statuscallstest_SOURCES) $(storagetest_SOURCES) $(symciphertest_SOURCES) $(tcpiotest_SOURCES) $(timertest_SOURCES) $(vectortest_SOURCES) $(weakkeytest_SOURCES) $(xmalloctest_SOURCES)
+SOURCES = $(libgnunetutil_la_SOURCES) $(bloomtest_SOURCES) $(configtest_SOURCES) $(crctest_SOURCES) $(crontest_SOURCES) $(daemontest_SOURCES) $(hashingtest_SOURCES) $(hashtabletest_SOURCES) $(hashtest_SOURCES) $(hostkeytest_SOURCES) $(kblockkey_test_SOURCES) $(semaphoretest_SOURCES) $(shutdowntest_SOURCES) $(statetest_SOURCES) $(statuscallstest_SOURCES) $(storagetest_SOURCES) $(symciphertest_SOURCES) $(tcpiotest_SOURCES) $(timertest_SOURCES) $(vectortest_SOURCES) $(weakkeytest_SOURCES) $(xmalloctest_SOURCES)
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -38,8 +38,8 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 host_triplet = @host@
 check_PROGRAMS = bloomtest$(EXEEXT) crctest$(EXEEXT) crontest$(EXEEXT) \
-	configtest$(EXEEXT) daemontest$(EXEEXT) hashtest$(EXEEXT) \
-	hashingtest$(EXEEXT) hostkeytest$(EXEEXT) \
+	configtest$(EXEEXT) daemontest$(EXEEXT) hashtabletest$(EXEEXT) \
+	hashtest$(EXEEXT) hashingtest$(EXEEXT) hostkeytest$(EXEEXT) \
 	kblockkey_test$(EXEEXT) semaphoretest$(EXEEXT) \
 	shutdowntest$(EXEEXT) statetest$(EXEEXT) \
 	statuscallstest$(EXEEXT) storagetest$(EXEEXT) \
@@ -72,11 +72,12 @@ libgnunetutil_la_DEPENDENCIES = $(am__DEPENDENCIES_1) \
 	$(am__DEPENDENCIES_2)
 am_libgnunetutil_la_OBJECTS = bloomfilter.lo checksum.lo \
 	configuration.lo cron.lo daemon.lo dso.lo getopt.lo hashing.lo \
-	hostkey_gcrypt.lo initialize.lo io.lo ipcheck.lo kblockkey.lo \
-	locking_gcrypt.lo logging.lo osconfig.lo printhelp.lo port.lo \
-	random.lo semaphore.lo shutdown.lo state.lo statuscalls.lo \
-	storage.lo string.lo symcipher_gcrypt.lo tcp_return.lo \
-	tcpio.lo timer.lo vector.lo xmalloc.lo
+	hashtable.lo hostkey_gcrypt.lo initialize.lo io.lo ipcheck.lo \
+	kblockkey.lo locking_gcrypt.lo logging.lo osconfig.lo \
+	printhelp.lo port.lo random.lo semaphore.lo shutdown.lo \
+	state.lo statuscalls.lo storage.lo string.lo \
+	symcipher_gcrypt.lo tcp_return.lo tcpio.lo timer.lo vector.lo \
+	xmalloc.lo
 libgnunetutil_la_OBJECTS = $(am_libgnunetutil_la_OBJECTS)
 am_bloomtest_OBJECTS = bloomtest.$(OBJEXT)
 bloomtest_OBJECTS = $(am_bloomtest_OBJECTS)
@@ -96,6 +97,10 @@ daemontest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la
 am_hashingtest_OBJECTS = hashingtest.$(OBJEXT)
 hashingtest_OBJECTS = $(am_hashingtest_OBJECTS)
 hashingtest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la
+am_hashtabletest_OBJECTS = hashtabletest.$(OBJEXT)
+hashtabletest_OBJECTS = $(am_hashtabletest_OBJECTS)
+hashtabletest_DEPENDENCIES =  \
+	$(top_builddir)/src/util/libgnunetutil.la
 am_hashtest_OBJECTS = hashtest.$(OBJEXT)
 hashtest_OBJECTS = $(am_hashtest_OBJECTS)
 hashtest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la
@@ -153,7 +158,10 @@ am__depfiles_maybe = depfiles
 @AMDEP_TRUE@	./$(DEPDIR)/crontest.Po ./$(DEPDIR)/daemon.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/daemontest.Po ./$(DEPDIR)/dso.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/getopt.Plo ./$(DEPDIR)/hashing.Plo \
-@AMDEP_TRUE@	./$(DEPDIR)/hashingtest.Po ./$(DEPDIR)/hashtest.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/hashingtest.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/hashtable.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/hashtabletest.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/hashtest.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/hostkey_gcrypt.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/hostkeytest.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/initialize.Plo ./$(DEPDIR)/io.Plo \
@@ -190,23 +198,25 @@ LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 SOURCES = $(libgnunetutil_la_SOURCES) $(bloomtest_SOURCES) \
 	$(configtest_SOURCES) $(crctest_SOURCES) $(crontest_SOURCES) \
 	$(daemontest_SOURCES) $(hashingtest_SOURCES) \
-	$(hashtest_SOURCES) $(hostkeytest_SOURCES) \
-	$(kblockkey_test_SOURCES) $(semaphoretest_SOURCES) \
-	$(shutdowntest_SOURCES) $(statetest_SOURCES) \
-	$(statuscallstest_SOURCES) $(storagetest_SOURCES) \
-	$(symciphertest_SOURCES) $(tcpiotest_SOURCES) \
-	$(timertest_SOURCES) $(vectortest_SOURCES) \
-	$(weakkeytest_SOURCES) $(xmalloctest_SOURCES)
+	$(hashtabletest_SOURCES) $(hashtest_SOURCES) \
+	$(hostkeytest_SOURCES) $(kblockkey_test_SOURCES) \
+	$(semaphoretest_SOURCES) $(shutdowntest_SOURCES) \
+	$(statetest_SOURCES) $(statuscallstest_SOURCES) \
+	$(storagetest_SOURCES) $(symciphertest_SOURCES) \
+	$(tcpiotest_SOURCES) $(timertest_SOURCES) \
+	$(vectortest_SOURCES) $(weakkeytest_SOURCES) \
+	$(xmalloctest_SOURCES)
 DIST_SOURCES = $(libgnunetutil_la_SOURCES) $(bloomtest_SOURCES) \
 	$(configtest_SOURCES) $(crctest_SOURCES) $(crontest_SOURCES) \
 	$(daemontest_SOURCES) $(hashingtest_SOURCES) \
-	$(hashtest_SOURCES) $(hostkeytest_SOURCES) \
-	$(kblockkey_test_SOURCES) $(semaphoretest_SOURCES) \
-	$(shutdowntest_SOURCES) $(statetest_SOURCES) \
-	$(statuscallstest_SOURCES) $(storagetest_SOURCES) \
-	$(symciphertest_SOURCES) $(tcpiotest_SOURCES) \
-	$(timertest_SOURCES) $(vectortest_SOURCES) \
-	$(weakkeytest_SOURCES) $(xmalloctest_SOURCES)
+	$(hashtabletest_SOURCES) $(hashtest_SOURCES) \
+	$(hostkeytest_SOURCES) $(kblockkey_test_SOURCES) \
+	$(semaphoretest_SOURCES) $(shutdowntest_SOURCES) \
+	$(statetest_SOURCES) $(statuscallstest_SOURCES) \
+	$(storagetest_SOURCES) $(symciphertest_SOURCES) \
+	$(tcpiotest_SOURCES) $(timertest_SOURCES) \
+	$(vectortest_SOURCES) $(weakkeytest_SOURCES) \
+	$(xmalloctest_SOURCES)
 RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
 	html-recursive info-recursive install-data-recursive \
 	install-exec-recursive install-info-recursive \
@@ -415,6 +425,7 @@ libgnunetutil_la_SOURCES = \
  dso.c \
  getopt.c \
  hashing.c \
+ hashtable.c \
  hostkey_gcrypt.c \
  initialize.c \
  io.c \
@@ -469,6 +480,12 @@ timertest_SOURCES = \
  timertest.c
 
 timertest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
+hashtabletest_SOURCES = \
+ hashtabletest.c
+
+hashtabletest_LDADD = \
  $(top_builddir)/src/util/libgnunetutil.la  
 
 hashingtest_SOURCES = \
@@ -648,6 +665,9 @@ daemontest$(EXEEXT): $(daemontest_OBJECTS) $(daemontest_DEPENDENCIES)
 hashingtest$(EXEEXT): $(hashingtest_OBJECTS) $(hashingtest_DEPENDENCIES) 
 	@rm -f hashingtest$(EXEEXT)
 	$(LINK) $(hashingtest_LDFLAGS) $(hashingtest_OBJECTS) $(hashingtest_LDADD) $(LIBS)
+hashtabletest$(EXEEXT): $(hashtabletest_OBJECTS) $(hashtabletest_DEPENDENCIES) 
+	@rm -f hashtabletest$(EXEEXT)
+	$(LINK) $(hashtabletest_LDFLAGS) $(hashtabletest_OBJECTS) $(hashtabletest_LDADD) $(LIBS)
 hashtest$(EXEEXT): $(hashtest_OBJECTS) $(hashtest_DEPENDENCIES) 
 	@rm -f hashtest$(EXEEXT)
 	$(LINK) $(hashtest_LDFLAGS) $(hashtest_OBJECTS) $(hashtest_LDADD) $(LIBS)
@@ -711,6 +731,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getopt.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hashing.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hashingtest.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hashtable.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hashtabletest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hashtest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hostkey_gcrypt.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hostkeytest.Po@am__quote@

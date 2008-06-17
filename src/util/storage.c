@@ -24,8 +24,8 @@
  * @author Christian Grothoff
  */
 
-#include "gnunet_util.h"
 #include "platform.h"
+#include "gnunet_util.h"
 
 #if LINUX || CYGWIN
 #include <sys/vfs.h>
@@ -67,7 +67,11 @@ static int getSizeRec(const char * filename,
 		      const char * dirname,
 		      void * ptr) {
   unsigned long long * size = ptr;
+#ifdef HAVE_STAT64
+  struct stat64 buf;
+#else
   struct stat buf;
+#endif
   char * fn;
 
   if (filename == NULL)
@@ -93,7 +97,11 @@ static int getSizeRec(const char * filename,
   } else
     fn = STRDUP(filename);
 
+#ifdef HAVE_STAT64
+  if (0 != STAT64(fn, &buf)) {
+#else
   if (0 != STAT(fn, &buf)) {
+#endif
     LOG_FILE_STRERROR(LOG_EVERYTHING,
 		      "stat",
 		      fn);
@@ -119,7 +127,11 @@ static int getSizeWithoutSymlinksRec(const char * filename,
 				     const char * dirname,
 				     void * ptr) {
   unsigned long long * size = ptr;
+#ifdef HAVE_STAT64
+  struct stat64 buf;
+#else
   struct stat buf;
+#endif
   char * fn;
 
   if (filename == NULL)
@@ -144,7 +156,11 @@ static int getSizeWithoutSymlinksRec(const char * filename,
   } else
     fn = STRDUP(filename);
 
+#ifdef HAVE_STAT64
+  if (0 != STAT64(fn, &buf)) {
+#else
   if (0 != STAT(fn, &buf)) {
+#endif
     LOG_FILE_STRERROR(LOG_EVERYTHING,
 		      "stat",
 		      fn);
@@ -697,18 +713,11 @@ int copyFile(const char * src,
 
   buf = MALLOC(COPY_BLK_SIZE);
   pos = 0;
-  in = fileopen(src, O_RDONLY
-#ifdef O_LARGEFILE
-		| O_LARGEFILE
-#endif
-		);
+  in = fileopen(src, O_RDONLY | O_LARGEFILE);
   if (in == -1)
     return SYSERR;
   out = fileopen(dst,
-#ifdef O_LARGEFILE
-		 O_LARGEFILE |
-#endif
-		 O_WRONLY | O_CREAT | O_EXCL,
+		 O_LARGEFILE | O_WRONLY | O_CREAT | O_EXCL,
 		 S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
   if (out == -1) {
     closefile(in);

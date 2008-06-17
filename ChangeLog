@@ -1,7 +1,31 @@
+Sat May  6 00:17:59 PDT 2006
+	Releasing GNUnet 0.7.0d.
+
+Fri May  5 01:33:42 PDT 2006
+	Fixed bug with priorities of IBlocks of uploaded content
+	(priority was left at zero, making those blocks be 
+	possibly discarded rather quickly once the datastore filled
+	up).
+
+Tue May  2 00:01:25 PDT 2006
+	Fixed bug in gap where the tracking of query origins for
+	optimizing routing paths lacked a simple assignment of the
+	query origin (found by code inspection).  As a result,
+	routing performance should improve further.  Also fixed
+	small memory leak in gap and reduced memory consumption by
+	fixing Mantis #1058.
+
+Sat Apr 22 13:50:39 PDT 2006
+	Fixed bug in util/cron.c where stopCron() would wait for an 
+	unnecessary sleep to complete.
+
+Sat Mar 18 12:54:11 PST 2006
+	Releasing GNUnet 0.7.0c.
+
 Thu Mar 16 22:14:01 PST 2006
 	Fixing various routing problems (resulting in better utilization
 	of bandwidth by routing more content and less queries).
-
+	
 Wed Mar 15 00:00:14 PST 2006
 	Fixing various content migration bugs (one that disabled it,
 	one that made it unlikely that migration was even tried, and

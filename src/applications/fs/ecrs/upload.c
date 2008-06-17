@@ -49,7 +49,8 @@
 static int pushBlock(GNUNET_TCP_SOCKET * sock,
                      const CHK * chk,
                      unsigned int level,
-                     Datastore_Value ** iblocks) {
+                     Datastore_Value ** iblocks,
+		     unsigned int prio) {
   unsigned int size;
   unsigned int present;
   Datastore_Value * value;
@@ -84,7 +85,8 @@ static int pushBlock(GNUNET_TCP_SOCKET * sock,
     if (OK != pushBlock(sock,
                         &ichk,
                         level+1,
-                        iblocks))
+                        iblocks,
+			prio))
       return SYSERR;
     fileBlockEncode(db,
                     size,
@@ -94,6 +96,7 @@ static int pushBlock(GNUNET_TCP_SOCKET * sock,
       BREAK();
       return SYSERR;
     }
+    value->prio = htonl(prio);
 #if DEBUG_UPLOAD
     IFLOG(LOG_DEBUG,
           hash2enc(&ichk.query,
@@ -228,11 +231,7 @@ int ECRS_uploadFile(const char * filename,
   }
   treedepth = computeDepth(filesize);
 
-#ifdef O_LARGEFILE
   fd = fileopen(filename, O_RDONLY | O_LARGEFILE);
-#else
-  fd = fileopen(filename, O_RDONLY);
-#endif
   if (fd == -1) {
     LOG_FILE_STRERROR(LOG_WARNING, "OPEN", filename);
     return SYSERR;
@@ -334,7 +333,8 @@ int ECRS_uploadFile(const char * filename,
     if (OK != pushBlock(sock,
                         &chk,
                         0, /* dblocks are on level 0 */
-                        iblocks))
+                        iblocks,
+			priority))
       goto FAILURE;
   }
   if (tt != NULL)
@@ -380,7 +380,8 @@ int ECRS_uploadFile(const char * filename,
     if (OK != pushBlock(sock,
                         &chk,
                         i+1,
-                        iblocks))
+                        iblocks,
+			priority))
       goto FAILURE;
     fileBlockEncode(db,
                     size,
@@ -390,6 +391,7 @@ int ECRS_uploadFile(const char * filename,
       BREAK();
       goto FAILURE;
     }
+    value->prio = htonl(priority);
     if (OK != FS_insert(sock,
                         value)) {
       FREE(value);

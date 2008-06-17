@@ -35,6 +35,7 @@
 #include "gnunet_stats_service.h"
 #include "gnunet_traffic_service.h"
 #include "gnunet_topology_service.h"
+#include "pid_table.h"
 
 #define DEBUG_GAP NO
 
@@ -157,8 +158,8 @@
  * THE VALUE YOU PICK MUST BE A POWER OF 2, for example:
  * 128, 256, 512, 1024, 2048, 4092, 8192, 16384, 32768, 65536
  */
-#define MIN_INDIRECTION_TABLE_SIZE 1024
-/* #define MIN_INDIRECTION_TABLE_SIZE 8 */
+#define MIN_INDIRECTION_TABLE_SIZE 1024 
+/* #define MIN_INDIRECTION_TABLE_SIZE 4 */
 
 /**
  * Under certain cirumstances, two peers can interlock in their
@@ -284,7 +285,7 @@ typedef struct {
   /**
    * To which peer will we never send this message?
    */
-  PeerIdentity noTarget;
+  PID_INDEX noTarget;
 
   /**
    * Bit-map marking the hostIndices (computeIndex) of nodes that have
@@ -307,7 +308,10 @@ typedef struct {
  * Indirection table entry. Lists what we're looking for,
  * where to forward it, and how long to keep looking for it.
  * Keep this struct as small as possible -- an array of these
- * takes 80% of GNUnet's memory.
+ * takes 80% of GNUnet's memory (for 65536 routing table entries,
+ * the array itself uses about 8 MB of memory; the contents
+ * that the entries point to can easily use another 8 MB at this 
+ * point [see Mantis #1058])
  */
 typedef struct {
   /**
@@ -348,7 +352,7 @@ typedef struct {
   /**
    * Who are these hosts?
    */
-  PeerIdentity * destination;
+  PID_INDEX * destination;
 
   /**
    * How many hosts are waiting for an answer to this query (length of
@@ -377,7 +381,7 @@ typedef struct {
  */
 typedef struct RL_ {
   struct RL_ * next;
-  PeerIdentity responder;
+  PID_INDEX responder;
   unsigned int responseCount;
 } ResponseList;
 
@@ -395,7 +399,7 @@ typedef struct RTD_ {
   /**
    * For which client does this entry track replies?
    */
-  PeerIdentity queryOrigin;
+  PID_INDEX queryOrigin;
 
   /**
    * Linked list of peers that responded, with

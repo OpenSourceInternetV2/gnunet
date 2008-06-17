@@ -95,6 +95,13 @@ static int stat_routing_local_results;
 
 static int stat_routing_processed;
 
+static int stat_memory_seen;
+
+static int stat_memory_destinations;
+
+static int stat_pending_rewards;
+
+
 /**
  * Topology service.
  */
@@ -151,7 +158,7 @@ static Mutex * lock;
 
 /**
  * Linked list tracking reply statistics.  Synchronize access using
- * the queryManagerLock!
+ * the lock!
  */
 static ReplyTrackData * rtdList = NULL;
 
@@ -164,9 +171,12 @@ static unsigned int rewardPos = 0;
 /**
  * Hard CPU limit
  */
-static unsigned int hardCPULimit;
+static int hardCPULimit;
 
-static unsigned int hardUpLimit;
+/**
+ * Hard network upload limit.
+ */
+static int hardUpLimit;
 
 #if DO_HISTOGRAM
 static int histogram[65536];
@@ -222,13 +232,8 @@ evaluateQuery(const PeerIdentity * sender,
 /**
  * Map the id to an index into the bitmap array.
  */
-static int getIndex(const PeerIdentity * id) {
-  unsigned int index;
-
-  index = coreAPI->computeIndex(id);
-  if (index >= 8*BITMAP_SIZE)
-    index = index & (8*BITMAP_SIZE-1);
-  return index;
+static unsigned int getIndex(PID_INDEX id) {
+  return id % (8*BITMAP_SIZE);
 }
 
 static void setBit(QueryRecord * qr,
@@ -264,6 +269,7 @@ static void ageRTD(void * unused) {
       while (pos->responseList != NULL) {
 	rpos = pos->responseList;
 	pos->responseList = rpos->next;
+	change_pid_rc(rpos->responder, -1);
 	FREE(rpos);
       }
     }
@@ -277,6 +283,7 @@ static void ageRTD(void * unused) {
 	  pos->responseList = rpos->next;
 	else
 	  rprev->next = rpos->next;
+	change_pid_rc(rpos->responder, -1);	
 	FREE(rpos);
 	if (rprev == NULL)
 	  rpos = pos->responseList;
@@ -292,6 +299,7 @@ static void ageRTD(void * unused) {
 	rtdList = pos->next;
       else
 	prev->next = pos->next;
+      change_pid_rc(pos->queryOrigin, -1);
       FREE(pos);
       if (prev == NULL)
 	pos = rtdList;
@@ -312,21 +320,20 @@ static void ageRTD(void * unused) {
  * @param origin
  * @param responder peer that send the reply
  */
-static void updateResponseData(const PeerIdentity * origin,
-			       const PeerIdentity * responder) {
+static void updateResponseData(PID_INDEX origin,
+			       PID_INDEX responder) {
   ReplyTrackData * pos;
   ReplyTrackData * prev;
   ResponseList * rpos;
   ResponseList * rprev;
 
-  if (responder == NULL)
+  if (responder == 0)
     return; /* we don't track local responses */
   MUTEX_LOCK(lock);
   pos = rtdList;
   prev = NULL;
   while (pos != NULL) {
-    if (hostIdentityEquals(origin,
-			   &pos->queryOrigin))
+    if (origin == pos->queryOrigin)
       break; /* found */
     prev = pos;
     pos = pos->next;
@@ -335,6 +342,8 @@ static void updateResponseData(const PeerIdentity * origin,
     pos = MALLOC(sizeof(ReplyTrackData));
     pos->next = NULL;
     pos->responseList = NULL;
+    pos->queryOrigin = origin;
+    change_pid_rc(origin, 1);  
     if (prev == NULL)
       rtdList = pos;
     else
@@ -344,9 +353,7 @@ static void updateResponseData(const PeerIdentity * origin,
   rpos = pos->responseList;
   rprev = NULL;
   while (rpos != NULL) {
-    if (0 == memcmp(responder,
-		    &rpos->responder,
-		    sizeof(PeerIdentity))) {
+    if (responder == rpos->responder) {
       rpos->responseCount++;
       MUTEX_UNLOCK(lock);
       return;
@@ -356,7 +363,8 @@ static void updateResponseData(const PeerIdentity * origin,
   }
   rpos = MALLOC(sizeof(ResponseList));
   rpos->responseCount = 1;
-  rpos->responder = *responder;
+  rpos->responder = responder;
+  change_pid_rc(responder, 1);
   rpos->next = NULL;
   if (rprev == NULL)
     pos->responseList = rpos;
@@ -391,22 +399,23 @@ fillInQuery(const PeerIdentity * receiver,
   unsigned int delta;
   cron_t now;
   QueryRecord * qr;
+  PID_INDEX receiverId;
 
   cronTime(&now);
+  receiverId = intern_pid(receiver);
   MUTEX_LOCK(lock);
   start = pos;
   delta = 0;
   while (padding - delta > sizeof(P2P_gap_query_MESSAGE)) {
     qr = &queries[pos];
     if ( (qr->expires > now) &&
-	 (0 == getBit(qr, getIndex(receiver))) &&
-	 (! (equalsHashCode512(&receiver->hashPubKey,
-			       &qr->noTarget.hashPubKey)) ) &&
+	 (0 == getBit(qr, getIndex(receiverId))) &&
+	 (receiverId != qr->noTarget) &&
 	 (! (equalsHashCode512(&receiver->hashPubKey,
 			       &qr->msg->returnTo.hashPubKey)) ) &&
 	 (padding - delta >= ntohs(qr->msg->header.size) ) ) {
       setBit(&queries[pos],
-	     getIndex(receiver));
+	     getIndex(receiverId));
       memcpy(&((char*)position)[delta],
 	     qr->msg,
 	     ntohs(qr->msg->header.size));
@@ -420,6 +429,7 @@ fillInQuery(const PeerIdentity * receiver,
       break;
   }
   MUTEX_UNLOCK(lock);
+  change_pid_rc(receiverId, -1);
   return delta;
 }
 
@@ -427,28 +437,28 @@ fillInQuery(const PeerIdentity * receiver,
  * Select a subset of the peers for forwarding.  Called
  * on each connected node by the core.
  */
-static void hotpathSelectionCode(const PeerIdentity * id,
+static void hotpathSelectionCode(const PeerIdentity * peer,
 				 void * cls) {
   QueryRecord * qr = cls;
   ReplyTrackData * pos;
   ResponseList * rp;
   int ranking = 0;
   int distance;
+  PID_INDEX id;
 
+  id = intern_pid(peer);
   /* compute some basic ranking based on historical
      queries from the same origin */
   pos = rtdList;
   while (pos != NULL) {
-    if (equalsHashCode512(&pos->queryOrigin.hashPubKey,
-			  &qr->noTarget.hashPubKey))
+    if (pos->queryOrigin == qr->noTarget)
       break;
     pos = pos->next;
   }
   if (pos != NULL) {
     rp = pos->responseList;
     while (rp != NULL) {
-      if (equalsHashCode512(&rp->responder.hashPubKey,
-			    &id->hashPubKey))
+      if (rp->responder == id)
 	break;
       rp = rp->next;
     }
@@ -461,44 +471,51 @@ static void hotpathSelectionCode(const PeerIdentity * id,
   }
   distance
     = distanceHashCode512(&qr->msg->queries[0],
-			  &id->hashPubKey);
+			  &peer->hashPubKey);
   if (distance <= 0)
     distance = 1;
   ranking += 0xFFFF / (1 + weak_randomi(distance));
   ranking += 1 + weak_randomi(0xFF); /* small random chance for everyone */
-  if (equalsHashCode512(&id->hashPubKey,
-			&qr->noTarget.hashPubKey))
+  if (id == qr->noTarget)
     ranking = 0; /* no chance for blocked peers */
   qr->rankings[getIndex(id)] = ranking; 
+  change_pid_rc(id, -1);
 }
 
 /**
  * A "PerNodeCallback" method that forwards the query to the selected
  * nodes.
  */
-static void sendToSelected(const PeerIdentity * id,
+static void sendToSelected(const PeerIdentity * peer,
 			   void * cls) {
   const QueryRecord * qr = cls;
+  PID_INDEX id;
 #if DEBUG_GAP
   EncName encq;
   EncName encp;
 #endif
 
-  if ( (equalsHashCode512(&id->hashPubKey,
-			  &qr->noTarget.hashPubKey)) ||
-       (equalsHashCode512(&id->hashPubKey,
-			  &qr->msg->returnTo.hashPubKey)) )
-    return; /* never send back to source */
+  if (equalsHashCode512(&peer->hashPubKey,
+			&qr->msg->returnTo.hashPubKey))
+    return;  /* never send back to source */
 
   /* Load above hard limit? */
-  if ((hardCPULimit && getCPULoad() >= hardCPULimit) ||
-        (hardUpLimit && getNetworkLoadUp() >= hardUpLimit) )
+  if ( ( (hardCPULimit > 0) && 
+	 (getCPULoad() >= hardCPULimit) ) ||
+       ( (hardUpLimit > 0) && 
+	 (getNetworkLoadUp() >= hardUpLimit) ) )
     return;
+  
+  id = intern_pid(peer);
+  if (id == qr->noTarget) {
+    change_pid_rc(id, -1);
+    return; /* never send back to source */
+  }
 
   if (getBit(qr, getIndex(id)) == 1) {
 #if DEBUG_GAP
     IFLOG(LOG_DEBUG,
-	  hash2enc(&id->hashPubKey,
+	  hash2enc(&peer->hashPubKey,
 		   &encp);
 	  hash2enc(&qr->msg->queries[0],
 		   &encq));
@@ -509,11 +526,12 @@ static void sendToSelected(const PeerIdentity * id,
 #endif
     if (stats != NULL)
       stats->change(stat_routing_forwards, 1);
-    coreAPI->unicast(id,
+    coreAPI->unicast(peer,
 		     &qr->msg->header,
 		     BASE_QUERY_PRIORITY * ntohl(qr->msg->priority) * 2,
 		     TTL_DECREMENT);
   }
+  change_pid_rc(id, -1);
 }
 
 /**
@@ -529,7 +547,11 @@ static void forwardQuery(const P2P_gap_query_MESSAGE * msg,
   cron_t expirationTime;
   int oldestIndex;
   int i;
+  int j;
   int noclear = NO;
+  unsigned long long rankingSum;
+  unsigned long long sel;
+  unsigned long long pos;
 
   cronTime(&now);
   MUTEX_LOCK(lock);
@@ -593,15 +615,13 @@ static void forwardQuery(const P2P_gap_query_MESSAGE * msg,
 	 msg,
 	 ntohs(msg->header.size));
   if (noclear == NO) {
-    int j;
-    unsigned long long rankingSum;
     memset(&qr->bitmap[0],
 	   0,
 	   BITMAP_SIZE);
     if (excludePeer != NULL)
-      qr->noTarget = *excludePeer;
+      qr->noTarget = intern_pid(excludePeer);
     else
-      qr->noTarget = *coreAPI->myIdentity;
+      qr->noTarget = intern_pid(coreAPI->myIdentity);
     qr->totalDistance = 0;
     qr->rankings = MALLOC(sizeof(int)*8*BITMAP_SIZE);
     qr->activeConnections
@@ -616,9 +636,6 @@ static void forwardQuery(const P2P_gap_query_MESSAGE * msg,
     if (qr->activeConnections > 0) {
       /* select 4 peers for forwarding */
       for (i=0;i<4;i++) {
-	unsigned long long sel;
-	unsigned long long pos;
-
 	if (rankingSum == 0)
 	  break;
 	sel = weak_randomi64(rankingSum);
@@ -801,6 +818,9 @@ static void addReward(const HashCode512 * query,
     return;
   MUTEX_LOCK(lock);
   rewards[rewardPos].query = *query;
+  if (stats != NULL)
+    stats->change(stat_pending_rewards,
+		  prio - rewards[rewardPos].prio);
   rewards[rewardPos].prio = prio;
   rewardPos++;
   if (rewardPos == rewardSize)
@@ -808,8 +828,7 @@ static void addReward(const HashCode512 * query,
   MUTEX_UNLOCK(lock);
 }
 
-static unsigned int claimReward(const HashCode512 * query,
-				const PeerIdentity * peer) {
+static unsigned int claimReward(const HashCode512 * query) {
   int i;
   unsigned int ret;
 
@@ -819,6 +838,9 @@ static unsigned int claimReward(const HashCode512 * query,
     if (equalsHashCode512(query,
 			  &rewards[i].query)) {
       ret += rewards[i].prio;
+      if (stats != NULL)
+	stats->change(stat_pending_rewards,
+		      - rewards[rewardPos].prio);
       rewards[i].prio = 0;
     }
   }
@@ -845,9 +867,9 @@ static int addToSlot(int mode,
 		     const HashCode512 * query,
 		     int ttl,
 		     unsigned int priority,
-		     const PeerIdentity * sender) {
+		     PID_INDEX sender) {
   unsigned int i;
-  cron_t now;
+  cron_t now;  
 #if DEBUG__GAP
   EncName enc;
 
@@ -859,13 +881,15 @@ static int addToSlot(int mode,
       &enc,
       ite);
 #endif
-  GNUNET_ASSERT(sender != NULL); /* do NOT add to RT for local clients! */
+  GNUNET_ASSERT(sender != 0); /* do NOT add to RT for local clients! */
   cronTime(&now);
   if ( (stats != NULL) &&
        (ite->ttl == 0) )
        stats->change(stat_routing_slots_used, 1);
 
   if (mode == ITE_REPLACE) {
+    if (stats != NULL)
+      stats->change(stat_memory_seen, - ite->seenIndex);
     GROW(ite->seen,
 	 ite->seenIndex,
 	 0);
@@ -875,16 +899,24 @@ static int addToSlot(int mode,
       ite->ttl = now + ttl;
       ite->priority += priority;
       for (i=0;i<ite->hostsWaiting;i++)
-	if (equalsHashCode512(&ite->destination[i].hashPubKey,
-			      &sender->hashPubKey))
+	if (ite->destination[i] == sender)
 	  return SYSERR;
-      if (ite->hostsWaiting >= MAX_HOSTS_WAITING)
-	ite->hostsWaiting = 0; /* RESET to avoid unbounded growth (#1014) */
+      if (ite->hostsWaiting >= MAX_HOSTS_WAITING) {
+	decrement_pid_rcs(ite->destination, ite->hostsWaiting);
+	if (stats != NULL)
+	  stats->change(stat_memory_destinations, - ite->hostsWaiting);
+	GROW(ite->destination,
+	     ite->hostsWaiting,
+	     0); /* RESET to avoid unbounded growth (#1014) */
+      }
     } else {
       ite->successful_local_lookup_in_delay_loop = NO;
       /* different request, flush pending queues */
       dequeueQuery(&ite->primaryKey);
       ite->primaryKey = *query;
+      if (stats != NULL)
+	stats->change(stat_memory_destinations, - ite->hostsWaiting);
+      decrement_pid_rcs(ite->destination, ite->hostsWaiting);
       GROW(ite->destination,
 	   ite->hostsWaiting,
 	   0);
@@ -895,19 +927,23 @@ static int addToSlot(int mode,
     GNUNET_ASSERT(equalsHashCode512(query,
 				    &ite->primaryKey));
     for (i=0;i<ite->hostsWaiting;i++)
-      if (equalsHashCode512(&sender->hashPubKey,
-			    &ite->destination[i].hashPubKey))
+      if (sender == ite->destination[i])
 	return SYSERR; /* already there! */
     /* extend lifetime */
     if (ite->ttl < now + ttl)
       ite->ttl = now + ttl;
     ite->priority += priority;
   }
+  if (stats != NULL)
+    stats->change(stat_memory_destinations, 1);
   GROW(ite->destination,
        ite->hostsWaiting,
        ite->hostsWaiting+1);
-  ite->destination[ite->hostsWaiting-1] = *sender;
+  ite->destination[ite->hostsWaiting-1] = sender;
+  change_pid_rc(sender, 1);
   /* again: new listener, flush seen list */
+  if (stats != NULL)
+    stats->change(stat_memory_seen, - ite->seenIndex);
   GROW(ite->seen,
        ite->seenIndex,
        0);
@@ -944,7 +980,7 @@ static int addToSlot(int mode,
 static int needsForwarding(const HashCode512 * query,
 			   int ttl,
 			   unsigned int priority,
-			   const PeerIdentity * sender,
+			   PID_INDEX sender,
 			   int * isRouted,
 			   int * doForward) {
   IndirectionTableEntry * ite;
@@ -991,6 +1027,8 @@ static int needsForwarding(const HashCode512 * query,
        longer expired than new query */
     /* previous entry relatively expired, start using the slot --
        and kill the old seen list!*/
+    if (stats != NULL)
+      stats->change(stat_memory_seen, - ite->seenIndex);
     GROW(ite->seen,
 	 ite->seenIndex,
 	 0);
@@ -1070,6 +1108,8 @@ static int needsForwarding(const HashCode512 * query,
     if (ite->seenReplyWasUnique) {
       if (ite->ttl < new_ttl) { /* ttl of new is longer? */
 	/* go again */
+	if (stats != NULL)
+	  stats->change(stat_memory_seen, - ite->seenIndex);
 	GROW(ite->seen,
 	     ite->seenIndex,
 	     0);
@@ -1207,6 +1247,7 @@ static void sendReply(IndirectionTableEntry * ite,
   unsigned int j;
   unsigned int maxDelay;
   cron_t now;
+  PeerIdentity recv;
 #if DEBUG_GAP
   EncName enc;
 #endif
@@ -1220,15 +1261,17 @@ static void sendReply(IndirectionTableEntry * ite,
     maxDelay = TTL_DECREMENT; /* for expired queries */
   /* send to peers */
   for (j=0;j<ite->hostsWaiting;j++) {
+    resolve_pid(ite->destination[j],
+		&recv);
 #if DEBUG_GAP
     IFLOG(LOG_DEBUG,
-	  hash2enc(&ite->destination[j].hashPubKey,
+	  hash2enc(&recv.hashPubKey,
 		   &enc));
     LOG(LOG_DEBUG,
 	"GAP sending reply to `%s'\n",
 	&enc);
 #endif
-    coreAPI->unicast(&ite->destination[j],
+    coreAPI->unicast(&recv,
 		     msg,
 		     BASE_REPLY_PRIORITY *
 		     (ite->priority+5),
@@ -1238,7 +1281,6 @@ static void sendReply(IndirectionTableEntry * ite,
 }
 
 struct qLRC {
-  const PeerIdentity * sender;
   DataContainer ** values;
   unsigned int valueCount;
   HashCode512 * hashes;
@@ -1334,17 +1376,20 @@ static int execQuery(const PeerIdentity * sender,
   int max;
   int * perm;
   int doForward;
+  PID_INDEX senderID;
 #if DEBUG_GAP
   EncName enc;
 #endif
 
   /* Load above hard limit? */
-  if ((hardCPULimit && getCPULoad() >= hardCPULimit) ||
-        (hardUpLimit && getNetworkLoadUp() >= hardUpLimit) ) {
+  if ( ( (hardCPULimit > 0) && 
+	 (getCPULoad() >= hardCPULimit) ) ||
+       ( (hardUpLimit > 0) && 
+	 (getNetworkLoadUp() >= hardUpLimit) ) ) 
+    return SYSERR;  
 
-    return SYSERR;
-  }
-
+  senderID = intern_pid(sender);
+  GNUNET_ASSERT( (senderID != 0) || (sender == NULL) );
   ite = &ROUTING_indTable_[computeRoutingIndex(&query->queries[0])];
   MUTEX_LOCK(&lookup_exclusion);
   i = -1;
@@ -1355,7 +1400,7 @@ static int execQuery(const PeerIdentity * sender,
       i = needsForwarding(&query->queries[0],
 			  ttl,
 			  prio,
-			  sender,
+			  senderID,
 			  &isRouted,
 			  &doForward);
     } else {
@@ -1395,7 +1440,6 @@ static int execQuery(const PeerIdentity * sender,
   cls.valueCount = 0;
   cls.hashes = NULL;
   cls.hashCount = 0;
-  cls.sender = sender;
   if ( (isRouted == YES) && /* if we can't route, lookup useless! */
        ( (policy & QUERY_ANSWER) > 0) ) {
     bs->get(bs->closure,
@@ -1425,8 +1469,8 @@ static int execQuery(const PeerIdentity * sender,
 
     for (i=0;i<cls.valueCount;i++) {
       if (i < max) {
-	if (cls.sender != NULL)
-	  queueReply(cls.sender,
+	if (sender != NULL)
+	  queueReply(sender,
 		     &query->queries[0],
 		     cls.values[perm[i]]);
       }
@@ -1462,6 +1506,7 @@ static int execQuery(const PeerIdentity * sender,
     forwardQuery(query,
 		 sender);
   }
+  change_pid_rc(senderID, -1);
   return doForward;
 }
 
@@ -1479,7 +1524,7 @@ static int execQuery(const PeerIdentity * sender,
  * @return how good this content was (effective
  *         priority of the original request)
  */
-static int useContent(const PeerIdentity * hostId,
+static int useContent(const PeerIdentity * host,
 		      const P2P_gap_reply_MESSAGE * msg) {
   unsigned int i;
   HashCode512 contentHC;
@@ -1489,16 +1534,17 @@ static int useContent(const PeerIdentity * hostId,
   unsigned int prio;
   DataContainer * value;
   double preference;
+  PID_INDEX hostId;
 #if DEBUG_GAP
   EncName enc;
 
   IFLOG(LOG_DEBUG,
-	if (hostId != NULL)
-	  hash2enc(&hostId->hashPubKey,
+	if (host != NULL)
+	  hash2enc(&host->hashPubKey,
 		   &enc));
   LOG(LOG_DEBUG,
       "GAP received content from `%s'\n",
-      (hostId != NULL) ? (const char*)&enc : "myself");
+      (host != NULL) ? (const char*)&enc : "myself");
 #endif
   if (ntohs(msg->header.size) < sizeof(P2P_gap_reply_MESSAGE)) {
     BREAK();
@@ -1543,6 +1589,15 @@ static int useContent(const PeerIdentity * hostId,
 		value,
 		0);
   if (ret == SYSERR) {
+    EncName enc;
+    
+    IFLOG(LOG_ERROR,
+	  if (host != NULL)
+	    hash2enc(&host->hashPubKey, 
+		     &enc));
+    LOG(LOG_ERROR,
+	_("GAP received invalid content from `%s'\n"),
+	(host != NULL) ? (const char*)&enc : _("myself"));    
     BREAK();
     uri(value,
 	ANY_BLOCK,
@@ -1553,6 +1608,7 @@ static int useContent(const PeerIdentity * hostId,
 
   /* THIRD: compute content priority/value and
      send remote reply (ITE processing) */
+  hostId = intern_pid(host);
   MUTEX_LOCK(&lookup_exclusion);
   if (equalsHashCode512(&ite->primaryKey,
 			&msg->primaryKey) ) {	
@@ -1560,17 +1616,21 @@ static int useContent(const PeerIdentity * hostId,
     ite->priority = 0;
     /* remove the sender from the waiting list
        (if the sender was waiting for a response) */
-    if (hostId != NULL) {
+    if (host != NULL) {
       for (i=0;i<ite->hostsWaiting;i++) {
-	if (equalsHashCode512(&hostId->hashPubKey,
-			      &ite->destination[i].hashPubKey)) {
+	if (hostId == ite->destination[i]) {
+	  change_pid_rc(ite->destination[i], -1);
 	  ite->destination[i] = ite->destination[ite->hostsWaiting-1];
+	  if (stats != NULL)
+	    stats->change(stat_memory_destinations, - 1);
 	  GROW(ite->destination,
 	       ite->hostsWaiting,
 	       ite->hostsWaiting - 1);
 	}			
       }
     }
+    if (stats != NULL)
+      stats->change(stat_memory_seen, 1);
     GROW(ite->seen,
 	 ite->seenIndex,
 	 ite->seenIndex+1);
@@ -1589,9 +1649,14 @@ static int useContent(const PeerIdentity * hostId,
       /* kill routing entry -- we have seen so many different
 	 replies already that we cannot afford to continue
 	 to keep track of all of the responses seen (#1014) */
+      if (stats != NULL)
+	stats->change(stat_memory_destinations, - ite->hostsWaiting);
+      decrement_pid_rcs(ite->destination, ite->hostsWaiting);
       GROW(ite->destination,
 	   ite->hostsWaiting,
 	   0);
+      if (stats != NULL)
+	stats->change(stat_memory_seen, - ite->seenIndex);
       GROW(ite->seen,
 	   ite->seenIndex,
 	   0);
@@ -1606,7 +1671,7 @@ static int useContent(const PeerIdentity * hostId,
       stats->change(stat_routing_reply_drops, 1);
   }
   MUTEX_UNLOCK(&lookup_exclusion);
-  prio += claimReward(&msg->primaryKey, hostId);
+  prio += claimReward(&msg->primaryKey);
 
   /* FOURTH: update content priority in local datastore */
   if (prio > 0) {
@@ -1626,18 +1691,19 @@ static int useContent(const PeerIdentity * hostId,
   FREE(value);
 
   /* SIXTH: adjust traffic preferences */
-  if (hostId != NULL) { /* if we are the sender, hostId will be NULL */
+  if (host != NULL) { /* if we are the sender, hostId will be NULL */
     preference = (double) prio;
-    identity->changeHostTrust(hostId,
+    identity->changeHostTrust(host,
 			      prio);
     for (i=0;i<ite->hostsWaiting;i++)
-      updateResponseData(&ite->destination[i],
+      updateResponseData(ite->destination[i],
 			 hostId);
     if (preference < CONTENT_BANDWIDTH_VALUE)
       preference = CONTENT_BANDWIDTH_VALUE;
-    coreAPI->preferTrafficFrom(hostId,
+    coreAPI->preferTrafficFrom(host,
 			       preference);
   }
+  change_pid_rc(hostId, -1);
   return OK;
 }
 
@@ -1797,9 +1863,7 @@ tryMigrate(const DataContainer * data,
   unsigned int size;
 
   size = sizeof(P2P_gap_reply_MESSAGE) + ntohl(data->size) - sizeof(DataContainer);
-  if (size > padding)
-    return 0;
-  if (size >= MAX_BUFFER_SIZE)
+  if ( (size > padding) || (size >= MAX_BUFFER_SIZE) )
     return 0;
   reply = (P2P_gap_reply_MESSAGE*) position;
   reply->header.type
@@ -1811,6 +1875,13 @@ tryMigrate(const DataContainer * data,
   memcpy(&reply[1],
 	 &data[1],
 	 size - sizeof(P2P_gap_reply_MESSAGE));
+#if EXTRA_CHECKS
+  /* verify content integrity */
+  GNUNET_ASSERT(SYSERR != bs->put(bs->closure,
+				  primaryKey,
+				  data,
+				  0));
+#endif
   return size;
 }
 
@@ -1836,21 +1907,22 @@ static int handleQuery(const PeerIdentity * sender,
   }
   
   /* Load above hard limit? */
-  if ((hardCPULimit && getCPULoad() >= hardCPULimit) ||
-        (hardUpLimit && getNetworkLoadUp() >= hardUpLimit) ) {
+  if ( ( (hardCPULimit > 0) && 
+	 (getCPULoad() >= hardCPULimit) ) ||
+       ( (hardUpLimit > 0) && 
+	 (getNetworkLoadUp() >= hardUpLimit) ) ) {
 #if DEBUG_GAP
     if (sender != NULL) {
       IFLOG(LOG_DEBUG,
-        hash2enc(&sender->hashPubKey,
-             &enc));
+	    hash2enc(&sender->hashPubKey,
+		     &enc));
     }
     LOG(LOG_DEBUG,
         "Dropping query from %s, this peer is too busy.\n",
-        sender == NULL ? "localhost" : &enc);
+        sender == NULL ? "localhost" : (char*)&enc);
 #endif
     return OK;
-  }
-
+  }  
   queries = 1 + (ntohs(msg->size) - sizeof(P2P_gap_query_MESSAGE))
     / sizeof(HashCode512);
   if ( (queries <= 0) ||
@@ -1860,6 +1932,7 @@ static int handleQuery(const PeerIdentity * sender,
     BREAK();
     return SYSERR; /* malformed query */
   }
+  
   qmsg = MALLOC(ntohs(msg->size));
   memcpy(qmsg, msg, ntohs(msg->size));
   if (equalsHashCode512(&qmsg->returnTo.hashPubKey,
@@ -1912,7 +1985,7 @@ static int handleQuery(const PeerIdentity * sender,
     }
     LOG(LOG_DEBUG,
 	"Dropping query from %s, policy decided that this peer is too busy.\n",
-	sender == NULL ? "localhost" : &enc);
+	sender == NULL ? "localhost" : (const char*) &enc);
 #endif
     if (stats != NULL)
       stats->change(stat_routing_direct_drops, 1);
@@ -1999,7 +2072,11 @@ provide_module_gap(CoreAPIForApplication * capi) {
     stat_routing_reply_dups         = stats->create(gettext_noop("# gap reply duplicates"));
     stat_routing_reply_drops        = stats->create(gettext_noop("# gap spurious replies"));
     stat_routing_slots_used         = stats->create(gettext_noop("# gap routing slots currently in use"));
+    stat_memory_seen                = stats->create(gettext_noop("# gap memory used for tracking seen content"));
+    stat_memory_destinations        = stats->create(gettext_noop("# gap memory used for tracking routing destinations"));
+    stat_pending_rewards            = stats->create(gettext_noop("# gap rewards pending"));
   }
+  init_pid_table(stats);
   GROW(rewards,
        rewardSize,
        MAX_REWARD_TRACKS);
@@ -2068,6 +2145,7 @@ void release_module_gap() {
   unsigned int i;
   ResponseList * rpos;
   ReplyTrackData * pos;
+  IndirectionTableEntry * ite;
 
   coreAPI->unregisterHandler(P2P_PROTO_gap_QUERY,
 			     &handleQuery);
@@ -2081,12 +2159,18 @@ void release_module_gap() {
 	     NULL);
 
   for (i=0;i<indirectionTableSize;i++) {
-    GROW(ROUTING_indTable_[i].seen,
-	 ROUTING_indTable_[i].seenIndex,
+    ite = &ROUTING_indTable_[i];
+    if (stats != NULL)
+      stats->change(stat_memory_seen, - ite->seenIndex);
+    GROW(ite->seen,
+	 ite->seenIndex,
 	 0);
-    ROUTING_indTable_[i].seenReplyWasUnique = NO;
-    GROW(ROUTING_indTable_[i].destination,
-	 ROUTING_indTable_[i].hostsWaiting,
+    ite->seenReplyWasUnique = NO;
+    if (stats != NULL)
+      stats->change(stat_memory_destinations, - ite->hostsWaiting);
+    decrement_pid_rcs(ite->destination, ite->hostsWaiting);    
+    GROW(ite->destination,
+	 ite->hostsWaiting,
 	 0);
   }
 
@@ -2116,7 +2200,9 @@ void release_module_gap() {
   GROW(rewards,
        rewardSize,
        0);
+  done_pid_table();
   if (stats != NULL) {
+    stats->set(stat_pending_rewards, 0);
     coreAPI->releaseService(stats);
     stats = NULL;
   }
