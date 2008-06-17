@@ -96,12 +96,12 @@ install-arch:
 
 	$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp
 	mkdir $(CURDIR)/debian/tmp/etc
-	cp contrib/gnunet.root $(CURDIR)/debian/tmp/etc/gnunet.conf
+	cp debian/gnunet.conf $(CURDIR)/debian/tmp/etc/gnunet.conf
 	mkdir -p $(CURDIR)/debian/tmp/usr/share/pixmaps	
-	cp contrib/gnu_in_net.xpm $(CURDIR)/debian/tmp/usr/share/pixmaps/
+	cp debian/gnu_in_net.xpm $(CURDIR)/debian/tmp/usr/share/pixmaps/
 	# Gnome and KDE desktop menu
 	mkdir -p $(CURDIR)/debian/tmp/usr/share/applications
-	cp contrib/gnunet.desktop $(CURDIR)/debian/tmp/usr/share/applications/
+	cp debian/gnunet.desktop $(CURDIR)/debian/tmp/usr/share/applications/
 
 	dh_movefiles -a
 
@@ -116,6 +116,7 @@ binary-common:
 	dh_installdocs
 	dh_installexamples
 	dh_installmenu
+	dh_installdebconf
 	dh_installlogrotate	
 	dh_installinit
 	dh_installcron

@@ -1,0 +1,12 @@
+#!/bin/sh -e
+# This script is needed for upgrade of gnunet prior to 0.6.4a-4.
+# Since 0.6.4a-4, gnunet package will be able to install as non root.
+# This script will backup and automatically edit /etc/gnunet.conf
+# to set up new default values of LOGFILE and PIDFILE.
+# It will also move old logging files.
+#
+# Arnaud Kyheng <Arnaud.Kyheng@free.fr>
+
+
+
+#DEBHELPER#

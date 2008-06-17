@@ -14,31 +14,33 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 DAEMON=/usr/bin/gnunetd
 NAME=gnunetd
 DESC=GNUnetd
+# Assuming default value for PIDFILE. This should not be changed
+PIDFILE=/var/run/gnunetd/$NAME.pid
 
 test -x $DAEMON || exit 0
 
 set -e
 
 # This value is overriden in /etc/default/gnunet if it exists
-RUN_DAEMON=no
-
+LAUNCH_AT_STARTUP=false
 # Get configuration
 if [ -r /etc/default/gnunet ]; then
 	. /etc/default/gnunet
 fi
 
-PIDFILE=/var/run/$NAME.pid
-
 
 case "$1" in
   start)
+  	# Addition by Arnaud Kyheng <Arnaud.Kyheng@free.fr> for gnunet package
+	# We should not need --background, but if not here, the invoke-rc.d hangs
+	# when using debconf
 	echo -n "Starting $DESC: "
-	if [ "$RUN_DAEMON" = "yes" ]; then
-		start-stop-daemon --start --quiet --pidfile $PIDFILE \
+	if [ "$LAUNCH_AT_STARTUP" == "true" ]; then
+		start-stop-daemon --start --quiet --background --chuid  $GNUNET_USER --pidfile $PIDFILE \
 			--exec $DAEMON -- -c /etc/gnunet.conf
 		echo "$NAME."
 	else
-		echo disabled
+		echo "disabled (use \"dpkg-reconfigure gnunet\" to change)"
 	fi
 	;;
   stop)

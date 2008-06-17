@@ -3,4 +3,6 @@ usr
 usr/bin
 usr/lib
 var/lib/GNUnet
+var/run/gnunetd
+var/log/gnunetd
 

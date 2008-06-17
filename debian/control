@@ -3,12 +3,12 @@ Section: net
 Priority: optional
 Maintainer: Arnaud Kyheng <Arnaud.Kyheng@free.fr>
 Uploaders: Daniel Baumann <daniel.baumann@panthera-systems.net>
-Build-Depends: debhelper (>= 4.0.0), libgtk2.0-dev, libextractor0-dev (>= 0.2.3), libgdbm-dev, tdb-dev, libdb3-dev, libltdl3-dev, libgcrypt11-dev (>= 1.2.0-10), guile-1.6, libgmp3-dev (>= 4.0.0)
+Build-Depends: debhelper (>= 4.0.0), libgtk2.0-dev, libextractor0-dev (>= 0.2.3), libgdbm-dev, tdb-dev, libdb3-dev, libltdl3-dev, libgcrypt11-dev, guile-1.6, libgmp3-dev (>= 4.0.0)
 Standards-Version: 3.6.1.0
 
 Package: gnunet
 Architecture: any
-Depends: ${shlibs:Depends}
+Depends: ${shlibs:Depends}, debconf (>= 0.2.17)
 Description: Secure, trust-based peer-to-peer framework
  GNUnet is a peer-to-peer framework which focuses on providing security.
  All link-to-link messages in the network are confidential and authenticated.

@@ -1,3 +1,35 @@
+gnunet (0.6.4a-4) unstable; urgency=low
+
+  * Many new improvements to allow gnunetd to run as non-root
+    (Closes: #226297).
+
+  * Backport gnunet-update from CVS to use new -g option in package scripts.
+  * contrib/gnunet.root: Changed default values of PIDFILE and LOGFILE.
+  * debian/control: Removed unneeded version requirement for
+    libgcrypt11-dev.
+    Added debconf dependency to gnunet (required in package scripts).
+
+  * debian/gnunet.postinst: Added gnunetd run as user support.
+    Added migration scripts to allow a "soft" update, keeping user
+    settings as much as possible.
+
+  * debian/gnunet.templates: New file containing debconf template.
+  * debian/gnunet.init: Added the possibility to launch the Daemon as an user.
+    Added --background to prevent a debconf freeze.
+
+  * debian/gnunet.logrotate: Changed default paths of logs to
+    /var/log/gnunetd/.
+
+  * debian/gnu-in-net.xpm: Moved package's file from contrib/
+  * debian/gnunet.desktop: Moved package's file from contrib/
+  * debian/gnunet.conf: Moved package's file from contrib/.
+    Changed default values of PIDFILE and LOGFILE to new structure.
+
+  * debian/gnunet.dir: Added var/log/gnunetd and var/run/gnunetd.
+  * debian/rules: Added dh_installdebconf.
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Mon, 18 Oct 2004 18:17:13 +0200
+
 gnunet (0.6.4a-3) unstable; urgency=high
 
   * Bumb revision number for the package to be rebuild against fixed
