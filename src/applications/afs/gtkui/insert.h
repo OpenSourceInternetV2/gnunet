@@ -26,5 +26,8 @@
 #define GTKUI_INSERT_H
 
 void openSelectFile(void);
+#ifdef MINGW
+void openSelectDir();
+#endif
 
 #endif

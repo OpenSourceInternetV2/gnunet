@@ -867,7 +867,7 @@ static void * httpListenMain() {
 
 	  if (YES == isBlacklisted(ipaddr)) {
 	    LOG(LOG_INFO,
-		_("Rejected blacklisted connection from %d.%d.%d.%d.\n"),
+		_("Rejected blacklisted connection from %u.%u.%u.%u.\n"),
 		PRIP(ntohl(*(int*)&clientAddr.sin_addr)));
 	    CLOSE(sock);
 	  } else 
@@ -901,17 +901,25 @@ static void * httpListenMain() {
 	}
       }
       if (FD_ISSET(sock, &writeSet)) {
-	int ret;
+	int ret, success;
 
 	if (httpSession->httpWSize > 0) {	  
-	  ret = SEND_NONBLOCKING(sock,
+try_again_1:          
+	  success = SEND_NONBLOCKING(sock,
 				 httpSession->httpWriteBuff,
-				 httpSession->httpWSize);
-	  if (ret == SYSERR) {
+				 httpSession->httpWSize,
+				 &ret);
+	  if (success == SYSERR) {
 	    LOG_STRERROR(LOG_WARNING, "send");
 	    destroySession(i);
 	    i--;
 	    continue;
+	  } else if (success == NO) {
+    	    /* this should only happen under Win9x because
+    	       of a bug in the socket implementation (KB177346).
+    	       Let's sleep and try again. */
+    	    gnunet_util_sleep(20);
+    	    goto try_again_1;
 	  }
 	  if (ret == 0) {
 	    /* send only returns 0 on error (other side closed connection),
@@ -935,14 +943,22 @@ static void * httpListenMain() {
 	    errexit(" wsize %d for socket %d\n",
 		    httpSession->wsize,
 		    sock);
-	  ret = SEND_NONBLOCKING(sock,
+try_again_2:
+	  success = SEND_NONBLOCKING(sock,
 				 httpSession->wbuff,
-				 httpSession->wsize);
-	  if (ret < 0) {
+				 httpSession->wsize,
+				 &ret);
+	  if (success == SYSERR) {
 	    LOG_STRERROR(LOG_WARNING, "send");
 	    destroySession(i);
 	    i--;
 	    continue;
+	  } else if (success == NO) {
+    	    /* this should only happen under Win9x because
+    	       of a bug in the socket implementation (KB177346).
+    	       Let's sleep and try again. */
+    	    gnunet_util_sleep(20);
+    	    goto try_again_2;
 	  }
 	  if (ret == 0) {
 	    /* send only returns 0 on error (other side closed connection),
@@ -1041,7 +1057,7 @@ static int httpDirectSend(HTTPSession * httpSession,
       {
      len = SNPRINTF(httpSession->httpWriteBuff + 5,
 		    httpSession->httpWSize - 5,
-		    "http://%d.%d.%d.%d:%d",
+		    "http://%u.%u.%u.%u:%u",
 		    PRIP(ntohl(httpSession->hostIP)),
 		    ntohs(httpSession->hostPort)) + 5;
     }
@@ -1052,7 +1068,7 @@ static int httpDirectSend(HTTPSession * httpSession,
     len += SNPRINTF(httpSession->httpWriteBuff + len,
 		    httpSession->httpWSize - len,
 		    "/ HTTP/1.1\r\n"
-		    "Host: %d.%d.%d.%d\r\n"
+		    "Host: %u.%u.%u.%u\r\n"
 		    "Transfer-Encoding: chunked\r\n"
 		    "Content-Type: text/html\r\n"
 		    "\r\n"
@@ -1171,7 +1187,7 @@ static int httpConnect(HELO_Message * helo,
   haddr = (HostAddress*) &((HELO_Message_GENERIC*)helo)->senderAddress[0];
 #if DEBUG_HTTP
   LOG(LOG_DEBUG,
-      "Creating HTTP connection to %d.%d.%d.%d:%d.\n",
+      "Creating HTTP connection to %u.%u.%u.%u:%u.\n",
       PRIP(ntohl(*(int*)&haddr->ip.addr)), 
       ntohs(haddr->port));
 #endif
@@ -1207,7 +1223,7 @@ static int httpConnect(HELO_Message * helo,
   if ( (i < 0) &&
        (errno != EINPROGRESS) ) {
     LOG(LOG_ERROR,
-	_("Cannot connect to %d.%d.%d.%d:%d: %s\n"),
+	_("Cannot connect to %u.%u.%u.%u:%u: %s\n"),
 	PRIP(ntohl(*(int*)&haddr->ip)),
 	ntohs(haddr->port),
 	STRERROR(errno));
@@ -1444,7 +1460,7 @@ static char * addressToString(const HELO_Message * helo) {
   ret = MALLOC(n);
   SNPRINTF(ret,
 	   n,
-	   "%d.%d.%d.%d:%d (HTTP)",
+	   "%u.%u.%u.%u:%u (HTTP)",
 	   PRIP(ntohl(*(int*)&haddr->ip.addr)), 
 	   ntohs(haddr->port));
   return ret;

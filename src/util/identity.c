@@ -271,7 +271,7 @@ static int getAddressFromIOCTL(IPaddr * identity) {
       LOG(LOG_WARNING, 
 	  _("There is more than one IP address specified"
 	    " for interface '%s'.\nGNUnet will "
-	    "use %d.%d.%d.%d.\n"), 
+	    "use %u.%u.%u.%u.\n"), 
 	  interfaces, 
 	  PRIP(ntohl(dwIP)));
 

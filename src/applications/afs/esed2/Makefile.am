@@ -19,7 +19,8 @@ libgnunet_afs_esed2_la_SOURCES = \
   sblock.c \
   searchutil.c \
   priority.c \
-  uri.c
+  uri.c \
+  resume.c
 
 if USE_LIBEXTRACTOR
 libgnunet_afs_esed2_la_LIBADD = \

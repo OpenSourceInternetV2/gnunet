@@ -176,7 +176,7 @@ void terminateClientConnection(ClientHandle session) {
     clientList = session->next;
   else
     prev->next = session->next;
-  close(session->sock);
+  CLOSE(session->sock);
   GROW(session->writeBuffer,
        session->writeBufferSize,
        0);
@@ -361,6 +361,7 @@ static void * tcpListenMain() {
   fd_set readSet;
   fd_set errorSet;
   fd_set writeSet;
+  int success;
 
   listenerPort = getGNUnetPort(); 
   /* create the socket */
@@ -488,7 +489,7 @@ static void * tcpListenMain() {
 
 	if (NO == isWhitelisted(ipaddr)) {
 	  LOG(LOG_WARNING,
-	      _("Rejected unauthorized connection from %d.%d.%d.%d.\n"),
+	      _("Rejected unauthorized connection from %u.%u.%u.%u.\n"),
 	      PRIP(ntohl(*(int*)&clientAddr.sin_addr)));
 	  CLOSE(sock);
 	} else {
@@ -496,7 +497,7 @@ static void * tcpListenMain() {
 	    = MALLOC(sizeof(ClientThreadHandle));
 #if DEBUG_TCPHANDLER
 	  LOG(LOG_DEBUG,
-	      "Accepting connection from %d.%d.%d.%d (socket: %d).\n",
+	      "Accepting connection from %u.%u.%u.%u (socket: %d).\n",
 	      PRIP(ntohl(*(int*)&clientAddr.sin_addr)),
 	      sock);
 #endif
@@ -575,16 +576,24 @@ static void * tcpListenMain() {
 	    BREAK(); /* entry in write set but no messages pending! */
 	  }
 	}
-	ret = SEND_NONBLOCKING(sock,
-			       pos->writeBuffer,
-			       pos->writeBufferSize);
-	if (ret == SYSERR) {
+try_again:
+	success = SEND_NONBLOCKING(sock,
+                                   pos->writeBuffer,
+                                   pos->writeBufferSize,
+                                   &ret);
+	if (success == SYSERR) {
 	  ClientHandle ch
 	    = pos->next;
 	  LOG_STRERROR(LOG_WARNING, "send");
 	  terminateClientConnection(pos);
 	  pos = ch;
 	  continue;
+	} else if (success == NO) {
+	  /* this should only happen under Win9x because
+	     of a bug in the socket implementation (KB177346).
+	     Let's sleep and try again. */
+	  gnunet_util_sleep(20);
+	  goto try_again;
 	}
 	if (ret == 0) {
 	  ClientHandle ch

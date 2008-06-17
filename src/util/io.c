@@ -103,22 +103,25 @@ int isSocketBlocking(int s)
 /**
  * Do a NONBLOCKING read on the given socket.  Note that in order to
  * avoid blocking, the caller MUST have done a select call before
- * calling this function.
+ * calling this function. Though the caller must be prepared to the
+ * fact that this function may fail with EWOULDBLOCK in any case (Win32).
  *
- * Reads at most max bytes to buf.  On error, return SYSERR (errors
- * are blocking or invalid socket but NOT a partial read).  Interrupts
- * are IGNORED.
- *
- * @return the number of bytes read or SYSERR. 
- *         0 is returned if no more bytes can be read
+ * @brief Reads at most max bytes to buf. Interrupts are IGNORED.
+ * @param s socket
+ * @param buf buffer
+ * @param max maximum number of bytes to read
+ * @param read number of bytes actually read.
+ *             0 is returned if no more bytes can be read
+ * @return SYSERR on error, YES on success or NO if the operation
+ *         would have blocked
  */ 
 int RECV_NONBLOCKING(int s,
 		     void * buf,
-		     size_t max) {  
-  int ret, flags;
+		     size_t max,
+		     size_t *read) {  
+  int flags;
 
   setBlocking(s, NO);  
-  do {
 
 #ifdef CYGWIN
     flags = MSG_NOSIGNAL;
@@ -133,16 +136,21 @@ int RECV_NONBLOCKING(int s,
     flags = 0;
 #endif
 
-    ret = RECV(s,
-	       buf,
-	       max,
-	       flags);
-  } while ( ( ret == -1) && ( errno == EINTR) );
+  do {
+    *read = (size_t) RECV(s,
+	                  buf,
+	                  max,
+	                  flags);
+  } while ( ( *read == -1) && ( errno == EINTR) );
+  
   setBlocking(s, YES);
 
-  if ( (ret < 0) || ((size_t)ret > max) )
+  if (*read == SYSERR && (errno == EWOULDBLOCK || errno == EAGAIN))
+    return NO;
+  else if ( (*read < 0) || (*read > max) )
     return SYSERR;
-  return ret;
+
+  return YES;
 }
 
 /**
@@ -191,20 +199,27 @@ int RECV_BLOCKING_ALL(int s,
 
 /**
  * Do a NONBLOCKING write on the given socket.
- * Write at most max bytes from buf.  On error,
- * return SYSERR (errors are blocking or invalid
- * socket but NOT an interrupt or partial write).
+ * Write at most max bytes from buf.
  * Interrupts are ignored (cause a re-try).
  *
- * @return the number of bytes written or SYSERR. 
+ * The caller must be prepared to the fact that this function
+ * may fail with EWOULDBLOCK in any case (Win32).
+ *
+ * @param s socket
+ * @param buf buffer to send
+ * @param max maximum number of bytes to send
+ * @param sent number of bytes actually sent
+ * @return SYSERR on error, YES on success or
+ *         NO if the operation would have blocked. 
  */ 
 int SEND_NONBLOCKING(int s,
 		     const void * buf,
-		     size_t max) {  
-  int ret, flags;
+		     size_t max,
+		     size_t *sent) {  
+  int flags;
 
   setBlocking(s, NO);
-  do {
+
 #ifdef SOMEBSD
     flags = MSG_DONTWAIT;
 #elif SOLARIS
@@ -220,17 +235,24 @@ int SEND_NONBLOCKING(int s,
     /* pray */
 	flags = 0;
 #endif
-    ret = SEND(s,
-	       buf,
-	       max,
-	       flags);
 
-  } while ( (ret == -1) &&
+  do {
+    *sent = (size_t) SEND(s,
+	                  buf,
+	                  max,
+	                  flags);
+
+  } while ( (*sent == -1) &&
 	    (errno == EINTR) );
+
   setBlocking(s, YES);
-  if ( (ret < 0) || ((size_t)ret > max) )
+  
+  if (*sent == SYSERR && (errno == EWOULDBLOCK || errno == EAGAIN))
+    return NO;
+  else if ( (*sent < 0) || (*sent > max) )
     return SYSERR;
-  return ret;
+
+  return YES;
 }
 
 /**

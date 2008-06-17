@@ -66,6 +66,8 @@ typedef struct {
 void startDownload(const gchar * filename,
 		   RootNode * root);
 
+void downloadAFSuri(char *uri, char *fn);
+       
 void fetchURI(GtkWidget * widget,
 	      gpointer data);
 

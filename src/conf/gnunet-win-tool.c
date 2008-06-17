@@ -30,6 +30,7 @@
 #define WINTOOL_VERSION "0.1.0"
 
 static int bPrintAdapters, bInstall, bUninstall, bConn;
+static char *hashFile;
 static char chunk1[] = {0x62, 0x13, 0x06, 0x00};
 static char chunk2[] = {0xFE, 0xFF, 0xFF, 0x00};
 
@@ -60,62 +61,31 @@ static void printhelp() {
 void PrintAdapters()
 {
   PMIB_IFTABLE pTable;
-  DWORD dwSize, dwRet;
+  PMIB_IPADDRTABLE pAddrTable;
+  DWORD dwIfIdx;
+  
+  EnumNICs(&pTable, &pAddrTable);
 
-  if (GNGetIfTable)
+  if (pTable)
   {
-        dwSize = 0;
-  	dwRet = 0;
-  	
-  	pTable = (MIB_IFTABLE *) GlobalAlloc(GPTR, sizeof(MIB_IFTABLE));
-  	
-  	/* Get size of table */
-  	if (GNGetIfTable(pTable, &dwSize, 0) == ERROR_INSUFFICIENT_BUFFER)
-  	{
-  	  GlobalFree(pTable);
-  	  pTable = (MIB_IFTABLE *) GlobalAlloc(GPTR, dwSize);
-  	}
-  	
-  	if ((dwRet = GNGetIfTable(pTable, &dwSize, 0)) == NO_ERROR)
-  	{
-          DWORD dwIfIdx, dwSize = sizeof(MIB_IPADDRTABLE);
-          PMIB_IPADDRTABLE pAddrTbl = (MIB_IPADDRTABLE *) 
-            GlobalAlloc(GPTR, dwSize);
-          
-          /* Make an initial call to GetIpAddrTable to get the
-             necessary size */
-          if (GNGetIpAddrTable(pAddrTbl, &dwSize, 0) == ERROR_INSUFFICIENT_BUFFER)
-          {
-            GlobalFree(pAddrTbl);
-            pAddrTbl = (MIB_IPADDRTABLE *) GlobalAlloc(GPTR, dwSize);
-          }
-          GNGetIpAddrTable(pAddrTbl, &dwSize, 0);
-  	
-  	  for(dwIfIdx=0; dwIfIdx <= pTable->dwNumEntries; dwIfIdx++)
-  	  {
-            printf("Index: %i\nAdapter name: %s\n",
-              (int) pTable->table[dwIfIdx].dwIndex, pTable->table[dwIfIdx].bDescr);
+    for(dwIfIdx=0; dwIfIdx <= pTable->dwNumEntries; dwIfIdx++)
+    {
+      printf("Index: %i\nAdapter name: %s\n",
+        (int) pTable->table[dwIfIdx].dwIndex, pTable->table[dwIfIdx].bDescr);
 
-  	    /* Get IP-Addresses */
-            int i;
-            for(i = 0; i < pAddrTbl->dwNumEntries; i++)
-            {  
-              if (pAddrTbl->table[i].dwIndex == dwIfIdx)
-                printf("Address: %d.%d.%d.%d\n", 
-                  PRIP(ntohl(pAddrTbl->table[i].dwAddr)));
-            }
-            
-            printf("\n");
-          }
-          GlobalFree(pAddrTbl);
-  	}
-  	else
-          printf(" Could not get list of network adapters.\n");
-
+      /* Get IP-Addresses */
+      int i;
+      for(i = 0; i < pAddrTable->dwNumEntries; i++)
+      {  
+        if (pAddrTable->table[i].dwIndex == pTable->table[dwIfIdx].dwIndex)
+          printf("Address: %u.%u.%u.%u\n", 
+            PRIP(ntohl(pAddrTable->table[i].dwAddr)));
+      }
+      printf("\n");
+    }
+    GlobalFree(pAddrTable);
     GlobalFree(pTable);
   }
-  else
-    printf("Index: 0\nAdapter name: not available\n\n");
 }
 
 /**
@@ -233,7 +203,7 @@ void IncreaseConnections()
   {
     DWORD dwErr = GetLastError();
     SetErrnoFromWinError(dwErr);
-    printf("failed.\n Error: %s (%i)\n", STRERROR(errno), dwErr);
+    printf("failed.\n Error: %s (%i)\n", STRERROR(errno), (int) dwErr);
   }
   else
   {
@@ -243,7 +213,7 @@ void IncreaseConnections()
     {
       DWORD dwErr = GetLastError();
       SetErrnoFromWinError(dwErr);
-      printf("failed.\n Error: %s (%i)\n", STRERROR(errno), dwErr);
+      printf("failed.\n Error: %s (%i)\n", STRERROR(errno), (int) dwErr);
     }
     else
       printf("OK.\n");
@@ -315,6 +285,32 @@ void IncreaseConnections()
 }
 
 /**
+ * Print the hash of a file
+ */
+void doHash()
+{
+  HashCode160 code;
+  HexName hex;
+  char *c;
+
+  getFileHash(hashFile, &code);
+  hash2hex(&code, &hex);
+  printf("RIPEMD160(%s)= ", hashFile);
+  
+  /* Flip byte order */
+  c = (char *) &hex;
+  while(*c)
+  {
+    putchar(*(c + 1));
+    putchar(*c);
+    c += 2;
+  }
+  putchar('\n');
+  FREE(hashFile);
+  hashFile = NULL;
+}
+
+/**
  * Parse the options.
  *
  * @param argc the number of options
@@ -332,13 +328,14 @@ static int parseOptions(int argc, char ** argv) {
       { "install",              0, 0, 'i' }, 
       { "uninstall",            0, 0, 'u' }, 
       { "increase-connections", 0, 0, 'C' },
+      { "filehash",             1, 0, 'R' },
       LONG_DEFAULT_OPTIONS,
       { 0,0,0,0 }
     };    
     option_index = 0;
     c = GNgetopt_long(argc,
 		      argv, 
-		      "vhdc:L:H:niuC", 
+		      "vhdc:L:H:niuCR:", 
 		      long_options, 
 		      &option_index);    
     if (c == -1) 
@@ -367,6 +364,10 @@ static int parseOptions(int argc, char ** argv) {
         break;
       case 'C':
         bConn = YES;
+        break;
+      case 'R':
+        hashFile = MALLOC(strlen(GNoptarg) + 1);
+        strcpy(hashFile, GNoptarg);
         break;
       default: 
         LOG(LOG_FAILURE,
@@ -397,6 +398,7 @@ int main(int argc, char ** argv) {
   int res;
 
   res = OK;
+  hashFile = NULL;
   bPrintAdapters = bInstall = bUninstall = bConn = NO;
 
   if (SYSERR == initUtil(argc, argv, &parseOptions))
@@ -410,6 +412,8 @@ int main(int argc, char ** argv) {
     Install();
   if (bConn)
     IncreaseConnections();
+  if (hashFile)
+    doHash();
 
   doneUtil();
 

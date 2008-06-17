@@ -336,7 +336,7 @@ static int verifyHelo(const HELO_Message * helo) {
 #if DEBUG_UDP6
     char * tmp = MALLOC(INET6_ADDRSTRLEN);
     LOG(LOG_DEBUG,
-	"Verified UDP6 helo from %d.%d.%d.%d:%d.\n",
+	"Verified UDP6 helo from %u.%u.%u.%u:%u.\n",
 	inet_ntop(AF_INET6,
 		  &haddr->senderIP,
 		  tmp,

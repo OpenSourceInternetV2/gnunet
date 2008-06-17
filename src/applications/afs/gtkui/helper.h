@@ -139,7 +139,7 @@ void gtkInitSaveCalls();
 
 void gtkDoneSaveCalls();
 
-void gtkRunSomeSaveCalls();
+int gtkRunSomeSaveCalls();
  
 /**
  * Called from a "SaveCall"-function to indicate that it is done

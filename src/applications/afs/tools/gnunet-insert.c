@@ -682,7 +682,7 @@ int main(int argc, char ** argv) {
 
   /* if build directory option given and we have more than one file,
      build directory and reduce to directory containing these files */
-  if ( (fileNameCount > 1) &&
+  if ( (fileNameCount > 1 || isDirectory(fileNames[0])) &&
        testConfigurationString("GNUNET-INSERT",
 			       "BUILDDIR",
 			       "YES") ) {
@@ -1034,7 +1034,7 @@ int main(int argc, char ** argv) {
 #if USE_LIBEXTRACTOR
   EXTRACTOR_removeAll(extractors);
 #endif
-  for (i=0;i<fileNameCount+skip;i++)
+  for (i=0;i<fileNameCount-skip;i++)
     FREE(fileNames[i]);
   FREE(fileNames);
   for (i=0;i<topKeywordCnt;i++) 

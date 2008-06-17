@@ -259,6 +259,9 @@
 /* Define to 1 if you have the <netinet/in.h> header file. */
 #undef HAVE_NETINET_IN_H
 
+/* Define if you have a post 11/2004 pthread library */
+#undef HAVE_NEW_PTHREAD_T
+
 /* Define to 1 if you have the `opendir' function. */
 #undef HAVE_OPENDIR
 

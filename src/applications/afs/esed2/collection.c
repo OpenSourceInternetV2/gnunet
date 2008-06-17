@@ -137,7 +137,6 @@ void publishToCollection(const RootNode * root) {
   CONTENT_Block * blocks;
   SBlock sblock;  
   const NBlock * nblock;  
-  SBlock out;
   SBlock * sb;
   GNUNET_TCP_SOCKET * sock;
   char * name;

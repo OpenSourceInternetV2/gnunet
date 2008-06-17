@@ -21,8 +21,8 @@
 #
 #
 AC_PREREQ(2.57)
-AC_INIT([GNUnet], [0.6.5],[bug-gnunet@gnu.org])
-AM_INIT_AUTOMAKE([GNUnet], [0.6.5])
+AC_INIT([GNUnet], [0.6.6],[bug-gnunet@gnu.org])
+AM_INIT_AUTOMAKE([GNUnet], [0.6.6])
 AM_CONFIG_HEADER([config.h])
 
 AH_TOP([#define _GNU_SOURCE  1])
@@ -125,6 +125,9 @@ LIBS="$PTHREAD_LIBS $LIBS"
 CPPFLAGS="$PTHREAD_CPPFLAGS $CPPFLAGS $LTDLINCL"
 LDFLAGS="$PTHREAD_LDFLAGS $LDFLAGS"
 
+# pthread_t is a struct since 11/2004
+AC_CHECK_MEMBER(pthread_t.p, AC_DEFINE(HAVE_NEW_PTHREAD_T, 1,
+  [Define if you have a post 11/2004 pthread library]), , [#include <pthread.h>])
 
 AC_MSG_CHECKING([for build target])
 AM_CONDITIONAL(CYGWIN, test "$build_target" = "cygwin")
@@ -169,7 +172,7 @@ AC_ARG_WITH(crypto,
    esac],
    [AC_CHECK_LIB([crypto], [RSA_generate_key],
      [AC_CHECK_HEADERS([openssl/rsa.h openssl/blowfish.h],
-      openssl=1)], , [-lgdi32])])
+      openssl=1)], , ["$openssl_libs"])])
 
 if test $openssl = 0 
 then

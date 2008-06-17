@@ -64,6 +64,13 @@ void  generate_gnunetd_conf (FILE * f) {
  fprintf(f, "%s\n","# Default: LOGFILE         = $GNUNETD_HOME/logs");
  fprintf(f, "%s\n","LOGFILE         = $GNUNETD_HOME/logs");
  fprintf(f, "%s\n","");
+ fprintf(f, "%s\n","# How long should logs be kept? If you specify a value greater");
+ fprintf(f, "%s\n","# than zero, a log is created each day with the date appended");
+ fprintf(f, "%s\n","# to its filename. These logs are deleted after $KEEPLOG days.");
+ fprintf(f, "%s\n","# To disable this function, set this setting to its default");
+ fprintf(f, "%s\n","# value 0.");
+ fprintf(f, "%s\n","KEEPLOG         = 0");
+ fprintf(f, "%s\n","");
  fprintf(f, "%s\n","# In which file should gnunetd write the process-id of the server?  If");
  fprintf(f, "%s\n","# you run gnunetd as root, you may want to choose");
  fprintf(f, "%s\n","# /var/run/gnunetd.pid. It's not the default since gnunetd may not");
@@ -453,7 +460,7 @@ void  generate_gnunetd_conf (FILE * f) {
  fprintf(f, "%s\n","# refuse to work.  Default is 1024 (1 GB)");
  fprintf(f, "%s\n","DISKQUOTA 	= 1024");
  fprintf(f, "%s\n","");
- fprintf(f, "%s\n","# Which database type should be used for content? Valid types are");
+ fprintf(f, "%s\n","# Which database type should be used for content? Valid types are \"bdb\",");
  fprintf(f, "%s\n","# \"gdbm\", \"mysql\", \"tdb\", \"sqlite\" and \"directory\". Specified type must have");
  fprintf(f, "%s\n","# been available at compile time. \"directory\" is available on all");
  fprintf(f, "%s\n","# systems but typically uses more space and can also be slower.  mysql");

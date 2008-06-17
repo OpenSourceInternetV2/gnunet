@@ -162,7 +162,7 @@ int checkSocket(GNUNET_TCP_SOCKET * sock) {
   if ( (res < 0) &&
        (errno != EINPROGRESS) ) {
     LOG(LOG_INFO,
-	_("Cannot connect to %d.%d.%d.%d:%d: %s\n"),
+	_("Cannot connect to %u.%u.%u.%u:%u: %s\n"),
 	PRIP(ntohl(*(int*)&sock->ip.addr)),
 	sock->port,
 	STRERROR(errno));
@@ -189,7 +189,7 @@ int checkSocket(GNUNET_TCP_SOCKET * sock) {
        (! FD_ISSET(sock->socket,
 		   &wset)) ) {
     LOG(LOG_INFO,
-	_("Cannot connect to %d.%d.%d.%d:%d: %s\n"),
+	_("Cannot connect to %u.%u.%u.%u:%u: %s\n"),
 	PRIP(ntohl(*(int*)&sock->ip.addr)),
 	sock->port,
 	STRERROR(errno));
@@ -281,9 +281,10 @@ int writeToSocketNonBlocking(GNUNET_TCP_SOCKET * sock,
     return SYSERR;
   MUTEX_LOCK(&sock->writelock);
   if (sock->outBufLen > 0) {
-    res = SEND_NONBLOCKING(sock->socket,
-			   sock->outBufPending,
-			   sock->outBufLen);
+    SEND_NONBLOCKING(sock->socket,
+	             sock->outBufPending,
+		     sock->outBufLen,
+		     &res);
     if (res < 0) {
       if ( (errno == EWOULDBLOCK) ||
 	   (errno == EAGAIN) ) {
@@ -312,9 +313,10 @@ int writeToSocketNonBlocking(GNUNET_TCP_SOCKET * sock,
 
   size = ntohs(buffer->size);
 
-  res = SEND_NONBLOCKING(sock->socket,
-			 (char*)buffer,
-			 size);
+  SEND_NONBLOCKING(sock->socket,
+		   (char*)buffer,
+		    size,
+		    &res);
   if (res < 0) {
     if ( (errno == EWOULDBLOCK) ||
 	 (errno == EAGAIN) ) {

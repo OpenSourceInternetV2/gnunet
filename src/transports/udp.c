@@ -247,7 +247,7 @@ static void * listenAndDistribute() {
 	       size);
     if ((unsigned int)size <= sizeof(UDPMessage)) {
       LOG(LOG_INFO,
-	  _("Received invalid UDP message from %d.%d.%d.%d:%d, dropping.\n"),
+	  _("Received invalid UDP message from %u.%u.%u.%u:%u, dropping.\n"),
 	  PRIP(ntohl(*(int*)&incoming.sin_addr)),
 	  ntohs(incoming.sin_port));
       goto RETRY;
@@ -261,7 +261,7 @@ static void * listenAndDistribute() {
 		   &enc));
 #if DEBUG_UDP
     LOG(LOG_DEBUG,
-	"received %d bytes via UDP from %d.%d.%d.%d:%d (%s)\n",
+	"received %d bytes via UDP from %u.%u.%u.%u:%u (%s)\n",
 	size,
 	PRIP(ntohl(*(int*)&incoming.sin_addr)),
 	ntohs(incoming.sin_port),
@@ -270,7 +270,7 @@ static void * listenAndDistribute() {
     /* quick test of the packet, if failed, repeat! */
     if (size != ntohs(udpm.size)) {
       LOG(LOG_WARNING,
-	  _("Packed received from %d.%d.%d.%d:%d (UDP) failed format check."),
+	  _("Packed received from %u.%u.%u.%u:%u (UDP) failed format check."),
 	  PRIP(ntohl(*(int*)&incoming.sin_addr)),
 	  ntohs(incoming.sin_port));
       goto RETRY;
@@ -281,7 +281,7 @@ static void * listenAndDistribute() {
 	   sizeof(struct in_addr));
     if (YES == isBlacklisted(ipaddr)) {
       LOG(LOG_WARNING,
-	  _("Sender %d.%d.%d.%d is blacklisted, dropping message.\n"),
+	  _("Sender %u.%u.%u.%u is blacklisted, dropping message.\n"),
 	  PRIP(ntohl(*(int*)&incoming.sin_addr)));
       goto RETRY; /* drop on the floor */
     }
@@ -324,7 +324,7 @@ static int verifyHelo(const HELO_Message * helo) {
   else {
 #if DEBUG_UDP
     LOG(LOG_DEBUG,
-	"Verified UDP helo from %d.%d.%d.%d:%d.\n",
+	"Verified UDP helo from %u.%u.%u.%u:%u.\n",
 	PRIP(ntohl(*(int*)&haddr->senderIP.addr)), 
 	ntohs(haddr->senderPort));
 #endif    
@@ -385,7 +385,7 @@ static int udpConnect(HELO_Message * helo,
   haddr = (HostAddress*) &((HELO_Message_GENERIC*)helo)->senderAddress[0];  
 #if DEBUG_UDP
   LOG(LOG_DEBUG,
-      "Connecting via UDP to %d.%d.%d.%d:%d.\n",
+      "Connecting via UDP to %u.%u.%u.%u:%u.\n",
       PRIP(ntohl(*(int*)&haddr->senderIP.addr)), 
       ntohs(haddr->senderPort));
 #endif
@@ -471,7 +471,7 @@ static int udpSend(TSession * tsession,
 	 sizeof(IPaddr));
 #if DEBUG_UDP
   LOG(LOG_DEBUG,
-      "Sending message of %d bytes via UDP to %d.%d.%d.%d:%d.\n",
+      "Sending message of %d bytes via UDP to %u.%u.%u.%u:%u.\n",
       ssize,
       PRIP(ntohl(*(int*)&sin.sin_addr)), 
       ntohs(sin.sin_port));
@@ -485,7 +485,7 @@ static int udpSend(TSession * tsession,
     ok = OK;
   } else {
     LOG(LOG_WARNING,
-	_("Failed to send message of size %d via UDP to %d.%d.%d.%d:%d: %s\n"),
+	_("Failed to send message of size %d via UDP to %u.%u.%u.%u:%u: %s\n"),
 	ssize,
 	PRIP(ntohl(*(int*)&sin.sin_addr)), 
 	ntohs(sin.sin_port),
@@ -615,7 +615,7 @@ static char * addressToString(const HELO_Message * helo) {
   ret = MALLOC(n);
   SNPRINTF(ret,
 	   n,
-	   "%d.%d.%d.%d:%d (UDP)",
+	   "%u.%u.%u.%u:%u (UDP)",
 	   PRIP(ntohl(*(int*)&haddr->senderIP.addr)), 
 	   ntohs(haddr->senderPort));
   return ret;

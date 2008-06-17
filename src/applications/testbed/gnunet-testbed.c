@@ -217,7 +217,7 @@ static int helper_main(int argc,
   }  
   retVal = *(int*)buf;
   FREE(buf);  
-  close(sock);
+  CLOSE(sock);
   return retVal;
 }
 
@@ -408,7 +408,7 @@ static int server_main(pid_t bash_pid) {
 	   sizeof(struct in_addr));   
     if (NO == isWhitelisted(ipaddr)) {
       LOG(LOG_WARNING,
-	  _("Rejected unauthorized connection from %d.%d.%d.%d.\n"),
+	  _("Rejected unauthorized connection from %u.%u.%u.%u.\n"),
 	  PRIP(ntohl(*(int*)&clientAddr.sin_addr)));
       CLOSE(sock);
       continue;
@@ -467,7 +467,7 @@ static int server_main(pid_t bash_pid) {
 		 &i);
     }
     FREE(command);    
-    close(sock);
+    CLOSE(sock);
     sock = -1;
   }
   /* just to be certain, we could have

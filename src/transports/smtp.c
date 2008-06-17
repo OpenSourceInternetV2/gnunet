@@ -354,9 +354,18 @@ static int readSMTPLine(int sock,
   pos = 0;
 
   while (pos < MAX_SMTP_LINE) {
-    i = RECV_NONBLOCKING(sock,
-			 &buff[pos],
-			 MAX_SMTP_LINE - pos);
+    int success;
+
+try_again:
+    success = RECV_NONBLOCKING(sock,
+			       &buff[pos],
+			       MAX_SMTP_LINE - pos,
+			       &i);
+    if (success == NO) {
+      gnunet_util_sleep(20);
+      goto try_again;
+    }      
+	 
     if (i <= 0)
       return SYSERR;
     while (i > 0) {

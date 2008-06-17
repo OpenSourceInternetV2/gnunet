@@ -238,7 +238,6 @@ static char filename[PATH_MAX+1] = "/etc/GNUnet/.config";
 static int indent;
 static struct termios ios_org;
 static int rows, cols;
-/* static struct menu *current_menu; */
 static int child_count;
 static int single_menu_mode;
 

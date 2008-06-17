@@ -328,7 +328,7 @@ static int getIndex(const HostIdentity * id) {
   unsigned int index;
 
   index = coreAPI->computeIndex(id);
-  if (index > 8*BITMAP_SIZE)
+  if (index >= 8*BITMAP_SIZE)
     index = index & (8*BITMAP_SIZE-1);
   return index;
 }

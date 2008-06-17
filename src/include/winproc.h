@@ -306,6 +306,8 @@ typedef struct
 #define S_IRWXG 0
 #define S_IRWXO 0
 
+#define conv_to_win_path(u, w) conv_to_win_path_ex(u, w, 1)
+
 typedef DWORD WINAPI (*TNtQuerySystemInformation) (int, PVOID, ULONG, PULONG);
 typedef DWORD WINAPI (*TGetIfEntry) (PMIB_IFROW pIfRow);
 typedef DWORD WINAPI (*TGetIpAddrTable) (PMIB_IPADDRTABLE pIpAddrTable,
@@ -337,6 +339,7 @@ typedef BOOL WINAPI (*TControlService) (SC_HANDLE hService, DWORD dwControl,
                      LPSERVICE_STATUS lpServiceStatus);
 typedef SC_HANDLE WINAPI (*TOpenService) (SC_HANDLE hSCManager, LPCTSTR lpServiceName,
                           DWORD dwDesiredAccess);
+typedef DWORD WINAPI (*TGetBestInterface) (IPAddr dwDestAddr, PDWORD pdwBestIfIndex);
 
 #define SetErrnoFromWinError(e) _SetErrnoFromWinError(e, __FILE__, __LINE__)
 
@@ -354,6 +357,7 @@ extern TSetServiceStatus GNSetServiceStatus;
 extern TStartServiceCtrlDispatcher GNStartServiceCtrlDispatcher;
 extern TControlService GNControlService;
 extern TOpenService GNOpenService;
+extern TGetBestInterface GNGetBestInterface;
 
 BOOL CreateShortcut(const char *pszSrc, const char *pszDest);
 BOOL DereferenceShortcut(char *pszShortcut);
@@ -377,7 +381,7 @@ int mkstemp(char *tmplate);
 char *strptime (const char *buf, const char *format, struct tm *tm);
 void InitWinEnv();
 void ShutdownWinEnv();
-int conv_to_win_path(const char *pszUnix, char *pszWindows);
+int conv_to_win_path_ex(const char *pszUnix, char *pszWindows, int derefLinks);
 void _SetErrnoFromWinError(long lWinError, char *pszCaller, int iLine);
 void SetErrnoFromWinsockError(long lWinError);
 void SetHErrnoFromWinError(long lWinError);

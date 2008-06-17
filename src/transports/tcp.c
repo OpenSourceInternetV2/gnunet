@@ -669,13 +669,13 @@ static void * tcpListenMain() {
 
 	  if (YES == isBlacklisted(ipaddr)) {
 	    LOG(LOG_INFO,
-		_("Rejected blacklisted connection from %d.%d.%d.%d.\n"),
+		_("Rejected blacklisted connection from %u.%u.%u.%u.\n"),
 		PRIP(ntohl(*(int*)&clientAddr.sin_addr)));
 	    CLOSE(sock);
 	  } else {
 #if DEBUG_TCP
 	    LOG(LOG_INFO,
-		"Accepted connection from %d.%d.%d.%d.\n",
+		"Accepted connection from %u.%u.%u.%u.\n",
 		PRIP(ntohl(*(int*)&clientAddr.sin_addr)));	
 #endif
 	    createNewSession(sock);      
@@ -709,17 +709,26 @@ static void * tcpListenMain() {
 	}
       }
       if (FD_ISSET(sock, &writeSet)) {
-	int ret;
-	
-	ret = SEND_NONBLOCKING(sock,
+	int ret, success;
+
+try_again_1:	
+	success = SEND_NONBLOCKING(sock,
 			       tcpSession->wbuff,
-			       tcpSession->wpos);
-	if (ret == SYSERR) {
+			       tcpSession->wpos,
+			       &ret);
+	if (success == SYSERR) {
 	  LOG_STRERROR(LOG_WARNING, "send");
 	  destroySession(i);
 	  i--;
 	  continue;
-	}
+        } else if (success == NO) {
+  	  /* this should only happen under Win9x because
+  	     of a bug in the socket implementation (KB177346).
+  	     Let's sleep and try again. */
+  	  gnunet_util_sleep(20);
+  	  goto try_again_1;
+        }
+        
 	if (ret == 0) {
           /* send only returns 0 on error (other side closed connection),
 	   * so close the session */
@@ -778,7 +787,7 @@ static int tcpDirectSend(TCPSession * tcpSession,
 			 void * mp,
 			 unsigned int ssize) {
   int ok;
-  int ret;
+  int ret, success;
 
   if (tcpSession->sock == -1) {
 #if DEBUG_TCP
@@ -801,20 +810,17 @@ static int tcpDirectSend(TCPSession * tcpSession,
     /* select already pending... */
     ret = 0;
   } else {
-    ret = SEND_NONBLOCKING(tcpSession->sock,
-			   mp,
-			   ssize);
+    success = SEND_NONBLOCKING(tcpSession->sock,
+			       mp,
+			       ssize,
+			       &ret);
   }
-  if (ret < 0) {
-    if ( (errno == EAGAIN) ||
-	 (errno == EWOULDBLOCK)) {
-      ret = 0;
-    } else {
-      LOG_STRERROR(LOG_INFO, "send");
-      MUTEX_UNLOCK(&tcplock);
-      return SYSERR;
-    }
-  }
+  if (success == SYSERR) {
+    LOG_STRERROR(LOG_INFO, "send");
+    MUTEX_UNLOCK(&tcplock);
+    return SYSERR;
+  } else if (success == NO)
+    ret = 0;
   if ((unsigned int)ret <= ssize) { /* some bytes send or blocked */
     if ((unsigned int)ret < ssize) {
       if (tcpSession->wbuff == NULL) {
@@ -986,7 +992,7 @@ static int tcpConnect(HELO_Message * helo,
   hash2enc(&coreAPI->myIdentity->hashPubKey,
 	   &enc);
   LOG(LOG_DEBUG,
-      "Creating TCP connection to %d.%d.%d.%d:%d from %s.\n",
+      "Creating TCP connection to %u.%u.%u.%u:%u from %s.\n",
       PRIP(ntohl(*(int*)&haddr->ip.addr)), 
       ntohs(haddr->port),
       &enc);
@@ -1019,7 +1025,7 @@ static int tcpConnect(HELO_Message * helo,
   if ( (i < 0) &&
        (errno != EINPROGRESS) ) {
     LOG(LOG_ERROR,
-	_("Cannot connect to %d.%d.%d.%d:%d: %s\n"),
+	_("Cannot connect to %u.%u.%u.%u:%u: %s\n"),
 	PRIP(ntohl(*(int*)&haddr->ip)),
 	ntohs(haddr->port),
 	STRERROR(errno));
@@ -1294,7 +1300,7 @@ static char * addressToString(const HELO_Message * helo) {
   ret = MALLOC(n);
   SNPRINTF(ret,
 	   n,
-	   "%d.%d.%d.%d:%d (TCP)",
+	   "%u.%u.%u.%u:%u (TCP)",
 	   PRIP(ntohl(*(int*)&haddr->ip.addr)), 
 	   ntohs(haddr->port));
   return ret;

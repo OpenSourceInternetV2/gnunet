@@ -466,7 +466,7 @@ int insertDirectory(GNUNET_TCP_SOCKET * sock,
 	fileName);
     UNLINK(fileName);
     FREE(fileName);
-    close(handle);
+    CLOSE(handle);
     FREE(dir);
     return SYSERR;
   }
@@ -480,7 +480,7 @@ int insertDirectory(GNUNET_TCP_SOCKET * sock,
                    fileName,
                    model,
                    modelArg);
-  close(handle);
+  CLOSE(handle);
   UNLINK(fileName);
   FREENONNULL(setConfigurationString("GNUNET-INSERT",
                          	     "INDEX-CONTENT",

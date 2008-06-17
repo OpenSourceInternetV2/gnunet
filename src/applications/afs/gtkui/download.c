@@ -233,7 +233,14 @@ static gint abortSelectedDownloads(GtkWidget * widget,
     dlm = gtk_clist_get_row_data(GTK_CLIST(clist),
 	   	  	         row);
     if(dlm) {
+      char *uri;
+    
       dlm->downloadStatus = DOWNLOAD_ABORTED;
+      
+      uri = createFileURI(&dlm->root.header.fileIdentifier);
+      removeResumeInfo(uri);
+      FREE(uri);
+      
       SEMAPHORE_UP(dlm->doneSem);
     } 
     
@@ -439,7 +446,7 @@ gint disentangleFromCLIST(SaveCall *call) {
  * @param dlm the download model
  */
 static void downloadFile_(DownloadModel * dlm) {
-  char * mime;
+  char * mime, * uri;
   SetDownloadEntry entry;
 
   LOG(LOG_DEBUG,
@@ -506,6 +513,10 @@ static void downloadFile_(DownloadModel * dlm) {
     entry.color = &textColors[3];
     entry.text = _("DONE");
     gtkSaveCall((GtkFunction) setDownloadEntry, &entry);
+    
+    uri = createFileURI(&dlm->root.header.fileIdentifier);
+    removeResumeInfo(uri);
+    FREE(uri);
     
     mime = getMimetypeFromNode(&dlm->root);
     if (0 == strcmp(mime,
@@ -711,7 +722,7 @@ void startDownload(const gchar * filename,
   FREE(fileInfo[3]);
   gtk_clist_set_foreground(GTK_CLIST(clist), 
 			   row,
-                          &textColors[11]);
+                          &textColors[15]);
   gtk_clist_set_row_data(GTK_CLIST(clist),
   			 row,
 			 dlm);
@@ -732,8 +743,15 @@ void startDownload(const gchar * filename,
 	      "gnunet-download -o \"%s\" %s\n",
   	      dlm->fileName,
 	      fstring);
-  FREE(fstring);
 
+  /* save file information to resume downloads later */
+  if (strlen(dlm->fileName) > MAX_FILENAME_LEN)
+    guiMessage(_("Can't record resume information: filename too long!"));
+  else
+    storeResumeInfo(fstring, dlm->fileName);
+  
+  FREE(fstring);
+  
   /* create thread that runs the download */
   if (0 != PTHREAD_CREATE(&dlm->downloadThread,
 			  (PThreadMain) &downloadFile_,
@@ -743,19 +761,10 @@ void startDownload(const gchar * filename,
   PTHREAD_DETACH(&dlm->downloadThread);  
 }
 
-/**
- * Starts a file download when user has filled in the fields
- */ 
-void fetchURICallback(GtkWidget * widget,
-		      gpointer data) {
-  const gchar * uri;
-  GtkWidget * entry;
+void downloadAFSuri(char *uri, char *fn) {
   RootNode root;
+  char *downloadDir;
 
-  entry = gtk_object_get_data(GTK_OBJECT(data),
-			      "entry");
-
-  uri = gtk_entry_get_text(GTK_ENTRY(entry));
   if(!uri)
     return;
 
@@ -763,22 +772,64 @@ void fetchURICallback(GtkWidget * widget,
 			 &root.header.fileIdentifier)) {
     guiMessage(_("Invalid gnunet AFS URI '%s'."),
 	       uri);
-    gtk_widget_destroy(data);
     return;
   }
 
   root.header.major_formatVersion = ROOT_MAJOR_VERSION;
   root.header.minor_formatVersion = ROOT_MINOR_VERSION;
   strcpy(root.header.mimetype,
-	 "unknown");
+    "unknown");
 
-  /* FIXME: prompt for filename! */
-  SNPRINTF(root.header.filename,
-	   sizeof(root.header.filename),
-	   "unknown.%ld", 
-	   (unsigned long)time(NULL));  
+  if (strlen(fn) > sizeof(root.header.filename)) {
+    guiMessage(_("Can't download AFS content: filename too long"));
+    return;
+  }
+  
+  strcpy(root.header.filename, fn);
+
+  downloadDir = getConfigurationString("AFS",
+                  "DOWNLOADDIR");
+
+  if(downloadDir != NULL) {
+    char * expanded;
+
+    expanded = expandFileName(downloadDir);
+
+    if ((SYSERR == mkdirp(expanded)))
+      LOG_FILE_STRERROR(LOG_WARNING, "mkdirp", expanded);
+    CHDIR(expanded);
+    FREE(expanded);
+    FREE(downloadDir);
+  }
+  
   startDownload(root.header.filename,
                 &root);
+}
+
+/**
+ * Starts a file download when user has filled in the fields
+ */ 
+void fetchURICallback(GtkWidget * widget,
+		      gpointer data) {
+  const gchar * uri;
+  GtkWidget * entry;
+  char *fn;
+  
+  entry = gtk_object_get_data(GTK_OBJECT(data),
+			      "entry");
+
+  uri = gtk_entry_get_text(GTK_ENTRY(entry));
+
+  /* FIXME: prompt for filename! */
+  fn = (char *) MALLOC(MAX_FILENAME_LEN);
+  SNPRINTF(fn,
+	   MAX_FILENAME_LEN,
+	   "unknown.%ld", 
+	   (unsigned long)time(NULL));  
+
+  downloadAFSuri((char *) uri, fn);
+  FREE(fn);
+  
   gtk_widget_destroy(data);
 }
 

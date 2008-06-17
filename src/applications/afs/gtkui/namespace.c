@@ -1441,7 +1441,7 @@ static void namespace_combo_changed(GtkWidget * unused,
     }          
     FREE(nick);
   }
-  if (i == size) { /* not found */
+  if (i == size || size == -1) { /* not found */
     desc = STRDUP("");
     real = STRDUP("");
     ur = STRDUP("");

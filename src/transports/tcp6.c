@@ -381,7 +381,7 @@ static int readAndProcess(int i) {
   TSession * tsession;
   TCP6Session * tcp6Session;
   unsigned int len;
-  int ret;
+  int ret, success;
   TCP6MessagePack * pack;
   MessagePack * mp;
 
@@ -389,9 +389,11 @@ static int readAndProcess(int i) {
   if (SYSERR == tcp6Associate(tsession))
     return SYSERR;
   tcp6Session = tsession->internal;
-  ret = RECV_NONBLOCKING(tcp6Session->sock,
-			 &tcp6Session->rbuff[tcp6Session->pos],
-	     tcp6Session->size - tcp6Session->pos);
+try_again_2:
+  success = RECV_NONBLOCKING(tcp6Session->sock,
+			     &tcp6Session->rbuff[tcp6Session->pos],
+	                     tcp6Session->size - tcp6Session->pos,
+	                     &ret);
   cronTime(&tcp6Session->lastUse);
   if (ret == 0) {
     tcp6Disconnect(tsession);
@@ -402,6 +404,11 @@ static int readAndProcess(int i) {
 #endif
     return SYSERR; /* other side closed connection */
   }
+  if (success == NO) {
+    gnunet_util_sleep(20);
+    goto try_again_2;
+  }
+  
   if (ret < 0) {
     if ( (errno == EINTR) ||
 	 (errno == EAGAIN) ) { 
@@ -722,18 +729,26 @@ static void * tcp6ListenMain() {
 	}
       }
       if (FD_ISSET(sock, &writeSet)) {
-	int ret;
+	int ret, success;
 
-	ret = SEND_NONBLOCKING(sock,
+try_again_1:
+	success = SEND_NONBLOCKING(sock,
 			       tcp6Session->wbuff,
-			       tcp6Session->wpos);
-	if (ret == SYSERR) {
+			       tcp6Session->wpos,
+			       &ret);
+	if (success == SYSERR) {
 	  LOG_STRERROR(LOG_WARNING, "send");
 	  destroySession(i);
 	  i--;
 	  continue;
-	}
-	if (ret == 0) {
+        } else if (success == NO) {
+  	  /* this should only happen under Win9x because
+  	     of a bug in the socket implementation (KB177346).
+  	     Let's sleep and try again. */
+  	  gnunet_util_sleep(20);
+  	  goto try_again_1;
+        }
+        if (ret == 0) {
           /* send only returns 0 on error (other side closed connection),
 	   * so close the session */
 	  destroySession(i);
@@ -791,7 +806,7 @@ static int tcp6DirectSend(TCP6Session * tcp6Session,
 			  void * mp,
 			  unsigned int ssize) {
   int ok;
-  int ret;
+  int ret, success;
 
   if (tcp6Session->sock == -1) {
 #if DEBUG_TCP6
@@ -813,21 +828,17 @@ static int tcp6DirectSend(TCP6Session * tcp6Session,
   if (tcp6Session->wpos > 0) {
     ret = 0;
   } else {
-    ret = SEND_NONBLOCKING(tcp6Session->sock,
-			   mp,
-			   ssize);
+    sucess = SEND_NONBLOCKING(tcp6Session->sock,
+                              mp,
+                              ssize,
+                              &ret);
   }
-  if (ret == SYSERR) {
-    if ( (errno == EAGAIN) ||
-	 (errno == EWOULDBLOCK)) {
-      LOG_STRERROR(LOG_DEBUG, "send");
-      ret = 0;
-    } else {
-      LOG_STRERROR(LOG_INFO, "send");
-      MUTEX_UNLOCK(&tcp6lock);
-      return SYSERR;
-    }
-  }
+  if (success == SYSERR) {
+    LOG_STRERROR(LOG_INFO, "send");
+    MUTEX_UNLOCK(&tcp6lock);
+    return SYSERR;
+  } else if (success == NO)
+    ret = 0;
   if ((unsigned int) ret <= ssize) { /* some bytes send or blocked */
     if ((unsigned int)ret < ssize) {
       if (tcp6Session->wbuff == NULL) {

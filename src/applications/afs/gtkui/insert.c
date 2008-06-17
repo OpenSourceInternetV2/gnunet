@@ -773,6 +773,10 @@ static void file_selected(char *filename) {
   char ** keywords;
   int num_keywords; 
 
+  if (getFileSize(filename) > INT_MAX) {
+    guiMessage(_("Can't process files larger than 2 GB"));
+    return;
+  }
 
   /* if filename is '/home/user/foo', use 'foo' as the filenameRoot */
   fileNameRoot = NULL;
@@ -1292,5 +1296,29 @@ void openSelectFile(void) {
     file_selected(STRDUP(theDlg.lpstrFile));
 #endif
 }
+
+#ifdef MINGW
+/**
+ * Pops up a directory selector for the user.
+ */
+void openSelectDir() {
+  BROWSEINFO theDlg;
+  LPITEMIDLIST pidl;
+  
+  memset(&theDlg, 0, sizeof(BROWSEINFO));
+  
+  theDlg.ulFlags = BIF_NEWDIALOGSTYLE | BIF_BROWSEINCLUDEFILES;
+  
+  CoInitialize(NULL);
+  if ((pidl = SHBrowseForFolder(&theDlg))) {
+    SHGetPathFromIDList(pidl, szFilename);
+    if (isDirectory(szFilename))
+      directory_selected(szFilename);
+    else
+      file_selected(szFilename);
+  }
+  CoUninitialize();
+}
+#endif
 
 /* end of insert.c */

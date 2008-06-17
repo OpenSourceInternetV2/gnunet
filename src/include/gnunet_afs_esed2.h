@@ -405,8 +405,8 @@ typedef struct RequestEntry {
  */
 typedef struct ProgressStats {
 
-  size_t progress;			/* bytes processed */
-  size_t filesize;			/* total file size */
+  unsigned long long progress;			/* bytes processed */
+  unsigned long long filesize;			/* total file size */
   int requestsSent;
   int requestsPending;
   int currentRetries;
@@ -2461,6 +2461,32 @@ int stopCollection();
  
 
 
+/**
+ * @brief ptr to a function which downloads a specific URI
+ */
+typedef void (*TDownloadURI) (char *uri, char *fn);
+
+/**
+ * @brief Add a download to the list of unfinished downloads
+ * @param uri GNUnet AFS URI
+ * @param fileName the filename (max MAX_FILENAME_LEN)
+ * @return SYSERR on error, YES on success
+ **/
+int storeResumeInfo(char *uri, char *fileName);
+
+/**
+ * @brief Resume all aborted downloads
+ * @param dl download function
+ * @return SYSERR on error, YES on success
+ */
+int resumeDownloads(TDownloadURI dl);
+
+/**
+ * @brief Remove a download from the list of unfinished downloads
+ * @param uri the download's GNUnet AFS uri
+ * @return SYSERR on error, YES on success
+ */
+int removeResumeInfo(char *uri);
 
 #endif
 /* end of gnunet_afs_esed2.h */

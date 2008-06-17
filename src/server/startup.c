@@ -86,28 +86,25 @@ if (win_service)
   if (signum != SERVICE_CONTROL_STOP)
   {
     SERVICE_STATUS theStat;
-    SC_HANDLE hManager, hSvc;
     
-    /* Init proper shutdown thorugh the SCM */
-    if ((hManager = GNOpenSCManager(NULL, NULL, SC_MANAGER_CONNECT)))
+    /* Init proper shutdown through the SCM */
+    if (GNControlService(hService, SERVICE_CONTROL_STOP, &theStat))
     {
-      if ((hSvc = GNOpenService(hManager, "GNUnet", SERVICE_STOP)))
-      {
-        if (GNControlService(hSvc, SERVICE_CONTROL_STOP, &theStat))
-        {
-          /* Success */
+      /* Success */
 
-          /* The Service Control Manager will call
-             gnunetd.c::ServiceCtrlHandler(), which calls
-             this function again. We then stop the gnunetd. */
-          return;
-        }
-      }
+      /* The Service Control Manager will call
+         gnunetd.c::ServiceCtrlHandler(), which calls
+         this function again. We then stop the gnunetd. */
+      return;
     }
     /* We weren't able to tell the SCM to stop the service,
        but we don't care.
        Just shut the gnunetd process down. */
   }
+  
+  /* Acknowledge the shutdown request */
+  theServiceStatus.dwCurrentState = SERVICE_STOP_PENDING;
+  GNSetServiceStatus(hService, &theServiceStatus);
 }
 #endif
 
@@ -493,12 +490,17 @@ int parseCommandLine(int argc,
 	    GNoptarg);
         break;
       }
-      if ( (0 != setregid(pws->pw_gid, pws->pw_gid)) || 
-	   (0 != setreuid(pws->pw_uid, pws->pw_uid)) )
-	LOG(LOG_WARNING, 
-	    _("Cannot change user/group to '%s': %s"),
-	    GNoptarg,
-	    STRERROR(errno));
+      if ( (0 != setgid(pws->pw_gid)) ||
+	   (0 != setegid(pws->pw_gid)) ||
+	   (0 != setuid(pws->pw_uid)) ||
+	   (0 != seteuid(pws->pw_uid)) ) {  
+	if ( (0 != setregid(pws->pw_gid, pws->pw_gid)) || 
+	     (0 != setreuid(pws->pw_uid, pws->pw_uid)) )
+	  LOG(LOG_WARNING, 
+	      _("Cannot change user/group to '%s': %s"),
+	      GNoptarg,
+	      STRERROR(errno));
+      }
       break;
 #endif
 #ifdef MINGW

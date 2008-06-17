@@ -28,27 +28,33 @@
 #define _WIN_CC
 
 #include "winproc.h"
+#include "gnunet_util.h"
 
 extern "C" {
 
 BOOL CreateShortcut(const char *pszSrc, const char *pszDest)
 {
-  /* CreateHardLink requires XP or 2000 */
-  if (!(GNCreateHardLink && GNCreateHardLink(pszDest, pszSrc, NULL)))
-  {
     /* Create shortcut */
     IShellLink *pLink;
     IPersistFile *pFile;
     WCHAR *pwszDest;
     char *pszFileLnk;
     
+    CoInitialize(NULL);
+    
     if ((strlen(pszSrc) > _MAX_PATH) || (strlen(pszDest) + 4 > _MAX_PATH))
+    {
+      CoUninitialize();
       return FALSE;
+    }
     
     /* Create Shortcut-Object */
     if (CoCreateInstance(CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER,
         IID_IShellLink, (void **) &pLink) != S_OK)
+    {
+      CoUninitialize();
       return FALSE;
+    }
   
     /* Set target path */
     pLink->SetPath(pszSrc);
@@ -58,7 +64,8 @@ BOOL CreateShortcut(const char *pszSrc, const char *pszDest)
     {
       free(pwszDest);
       pLink->Release();
-      
+      CoUninitialize();
+     
       return FALSE;
     }
 
@@ -78,6 +85,7 @@ BOOL CreateShortcut(const char *pszSrc, const char *pszDest)
       free(pwszDest);
       pLink->Release();
       pFile->Release();
+      CoUninitialize();
   
       return FALSE;
     }
@@ -86,10 +94,8 @@ BOOL CreateShortcut(const char *pszSrc, const char *pszDest)
     
     pFile->Release();
     pLink->Release();
+    CoUninitialize();
       
-    return TRUE;
-  }
-  else
     return TRUE;
 }
 
@@ -100,16 +106,22 @@ BOOL DereferenceShortcut(char *pszShortcut)
   WCHAR *pwszShortcut;
   char *pszLnk;
   int iErr, iLen;
+
+  CoInitialize(NULL);
   
   /* Create Shortcut-Object */
   if (CoCreateInstance(CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER,
       IID_IShellLink, (void **) &pLink) != S_OK)
+  {
+    CoUninitialize();
     return FALSE;
+  }
 
   /* Get File-Object */
   if (pLink->QueryInterface(IID_IPersistFile, (void **) &pFile) != S_OK)
   {
     pLink->Release();
+    CoUninitialize();
     
     return FALSE;
   }
@@ -137,6 +149,7 @@ BOOL DereferenceShortcut(char *pszShortcut)
     pLink->Release();
     pFile->Release();
     free(pwszShortcut);
+    CoUninitialize();
     
     return FALSE;
   }
@@ -148,14 +161,121 @@ BOOL DereferenceShortcut(char *pszShortcut)
   {
     pLink->Release();
     pFile->Release();
-
+    CoUninitialize();
+    
     return FALSE;
   }
 
   pFile->Release();
   pLink->Release();
- 
+  CoUninitialize();
+  
   return TRUE;
+}
+
+/**
+ * Enumerate all network adapters
+ */
+void EnumNICs(PMIB_IFTABLE *pIfTable, PMIB_IPADDRTABLE *pAddrTable)
+{
+  DWORD dwSize, dwRet;
+
+  *pIfTable = NULL;
+  *pAddrTable = NULL;
+
+  if (GNGetIfTable)
+  {
+    dwSize = dwRet = 0;
+
+    *pIfTable = (MIB_IFTABLE *) GlobalAlloc(GPTR, sizeof(MIB_IFTABLE));
+
+    /* Get size of table */
+    if (GNGetIfTable(*pIfTable, &dwSize, 0) == ERROR_INSUFFICIENT_BUFFER)
+    {
+      GlobalFree(*pIfTable);
+      *pIfTable = (MIB_IFTABLE *) GlobalAlloc(GPTR, dwSize);
+    }
+
+    if ((dwRet = GNGetIfTable(*pIfTable, &dwSize, 0)) == NO_ERROR)
+    {
+      DWORD dwIfIdx, dwSize = sizeof(MIB_IPADDRTABLE);
+      *pAddrTable = (MIB_IPADDRTABLE *) GlobalAlloc(GPTR, dwSize);
+      
+      /* Make an initial call to GetIpAddrTable to get the
+         necessary size */
+      if (GNGetIpAddrTable(*pAddrTable, &dwSize, 0) == ERROR_INSUFFICIENT_BUFFER)
+      {
+        GlobalFree(*pAddrTable);
+        *pAddrTable = (MIB_IPADDRTABLE *) GlobalAlloc(GPTR, dwSize);
+      }
+      GNGetIpAddrTable(*pAddrTable, &dwSize, 0);  	
+    }
+  }
+}
+
+/**
+ * Lists all network interfaces in a combo box
+ * Used by the Windows installer
+ */
+int PopulateNICCombo(HWND hCombo)
+{
+  PMIB_IFTABLE pTable;
+  PMIB_IPADDRTABLE pAddrTable;
+  DWORD dwIfIdx, dwExternalNIC;
+  IPAddr theIP;
+  
+  /* Determine our external NIC  */
+  theIP = inet_addr("192.0.34.166"); /* www.example.com */
+  if ((! GNGetBestInterface) ||
+      (GNGetBestInterface(theIP, &dwExternalNIC) != NO_ERROR))
+  {
+    dwExternalNIC = 0;
+  }
+  
+  /* Enumerate NICs */
+  EnumNICs(&pTable, &pAddrTable);
+  
+  if (pTable)
+  {
+    for(dwIfIdx=0; dwIfIdx <= pTable->dwNumEntries; dwIfIdx++)
+    {
+      char szEntry[251];
+      DWORD dwIP = 0;
+      int iItm;
+      /* Get IP-Address */
+      int i;
+      for(i = 0; i < pAddrTable->dwNumEntries; i++)
+      {
+        if (pAddrTable->table[i].dwIndex == pTable->table[dwIfIdx].dwIndex)
+        {
+          dwIP = pAddrTable->table[i].dwAddr;
+          break;
+        }
+      }
+      
+      if (dwIP)
+      {
+        snprintf(szEntry, 250, "%d.%d.%d.%d - %s - %i",
+          PRIP(ntohl(dwIP)),
+          pTable->table[dwIfIdx].bDescr, pTable->table[dwIfIdx].dwIndex);
+        szEntry[250] = 0;
+          
+        iItm = SendMessage(hCombo, CB_ADDSTRING, 0, (LPARAM) szEntry);
+        if (iItm == -1)        
+          return NO;
+        
+        SendMessage(hCombo, CB_SETITEMDATA, (WPARAM) iItm,
+          (LPARAM) dwIfIdx);
+          
+        if (pAddrTable->table[dwIfIdx].dwIndex == dwExternalNIC)
+          SendMessage(hCombo, CB_SETCURSEL, iItm, 0);
+      }
+    }
+    GlobalFree(pAddrTable);
+    GlobalFree(pTable);
+  }
+  
+  return YES;
 }
 
 }

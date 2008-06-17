@@ -38,8 +38,9 @@ static GtkWidget * infoText = NULL;
 /* are we waiting for gnunetd to start? */
 static int pollForLaunch = FALSE;
 
-/* PID of the main thread */
-static pthread_t mainThread;
+/* the main thread */
+static PTHREAD_T mainThread;
+
 
 
 static SaveCall ** psc;
@@ -58,8 +59,7 @@ void gtkSaveCall(GtkFunction func, void *args) {
   call.args = args;
   call.func = func;
   MUTEX_LOCK(&sclock);
-  if ( (mainThread != 0) &&
-       (mainThread != pthread_self()) ) {
+  if (! PTHREAD_SELF_TEST(&mainThread)) {
     call.sem = SEMAPHORE_NEW(0);
     GROW(psc,
 	 pscCount,
@@ -93,18 +93,18 @@ void gtkSaveCall(GtkFunction func, void *args) {
  */
 void gtkInitSaveCalls() {
   MUTEX_CREATE_RECURSIVE(&sclock);
-  mainThread = pthread_self();
+  PTHREAD_GET_SELF(&mainThread);
 }
 
-void gtkRunSomeSaveCalls() {
+int gtkRunSomeSaveCalls() {
   int i;
 
-  if (mainThread != pthread_self())
-    return;
+  if (! PTHREAD_SELF_TEST(&mainThread))
+    return NO;
   MUTEX_LOCK(&sclock);
   if (pscCount == 0) {
     MUTEX_UNLOCK(&sclock);
-    return;
+    return NULL;
   }
   i = randomi(pscCount);
   if (TRUE == g_idle_remove_by_data(psc[i]))
@@ -118,12 +118,13 @@ void gtkRunSomeSaveCalls() {
      also, this function might be called in a tight
      loop (see search.c), so we should give the
      other threads some time to run.  */
-     
+
+  return YES;
 }
 
 void gtkDoneSaveCalls() {
   int i;
-  mainThread = 0;
+  PTHREAD_REL_SELF(&mainThread);
   MUTEX_LOCK(&sclock);
   for (i=0;i<pscCount;i++) 
     psc[i]->func(psc[i]);
@@ -405,7 +406,6 @@ void showStats(GtkWidget * widget,
   char * ptr;
   char buffer[512];
   char fn[512];
-  char path[260];
   char * cfgFile;
   GtkWidget * window;
   GtkWidget * scrolled_window;
@@ -492,16 +492,12 @@ void showStats(GtkWidget * widget,
   }
 
 #ifdef MINGW
-  conv_to_win_path("/bin", path);
-  strcat(path, "\\");
-#else
-  strcpy(path, "");
+  CHDIR("/bin");
 #endif
 
   SNPRINTF(buffer, 
 	   512,
-	   "%sgnunet-stats -c \"%s\" >%s",
-	   path, 
+	   "gnunet-stats -c \"%s\" >%s",
 	   cfgFile,
 	   fn);
   system(buffer);

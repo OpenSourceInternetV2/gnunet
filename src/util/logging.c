@@ -36,6 +36,9 @@ static Mutex logMutex;
 static int bInited = 0;
 static TLogProc customLog = NULL;
 static int maxLogLevel = LOG_EVERYTHING;
+static unsigned int lastlog;
+static int keepLog;
+static char * base;
 
 static char * loglevels[] = {
   "NOTHING",
@@ -50,6 +53,91 @@ static char * loglevels[] = {
   "EVERYTHING",
   NULL,
 };
+
+struct logfiledef {
+  struct tm *curtime;
+  char *logpath;
+  char *datestr;
+};
+
+/**
+ * Remove file if it is an old log
+ */
+static void removeOldLog(const char * fil,
+		     const char * dir,
+		     struct logfiledef *def) {
+  unsigned int fillen;
+  char *logdate;
+
+  fillen = strlen(fil);
+  logdate = (char *) fil + fillen - 6;
+  if (fillen > 5 && atoi(logdate) + keepLog < (def->curtime->tm_year - 100) * 10000 +
+       (def->curtime->tm_mon + 1) * 100 + def->curtime->tm_mday) {
+    char *filpath;
+    
+    filpath = (char *) MALLOC(fillen + strlen(def->logpath) + 2);
+    sprintf(filpath, "%s/%s", def->logpath, fil);
+    UNLINK(filpath);
+    FREE(filpath);
+  }
+}
+
+/**
+ * Open the logfile
+ */
+void reopenLogFile() {
+  char * logfilename;
+  
+  logfilename
+    = getConfigurationString(base,
+			     "LOGFILE");
+  
+  if (logfilename != NULL) {
+    char * fn;
+    struct tm *curtime;
+    unsigned int fnlen;
+    
+    if (logfile)
+      fclose(logfile);
+
+    fn = expandFileName(logfilename);
+      
+    if (keepLog) {
+      char *logdir, *end;
+      struct logfiledef def;
+      char datestr[7];
+      time_t curtime;
+      
+      time(&curtime);
+      def.curtime = localtime(&curtime);
+      lastlog = def.curtime->tm_yday;
+      
+      /* Format current date for filename*/
+      fnlen = strlen(fn);
+      fn = (char *) realloc(fn, fnlen + 8);
+      strcat(fn, "_");
+      strftime(datestr, 7, "%y%m%d", def.curtime);
+      strcpy(fn + fnlen + 1, datestr);
+      
+      /* Remove old logs */
+      logdir = STRDUP(fn);
+      end = logdir + strlen(logdir);
+      while(*end != DIR_SEPARATOR)
+        end--;
+      *end = 0;
+      def.logpath = logdir;
+      def.datestr = datestr;
+      scanDirectory(logdir, (DirectoryEntryCallback) removeOldLog, &def);
+    }
+        
+    logfile = FOPEN(fn, "a+");
+    if (logfile == NULL)
+      logfile = stderr;
+    FREE(fn);
+    FREE(logfilename);
+  } else
+    logfile = stderr;
+}
 
 /**
  * Return the current logging level
@@ -94,8 +182,6 @@ static int getLoglevel(char * log) {
  */
 static void resetLogging() {
   char * loglevelname;
-  char * logfilename;
-  char * base;
   int levelstatic = 0;
 
   MUTEX_LOCK(&logMutex);
@@ -121,26 +207,17 @@ static void resetLogging() {
     }
   }
 
-  
   loglevel__ 
     = getLoglevel(loglevelname); /* will errexit if loglevel == NULL */
   if (! levelstatic)
     FREE(loglevelname);
 
-  logfilename
-    = getConfigurationString(base,
-			     "LOGFILE");
-  if (logfilename != NULL) {
-    char * fn;
-
-    fn = expandFileName(logfilename);
-    logfile = FOPEN(fn, "a+");
-    if (logfile == NULL)
-      logfile = stderr;
-    FREE(fn);
-    FREE(logfilename);
-  } else
-    logfile = stderr;
+  keepLog
+    = getConfigurationInt(base,
+            "KEEPLOG");
+  
+  reopenLogFile();
+  
   MUTEX_UNLOCK(&logMutex);
 }
 
@@ -249,6 +326,17 @@ void LOG(int minLogLevel,
     MUTEX_LOCK(&logMutex);
   va_start(args, format);
   if (logfile != NULL) {
+    time_t curtime;
+    struct tm *lcltime;
+    
+    time(&curtime);
+    lcltime = localtime(&curtime); 
+    
+    if (lcltime->tm_yday != lastlog) {
+      reopenLogFile();
+      lastlog = lcltime->tm_yday;
+    }
+    
     printTime();
     if (format[0] == ' ')
       fprintf(logfile, "%s:", loglevels[minLogLevel]);

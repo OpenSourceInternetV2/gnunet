@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001 - 2004 Christian Grothoff (and other contributing authors)
+     (C) 2001 - 2005 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -45,18 +45,17 @@ static char szRootDir[_MAX_PATH + 1];
 static long lRootDirLen;
 static char szHomeDir[_MAX_PATH + 2];
 static long lHomeDirLen;
-static char szUser[261];
+static char szUser[261] = "";
 static OSVERSIONINFO theWinVersion;
 unsigned int uiSockCount = 0;
 Winsock *pSocks;
 HANDLE hSocksLock;
 
-static HINSTANCE hNTDLL, hIphlpapi, hKernel, hAdvapi;
+static HINSTANCE hNTDLL, hIphlpapi, hAdvapi;
 TNtQuerySystemInformation GNNtQuerySystemInformation;
 TGetIfEntry GNGetIfEntry;
 TGetIpAddrTable GNGetIpAddrTable;
 TGetIfTable GNGetIfTable;
-TCreateHardLink GNCreateHardLink;
 TOpenSCManager GNOpenSCManager;
 TCreateService GNCreateService;
 TCloseServiceHandle GNCloseServiceHandle;
@@ -66,6 +65,7 @@ TSetServiceStatus GNSetServiceStatus;
 TStartServiceCtrlDispatcher GNStartServiceCtrlDispatcher;
 TControlService GNControlService;
 TOpenService GNOpenService;
+TGetBestInterface GNGetBestInterface;
 
 BOOL __win_IsHandleMarkedAsBlocking(SOCKET hHandle)
 {
@@ -90,24 +90,42 @@ BOOL __win_IsHandleMarkedAsBlocking(SOCKET hHandle)
 void __win_SetHandleBlockingMode(SOCKET s, BOOL bBlocking)
 {
   unsigned int uiIndex = 0;
+  int bFound = 0;
 
   WaitForSingleObject(hSocksLock, INFINITE);
-  while(TRUE)
+
+  for(uiIndex = 0; uiIndex <= uiSockCount; uiIndex++)
   {
-    if (pSocks[uiIndex].s == -1)
+    if (pSocks[uiIndex].s == s)
     {
-      pSocks[uiIndex].s = s;
-      pSocks[uiIndex].bBlocking = bBlocking;
-    }
-    if (uiIndex == uiSockCount)
-    {
-      uiSockCount++;
-      pSocks = (Winsock *) realloc(pSocks, (uiSockCount + 1) * sizeof(Winsock));
-      pSocks[uiSockCount].s = -1;
-      
+      bFound = 1;
       break;
     }
-    uiIndex++;
+  }
+  
+  if (bFound)
+    pSocks[uiIndex].bBlocking = bBlocking;
+  else
+  {
+    uiIndex = 0;
+    
+    while(TRUE)
+    {
+      if (pSocks[uiIndex].s == -1)
+      {
+        pSocks[uiIndex].s = s;
+        pSocks[uiIndex].bBlocking = bBlocking;
+      }
+      if (uiIndex == uiSockCount)
+      {
+        uiSockCount++;
+        pSocks = (Winsock *) realloc(pSocks, (uiSockCount + 1) * sizeof(Winsock));
+        pSocks[uiSockCount].s = -1;
+        
+        break;
+      }
+      uiIndex++;
+    }
   }
   ReleaseMutex(hSocksLock);
 }
@@ -136,6 +154,8 @@ int truncate(const char *fname, int distance)
   HANDLE hFile;
   char pszFile[_MAX_PATH + 1];
   long lRet;
+
+  errno = 0;
 
   if ((lRet = conv_to_win_path(fname, pszFile)) != ERROR_SUCCESS)
   {
@@ -176,6 +196,8 @@ int statfs(const char *path, struct statfs *buf)
   char tmp[MAX_PATH], resolved_path[MAX_PATH];
   int retval = 0;
 
+  errno = 0;
+  
   realpath(path, resolved_path);
   if(!resolved_path)
     retval = -1;
@@ -268,6 +290,8 @@ const char *hstrerror(int err)
 void gettimeofday(struct timeval *tp, void *tzp)
 {
   struct _timeb theTime;
+  
+  errno = 0;
 
   _ftime(&theTime);
   tp->tv_sec = theTime.time;
@@ -280,7 +304,10 @@ int mkstemp(char *tmplate)
     = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   int iLen, iRnd;
   char *pChr;
+  char szDest[_MAX_PATH + 1];
 
+  errno = 0;
+  
   iLen = strlen(tmplate);
   if(iLen >= 6)
   {
@@ -308,7 +335,10 @@ int mkstemp(char *tmplate)
     errno = EINVAL;
     return -1;
   }
-  return _open(tmplate, _O_CREAT | _O_EXCL, _S_IREAD | _S_IWRITE);
+  
+  conv_to_win_path(tmplate, szDest);
+  
+  return _open(szDest, _O_CREAT | _O_EXCL, _S_IREAD | _S_IWRITE);
 }
 
 /*********************** posix path -> win path ****************************/
@@ -451,6 +481,7 @@ long DetermineHomeDir()
         return ERROR_BUFFER_OVERFLOW;
 
       strcpy(szHomeDir, szRootDir);
+      strcat(szHomeDir, "home\\");
       strcat(szHomeDir, szUser);
       strcat(szHomeDir, "\\");
     }
@@ -546,21 +577,17 @@ void InitWinEnv()
     GNGetIpAddrTable = (TGetIpAddrTable) GetProcAddress(hIphlpapi,
       "GetIpAddrTable");
     GNGetIfTable = (TGetIfTable) GetProcAddress(hIphlpapi, "GetIfTable");
+    GNGetBestInterface = (TGetBestInterface) GetProcAddress(hIphlpapi,
+      "GetBestInterface");
   }
   else
   {
     GNGetIfEntry = NULL;
     GNGetIpAddrTable = NULL;
     GNGetIfTable = NULL;
+    GNGetBestInterface = NULL;
   }
   
-  /* Function to create hard links on NTFS */
-  hKernel = LoadLibrary("kernel32.dll");
-  if (hKernel)
-   GNCreateHardLink = (TCreateHardLink) GetProcAddress(hKernel, "CreateHardLinkA");
-  else
-   GNCreateHardLink = NULL;
-   
   /* Service functions */
   hAdvapi = LoadLibrary("advapi32.dll");
   if (hAdvapi)
@@ -605,7 +632,6 @@ void ShutdownWinEnv()
   
   FreeLibrary(hNTDLL);
   FreeLibrary(hIphlpapi);
-  FreeLibrary(hKernel);
   FreeLibrary(hAdvapi);
   
   CoUninitialize();
@@ -615,9 +641,10 @@ void ShutdownWinEnv()
  * Convert a POSIX-sytle path to a Windows-style path
  * @param pszUnix POSIX path
  * @param pszWindows Windows path
+ * @param derefLinks 1 to dereference links
  * @return Error code from winerror.h, ERROR_SUCCESS on success
 */
-int conv_to_win_path(const char *pszUnix, char *pszWindows)
+int conv_to_win_path_ex(const char *pszUnix, char *pszWindows, int derefLinks)
 {
   char *pSrc, *pDest;
   long iSpaceUsed;
@@ -686,7 +713,8 @@ int conv_to_win_path(const char *pszUnix, char *pszWindows)
   }
   *pDest = 0;
   
-  DereferenceShortcut(pszWindows);
+  if (derefLinks)
+    DereferenceShortcut(pszWindows);
 
 #if DEBUG_WINPROC
   LOG(LOG_EVERYTHING, "Posix path %s resolved to %s\n", pszUnix, pszWindows);
@@ -1053,6 +1081,9 @@ void SetErrnoFromWinsockError(long lWinError)
 {
   switch(lWinError)
   {
+    case 0:
+      errno = 0;
+      break;
     case WSAEINTR:
       errno = EINTR;
       break;
@@ -1258,6 +1289,8 @@ int flock(int fd, int operation)
   OVERLAPPED theOvInfo;
   BOOL bRet;
   
+  errno = 0;
+  
   hFile = (HANDLE) _get_osfhandle(fd);
   memset(&theOvInfo, sizeof(OVERLAPPED), 0);
   
@@ -1320,7 +1353,10 @@ int fsync(int fildes)
     return -1;
   }
   else
+  {
+    errno = 0;
     return 0;
+  }
 }
 
 /**
@@ -1329,12 +1365,20 @@ int fsync(int fildes)
 FILE *_win_fopen(const char *filename, const char *mode)
 {
   char szFile[_MAX_PATH + 1];
-  if (conv_to_win_path(filename, szFile) != ERROR_SUCCESS)
+  FILE *hFile;
+  int i;
+  
+  if ((i = conv_to_win_path(filename, szFile)) != ERROR_SUCCESS)
   {
+    SetErrnoFromWinError(i);
+    
     return NULL;
   }
 
-  return fopen(szFile, mode);
+  hFile = fopen(szFile, mode);
+  SetErrnoFromWinError(GetLastError());
+  
+  return hFile;
 }
 
 /**
@@ -1351,6 +1395,7 @@ DIR *_win_opendir(const char *dirname)
     return NULL;
   }  
   
+  /* opendir sets errno */
   return opendir(szDir);
 }
 
@@ -1368,6 +1413,7 @@ int _win_chdir(const char *path)
     return -1;
   }  
   
+  /* chdir sets errno */
   return chdir(szDir);  
 }
 
@@ -1376,6 +1422,8 @@ int _win_chdir(const char *path)
  */
 int _win_fstat(int handle, struct stat *buffer)
 {
+  errno = 0;
+  
   /* File */
   if (fstat(handle, buffer) == -1)
   {
@@ -1411,6 +1459,7 @@ int _win_rmdir(const char *path)
     return -1;
   }  
   
+  /* rmdir sets errno */
   return rmdir(szDir);  
 }
 
@@ -1425,10 +1474,11 @@ int _win_pipe(int *phandles)
   {
     SetErrnoFromWinError(GetLastError());
     
-  	return -1;
+    return -1;
   }
   else
   {
+    errno = 0;
     return 0;
   }
 }
@@ -1447,6 +1497,7 @@ int _win_access( const char *path, int mode )
     return -1;
   }  
   
+  /* access sets errno */
   return access(szFile, mode);    
 }
 
@@ -1464,6 +1515,7 @@ int _win_chmod(const char *filename, int pmode)
     return -1;
   }  
   
+  /* chmod sets errno */
   return access(szFile, pmode);  
 }
 
@@ -1472,6 +1524,7 @@ char *realpath(const char *file_name, char *resolved_name)
 {
   char szFile[_MAX_PATH + 1];
   long lRet;
+  char *pszRet;
   
   if ((lRet = conv_to_win_path(file_name, szFile)) != ERROR_SUCCESS)
   {
@@ -1479,28 +1532,34 @@ char *realpath(const char *file_name, char *resolved_name)
     return NULL;
   }  
   
-  return _fullpath(szFile, resolved_name, MAX_PATH);  
+  pszRet = _fullpath(szFile, resolved_name, MAX_PATH);
+  SetErrnoFromWinError(GetLastError());
+  
+  return pszRet;  
 }
 
 /**
  * Delete a file
+ * If path is a link, the link itself is removed
  */
 int _win_remove(const char *path)
 {
   char szFile[_MAX_PATH + 1];
   long lRet;
   
-  if ((lRet = conv_to_win_path(path, szFile)) != ERROR_SUCCESS)
+  if ((lRet = conv_to_win_path_ex(path, szFile, 0)) != ERROR_SUCCESS)
   {
     SetErrnoFromWinError(lRet);
     return -1;
   }  
   
+  /* remove sets errno */
   return remove(szFile);
 }
 
 /**
  * Rename a file
+ * If oldname is a link, the link itself is renamed
  */
 int _win_rename(const char *oldname, const char *newname)
 {
@@ -1508,7 +1567,7 @@ int _win_rename(const char *oldname, const char *newname)
   char szNewName[_MAX_PATH + 1];
   long lRet;
   
-  if ((lRet = conv_to_win_path(oldname, szOldName)) != ERROR_SUCCESS)
+  if ((lRet = conv_to_win_path_ex(oldname, szOldName, 0)) != ERROR_SUCCESS)
   {
     SetErrnoFromWinError(lRet);
     return -1;
@@ -1520,6 +1579,7 @@ int _win_rename(const char *oldname, const char *newname)
     return -1;
   }  
   
+  /* rename sets errno */
   return rename(szOldName, szNewName);
 }
 
@@ -1544,29 +1604,34 @@ int _win_stat(const char *path, struct stat *buffer)
     szFile[lRet] = 0;
   }
   
+  /* stat sets errno */
   return stat(szFile, buffer);
 }
 
 /**
  * Delete a file
+ * If filename is a link, the link itself it removed.
  */
 int _win_unlink(const char *filename)
 {
   char szFile[_MAX_PATH + 1];
   long lRet;
   
-  if ((lRet = conv_to_win_path(filename, szFile)) != ERROR_SUCCESS)
+  if ((lRet = conv_to_win_path_ex(filename, szFile, 0)) != ERROR_SUCCESS)
   {
     SetErrnoFromWinError(lRet);
     return -1;
   }  
   
+  /* unlink sets errno */
   return unlink(szFile);
 }
 
 DWORD WINAPI __win_Write(TReadWriteInfo *pInfo)
 {
   int iRet;
+  
+  errno = 0;
   if ((iRet = write(pInfo->fildes, pInfo->buf, pInfo->nbyte)) == -1)
   {
     DWORD dwWritten;
@@ -1598,7 +1663,7 @@ int _win_write(int fildes, const void *buf, size_t nbyte)
   {
     TReadWriteInfo theInfo;
     theInfo.fildes = fildes;
-    theInfo.buf = buf;
+    theInfo.buf = (void *) buf;
     theInfo.nbyte = nbyte;
     
     if (__win_IsHandleMarkedAsBlocking(fildes))
@@ -1615,6 +1680,8 @@ int _win_write(int fildes, const void *buf, size_t nbyte)
 DWORD WINAPI __win_Read(TReadWriteInfo *pInfo)
 {
   int iRet;
+  
+  errno = 0;
   if ((iRet = read(pInfo->fildes, pInfo->buf, pInfo->nbyte)) == -1)
   {
     DWORD dwRead;
@@ -1666,14 +1733,10 @@ int _win_read(int fildes, void *buf, size_t nbyte)
 size_t _win_fwrite(const void *buffer, size_t size, size_t count, FILE *stream)
 {
   DWORD dwWritten;
-  int iError;
 
   WriteFile((HANDLE) _get_osfhandle(fileno(stream)), buffer, size, &dwWritten,
             NULL);
-  if ((iError = GetLastError()) != ERROR_SUCCESS)
-  {
-    SetErrnoFromWinError(iError);
-  }
+  SetErrnoFromWinError(GetLastError());
   
   return dwWritten;
 }
@@ -1684,7 +1747,7 @@ size_t _win_fwrite(const void *buffer, size_t size, size_t count, FILE *stream)
 size_t _win_fread( void *buffer, size_t size, size_t count, FILE *stream )
 {
   DWORD dwRead;
-  int iItemsRead, iError;
+  int iItemsRead;
   void *pDest = buffer;
   
   for(iItemsRead = 0; iItemsRead < count; iItemsRead++)
@@ -1695,10 +1758,7 @@ size_t _win_fread( void *buffer, size_t size, size_t count, FILE *stream )
     pDest += size;
   }
   
-  if ((iError = GetLastError()) != ERROR_SUCCESS)
-  {
-    SetErrnoFromWinError(iError);
-  }
+  SetErrnoFromWinError(GetLastError());
   
   return iItemsRead;
 }
@@ -1723,7 +1783,11 @@ int _win_symlink(const char *path1, const char *path2)
     return -1;
   }  
   
-  return CreateShortcut(path1, path2) ? 0 : -1;
+  lRet = CreateShortcut(path1, path2);
+  if (lRet != 1)
+   SetErrnoFromWinError(GetLastError());
+  
+  return lRet ? 0 : -1;
 }
 
 /**
@@ -1732,16 +1796,10 @@ int _win_symlink(const char *path1, const char *path2)
 int _win_accept(SOCKET s, struct sockaddr *addr, int *addrlen)
 {
   int iRet = accept(s, addr, addrlen);
-  if (iRet == SOCKET_ERROR)
-  {
-    SetErrnoFromWinsockError(WSAGetLastError());
+
+  SetErrnoFromWinsockError(WSAGetLastError());
     
-    return -1;
-  }
-  else
-  {
-    return iRet;
-  }
+  return iRet;
 }
 
 /**
@@ -1750,16 +1808,10 @@ int _win_accept(SOCKET s, struct sockaddr *addr, int *addrlen)
 int _win_bind(SOCKET s, const struct sockaddr *name, int namelen)
 {
   int iRet = bind(s, name, namelen);
-  if (iRet == SOCKET_ERROR)
-  {
-    SetErrnoFromWinsockError(WSAGetLastError());
+
+  SetErrnoFromWinsockError(WSAGetLastError());
     
-    return -1;
-  }
-  else
-  {
-    return iRet;
-  }
+  return iRet;
 }
 
 /**
@@ -1790,16 +1842,9 @@ int _win_connect(SOCKET s,const struct sockaddr *name, int namelen)
     ioctlsocket(s, FIONBIO, &l);
   }
     
-  if (iRet == SOCKET_ERROR)
-  {
-    SetErrnoFromWinsockError(iWSErr);
+  SetErrnoFromWinsockError(iWSErr);
     
-    return -1;
-  }
-  else
-  {
-    return iRet;
-  }
+  return iRet;
 }
 
 /**
@@ -1809,16 +1854,10 @@ int _win_getpeername(SOCKET s, struct sockaddr *name,
                 int *namelen)
 {
   int iRet = getpeername(s, name, namelen);
-  if (iRet == SOCKET_ERROR)
-  {
-    SetErrnoFromWinsockError(WSAGetLastError());
+
+  SetErrnoFromWinsockError(WSAGetLastError());
     
-    return -1;
-  }
-  else
-  {
-    return iRet;
-  }  
+  return iRet;
 }
 
 /**
@@ -1828,16 +1867,10 @@ int _win_getsockname(SOCKET s, struct sockaddr *name,
                 int *namelen)
 {
   int iRet = getsockname(s, name, namelen);
-  if (iRet == SOCKET_ERROR)
-  {
-    SetErrnoFromWinsockError(WSAGetLastError());
+
+  SetErrnoFromWinsockError(WSAGetLastError());
     
-    return -1;
-  }
-  else
-  {
-    return iRet;
-  }
+  return iRet;
 }
 
 /**
@@ -1846,16 +1879,10 @@ int _win_getsockname(SOCKET s, struct sockaddr *name,
 int _win_getsockopt(SOCKET s, int level, int optname, char *optval, int *optlen)
 {
   int iRet = getsockopt(s, level, optname, optval, optlen);
-  if (iRet == SOCKET_ERROR)
-  {
-    SetErrnoFromWinsockError(WSAGetLastError());
+
+  SetErrnoFromWinsockError(WSAGetLastError());
     
-    return -1;
-  }
-  else
-  {
-    return iRet;
-  }
+  return iRet;
 }
 
 /**
@@ -1864,16 +1891,10 @@ int _win_getsockopt(SOCKET s, int level, int optname, char *optval, int *optlen)
 int _win_listen(SOCKET s, int backlog)
 {
   int iRet = listen(s, backlog);
-  if (iRet == SOCKET_ERROR)
-  {
-    SetErrnoFromWinsockError(WSAGetLastError());
+
+  SetErrnoFromWinsockError(WSAGetLastError());
     
-    return -1;
-  }
-  else
-  {
-    return iRet;
-  }
+  return iRet;
 }
 
 /**
@@ -1882,16 +1903,10 @@ int _win_listen(SOCKET s, int backlog)
 int _win_recv(SOCKET s, char *buf, int len, int flags)
 {
   int iRet = recv(s, buf, len, flags);
-  if (iRet == SOCKET_ERROR)
-  {
-    SetErrnoFromWinsockError(WSAGetLastError());
+
+  SetErrnoFromWinsockError(WSAGetLastError());
     
-    return -1;
-  }
-  else
-  {
-    return iRet;
-  }
+  return iRet;
 }
 
 /**
@@ -1901,16 +1916,10 @@ int _win_recvfrom(SOCKET s, void *buf, int len, int flags,
              struct sockaddr *from, int *fromlen)
 {
   int iRet = recvfrom(s, buf, len, flags, from, fromlen);
-  if (iRet == SOCKET_ERROR)
-  {
-    SetErrnoFromWinsockError(WSAGetLastError());
+
+  SetErrnoFromWinsockError(WSAGetLastError());
     
-    return -1;
-  }
-  else
-  {
-    return iRet;
-  }
+  return iRet;
 }
 
 /**
@@ -1919,16 +1928,10 @@ int _win_recvfrom(SOCKET s, void *buf, int len, int flags,
 int _win_send(SOCKET s, const char *buf, int len, int flags)
 {
   int iRet = send(s, buf, len, flags);
-  if (iRet == SOCKET_ERROR)
-  {
-    SetErrnoFromWinsockError(WSAGetLastError());
+
+  SetErrnoFromWinsockError(WSAGetLastError());
     
-    return -1;
-  }
-  else
-  {
-    return iRet;
-  }
+  return iRet;
 }
 
 /**
@@ -1938,16 +1941,10 @@ int _win_sendto(SOCKET s, const char *buf, int len, int flags,
                 const struct sockaddr *to, int tolen)
 {
   int iRet = sendto(s, buf, len, flags, to, tolen);
-  if (iRet == SOCKET_ERROR)
-  {
-    SetErrnoFromWinsockError(WSAGetLastError());
+
+  SetErrnoFromWinsockError(WSAGetLastError());
     
-    return -1;
-  }
-  else
-  {
-    return iRet;
-  }
+  return iRet;
 }
 
 /**
@@ -1957,16 +1954,10 @@ int _win_setsockopt(SOCKET s, int level, int optname, const void *optval,
                     int optlen)
 {
   int iRet = setsockopt(s, level, optname, (const char *) optval, optlen);
-  if (iRet == SOCKET_ERROR)
-  {
-    SetErrnoFromWinsockError(WSAGetLastError());
+
+  SetErrnoFromWinsockError(WSAGetLastError());
     
-    return -1;
-  }
-  else
-  {
-    return iRet;
-  }
+  return iRet;
 }
 
 /**
@@ -1975,16 +1966,10 @@ int _win_setsockopt(SOCKET s, int level, int optname, const void *optval,
 int _win_shutdown(SOCKET s, int how)
 {
   int iRet = shutdown(s, how);
-  if (iRet == SOCKET_ERROR)
-  {
-    SetErrnoFromWinsockError(WSAGetLastError());
+
+  SetErrnoFromWinsockError(WSAGetLastError());
     
-    return -1;
-  }
-  else
-  {
-    return iRet;
-  }  
+  return iRet;
 }
 
 /**
@@ -1992,7 +1977,11 @@ int _win_shutdown(SOCKET s, int how)
  */
 SOCKET _win_socket(int af, int type, int protocol)
 {
-  int iRet = socket(af, type, protocol);
+  int iRet;
+  
+  errno = 0;
+  
+  iRet = socket(af, type, protocol);
   if (iRet == SOCKET_ERROR)
   {
     SetErrnoFromWinsockError(WSAGetLastError());
@@ -2016,17 +2005,11 @@ SOCKET _win_socket(int af, int type, int protocol)
 struct hostent *_win_gethostbyaddr(const char *addr, int len, int type)
 {
   struct hostent *pHost = gethostbyaddr(addr, len, type);
-  if (! pHost)
-  {
-    SetHErrnoFromWinError(WSAGetLastError());
-    SetErrnoFromWinsockError(WSAGetLastError());
+
+  SetHErrnoFromWinError(WSAGetLastError());
+  SetErrnoFromWinsockError(WSAGetLastError());
     
-    return NULL;
-  }
-  else
-  {
-    return pHost;
-  }
+  return pHost;
 }
 
 /**
@@ -2036,17 +2019,10 @@ struct hostent *_win_gethostbyname(const char *name)
 {
   struct hostent *pHost = gethostbyname(name);
 
-  if (! pHost)
-  {
-    SetHErrnoFromWinError(WSAGetLastError());
-    SetErrnoFromWinsockError(WSAGetLastError());
+  SetHErrnoFromWinError(WSAGetLastError());
+  SetErrnoFromWinsockError(WSAGetLastError());
     
-    return NULL;
-  }
-  else
-  {
-    return pHost;
-  }
+  return pHost;
 }
 
 /**
@@ -2653,12 +2629,12 @@ char *_win_strerror(int errnum)
       error = "Filename exists with different case";
       break;
 #endif
-	case 0:
-		error = "No error";
-		break;
+    case 0:
+      error = "No error";
+      break;
     default:
-	  error = "Unknown error";
-	  LOG(LOG_ERROR, " Unknown error %i in _win_strerror()\n",
+      error = "Unknown error";
+      LOG(LOG_ERROR, " Unknown error %i in _win_strerror()\n",
           errnum);
       break;
     }

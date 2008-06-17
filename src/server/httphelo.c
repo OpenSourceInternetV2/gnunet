@@ -350,13 +350,15 @@ void downloadHostlistHelper(char * url,
   /* it ends with four line delimiters: "\r\n\r\n" */
   curpos = 0;
   while (curpos < 4) {
+    int success;
+    
     if (start + 300 * cronSECONDS < cronTime(NULL))
       break; /* exit after 5m */
-    ret = RECV_NONBLOCKING(sock,
-			   &c,
-			   sizeof(c));
-    if ( (ret == SYSERR) &&
-	 (errno == EAGAIN) ) {
+    success = RECV_NONBLOCKING(sock,
+			       &c,
+			       sizeof(c),
+			       &ret);
+    if ( success == NO ) {
       gnunet_util_sleep(100 * cronMILLIS);
       continue;    
     }
@@ -388,14 +390,18 @@ void downloadHostlistHelper(char * url,
     curpos = 0;
     helo->senderAddressSize = 0;
     while (curpos < HELO_Message_size(helo)) {
+      int success;
+      
       if (start + 300 * cronSECONDS < cronTime(NULL))
 	break; /* exit after 300s */
-      ret = RECV_NONBLOCKING(sock,
-			     &((char*)helo)[curpos],
-			     HELO_Message_size(helo)-curpos);      
-      if ( (ret == SYSERR) &&
-	   (errno == EAGAIN) )
+      success = RECV_NONBLOCKING(sock,
+			         &((char*)helo)[curpos],
+			         HELO_Message_size(helo)-curpos,
+			         &ret);      
+      if ( success == NO ) {
+        gnunet_util_sleep(20);
 	continue;
+      }
       if (ret <= 0)
 	break; /* end of file or error*/
       if (HELO_Message_size(helo) >= MAX_BUFFER_SIZE) 

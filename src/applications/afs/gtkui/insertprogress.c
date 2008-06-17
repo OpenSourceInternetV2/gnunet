@@ -36,7 +36,7 @@
 
 typedef struct {
   GtkWidget *bar;
-  size_t progress;
+  unsigned long long progress;
 } SetStat;
 
 
@@ -51,7 +51,7 @@ static gint setInsertProgressVal(SaveCall *call) {
 
 typedef struct {
   GtkWidget * bar;
-  size_t value;
+  unsigned long long value;
 } SetAdj;
 
 
@@ -276,7 +276,7 @@ void createInsertDirectoryProgressBar(InsertDirectoryModel * ilm) {
   GtkWidget * window;
   GtkWidget * box;
   char format[128];
-  int fileLength;
+  double fileLength;
 
   /* create a new window for a progressbar */
   window = gtk_window_new(GTK_WINDOW_TOPLEVEL);

@@ -62,6 +62,8 @@ GtkItemFactory * itemFactory = NULL;
 
 static GtkWidget * main_window_input_line = NULL;
 
+static debug_flag = NO;
+
 /**
  * Shows the info window 
  */
@@ -102,7 +104,7 @@ static void search(GtkWidget * widget,
 
   searchStringConst
     = gtk_entry_get_text(GTK_ENTRY(main_window_input_line));
-  if (searchString == NULL) {
+  if (searchStringConst == NULL) {
     BREAK();
     return;
   }
@@ -202,6 +204,13 @@ static GtkItemFactoryEntry menu_items[] = {
     openSelectFile, 
     0, 
     NULL },
+#ifdef MINGW
+  { gettext_noop("/File/_Insert directory"),  
+    NULL, 
+    openSelectDir, 
+    0, 
+    NULL },
+#endif
   { gettext_noop( "/File/_Download URI"),  
     "<control>D", 
     fetchURI, 
@@ -776,8 +785,11 @@ static int parseOptions(int argc,
     
     if (c == -1) 
       break;  /* No more flags to process */
-    if (YES == parseDefaultOptions(c, GNoptarg))
+    if (YES == parseDefaultOptions(c, GNoptarg)) {
+      if (c == 'd')
+        debug_flag = YES;
       continue;    
+    }
     switch(c) {
     case 'v': 
       printf("GNUnet v%s, AFS v%s\n",
@@ -837,6 +849,7 @@ int main(int argc,
   gtkInitSaveCalls();
 
   makeMainWindow();
+  resumeDownloads(downloadAFSuri);
   /* Check if gnunetd is running */
   checkForDaemon();
  
@@ -849,7 +862,8 @@ int main(int argc,
   gdk_threads_enter();  
   setCustomLogProc(addLogEntry);
 #ifdef MINGW
-  FreeConsole();
+  if (! debug_flag)
+    FreeConsole();
 #endif
   gtk_main();
   setCustomLogProc(NULL);

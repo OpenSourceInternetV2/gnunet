@@ -38,6 +38,18 @@
 static Block_VTBL dblock_vtbl;
 static Block_VTBL iblock_vtbl;
 
+#define BBBSWAP(x,y) { unsigned char ttt; ttt = (y); (y) = (x); (x) = ttt;}
+static void swap_bytes(unsigned char *ptr, int len) {
+
+  int i;
+#if __BYTE_ORDER == __BIG_ENDIAN
+  for (i = 0; i < len; i++) {
+    BBBSWAP(ptr[4*i], ptr[4*i+3]);
+    BBBSWAP(ptr[4*i+2], ptr[4*i+1]);
+  }
+#endif
+}
+
 /**
  * Compute the depth of the tree.
  * @param flen file length for which to compute the depth
@@ -1035,8 +1047,11 @@ static int iblock_insert(IBlock * this,
     if (ret == SYSERR)
       return SYSERR;
   }
+  swap_bytes((unsigned char *) &this->crcs[0], this->childcount);
   ibd->crc32 = crc32N(&this->crcs[0],
 		      sizeof(int) * this->childcount);
+  swap_bytes((unsigned char *) &this->crcs[0], this->childcount);
+  swap_bytes((unsigned char *) &(ibd->crc32), 1);
   this->crc32 = ibd->crc32;
   edata = block_encrypt(&this->common);
   ret = insertCHKBlock(sock,
@@ -1116,8 +1131,11 @@ static int iblock_delete(IBlock * this,
     if (ret == SYSERR)
       return SYSERR;
   }
+  swap_bytes((unsigned char *) &this->crcs[0], this->childcount);
   ibd->crc32 = crc32N(&this->crcs[0],
 		      sizeof(int) * this->childcount);
+  swap_bytes((unsigned char *) &this->crcs[0], this->childcount);
+  swap_bytes((unsigned char *) &(ibd->crc32), 1);
   edata = block_encrypt(&this->common);
   ret = deleteCHKBlock(sock,
 		       edata,
@@ -1830,9 +1848,13 @@ void childDownloadCompleted(IBlock * parent,
      go to our parent and notify that we are done! */
   if (parent->common.parent != NULL) {
     if (pendingChildren == 0) {
-      if (crc32N(&parent->crcs[0], 
-		 sizeof(int) * parent->childcount)
-	  != parent->crc32) {
+      int tmpxx;
+      swap_bytes((unsigned char *) &parent->crcs[0], parent->childcount);
+      tmpxx = crc32N(&parent->crcs[0], sizeof(int) * parent->childcount);
+      swap_bytes((unsigned char *) &parent->crcs[0], parent->childcount);
+      swap_bytes((unsigned char *) &tmpxx, 1);
+
+      if (tmpxx != parent->crc32) {
 	LOG(LOG_FAILURE,
 	    _("File corrupted (or bug)."));
 	BREAK();
@@ -1844,9 +1866,12 @@ void childDownloadCompleted(IBlock * parent,
     }
   } else { /* parent == NULL */
     if (pendingChildren == 0) {
-      if ( (crc32N(&parent->crcs[0], 
-		   sizeof(int) * parent->childcount)
-	    != parent->crc32) ||
+      int tmpxx;
+      swap_bytes((unsigned char *) &parent->crcs[0], parent->childcount);
+      tmpxx = crc32N(&parent->crcs[0], sizeof(int) * parent->childcount);
+      swap_bytes((unsigned char *) &parent->crcs[0], parent->childcount);
+      swap_bytes((unsigned char *) &tmpxx, 1);
+      if ( tmpxx != parent->crc32 ||
 	   (crc32N(parent->common.data,
 		   parent->common.len) 
 	    != rm->topCrc32) ) {

@@ -96,54 +96,59 @@ static void * rcbAcquire(void * unused) {
     ok = retrieveRandomContent(&ce,&data);
     if (ok == OK)  
       if (ntohs(ce.type) == LOOKUP_TYPE_3HASH ||
-	  ntohs(ce.type) == LOOKUP_TYPE_SUPER) { 
-	ok = SYSERR; /* can not migrate these */
-	FREENONNULL(data);
+        ntohs(ce.type) == LOOKUP_TYPE_SUPER) { 
+    
+        ok = SYSERR; /* can not migrate these */
+        FREENONNULL(data);
       }
     if (ok == OK) { 
       int i;
 
       if (ntohs(ce.fileNameIndex)>0) {
         /* if ondemand, encode a larger block right away */
-	if (readCount>RCB_ONDEMAND_MAX)
-	  readCount = RCB_ONDEMAND_MAX;
+        if (readCount>RCB_ONDEMAND_MAX)
+          readCount = RCB_ONDEMAND_MAX;
         
-	readCount = encodeOnDemand(&ce,
+          readCount = encodeOnDemand(&ce,
 		                   &data,
 		                   readCount);
-	readCount = readCount / sizeof(CONTENT_Block);
+          if (readCount != SYSERR)
+            readCount = readCount / sizeof(CONTENT_Block);
       } else {
         readCount = 1;
       }
-
-      for (i=0;i<readCount;i++) {
-	randomContentBuffer[rCBPos]
-          = MALLOC(sizeof(ContentBuffer));
-        memcpy(&randomContentBuffer[rCBPos]->hash,
- 	       &ce.hash,
-	       sizeof(HashCode160));
-        memcpy(&randomContentBuffer[rCBPos]->data,
-	       &data[i],
-	       sizeof(CONTENT_Block));
-	rCBPos++;
-	/* we can afford to eat readCount-1 semaphores */
-	if(i>0) {
-  	  SEMAPHORE_DOWN_NONBLOCKING(acquireMoreSignal);
-	}
-      }
+      
+      if (read == SYSERR)
+        ok = SYSERR;
+      else
+        for (i=0;i<readCount;i++) {
+          randomContentBuffer[rCBPos]
+            = MALLOC(sizeof(ContentBuffer));
+          memcpy(&randomContentBuffer[rCBPos]->hash,
+   	       &ce.hash,
+  	       sizeof(HashCode160));
+          memcpy(&randomContentBuffer[rCBPos]->data,
+  	       &data[i],
+  	       sizeof(CONTENT_Block));
+          rCBPos++;
+          /* we can afford to eat readCount-1 semaphores */
+          if(i>0) {
+            SEMAPHORE_DOWN_NONBLOCKING(acquireMoreSignal);
+          }
+        }
       FREENONNULL(data);
       MUTEX_UNLOCK(&lock);
-
-    } else {
+    } 
+    if (ok == SYSERR) {
       int load = getCPULoad();
       
       /* no need to hold the lock while sleeping */
       MUTEX_UNLOCK(&lock);
 
       if (load < 10)
-	load = 10;
+        load = 10;
       sleep(load / 5); /* the higher the load, the longer the sleep,
-			  but at least 2 seconds */
+		                      but at least 2 seconds */
       SEMAPHORE_UP(acquireMoreSignal); /* send myself signal to go again! */
     }
   }

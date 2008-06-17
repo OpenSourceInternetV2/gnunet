@@ -1257,13 +1257,15 @@ static void httpRegister(char * cmd) {
   /* it ends with four line delimiters: "\r\n\r\n" */
   curpos = 0;
   while (curpos < 4) {
+    int success;
+    
     if (start + 5 * cronMINUTES < cronTime(NULL))
       break; /* exit after 5m */
-    ret = RECV_NONBLOCKING(sock,
-			   &c,
-			   sizeof(c));
-    if ( (ret == SYSERR) &&
-	 (errno == EAGAIN) ) {
+    success = RECV_NONBLOCKING(sock,
+			       &c,
+			       sizeof(c),
+			       &ret);
+    if ( success == NO ) {
       gnunet_util_sleep(100 * cronMILLIS);
       continue;    
     }

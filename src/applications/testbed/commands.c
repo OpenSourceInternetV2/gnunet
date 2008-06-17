@@ -1337,7 +1337,7 @@ static int processCommands(char * buffer,
     up[end-start] = '\0';
     port = 2087; /* default port */
     if (4 <= sscanf(up,
-		    "add-node %d.%d.%d.%d %d",
+		    "add-node %u.%u.%u.%u %d",
 		    &ip[0],
 		    &ip[1],
 		    &ip[2],
@@ -1352,7 +1352,7 @@ static int processCommands(char * buffer,
 	       port);
       SNPRINTF(ips,
 	       128,
-	       "%d.%d.%d.%d",
+	       "%u.%u.%u.%u",
 	       ip[0],
 	       ip[1],
 	       ip[2],
@@ -1365,7 +1365,7 @@ static int processCommands(char * buffer,
       char * login;
       login = MALLOC(64);
       if (5 <= sscanf(up,
-		      "add-node %63s %d.%d.%d.%d %d",
+		      "add-node %63s %u.%u.%u.%u %d",
 		      login,
 		      &ip[0],
 		      &ip[1],
@@ -1381,7 +1381,7 @@ static int processCommands(char * buffer,
 		 port);
 	SNPRINTF(ips,
 		 128,
-		 "%d.%d.%d.%d",
+		 "%u.%u.%u.%u",
 		 ip[0],
 		 ip[1],
 		 ip[2],
@@ -1608,13 +1608,15 @@ static int addAvailable(int argc,
   /* it ends with four line delimiters: "\r\n\r\n" */
   curpos = 0;
   while (curpos < 4) {
+    int success;
+    
     if (start + 5 * cronMINUTES < cronTime(NULL))
       break; /* exit after 5m */
-    ret = RECV_NONBLOCKING(sock,
-			   &c,
-			   sizeof(c));
-    if ( (ret == SYSERR) &&
-	 (errno == EAGAIN) ) {
+    success = RECV_NONBLOCKING(sock,
+			       &c,
+			       sizeof(c),
+			       &ret);
+    if ( success == NO ) {
       gnunet_util_sleep(100 * cronMILLIS);
       continue;    
     }
@@ -1636,18 +1638,22 @@ static int addAvailable(int argc,
   
 
   while (1) {
+    int success;
+    
     if (start + 300 * cronSECONDS < cronTime(NULL))
       break; /* exit after 300s */
     curpos = 0;
     while (curpos < 65536) {
       if (start + 300 * cronSECONDS < cronTime(NULL))
 	break; /* exit after 300s */
-      ret = RECV_NONBLOCKING(sock,
+      success = RECV_NONBLOCKING(sock,
 			     &buffer[curpos],
-			     65536-curpos);      
-      if ( (ret == SYSERR) &&
-	   (errno == EAGAIN) )
+			     65536-curpos,
+			     &ret);      
+      if ( success == NO ) {
+        gnunet_util_sleep(20);
 	continue;
+      }
       if (ret <= 0)
 	break; /* end of file or error*/
       curpos += ret;

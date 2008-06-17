@@ -29,16 +29,11 @@
 #include "gnunet_util.h"
 #include "platform.h"
 
-#if SOLARIS
-#include <semaphore.h>
-#endif
-#if FREEBSD
+#if SOLARIS || FREEBSD || OSX
 #include <semaphore.h>
 #endif
 #if SOMEBSD
 # include <pthread_np.h>
-#endif
-#if SOMEBSD || OSX
 # include <sys/file.h>
 #endif
 #if LINUX
@@ -50,6 +45,7 @@
 #include <semaphore.h>
 #endif
   
+/* TODO: This does not work! LOG uses semaphores? -> infinite loop */
 #define DEBUG_SEMUPDOWN NO
 
 /**
@@ -60,14 +56,12 @@
 
 
 typedef struct {
-#if SOLARIS 
+#if SOLARIS || FREEBSD5 || OSX
   sem_t * internal;
 #elif LINUX
   int internal;
   char * filename;
-#elif FREEBSD5
-  sem_t * internal;
-#elif SOMEBSD || OSX || MINGW
+#elif SOMEBSD || MINGW
   int initialValue;
   int fd;
   Mutex internalLock;
@@ -79,9 +73,6 @@ typedef struct {
   /* FIXME! */
 #endif
 } IPC_Semaphore_Internal;
-
-
-
 
 #ifndef PTHREAD_MUTEX_NORMAL
 #ifdef PTHREAD_MUTEX_TIMED_NP
@@ -112,13 +103,18 @@ void create_mutex_(Mutex * mutex) {
   pthread_mutexattr_init(&attr);
 #if USE_CHECKING_MUTEX
 #if LINUX
-  pthread_mutexattr_setkind_np(&attr,
-			       PTHREAD_MUTEX_ERRORCHECK_NP);
+  pthread_mutexattr_setkind_np(&attr, PTHREAD_MUTEX_ERRORCHECK_NP);
+#else
+  pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK);
 #endif
 #else
-  pthread_mutexattr_setkind_np(&attr,
-			       (int)PTHREAD_MUTEX_NORMAL);
+#if LINUX
+  pthread_mutexattr_setkind_np(&attr, PTHREAD_MUTEX_NORMAL_NP);
+#else
+  pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_NORMAL);
 #endif
+#endif
+
   mut = MALLOC(sizeof(pthread_mutex_t));
   mutex->internal = mut;
   GNUNET_ASSERT(0 == pthread_mutex_init(mut, &attr));
@@ -129,6 +125,7 @@ void create_recursive_mutex_(Mutex * mutex) {
   pthread_mutex_t * mut;
 
   pthread_mutexattr_init(&attr);
+  /* NOTE: What should FreeBSD do here? */
 #if LINUX
   GNUNET_ASSERT(0 == pthread_mutexattr_setkind_np
 		(&attr,  
@@ -137,11 +134,7 @@ void create_recursive_mutex_(Mutex * mutex) {
   GNUNET_ASSERT(0 == pthread_mutexattr_setkind_np
 		(&attr,
 		 PTHREAD_MUTEX_RECURSIVE));
-#elif SOLARIS
-  GNUNET_ASSERT(0 == pthread_mutexattr_settype
-		(&attr,
-		 PTHREAD_MUTEX_RECURSIVE));
-#elif OSX
+#elif SOLARIS || OSX
   GNUNET_ASSERT(0 == pthread_mutexattr_settype
 		(&attr,
 		 PTHREAD_MUTEX_RECURSIVE));
@@ -243,6 +236,7 @@ Semaphore * semaphore_new_(int value,
 void semaphore_free_(Semaphore * s,
 		     const char * filename,
 		     const int linenumber) {
+
   pthread_cond_t * cond;
 
   MUTEX_DESTROY(&(s->mutex));
@@ -276,9 +270,9 @@ int semaphore_up_(Semaphore * s,
   MUTEX_LOCK(&(s->mutex));  
   (s->v)++;
   value_after_op = s->v;  
-  MUTEX_UNLOCK(&(s->mutex));
   GNUNET_ASSERT(0 == pthread_cond_signal(cond));
-  
+  MUTEX_UNLOCK(&(s->mutex));
+ 
 #if DEBUG_SEMUPDOWN
   LOG(LOG_DEBUG,
       "semaphore_up %p exit at %s:%d\n",
@@ -356,10 +350,30 @@ int PTHREAD_SELF_TEST(PTHREAD_T * pt) {
   handle = pt->internal;
   if (handle == NULL)
     return NO;
+#if HAVE_NEW_PTHREAD_T
+  if (handle->p == pthread_self().p)
+#else
   if (*handle == pthread_self())
+#endif
     return YES;
   else
     return NO;
+}
+
+/**
+ * Get the handle for THIS thread.
+ */
+void PTHREAD_GET_SELF(PTHREAD_T * pt) {
+  pt->internal = MALLOC(sizeof(pthread_t));
+  *((pthread_t*)pt->internal) = pthread_self();
+}
+
+/**
+ * Release handle for a thread.
+ */
+void PTHREAD_REL_SELF(PTHREAD_T * pt) {
+  FREENONNULL(pt->internal);
+  pt->internal = NULL;
 }
 
 /**
@@ -456,7 +470,7 @@ void PTHREAD_KILL(PTHREAD_T * pt,
 
   handle = pt->internal;
   if (handle == NULL) {
-    BREAK();
+    /*    BREAK(); */
     return;
   }
   pthread_kill(*handle, signal);
@@ -501,7 +515,7 @@ void PTHREAD_KILL(PTHREAD_T * pt,
   };
 #endif
 
-#if SOMEBSD || OSX || MINGW
+#if SOMEBSD || MINGW
 static void FLOCK(int fd,
 		  int operation) {
   int ret;
@@ -531,7 +545,8 @@ IPC_Semaphore * ipc_semaphore_new_(const char * basename,
 				   const unsigned int initialValue,
 				   const char * filename,
 				   const int linenumber) {
-#if SOLARIS 
+  /* Could older FreeBSD use this too since this code can shorten the IPC name */
+#if SOLARIS || OSX || FREEBSD5
   char * noslashBasename;
   int i;
   IPC_Semaphore * rret;
@@ -550,8 +565,8 @@ IPC_Semaphore * ipc_semaphore_new_(const char * basename,
 			   O_CREAT,
 			   S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, /* 660 */
 			   initialValue);
-  while ( (SEM_FAILED == ret->internal) &&
-	  (errno == ENAMETOOLONG) ) {
+  while ( ret->internal == (void *) SEM_FAILED
+ && errno == ENAMETOOLONG) {
     if (strlen(noslashBasename) < 4)
       break; /* definitely OS error... */
     noslashBasename[strlen(noslashBasename)/2] = '\0'; /* cut in half */
@@ -560,7 +575,7 @@ IPC_Semaphore * ipc_semaphore_new_(const char * basename,
 			     S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, /* 660 */
 			     initialValue);			     
   }
-  if (ret->internal == SEM_FAILED) 
+  if (ret->internal == (void *) SEM_FAILED) 
     DIE_FILE_STRERROR("sem_open", noslashBasename);
   FREE(noslashBasename);
   return rret;
@@ -625,30 +640,7 @@ again:
   
   ret->filename = STRDUP(basename);
   return rret;  
-#elif FREEBSD5
-  IPC_Semaphore * rret;
-  IPC_Semaphore_Internal * ret;  
-
-  rret = MALLOC(sizeof(IPC_Semaphore));
-  ret = MALLOC(sizeof(IPC_Semaphore_Internal));
-  rret->platform = ret;
-  ret->internal = sem_open(basename,
-			   O_CREAT,
-			   S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, /* 660 */
-			   initialValue);
-  if (ret->internal == SEM_FAILED) {
-    LOG(LOG_ERROR,
-	_("'%s' failed at %s:%d: %s.  Upgrade to FreeBSD >= 5.0.\n"),
-	"sem_open",
-	filename,
-	linenumber,
-	STRERROR(errno));
-    FREE(ret);
-    FREE(rret);
-    return NULL;
-  } else
-    return rret; 
-#elif SOMEBSD || OSX || MINGW
+#elif SOMEBSD || MINGW
   int fd;
   int cnt;  
   IPC_Semaphore * rret;
@@ -735,7 +727,7 @@ void ipc_semaphore_up_(IPC_Semaphore * rsem,
   if (rsem == NULL) /* error on creation, optimistic execution; good luck */
     return;
   sem = rsem->platform;
-#if SOLARIS
+#if SOLARIS || OSX || FREEBSD5
   if (0 != sem_post(sem->internal))
     LOG(LOG_WARNING,
 	"sem_post signaled error: %s at %s:%d\n",
@@ -753,14 +745,7 @@ void ipc_semaphore_up_(IPC_Semaphore * rsem,
 	  filename,
 	  linenumber);
   }
-#elif FREEBSD5
-  if (0 != sem_post(sem->internal))
-    LOG(LOG_WARNING,
-	"sem_post signaled error: %s at %s:%d\n",
-	STRERROR(errno),
-	filename,
-	linenumber);
-#elif SOMEBSD || OSX || MINGW
+#elif SOMEBSD || MINGW
   { 
     int cnt;
     
@@ -814,7 +799,7 @@ void ipc_semaphore_down_(IPC_Semaphore * rsem,
   if (rsem == NULL) /* error on creation, optimistic execution; good luck */
     return;
   sem = rsem->platform;
-#if SOLARIS
+#if OSX || SOLARIS || FREEBSD5
   while (0 != sem_wait(sem->internal)) {
     switch(errno) {
     case EINTR:
@@ -870,35 +855,7 @@ void ipc_semaphore_down_(IPC_Semaphore * rsem,
       }
     }
   }
-#elif FREEBSD5
-  while (0 != sem_wait(sem->internal)) {
-    switch(errno) {
-    case EINTR:
-      break;
-    case EINVAL:
-      errexit(" ipc_semaphore_down called on invalid semaphore (in %s:%d)\n",
-	      filename,
-	      linenumber);
-    case EDEADLK:
-      errexit(" ipc_semaphore_down caused deadlock! (in %s:%d)\n",
-	      filename,
-	      linenumber);
-    case EAGAIN:
-      LOG(LOG_WARNING,
-	  "did not expect EAGAIN from sem_wait (in %s:%d).\n",
-	  filename,
-	  linenumber);
-      break;
-    default:
-      LOG(LOG_ERROR,
-	  "did not expect %s from sem_wait at %s:%d\n",
-	  STRERROR(errno),
-	  filename,
-	  linenumber);
-      break;
-    }
-  }
-#elif SOMEBSD || OSX || MINGW
+#elif SOMEBSD || MINGW
   {
     int cnt;
     
@@ -960,7 +917,7 @@ void ipc_semaphore_free_(IPC_Semaphore * rsem,
     return;
   sem = rsem->platform;
   FREE(rsem);
-#if SOLARIS
+#if SOLARIS || OSX || FREEBSD5
   if (0 != sem_close(sem->internal))
     LOG(LOG_WARNING,
 	"sem_close signaled error: %s at %s:%d\n",
@@ -1007,14 +964,7 @@ void ipc_semaphore_free_(IPC_Semaphore * rsem,
     }
     FREE(sem->filename);  
   }
-#elif FREEBSD5
-  if (0 != sem_close(sem->internal))
-    LOG(LOG_WARNING,
-	"sem_close signaled error: %s at %s:%d\n",
-	STRERROR(errno),
-	filename,
-	linenumber);
-#elif SOMEBSD || OSX || MINGW
+#elif SOMEBSD || MINGW
   {
     int cnt;  
     

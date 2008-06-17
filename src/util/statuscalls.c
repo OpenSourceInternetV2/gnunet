@@ -1023,7 +1023,7 @@ int cpuUsage(){
     DWORD dwDataSize, dwType, dwDummy;
 
     /* Start query */
-    if (RegOpenKeyEx(HKEY_DYN_DATA, "PerfStats\\StartStat", 0, KEY_ALL_ACCESS,
+    if (RegOpenKeyEx(HKEY_DYN_DATA, "PerfStats\\StartSrv", 0, KEY_ALL_ACCESS,
                      &hKey) != ERROR_SUCCESS)
     {
       /* only warn once */
@@ -1035,6 +1035,10 @@ int cpuUsage(){
 		_("Cannot query the CPU usage (Win 9x)\n"));
   	  }      
     }
+    
+    RegOpenKeyEx(HKEY_DYN_DATA, "PerfStats\\StartStat", 0, KEY_ALL_ACCESS,
+                     &hKey);
+                     
     dwDataSize = sizeof(dwDummy);
     RegQueryValueEx(hKey, "KERNEL\\CPUUsage", NULL, &dwType, (LPBYTE) &dwDummy,
                     &dwDataSize);
@@ -1050,6 +1054,8 @@ int cpuUsage(){
     
     /* Stop query */
     RegOpenKeyEx(HKEY_DYN_DATA, "PerfStats\\StopStat", 0, KEY_ALL_ACCESS,
+                 &hKey);
+    RegOpenKeyEx(HKEY_DYN_DATA, "PerfStats\\StopSrv", 0, KEY_ALL_ACCESS,
                  &hKey);
     dwDataSize = sizeof(dwDummy);
     RegQueryValueEx(hKey, "KERNEL\\CPUUsage", NULL, &dwType, (LPBYTE)&dwDummy,

@@ -58,6 +58,9 @@ typedef struct {
   char *fn;                /* filename of this bucket */
   double count;            /* number of rows in the db */
   double payload;          /* bytes used */
+  double inserted;         /* inserted blocks */
+  double indexed;          /* indexed blocks */
+  unsigned int lastSync;
   
   /* Precompiled SQL */
   sqlite3_stmt *getContent, *writeContent, *updPrio, *getRndCont1,
@@ -123,6 +126,87 @@ int sqlite_decode_binary(const unsigned char *in, unsigned char *out){
 }
 
 /**
+ * @brief Get database statistics
+ * @param dbh database
+ * @param key kind of stat to retrieve
+ * @return SYSERR on error, the value otherwise
+ */
+double getStat(sqliteHandle *dbh, char *key) {
+  int i;
+  sqlite3_stmt *stmt;
+  double ret;
+  char *dummy;
+
+  i = sqlite3_prepare(dbh->dbf, 
+    "Select fileOffset from data where hash = ?", 42, &stmt,
+    (const char **) &dummy);
+  if (i == SQLITE_OK) {
+    sqlite3_bind_blob(stmt, 1, key, strlen(key), SQLITE_STATIC);
+    i = sqlite3_step(stmt);
+    
+    if (i == SQLITE_DONE) {
+      ret = 0;
+      i = SQLITE_OK;
+    }
+    else if (i == SQLITE_ROW) {
+      ret = sqlite3_column_double(stmt, 0);
+      i = SQLITE_OK;
+    }
+  }
+  sqlite3_finalize(stmt);
+  
+  if (i != SQLITE_OK) {
+    LOG_SQLITE(LOG_ERROR, 
+        "sqlite_getStat",
+        dbh);
+    return SYSERR;
+  }
+  
+  return ret;
+}
+
+/**
+ * @brief set database statistics
+ * @param dbh database
+ * @param key statistic to set
+ * @param val value to set
+ * @return SYSERR on error, OK otherwise
+ */
+int setStat(sqliteHandle *dbh, char *key, double val) {
+  sqlite3_stmt *stmt;
+  char *dummy;
+
+  if (sqlite3_prepare(dbh->dbf,
+        "REPLACE into data(hash, fileOffset) values (?, ?)", 49,
+        &stmt, (const char **) &dummy) == SQLITE_OK) {
+    sqlite3_bind_blob(stmt, 1, key, strlen(key), SQLITE_STATIC);
+    sqlite3_bind_double(stmt, 2, val);
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+      LOG_SQLITE(LOG_ERROR, "sqlite_setStat", dbh);
+
+      return SYSERR;
+    }
+    sqlite3_finalize(stmt);
+
+    return OK;    
+  }
+  else
+    return SYSERR;
+}
+
+/**
+ * @brief write all statistics to the db
+ */
+void syncStats(sqliteHandle *dbh) {
+  setStat(dbh, "PAYLOAD", dbh->payload);
+  setStat(dbh, "COUNT", dbh->count);
+  setStat(dbh, "INSERTED", dbh->inserted);
+  setStat(dbh, "INDEXED", dbh->indexed);
+  
+  dbh->lastSync = 0;
+}
+
+/**
  * @param i index of the database
  * @param n total number of databases
  */
@@ -143,6 +227,9 @@ HighDBHandle initContentDatabase(unsigned int i,
   dbh->i = i;
   dbh->count = 0;
   dbh->payload = 0;
+  dbh->inserted = 0;
+  dbh->indexed = 0;
+  dbh->lastSync = 0;
 
   afsdir = getFileName("AFS",
            "AFSDIR",
@@ -235,32 +322,74 @@ HighDBHandle initContentDatabase(unsigned int i,
       return NULL;
   }
   
-  nX = sqlite3_prepare(dbh->dbf, 
-    "Select fileOffset from data where hash = 'PAYLOAD'", 50, &stmt,
-    (const char **) &dummy);
-  if (nX == SQLITE_OK) {
-    nX = sqlite3_step(stmt);
-    
-    if (nX == SQLITE_DONE) {
-      dbh->payload = 0;
-      nX = SQLITE_OK;
-    }
-    else if (nX == SQLITE_ROW) {
-      dbh->payload = sqlite3_column_double(stmt, 0);
-      nX = SQLITE_OK;
-    }
-  }
-  sqlite3_finalize(stmt);
+  dbh->count = getStat(dbh, "COUNT");
+  dbh->payload = getStat(dbh, "PAYLOAD");
+  dbh->inserted = getStat(dbh, "INSERTED");
+  dbh->indexed = getStat(dbh, "INDEXED");
   
-  if (nX != SQLITE_OK) {
-    LOG_SQLITE(LOG_ERROR, 
-        "sqlite_query",
-        dbh);
+  if (dbh->count == SYSERR ||
+      dbh->payload == SYSERR ||
+      dbh->inserted == SYSERR ||
+      dbh->indexed == SYSERR) {
     FREE(dbh->fn);
     FREE(dbh);
-    return NULL;
+    return NULL;    
   }
   
+  nX = 0;
+  if (! dbh->count) {
+    if (sqlite3_prepare(dbh->dbf, "SELECT count(*) from data where hash not "
+          "in ('COUNT', 'PAYLOAD', 'INSERTED', 'INDEXED')", 87, &stmt,
+         (const char **) &dummy) != SQLITE_OK ||
+        sqlite3_step(stmt) != SQLITE_ROW) {
+          LOG_SQLITE(LOG_ERROR, 
+            "sqlite_count",
+            dbh);
+    }
+  
+    dbh->count = sqlite3_column_double(stmt, 0);
+  
+    sqlite3_finalize(stmt);
+    nX = 1;
+  }
+  
+  if (! dbh->indexed) {
+    if (sqlite3_prepare(dbh->dbf, "SELECT count(*) from data where hash not "
+          "in ('COUNT', 'PAYLOAD', 'INSERTED', 'INDEXED') and "
+          "length(content) = 0", 111, &stmt,
+          (const char **) &dummy) != SQLITE_OK ||
+        sqlite3_step(stmt) != SQLITE_ROW) {
+          LOG_SQLITE(LOG_ERROR, 
+            "sqlite_count",
+            dbh);
+    }
+  
+    dbh->indexed = sqlite3_column_double(stmt, 0); 
+    
+    sqlite3_finalize(stmt);
+    nX = 1;    
+  }
+
+  if (! dbh->inserted) {
+    if (sqlite3_prepare(dbh->dbf, "SELECT count(*) from data where hash not "
+          "in ('COUNT', 'PAYLOAD', 'INSERTED', 'INDEXED') and "
+          "length(content) != 0",
+          111, &stmt, (const char **) &dummy) != SQLITE_OK ||
+        sqlite3_step(stmt) != SQLITE_ROW) {
+          LOG_SQLITE(LOG_ERROR, 
+            "sqlite_count",
+            dbh);
+    }
+  
+    dbh->inserted = sqlite3_column_double(stmt, 0); 
+
+    sqlite3_finalize(stmt);    
+    nX = 1;
+  }
+
+  if (nX)
+    syncStats(dbh);
+    
   MUTEX_CREATE_RECURSIVE(&dbh->DATABASE_Lock_);  
 
   return dbh;
@@ -273,8 +402,6 @@ HighDBHandle initContentDatabase(unsigned int i,
  */
 void doneContentDatabase(HighDBHandle handle) {
   sqliteHandle *dbh = handle;
-  sqlite3_stmt *stmt;
-  char *dummy;
 
 #if DEBUG_SQLITE
   LOG(LOG_DEBUG, "SQLite: closing database\n");
@@ -288,14 +415,7 @@ void doneContentDatabase(HighDBHandle handle) {
   sqlite3_finalize(dbh->exists);
   sqlite3_finalize(dbh->updContent);
 
-  sqlite3_prepare(dbh->dbf,
-    "REPLACE into data(hash, fileOffset) values ('PAYLOAD', ?)", 58,
-    &stmt, (const char **) &dummy);
-  sqlite3_bind_double(stmt, 1, dbh->payload);
-  if (sqlite3_step(stmt) != SQLITE_DONE) {
-    LOG_SQLITE(LOG_ERROR, "sqlite_query", dbh);
-  }
-  sqlite3_finalize(stmt);
+  syncStats(dbh);
   
   if (sqlite3_close(dbh->dbf) != SQLITE_OK)
     LOG_SQLITE(LOG_ERROR, "sqlite_close", dbh);
@@ -333,7 +453,8 @@ int forEachEntryInDatabase(HighDBHandle handle,
   MUTEX_LOCK(&dbh->DATABASE_Lock_);
 
   if (sqlite3_prepare(dbh->dbf, "SELECT content, type, priority, doubleHash, "
-           "fileOffset, fileIndex, hash FROM data", 80, &stmt,
+           "fileOffset, fileIndex, hash FROM data where hash not in ('COUNT', "
+           "'PAYLOAD', 'INSERTED', 'INDEXED')", 142, &stmt,
            (const char **) &dummy) != SQLITE_OK) {
     LOG_SQLITE(LOG_ERROR, "sqlite_query", dbh);
     MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
@@ -401,8 +522,6 @@ int forEachEntryInDatabase(HighDBHandle handle,
  */
 int countContentEntries(HighDBHandle handle) {
   sqliteHandle *dbh = handle;
-  sqlite3_stmt *stmt;
-  char *dummy;
 
 #if DEBUG_SQLITE
   LOG(LOG_DEBUG, "SQLite: count entries\n");
@@ -410,18 +529,8 @@ int countContentEntries(HighDBHandle handle) {
 
   MUTEX_LOCK(&dbh->DATABASE_Lock_);
 
-  if (! dbh->count) {
-    if (sqlite3_prepare(dbh->dbf, "SELECT count(*) from data", 25, &stmt,
-         (const char **) &dummy) != SQLITE_OK ||
-        sqlite3_step(stmt) != SQLITE_ROW) {
-      MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
-      return(SYSERR);    
-    }
-  
-    dbh->count = sqlite3_column_double(stmt, 0);
-  
-    sqlite3_finalize(stmt);
-  }
+  if (! dbh->count)
+    dbh->count = getStat(dbh, "COUNT");
   
 #if DEBUG_SQLITE
   LOG(LOG_DEBUG, "SQLite: count %.0f\n", dbh->count);
@@ -569,6 +678,9 @@ int writeContent(HighDBHandle handle, const ContentIndex * ce,
 
   MUTEX_LOCK(&dbh->DATABASE_Lock_);
   
+  if (dbh->lastSync > 1000)
+    syncStats(dbh);
+  
   rowLen = 0;
   escapedHash = MALLOC(2*sizeof(HashCode160)+1);
   
@@ -583,7 +695,7 @@ int writeContent(HighDBHandle handle, const ContentIndex * ce,
     doubleHash = NULL;
     sqlite_encode_binary((char *)&ce->hash, sizeof(HashCode160), escapedHash);
   }
-
+  
   escapedBlock = MALLOC(2 * len + 1);
   sqlite_encode_binary((char *)block, len, escapedBlock);
   
@@ -638,8 +750,15 @@ int writeContent(HighDBHandle handle, const ContentIndex * ce,
     return SYSERR;
   }
   rowLen = hashLen + dhashLen + blockLen + sizeof(int) * 4;
-  if (stmt == dbh->writeContent)
+  if (stmt == dbh->writeContent) {
     dbh->count++;
+
+    if (len)
+      dbh->inserted++;
+    else
+      dbh->indexed++;
+    dbh->lastSync++;
+  }
   dbh->payload += rowLen;
   MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
  
@@ -669,6 +788,10 @@ int unlinkFromDB(HighDBHandle handle,
 #endif 
 
   MUTEX_LOCK(&dbh->DATABASE_Lock_);
+  
+  if (dbh->lastSync > 1000)
+    syncStats(dbh);
+  
   escapedHash = MALLOC(2 * sizeof(HashCode160) + 1);
   sqlite_encode_binary((char *)name, sizeof(HashCode160), escapedHash);
 
@@ -676,13 +799,24 @@ int unlinkFromDB(HighDBHandle handle,
                     SQLITE_TRANSIENT);
   n = sqlite3_step(dbh->exists);
   if (n == SQLITE_ROW) {
+    unsigned int contlen = sqlite3_column_int(dbh->exists, 3);
+  
     rowLen = sqlite3_column_int(dbh->exists, 1) - 
-      sqlite3_column_int(dbh->exists, 2) - sqlite3_column_int(dbh->exists, 3) -
-      4 * sizeof(int);
+      sqlite3_column_int(dbh->exists, 2) - contlen - 4 * sizeof(int);
+    
     if (dbh->payload > rowLen)
       dbh->payload -= rowLen;
     else
       dbh->payload = 0;
+    
+    if (contlen) {
+      if (dbh->inserted > 0)
+        dbh->inserted--;
+    } else {
+      if (dbh->indexed > 0)
+        dbh->indexed--;
+    }
+    dbh->lastSync++;
   }
   sqlite3_reset(dbh->exists);
 
@@ -847,8 +981,9 @@ unsigned int getMinimumPriority(HighDBHandle handle) {
 
   MUTEX_LOCK(&dbh->DATABASE_Lock_);
   
-  i = sqlite3_prepare(dbh->dbf, "SELECT MIN(priority) FROM data",
-                      30, &stmt, (const char **) &dummy);
+  i = sqlite3_prepare(dbh->dbf, "SELECT MIN(priority) FROM data where hash "
+                      "not in ('COUNT', 'PAYLOAD', 'INSERTED', 'INDEXED')",
+                      92, &stmt, (const char **) &dummy);
   if (i == SQLITE_OK) {
     i = sqlite3_step(stmt);
   }
@@ -888,7 +1023,7 @@ int deleteContent(HighDBHandle handle,
   sqlite3_stmt *stmt;
   HashCode160 *deleteThese;
   char *escapedHash, *dummy, *scratch;
-  int i=0, len;
+  int i, len, idx;
 
 #if DEBUG_SQLITE
   LOG(LOG_DEBUG, "SQLite: delete least important content (%i rows)\n", count);
@@ -897,8 +1032,9 @@ int deleteContent(HighDBHandle handle,
   MUTEX_LOCK(&dbh->DATABASE_Lock_);
 
   /* Collect hashes to delete */
-  scratch = MALLOC(72);
-  len = SNPRINTF(scratch, 72, "SELECT hash FROM data "
+  scratch = MALLOC(135);
+  len = SNPRINTF(scratch, 134, "SELECT hash FROM data where hash not in "
+     "('COUNT', 'PAYLOAD', 'INSERTED', 'INDEXED')"
      "ORDER BY priority ASC LIMIT %i", count);
   i = sqlite3_prepare(dbh->dbf, scratch, len, &stmt, (const char **) &dummy);
   FREE(scratch);
@@ -921,7 +1057,7 @@ int deleteContent(HighDBHandle handle,
   /* Delete collected hashes */
   count=i;
   escapedHash = MALLOC(2 * sizeof(HashCode160) + 1);
-  for(i=0; i < count; i++) {
+  for(idx=0; idx < count; idx++) {
     ContentIndex ce;
     void *data;
     int dlen;
@@ -929,13 +1065,13 @@ int deleteContent(HighDBHandle handle,
     
     data = NULL;
     dlen = readContent(handle,
-           &deleteThese[i],
+           &deleteThese[idx],
            &ce,
            &data,
            0);
     if (dlen >= 0) {
       if (callback != NULL) {
-        callback(&deleteThese[i], &ce, data, dlen, closure);
+        callback(&deleteThese[idx], &ce, data, dlen, closure);
       } else {
         FREENONNULL(data);
       }
@@ -945,17 +1081,28 @@ int deleteContent(HighDBHandle handle,
                       SQLITE_TRANSIENT);
     i = sqlite3_step(dbh->exists);
     if (i == SQLITE_ROW) {
+      unsigned int contlen = sqlite3_column_int(dbh->exists, 3);
+    
       rowLen = sqlite3_column_int(dbh->exists, 1) - 
-        sqlite3_column_int(dbh->exists, 2) - sqlite3_column_int(dbh->exists, 3) -
+        sqlite3_column_int(dbh->exists, 2) - contlen -
         4 * sizeof(int);
       if (dbh->payload > rowLen)
         dbh->payload -= rowLen;
       else
         dbh->payload = 0;
+        
+      if (contlen) {
+        if (dbh->inserted)
+          dbh->inserted--;
+      } else {
+        if (dbh->indexed)
+          dbh->indexed--;
+      }
+      dbh->lastSync++;
     }
     sqlite3_reset(dbh->exists);
 
-    sqlite_encode_binary((char *) &deleteThese[i], sizeof(HashCode160),
+    sqlite_encode_binary((char *) &deleteThese[idx], sizeof(HashCode160),
                          escapedHash);
     i = sqlite3_prepare(dbh->dbf, "DELETE FROM data WHERE hash = ?", 31,
                         &stmt, (const char **) &dummy);
@@ -975,6 +1122,9 @@ int deleteContent(HighDBHandle handle,
   FREE(deleteThese);
   
   dbh->count -= count;
+  
+  if (dbh->lastSync > 1000)
+    syncStats(dbh);
   
   MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
   
@@ -996,13 +1146,13 @@ int estimateAvailableBlocks(HighDBHandle handle,
 
   MUTEX_LOCK(&dbh->DATABASE_Lock_);
 
-  ret = dbh->payload / 1024 * 1.15;
+  ret = (dbh->payload + dbh->indexed * 59 + dbh->inserted * 132) / 1024;
 
   MUTEX_UNLOCK(&dbh->DATABASE_Lock_);
 
 #if DEBUG_SQLITE
-  LOG(LOG_DEBUG, "SQLite: kbytes used: %.0f, quota: %i\n",
-    ret, quota);
+  LOG(LOG_DEBUG, "SQLite: kbytes used: %.0f, quota: %i, inserted: %.0f, "
+    "indexed: %.0f\n", ret, quota, dbh->inserted, dbh->indexed);
 #endif
   
   return quota - ret;

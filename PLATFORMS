@@ -29,12 +29,9 @@ Solaris 8 (SunOS 5.8, Sparc SunFire 880):
   workaround: use OpenSSL
 - IPC semaphore test fails (hmm, used to pass, not critical)
 
-OS X (10.3, PowerPC):
-- ar fails to build (bug in Apple-AR)
+OS X (10.3.7, PowerPC):
 - RSA key generation may not work (libgcrypt bug)
   workaround: use OpenSSL
-- plugins are not found (FATAL)
-- CRC errors at the end of downloads (?)
 
 Cygwin (x86):
 - plugins cannot be loaded (FATAL)

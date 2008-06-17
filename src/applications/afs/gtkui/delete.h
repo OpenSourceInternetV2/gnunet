@@ -26,7 +26,7 @@
 #define GTKUI_DELETE_H
 
 typedef struct {
-  size_t val;
+  unsigned long long val;
   GtkWidget *bar;
 } SetProgress;
 

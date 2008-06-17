@@ -1223,7 +1223,8 @@ typedef struct {
    right loglevel */
 #define IFLOG(a,b) {if (getLogLevel() >= a) {b;} }
 
-#define PRIP(ip) (int)((ip)>>24), (int)((ip)>>16 & 255), (int)((ip)>>8 & 255), (int)((ip) & 255)
+#define PRIP(ip) (unsigned int)(((unsigned int)(ip))>>24), (unsigned int)((((unsigned)(ip)))>>16 & 255), (unsigned int)((((unsigned int)(ip)))>>8 & 255), (unsigned int)((((unsigned int)(ip))) & 255)
+
 
 typedef void (*TLogProc)(const char *txt);
 
@@ -1619,6 +1620,17 @@ typedef struct {
  * Returns YES if pt is the handle for THIS thread.
  */
 int PTHREAD_SELF_TEST(PTHREAD_T * pt);
+
+/**
+ * Get the handle for THIS thread.
+ */
+void PTHREAD_GET_SELF(PTHREAD_T * pt);
+
+/**
+ * Release handle for a thread (should have been
+ * obtained using PTHREAD_GET_SELF).
+ */
+void PTHREAD_REL_SELF(PTHREAD_T * pt);
 
 /**
  * Create a thread. Use this method instead of pthread_create since
@@ -2882,18 +2894,22 @@ int isSocketBlocking(int s);
 /**
  * Do a NONBLOCKING read on the given socket.  Note that in order to
  * avoid blocking, the caller MUST have done a select call before
- * calling this function.
+ * calling this function. Though the caller must be prepared to the
+ * fact that this function may fail with EWOULDBLOCK in any case (Win32).
  *
- * Reads at most max bytes to buf.  On error, return SYSERR (errors
- * are blocking or invalid socket but NOT a partial read).  Interrupts
- * are IGNORED.
- *
- * @return the number of bytes read or SYSERR. 
- *         0 is returned if no more bytes can be read
+ * @brief Reads at most max bytes to buf. Interrupts are IGNORED.
+ * @param s socket
+ * @param buf buffer
+ * @param max maximum number of bytes to read
+ * @param read number of bytes actually read.
+ *             0 is returned if no more bytes can be read
+ * @return SYSERR on error, YES on success or NO if the operation
+ *         would have blocked
  */ 
 int RECV_NONBLOCKING(int s,
 		     void * buf,
-		     size_t max);
+		     size_t max,
+		     size_t *read);
 
 
 /**
@@ -2910,16 +2926,23 @@ int RECV_BLOCKING_ALL(int s,
 
 /**
  * Do a NONBLOCKING write on the given socket.
- * Write at most max bytes from buf.  On error,
- * return SYSERR (errors are blocking or invalid
- * socket but NOT an interrupt or partial write).
+ * Write at most max bytes from buf.
  * Interrupts are ignored (cause a re-try).
  *
- * @return the number of bytes written or SYSERR. 
+ * The caller must be prepared to the fact that this function
+ * may fail with EWOULDBLOCK in any case (Win32).
+ *
+ * @param s socket
+ * @param buf buffer to send
+ * @param max maximum number of bytes to send
+ * @param sent number of bytes actually sent
+ * @return SYSERR on error, YES on success or
+ *         NO if the operation would have blocked. 
  */ 
 int SEND_NONBLOCKING(int s,
 		     const void * buf,
-		     size_t max);
+		     size_t max,
+		     size_t *sent);
 
 
 /**
@@ -3089,6 +3112,14 @@ unsigned int vectorIndexOf(Vector * v,
 void ** vectorElements(Vector * v);
 
 
+
+/**
+ * Enum Windows NICs
+ */
+#ifdef WINDOWS
+void EnumNICs(PMIB_IFTABLE *pIfTable, PMIB_IPADDRTABLE *pAddrTable);
+int PopulateNICCombo(HWND hCombo);
+#endif
 
 #ifdef __cplusplus
 }

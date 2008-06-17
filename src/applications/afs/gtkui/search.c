@@ -380,7 +380,7 @@ void displayResultGTK(RootNode * rootNode,
   gchar * results[5];
   Result result;
   int i;
-  char * verb;
+  char * verb, * p, c;
   
   if(model->doTerminate == YES)
     return;
@@ -398,6 +398,15 @@ void displayResultGTK(RootNode * rootNode,
     rootNode->header.mimetype[MAX_MIMETYPE_LEN-1] = 0;
     
     results[0] = STRDUP(rootNode->header.description);
+
+    /* suppress line breaks */
+    p = results[0];
+    while((c = *p)) {
+      if (c == '\r' || c == '\n' || c == '\t')
+        *p = ' ';
+      p++;
+    }
+
     results[1] = MALLOC(32);
     SNPRINTF(results[1],
 	     32,
@@ -624,8 +633,10 @@ static void stopSearch(GtkWidget * widget,
 	     0, 0, model);
   /* this is always the gtk-thread, so we must
      not block; instead, run gtk-savecalls! */
-  while (SYSERR == SEMAPHORE_DOWN_NONBLOCKING(cs)) 
-    gtkRunSomeSaveCalls();
+  while (SYSERR == SEMAPHORE_DOWN_NONBLOCKING(cs)){
+    if (! gtkRunSomeSaveCalls())
+      gnunet_util_sleep(50 * cronMILLIS);
+  }
   SEMAPHORE_FREE(cs);
 }
 

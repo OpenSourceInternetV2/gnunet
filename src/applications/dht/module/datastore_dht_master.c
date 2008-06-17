@@ -29,12 +29,6 @@
  * memory-datastore is that entries have a timestamp and are
  * timed-out after a certain time of inactivity.  Also,
  * duplicate entries are removed.
- *
- * TODO:
- * * currently the lookup will always return the same k-first
- *   entries in the HT.  It would be better to randomize the
- *   output and given preference to recently refreshed entries
- *   (to increase the success rate and distribute the load).
  */
 
 #include "platform.h"
@@ -97,26 +91,37 @@ static int lookup(void * closure,
   pos = ds->first;
   while (pos != NULL) {
     if (equalsHashCode160(key, &pos->key)) {
+      int * perm;
+
       if (pos->count > maxResults)
 	count = maxResults;
       else
 	count = pos->count;
-      /* OPTIMIZE-ME: filter for most recently updated and
-	 randomize a bit! */
+      if (count < pos->count) 
+	perm = permute(pos->count); /* randomize returned set! */
+      else
+	perm = NULL;
+
       for (i=0;i<count;i++) {
-	if (results[i].dataLength > 0) {
-	  GNUNET_ASSERT(results[i].dataLength == sizeof(HashCode160));
-	  memcpy(results[i].data,
-		 &pos->values[i].hash,
+	int j;
+	if (perm == NULL)
+	  j = i;
+	else
+	  j = perm[i];
+	if (results[j].dataLength > 0) {
+	  GNUNET_ASSERT(results[j].dataLength == sizeof(HashCode160));
+	  memcpy(results[j].data,
+		 &pos->values[j].hash,
 		 sizeof(HashCode160));
 	} else {
-	  results[i].dataLength = sizeof(HashCode160);
-	  results[i].data = MALLOC(sizeof(HashCode160));
-	  memcpy(results[i].data,
-		 &pos->values[i].hash,
+	  results[j].dataLength = sizeof(HashCode160);
+	  results[j].data = MALLOC(sizeof(HashCode160));
+	  memcpy(results[j].data,
+		 &pos->values[j].hash,
 		 sizeof(HashCode160));
 	}
       }
+      FREENONNULL(perm);
       MUTEX_UNLOCK(&ds->lock);
       return count;
     }
