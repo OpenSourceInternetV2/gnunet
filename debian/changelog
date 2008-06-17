@@ -1,3 +1,10 @@
+gnunet (0.6.6b-4) unstable; urgency=high
+
+  * Bump revision number and set urgency high and give the package a chance to
+    enter Sarge before the final release.
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Tue, 31 May 2005 20:57:31 +0200
+
 gnunet (0.6.6b-3) unstable; urgency=low
 
   * debian/po/pt_BR.po: Updated Brazilian Portuguese translation of gnunet
