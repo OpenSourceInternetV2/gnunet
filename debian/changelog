@@ -1,3 +1,11 @@
+gnunet (0.7.1c-2) unstable; urgency=low
+
+  * Rebuild against new curl (Closes: #423573).
+  * Added Dutch debconf translation from Bart Cornelis <cobaco@skolelinux.no>
+    (Closes: #423048).
+
+ -- Daniel Baumann <daniel@debian.org>  Sun, 13 May 2007 21:28:00 +0200
+
 gnunet (0.7.1c-1) unstable; urgency=low
 
   * New upstream release (Closes: #420538).
