@@ -1,3 +1,10 @@
+gnunet (0.7.0c-2) unstable; urgency=low
+
+  * contrib/init_gnunet_ubuntu: Fixed su usage (Closes: #358998). Thanks to
+    Nicolas Francois for the patch.
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Thu,  6 Apr 2006 22:18:59 +0200
+
 gnunet (0.7.0c-1) unstable; urgency=low
 
   * New upstream release (Closes: #350472). Thanks to Nicolas Francois for the patch.
