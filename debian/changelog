@@ -1,3 +1,10 @@
+gnunet (0.7.0e-4) unstable; urgency=medium
+
+  * Added Spanish debconf translation from Javier Ruano
+    <javier.ruano@estudiante.uam.es> (Closes: #406719).
+
+ -- Daniel Baumann <daniel@debian.org>  Sat, 13 Jan 2007 12:37:00 +0100
+
 gnunet (0.7.0e-3) unstable; urgency=low
 
   * Convert rules and control files in order to use cdbs.
