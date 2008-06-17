@@ -1,8 +1,11 @@
 gnunet for Debian
 -----------------
 
-GNUnet is disabled by default, to get it start at boot you must edit
-/etc/default/gnunet and set RUN_DAEMON=yes
+GNUnet start at boot time by default, to change the default behaviour, you must run
+dpkg-reconfigure gnunet
+
+In order to start, stop or restart manually the daemon, use
+/etc/init.d/gnunet with the parameter start, stop or restart
 
 You cannot upgrade GNUnet directly from versions earlier than 0.6.1b,
 refer to the file UPGRADING for information on how to migrate your data.

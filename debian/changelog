@@ -1,3 +1,25 @@
+gnunet (0.6.6b-1) unstable; urgency=low
+
+  * New Upstream release.
+  * debian/control: Added libextractor dependency.
+  * debian/rules: Added libextractor support.
+  
+  * debian/gnunet.postinst: Improved default configuration file building
+    process.
+
+  * debian/gnunet.postinst: Changed default database from gdbm to sqlite. Do
+    the necessary data migration when needed.
+    Only change the default database if the user was previously using the old
+    default one.
+    If another database was explicitly specified, the script will keep the
+    user preferences.
+
+  * debian/gnunet.conf: Changed default database from gdbm to sqlite.
+
+  * debian/README.Debian: Updated the daemon usage.
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Tue,  1 Mar 2005 23:03:53 +0100
+
 gnunet (0.6.6a-1) unstable; urgency=low
 
   * New upstream release (Closes: #293347).

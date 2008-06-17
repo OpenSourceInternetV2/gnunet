@@ -47,8 +47,7 @@ config.status: configure
 		--with-tdb=/usr \
 		--with-bdb=/usr \
 		--without-mysql \
-		--without-extractor \
-		--without-libextractor \
+		--with-libextractor=/usr \
 		--enable-guile \
 		--with-pic
 
