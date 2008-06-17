@@ -25,11 +25,11 @@
  * @author Christian Grothoff
  */
 
-#include "gnunet_util.h"
 #include "platform.h"
+#include "gnunet_util.h"
 #include "glade_support.h"
-
 #include "wizard_gtk.h"
+#include "wizard_util.h"
 #include "gconf.h"
 
 /**
@@ -153,7 +153,6 @@ void
 load_step2setup_gtk (GtkButton * button, gpointer prev_window)
 {
   GtkWidget *entIP;
-  GtkWidget *chkFW;
   GtkTreeIter iter;
   GtkListStore *model;
   struct insert_nic_cls cls;
@@ -192,17 +191,6 @@ load_step2setup_gtk (GtkButton * button, gpointer prev_window)
                                             &val);
   gtk_entry_set_text (GTK_ENTRY (entIP), val);
   GNUNET_free (val);
-
-  chkFW = lookup_widget ("chkFW");
-#if 0
-  gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (chkFW),
-                                GNUNET_GC_get_configuration_value_yesno
-                                (editCfg, "NAT", "LIMITED",
-                                 GNUNET_NO) == GNUNET_YES);
-#else
-  gtk_widget_hide (chkFW);
-#endif
-
   gtk_widget_show (curwnd);
 }
 
@@ -281,16 +269,22 @@ load_step4setup_gtk (GtkButton * button, gpointer prev_window)
 #ifndef MINGW
   if (NULL == uname || strlen (uname) == 0)
     {
-      if ((geteuid () == 0) || (NULL != getpwnam ("gnunet")))
+      struct passwd *pwd;
+
+      if ((geteuid () == 0) && (NULL != getpwnam ("gnunet")))
         user_name = GNUNET_strdup ("gnunet");
       else
         {
-          GNUNET_free_non_null (uname);
-          uname = getenv ("USER");
-          if (uname != NULL)
-            user_name = GNUNET_strdup (uname);
+          pwd = getpwuid (geteuid ());
+          if (pwd != NULL)
+            user_name = GNUNET_strdup (pwd->pw_name);
           else
-            user_name = NULL;
+            {
+              if (NULL != getenv ("USER"))
+                user_name = GNUNET_strdup (getenv ("USER"));
+              else
+                user_name = NULL;
+            }
         }
     }
   else
@@ -332,7 +326,9 @@ load_step4setup_gtk (GtkButton * button, gpointer prev_window)
     gtk_entry_set_text (GTK_ENTRY (entUser), user_name);
   if (group_name != NULL)
     gtk_entry_set_text (GTK_ENTRY (entGroup), group_name);
-  cap = GNUNET_configure_autostart (err_ctx, 1, 1, NULL, NULL, NULL);
+  cap =
+    GNUNET_configure_autostart (err_ctx, GNUNET_YES, GNUNET_YES, NULL, NULL,
+                                NULL, NULL);
   gtk_widget_set_sensitive (entUser, cap);
 #ifdef WINDOWS
   cap = FALSE;
@@ -371,7 +367,8 @@ load_step5setup_gtk (GtkButton * button, gpointer prev_window)
                                 (editCfg, "FS", "ACTIVEMIGRATION",
                                  GNUNET_YES) == GNUNET_YES);
 
-  if (GNUNET_configure_autostart (err_ctx, 1, 1, NULL, NULL, NULL))
+  if (GNUNET_configure_autostart
+      (err_ctx, GNUNET_YES, GNUNET_YES, NULL, NULL, NULL, NULL))
     gtk_widget_set_sensitive (chkStart, TRUE);
 
 
@@ -479,8 +476,9 @@ on_finish_clickedsetup_gtk (GtkButton * button, gpointer user_data)
         return;
       }
 
-  if (GNUNET_GNS_wiz_autostart_service (doAutoStart, user_name, group_name) !=
-      GNUNET_OK)
+  if (GNUNET_GNS_wiz_autostart_service (err_ctx, GNUNET_SERVICE_TYPE_GNUNETD,
+                                        doAutoStart, user_name,
+                                        group_name) != GNUNET_OK)
     {
 #ifndef MINGW
       showErr (_("Unable to change startup process:"), STRERROR (errno));
@@ -524,17 +522,6 @@ on_entIP_changedsetup_gtk (GtkEditable * editable, gpointer user_data)
   g_free (ret);
 }
 
-
-void
-on_chkFW_toggledsetup_gtk (GtkToggleButton * togglebutton, gpointer user_data)
-{
-#if 0
-  GNUNET_GC_set_configuration_value_choice (editCfg, err_ctx, "NAT",
-                                            "LIMITED",
-                                            gtk_toggle_button_get_active
-                                            (togglebutton) ? "YES" : "NO");
-#endif
-}
 
 void
 on_entUp_changedsetup_gtk (GtkEditable * editable, gpointer user_data)

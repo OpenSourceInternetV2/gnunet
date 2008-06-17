@@ -54,9 +54,7 @@ binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(bin_PROGRAMS)
 am_gnunet_chat_OBJECTS = gnunet-chat.$(OBJEXT)
 gnunet_chat_OBJECTS = $(am_gnunet_chat_OBJECTS)
-gnunet_chat_DEPENDENCIES = $(top_builddir)/src/applications/chat/lib/libgnunetchat_api.la \
-	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
-	$(top_builddir)/src/applications/fs/pseudonyms/libgnunetpseudonym.la
+gnunet_chat_DEPENDENCIES = $(top_builddir)/src/applications/chat/lib/libgnunetchat_api.la
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -239,9 +237,7 @@ gnunet_chat_SOURCES = \
  gnunet-chat.c 	
 
 gnunet_chat_LDADD = \
-  $(top_builddir)/src/applications/chat/lib/libgnunetchat_api.la \
-  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
-  $(top_builddir)/src/applications/fs/pseudonyms/libgnunetpseudonym.la 
+  $(top_builddir)/src/applications/chat/lib/libgnunetchat_api.la 
 
 all: all-am
 

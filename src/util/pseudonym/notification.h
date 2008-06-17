@@ -19,22 +19,23 @@
 */
 
 /**
- * @file applications/fs/pseudonym/info.h
- * @brief keeping track of pseudonyms and metadata about them
+ * @file applications/fs/pseudonym/pseudonym_notification.h
+ * @brief implementation of the notification mechanism
  * @author Christian Grothoff
  */
 
-#ifndef NAMESPACE_INFO_H
-#define NAMESPACE_INFO_H
 
-#include "gnunet_namespace_lib.h"
 #include "gnunet_util.h"
 
-int
-GNUNET_PSEUDO_internal_read_info_ (struct GNUNET_GE_Context *ectx,
-                                   struct GNUNET_GC_Configuration *cfg,
-                                   const GNUNET_HashCode * nsid,
-                                   struct GNUNET_ECRS_MetaData **meta,
-                                   int *ranking, char **ns_name);
+#ifndef PSEUDONYM_NOTIFICATON_H
+#define PSEUDONYM_NOTIFICATON_H
+
+/**
+ * Internal notification about new tracked pseudonym.
+ */
+void
+GNUNET_pseudonym_internal_notify_ (const GNUNET_HashCode * id,
+                                   const struct GNUNET_MetaData *md,
+                                   int rating);
 
 #endif

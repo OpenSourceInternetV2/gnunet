@@ -51,7 +51,7 @@ CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libdisk_la_LIBADD =
-am_libdisk_la_OBJECTS = storage.lo
+am_libdisk_la_OBJECTS = storage.lo filenames.lo
 libdisk_la_OBJECTS = $(am_libdisk_la_OBJECTS)
 am_storagetest_OBJECTS = storagetest.$(OBJEXT)
 storagetest_OBJECTS = $(am_storagetest_OBJECTS)
@@ -246,7 +246,8 @@ noinst_LTLIBRARIES = \
   libdisk.la
 
 libdisk_la_SOURCES = \
-  storage.c
+  storage.c \
+  filenames.c 
 
 TESTS = $(check_PROGRAMS)
 storagetest_SOURCES = \
@@ -316,6 +317,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/filenames.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/storage.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/storagetest.Po@am__quote@
 

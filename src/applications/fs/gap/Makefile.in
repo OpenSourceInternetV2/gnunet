@@ -35,7 +35,7 @@ host_triplet = @host@
 check_PROGRAMS = test_loopback$(EXEEXT) test_linear_topology$(EXEEXT) \
 	test_multi_results$(EXEEXT) test_star_topology$(EXEEXT)
 subdir = src/applications/fs/gap
-DIST_COMMON = README $(srcdir)/Makefile.am $(srcdir)/Makefile.in TODO
+DIST_COMMON = README $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/gettext.m4 \
 	$(top_srcdir)/m4/gtk-2.0.m4 $(top_srcdir)/m4/iconv.m4 \

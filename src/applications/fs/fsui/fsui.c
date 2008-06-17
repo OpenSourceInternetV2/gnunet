@@ -94,7 +94,6 @@ updateDownloadThreads (void *c)
   sl = ctx->activeSearches;
   while (sl != NULL)
     {
-      GNUNET_mutex_lock (sl->lock);
       srl = sl->resultsReceived;
       while (srl != NULL)
         {
@@ -178,12 +177,11 @@ updateDownloadThreads (void *c)
                   srl->test_download
                     = GNUNET_ECRS_file_download_partial_start (ctx->ectx,
                                                                ctx->cfg,
+                                                               sl->
+                                                               probe_context,
                                                                srl->fi.uri,
-                                                               NULL,
-                                                               off,
-                                                               len,
-                                                               1,
-                                                               GNUNET_YES,
+                                                               NULL, off, len,
+                                                               1, GNUNET_YES,
                                                                &test_download_progress,
                                                                srl);
                   if (srl->test_download != NULL)
@@ -196,7 +194,6 @@ updateDownloadThreads (void *c)
 
           srl = srl->next;
         }
-      GNUNET_mutex_unlock (sl->lock);
       sl = sl->next;
     }
   GNUNET_mutex_unlock (ctx->lock);
@@ -347,7 +344,6 @@ GNUNET_FSUI_start (struct GNUNET_GE_Context *ectx,
   unsigned int *av_certs;
   unsigned int *ap_ranks;
   char *fn;
-  char *gh;
   unsigned long long size;
 
   GNUNET_GE_ASSERT (ectx, cfg != NULL);
@@ -362,23 +358,14 @@ GNUNET_FSUI_start (struct GNUNET_GE_Context *ectx,
   if (ret->threadPoolSize == 0)
     ret->threadPoolSize = 32;
   ret->activeDownloadThreads = 0;
-
-  GNUNET_GC_get_configuration_value_filename (cfg,
-                                              "GNUNET",
-                                              "GNUNET_HOME",
-                                              GNUNET_DEFAULT_HOME_DIRECTORY,
-                                              &gh);
-  GNUNET_disk_directory_create (ectx, gh);
-  fn = GNUNET_malloc (strlen (gh) + strlen (name) + 2 + 5);
-  strcpy (fn, gh);
-  GNUNET_free (gh);
-  strcat (fn, DIR_SEPARATOR_STR);
-  strcat (fn, name);
-  ret->name = fn;
-
+  ret->name = GNUNET_get_home_filename (ectx,
+                                        cfg, GNUNET_NO, "fsui", name, NULL);
   /* 1) read state  in */
   if (doResume)
     {
+      fn = GNUNET_get_home_filename (ectx,
+                                     cfg,
+                                     GNUNET_NO, "fsui-locks", name, NULL);
       ret->ipc = GNUNET_IPC_semaphore_create (ectx, fn, 1);
 #if DEBUG_PERSISTENCE
       GNUNET_GE_LOG (ectx,
@@ -391,7 +378,7 @@ GNUNET_FSUI_start (struct GNUNET_GE_Context *ectx,
                      GNUNET_GE_INFO | GNUNET_GE_REQUEST | GNUNET_GE_USER,
                      "Aquired IPC lock.\n");
 #endif
-      strcat (fn, ".res");
+      GNUNET_free (fn);
       GNUNET_FSUI_deserialize (ret);
     }
   else
@@ -486,6 +473,8 @@ GNUNET_FSUI_start (struct GNUNET_GE_Context *ectx,
   list = ret->activeSearches;
   while (list != NULL)
     {
+      list->probe_context
+        = GNUNET_FS_create_search_context (ret->ectx, ret->cfg);
       if (list->state == GNUNET_FSUI_PENDING)
         {
           list->state = GNUNET_FSUI_ACTIVE;
@@ -494,6 +483,7 @@ GNUNET_FSUI_start (struct GNUNET_GE_Context *ectx,
             {
               rec->search = GNUNET_ECRS_search_start (list->ctx->ectx,
                                                       list->ctx->cfg,
+                                                      list->probe_context,
                                                       rec->uri,
                                                       list->anonymityLevel,
                                                       &GNUNET_FSUI_search_progress_callback,
@@ -613,7 +603,7 @@ freeDownloadList (GNUNET_FSUI_DownloadList * list)
     {
       freeDownloadList (list->child);
       GNUNET_ECRS_uri_destroy (list->fi.uri);
-      GNUNET_ECRS_meta_data_destroy (list->fi.meta);
+      GNUNET_meta_data_destroy (list->fi.meta);
       GNUNET_free (list->filename);
       for (i = 0; i < list->completedDownloadsCount; i++)
         GNUNET_ECRS_uri_destroy (list->completedDownloads[i]);
@@ -641,7 +631,7 @@ freeUploadList (struct GNUNET_FSUI_Context *ctx,
       next = list->next;
       GNUNET_free (list->filename);
       if (list->meta != NULL)
-        GNUNET_ECRS_meta_data_destroy (list->meta);
+        GNUNET_meta_data_destroy (list->meta);
       if (list->keywords != NULL)
         GNUNET_ECRS_uri_destroy (list->keywords);
       if (list->uri != NULL)
@@ -728,6 +718,11 @@ GNUNET_FSUI_stop (struct GNUNET_FSUI_Context *ctx)
             }
           if (spos->state != GNUNET_FSUI_PENDING)
             spos->state++;      /* _JOINED */
+        }
+      if (spos->probe_context != NULL)
+        {
+          GNUNET_FS_destroy_search_context (spos->probe_context);
+          spos->probe_context = NULL;
         }
       spos = spos->next;
     }
@@ -818,7 +813,7 @@ GNUNET_FSUI_stop (struct GNUNET_FSUI_Context *ctx)
         {
           res = spos->resultsReceived;
           spos->resultsReceived = res->next;
-          GNUNET_ECRS_meta_data_destroy (res->fi.meta);
+          GNUNET_meta_data_destroy (res->fi.meta);
           GNUNET_ECRS_uri_destroy (res->fi.uri);
           GNUNET_free (res->matchingSearches);
           GNUNET_free (res);

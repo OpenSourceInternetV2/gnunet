@@ -51,7 +51,7 @@ CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libstring_la_LIBADD =
-am_libstring_la_OBJECTS = string.lo xmalloc.lo
+am_libstring_la_OBJECTS = parser.lo string.lo xmalloc.lo
 libstring_la_OBJECTS = $(am_libstring_la_OBJECTS)
 am_xmalloctest_OBJECTS = xmalloctest.$(OBJEXT)
 xmalloctest_OBJECTS = $(am_xmalloctest_OBJECTS)
@@ -246,6 +246,7 @@ noinst_LTLIBRARIES = \
   libstring.la
 
 libstring_la_SOURCES = \
+  parser.c \
   string.c \
   xmalloc.c 
 
@@ -317,6 +318,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/parser.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/string.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/xmalloc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/xmalloctest.Po@am__quote@

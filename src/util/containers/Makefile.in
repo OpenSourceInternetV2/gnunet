@@ -32,7 +32,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-check_PROGRAMS = bloomtest$(EXEEXT)
+check_PROGRAMS = bloomtest$(EXEEXT) metatest$(EXEEXT)
 subdir = src/util/containers
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -50,12 +50,15 @@ mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
 CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
-libcontainers_la_LIBADD =
-am_libcontainers_la_OBJECTS = bloomfilter.lo
+libcontainers_la_DEPENDENCIES =
+am_libcontainers_la_OBJECTS = bloomfilter.lo meta.lo
 libcontainers_la_OBJECTS = $(am_libcontainers_la_OBJECTS)
 am_bloomtest_OBJECTS = bloomtest.$(OBJEXT)
 bloomtest_OBJECTS = $(am_bloomtest_OBJECTS)
 bloomtest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la
+am_metatest_OBJECTS = metatest.$(OBJEXT)
+metatest_OBJECTS = $(am_metatest_OBJECTS)
+metatest_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -68,8 +71,10 @@ CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
-SOURCES = $(libcontainers_la_SOURCES) $(bloomtest_SOURCES)
-DIST_SOURCES = $(libcontainers_la_SOURCES) $(bloomtest_SOURCES)
+SOURCES = $(libcontainers_la_SOURCES) $(bloomtest_SOURCES) \
+	$(metatest_SOURCES)
+DIST_SOURCES = $(libcontainers_la_SOURCES) $(bloomtest_SOURCES) \
+	$(metatest_SOURCES)
 RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
 	html-recursive info-recursive install-data-recursive \
 	install-dvi-recursive install-exec-recursive \
@@ -244,13 +249,24 @@ SUBDIRS = .
 INCLUDES = -I$(top_srcdir)/src/include
 noinst_LTLIBRARIES = libcontainers.la
 libcontainers_la_SOURCES = \
- bloomfilter.c 
+ bloomfilter.c \
+ meta.c 
+
+libcontainers_la_LIBADD = \
+ -lz \
+ -lextractor 
 
 TESTS = $(check_PROGRAMS)
 bloomtest_SOURCES = \
  bloomtest.c
 
 bloomtest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la 
+
+metatest_SOURCES = \
+ metatest.c
+
+metatest_LDADD = \
  $(top_builddir)/src/util/libgnunetutil.la 
 
 all: all-recursive
@@ -307,6 +323,9 @@ clean-checkPROGRAMS:
 bloomtest$(EXEEXT): $(bloomtest_OBJECTS) $(bloomtest_DEPENDENCIES) 
 	@rm -f bloomtest$(EXEEXT)
 	$(LINK) $(bloomtest_OBJECTS) $(bloomtest_LDADD) $(LIBS)
+metatest$(EXEEXT): $(metatest_OBJECTS) $(metatest_DEPENDENCIES) 
+	@rm -f metatest$(EXEEXT)
+	$(LINK) $(metatest_OBJECTS) $(metatest_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -316,6 +335,8 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/bloomfilter.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/bloomtest.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/meta.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/metatest.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<

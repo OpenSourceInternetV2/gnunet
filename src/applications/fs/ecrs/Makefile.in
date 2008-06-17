@@ -33,9 +33,8 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 check_PROGRAMS = bincodertest$(EXEEXT) downloadtest$(EXEEXT) \
-	namespacetest$(EXEEXT) uritest$(EXEEXT) metatest$(EXEEXT) \
-	searchtest$(EXEEXT) directorytest$(EXEEXT) ecrstest$(EXEEXT) \
-	updowntest$(EXEEXT)
+	namespacetest$(EXEEXT) uritest$(EXEEXT) searchtest$(EXEEXT) \
+	directorytest$(EXEEXT) ecrstest$(EXEEXT) updowntest$(EXEEXT)
 subdir = src/applications/fs/ecrs
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -67,8 +66,8 @@ libgnunetecrs_la_DEPENDENCIES = $(top_builddir)/src/applications/identity/libgnu
 	$(top_builddir)/src/applications/getoption/libgnunetgetoption_api.la \
 	$(top_builddir)/src/util/libgnunetutil.la
 am_libgnunetecrs_la_OBJECTS = directory.lo download.lo ecrs.lo \
-	helper.lo indexinfo.lo keyspace.lo meta.lo namespace.lo \
-	parser.lo search.lo tree.lo unindex.lo upload.lo uri.lo
+	helper.lo indexinfo.lo keyspace.lo namespace.lo parser.lo \
+	search.lo tree.lo unindex.lo upload.lo uri.lo
 libgnunetecrs_la_OBJECTS = $(am_libgnunetecrs_la_OBJECTS)
 am_bincodertest_OBJECTS = bincodertest.$(OBJEXT)
 bincodertest_OBJECTS = $(am_bincodertest_OBJECTS)
@@ -84,10 +83,6 @@ downloadtest_DEPENDENCIES =  \
 am_ecrstest_OBJECTS = ecrstest.$(OBJEXT)
 ecrstest_OBJECTS = $(am_ecrstest_OBJECTS)
 ecrstest_DEPENDENCIES =  \
-	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la
-am_metatest_OBJECTS = metatest.$(OBJEXT)
-metatest_OBJECTS = $(am_metatest_OBJECTS)
-metatest_DEPENDENCIES =  \
 	$(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la
 am_namespacetest_OBJECTS = namespacetest.$(OBJEXT)
 namespacetest_OBJECTS = $(am_namespacetest_OBJECTS)
@@ -119,14 +114,12 @@ LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	$(LDFLAGS) -o $@
 SOURCES = $(libgnunetecrs_la_SOURCES) $(bincodertest_SOURCES) \
 	$(directorytest_SOURCES) $(downloadtest_SOURCES) \
-	$(ecrstest_SOURCES) $(metatest_SOURCES) \
-	$(namespacetest_SOURCES) $(searchtest_SOURCES) \
-	$(updowntest_SOURCES) $(uritest_SOURCES)
+	$(ecrstest_SOURCES) $(namespacetest_SOURCES) \
+	$(searchtest_SOURCES) $(updowntest_SOURCES) $(uritest_SOURCES)
 DIST_SOURCES = $(libgnunetecrs_la_SOURCES) $(bincodertest_SOURCES) \
 	$(directorytest_SOURCES) $(downloadtest_SOURCES) \
-	$(ecrstest_SOURCES) $(metatest_SOURCES) \
-	$(namespacetest_SOURCES) $(searchtest_SOURCES) \
-	$(updowntest_SOURCES) $(uritest_SOURCES)
+	$(ecrstest_SOURCES) $(namespacetest_SOURCES) \
+	$(searchtest_SOURCES) $(updowntest_SOURCES) $(uritest_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -298,14 +291,13 @@ libgnunetecrs_la_SOURCES = \
   helper.c \
   indexinfo.c \
   keyspace.c \
-  meta.c \
   namespace.c \
   parser.c \
   search.c \
   tree.c tree.h \
   unindex.c \
   upload.c \
-  uri.c uri.h
+  uri.c
 
 libgnunetecrs_la_LIBADD = \
  -lz \
@@ -333,12 +325,6 @@ namespacetest_SOURCES = \
   namespacetest.c 
 
 namespacetest_LDADD = \
-  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la 
-
-metatest_SOURCES = \
-  metatest.c 
-
-metatest_LDADD = \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la 
 
 ecrstest_SOURCES = \
@@ -455,9 +441,6 @@ downloadtest$(EXEEXT): $(downloadtest_OBJECTS) $(downloadtest_DEPENDENCIES)
 ecrstest$(EXEEXT): $(ecrstest_OBJECTS) $(ecrstest_DEPENDENCIES) 
 	@rm -f ecrstest$(EXEEXT)
 	$(LINK) $(ecrstest_OBJECTS) $(ecrstest_LDADD) $(LIBS)
-metatest$(EXEEXT): $(metatest_OBJECTS) $(metatest_DEPENDENCIES) 
-	@rm -f metatest$(EXEEXT)
-	$(LINK) $(metatest_OBJECTS) $(metatest_LDADD) $(LIBS)
 namespacetest$(EXEEXT): $(namespacetest_OBJECTS) $(namespacetest_DEPENDENCIES) 
 	@rm -f namespacetest$(EXEEXT)
 	$(LINK) $(namespacetest_OBJECTS) $(namespacetest_LDADD) $(LIBS)
@@ -487,8 +470,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/helper.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/indexinfo.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/keyspace.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/meta.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/metatest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/namespace.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/namespacetest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/parser.Plo@am__quote@

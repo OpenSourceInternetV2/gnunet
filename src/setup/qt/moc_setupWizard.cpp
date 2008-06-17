@@ -1,7 +1,7 @@
 /****************************************************************************
 ** Meta object code from reading C++ file 'setupWizard.h'
 **
-** Created: Sun Jun 1 21:04:07 2008
+** Created: Sat Jun 14 20:51:38 2008
 **      by: The Qt Meta Object Compiler version 59 (Qt 4.4.0)
 **
 ** WARNING! All changes made in this file will be lost!

@@ -53,6 +53,18 @@ struct GNUNET_FS_SearchContext *GNUNET_FS_create_search_context (struct
                                                                  GNUNET_GC_Configuration
                                                                  *cfg);
 
+/**
+ * Pause the search context briefly (stop sending
+ * results).  This will NOT cause gnunetd to pause
+ * searching for data.
+ */
+void GNUNET_FS_suspend_search_context (struct GNUNET_FS_SearchContext *ctx);
+
+/**
+ * Resume the search context (start sending results again).
+ */
+void GNUNET_FS_resume_search_context (struct GNUNET_FS_SearchContext *ctx);
+
 void GNUNET_FS_destroy_search_context (struct GNUNET_FS_SearchContext *ctx);
 
 /**
@@ -81,6 +93,19 @@ GNUNET_FS_start_search (struct
                         anonymityLevel,
                         GNUNET_DatastoreValueIterator
                         callback, void *closure);
+
+/**
+ * Stop searching for blocks matching the given key and type.
+ *
+ * @param callback method to call for each result
+ * @return GNUNET_OK (or GNUNET_SYSERR if this search
+ *   was never started for this context)
+ */
+int
+GNUNET_FS_stop_search (struct
+                       GNUNET_FS_SearchContext
+                       *ctx,
+                       GNUNET_DatastoreValueIterator callback, void *closure);
 
 /**
  * Insert a block.  Note that while the API is VERY similar to

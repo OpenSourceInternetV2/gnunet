@@ -103,9 +103,18 @@ struct GNUNET_FS_SearchContext
    */
   int abort;
 
+  /**
+   * Counter for how many times this context has
+   * been suspended.  Results will not be passed
+   * on until the counter is zero.
+   */
+  unsigned int block_results;
+
+#if DEBUG_FSLIB
   unsigned int total_received;
 
   unsigned int total_requested;
+#endif
 };
 
 /**
@@ -197,6 +206,12 @@ reply_process_thread (void *cls)
           memcpy (&value[1], &rep[1], size);
           matched = 0;
           GNUNET_mutex_lock (ctx->lock);
+          while (ctx->block_results > 0)
+            {
+              GNUNET_mutex_unlock (ctx->lock);
+              GNUNET_thread_sleep (100 * GNUNET_CRON_MILLISECONDS);
+              GNUNET_mutex_lock (ctx->lock);
+            }
           prev = NULL;
           pos = ctx->handles;
           while (pos != NULL)
@@ -256,8 +271,8 @@ reply_process_thread (void *cls)
             {
               GNUNET_thread_sleep (delay);
               delay *= 2;
-              if (delay > 5 * GNUNET_CRON_SECONDS)
-                delay = 5 * GNUNET_CRON_SECONDS;
+              if (delay > 60 * GNUNET_CRON_SECONDS)
+                delay = 60 * GNUNET_CRON_SECONDS;
               if ((GNUNET_OK ==
                    GNUNET_client_connection_ensure_connected (ctx->sock))
                   && (GNUNET_OK == reissue_requests (ctx)))
@@ -296,6 +311,26 @@ GNUNET_FS_create_search_context (struct GNUNET_GE_Context *ectx,
                             GNUNET_GE_BULK, "PTHREAD_CREATE");
   return ret;
 }
+
+
+/**
+ * Resume the search context (start sending results again).
+ */
+void
+GNUNET_FS_resume_search_context (struct GNUNET_FS_SearchContext *ctx)
+{
+  ctx->block_results--;
+  GNUNET_thread_stop_sleep (ctx->thread);
+}
+
+void
+GNUNET_FS_suspend_search_context (struct GNUNET_FS_SearchContext *ctx)
+{
+  GNUNET_mutex_lock (ctx->lock);
+  ctx->block_results++;
+  GNUNET_mutex_unlock (ctx->lock);
+}
+
 
 void
 GNUNET_FS_destroy_search_context (struct GNUNET_FS_SearchContext *ctx)
@@ -339,7 +374,6 @@ GNUNET_FS_start_search (struct GNUNET_FS_SearchContext *ctx,
 {
   struct GNUNET_FS_SearchHandle *ret;
   CS_fs_request_search_MESSAGE *req;
-  int ok;
 #if DEBUG_FSLIB
   GNUNET_EncName enc;
 #endif
@@ -373,10 +407,58 @@ GNUNET_FS_start_search (struct GNUNET_FS_SearchContext *ctx,
            "FSLIB passes request %u to daemon (%d)\n",
            ctx->total_requested++, type);
 #endif
-  ok = GNUNET_client_connection_write (ctx->sock, &req->header);
+  if (GNUNET_OK != GNUNET_client_connection_write (ctx->sock, &req->header))
+    GNUNET_client_connection_close_temporarily (ctx->sock);
   GNUNET_mutex_unlock (ctx->lock);
-  return ok;
+  return GNUNET_OK;
 }
+
+
+/**
+ * Stop searching for blocks matching the given key and type.
+ *
+ * @param callback method to call for each result
+ * @return GNUNET_OK (or GNUNET_SYSERR if this search
+ *   was never started for this context)
+ */
+int
+GNUNET_FS_stop_search (struct
+                       GNUNET_FS_SearchContext
+                       *ctx,
+                       GNUNET_DatastoreValueIterator callback, void *closure)
+{
+  struct GNUNET_FS_SearchHandle *pos;
+  struct GNUNET_FS_SearchHandle *prev;
+  CS_fs_request_search_MESSAGE *req;
+
+  prev = NULL;
+  GNUNET_mutex_lock (ctx->lock);
+  pos = ctx->handles;
+  while ((pos != NULL) &&
+         ((pos->callback != callback) || (pos->closure != closure)))
+    {
+      prev = pos;
+      pos = pos->next;
+    }
+  if (pos != NULL)
+    {
+      if (prev == NULL)
+        ctx->handles = pos->next;
+      else
+        prev->next = pos->next;
+      /* TODO: consider sending "stop" message
+         to gnunetd? */
+      req = (CS_fs_request_search_MESSAGE *) & pos[1];
+      req->header.type = htons (GNUNET_CS_PROTO_GAP_QUERY_STOP);
+      if (GNUNET_OK != GNUNET_client_connection_write (ctx->sock,
+                                                       &req->header))
+        GNUNET_client_connection_close_temporarily (ctx->sock);
+      GNUNET_free (pos);
+    }
+  GNUNET_mutex_unlock (ctx->lock);
+  return GNUNET_SYSERR;
+}
+
 
 /**
  * Insert a block.

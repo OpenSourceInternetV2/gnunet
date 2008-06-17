@@ -28,28 +28,15 @@
  * to bound disk size of the DB and to get high performance).
  */
 
+#include "platform.h"
 #include "gnunet_directories.h"
 #include "gnunet_util.h"
 #include "gnunet_uritrack_lib.h"
-#include "platform.h"
 
 static char *
 getDBName (struct GNUNET_GC_Configuration *cfg)
 {
-  char *basename;
-  char *ipcName;
-  size_t n;
-
-  GNUNET_GC_get_configuration_value_filename (cfg,
-                                              "GNUNET",
-                                              "GNUNET_HOME",
-                                              GNUNET_DEFAULT_HOME_DIRECTORY,
-                                              &basename);
-  n = strlen (basename) + 512;
-  ipcName = GNUNET_malloc (n);
-  GNUNET_snprintf (ipcName, n, "%s/uri_info.db", basename);
-  GNUNET_free (basename);
-  return ipcName;
+  return GNUNET_get_home_filename (NULL, cfg, GNUNET_NO, "uri_info.db", NULL);
 }
 
 static unsigned long long

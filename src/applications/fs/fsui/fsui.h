@@ -46,7 +46,7 @@
 /**
  * Strict upper limit on the number of concurrent probes.
  */
-#define GNUNET_FSUI_HARD_PROBE_LIMIT 32
+#define GNUNET_FSUI_HARD_PROBE_LIMIT 128
 
 /**
  * Track record for a given result.
@@ -156,11 +156,6 @@ typedef struct GNUNET_FSUI_SearchList
   GNUNET_CronTime start_time;
 
   /**
-   * Lock for the search.
-   */
-  struct GNUNET_Mutex *lock;
-
-  /**
    * Searches are kept in a simple linked list.
    */
   struct GNUNET_FSUI_SearchList *next;
@@ -169,6 +164,12 @@ typedef struct GNUNET_FSUI_SearchList
    * Context for this search
    */
   struct GNUNET_FSUI_Context *ctx;
+
+  /**
+   * Context used for availability probes and the
+   * ECRS searches
+   */
+  struct GNUNET_FS_SearchContext *probe_context;
 
   /**
    * Handles to the ECRS SearchContexts.
@@ -429,7 +430,7 @@ typedef struct GNUNET_FSUI_UploadList
   /**
    * Metadata for this file.
    */
-  struct GNUNET_ECRS_MetaData *meta;
+  struct GNUNET_MetaData *meta;
 
   /**
    * Keywords to be used for this upload.
@@ -452,6 +453,11 @@ typedef struct GNUNET_FSUI_UploadList
    * State of this sub-process.
    */
   GNUNET_FSUI_State state;
+
+  /**
+   * Is this a directory (or a file)?
+   */
+  int is_directory;
 
 } GNUNET_FSUI_UploadList;
 

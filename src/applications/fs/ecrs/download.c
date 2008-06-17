@@ -142,6 +142,11 @@ struct GNUNET_ECRS_DownloadContext
   int handle;
 
   /**
+   * Do we exclusively own this sctx?
+   */
+  int my_sctx;
+
+  /**
    * The base-filename
    */
   char *filename;
@@ -193,6 +198,11 @@ struct GNUNET_ECRS_DownloadContext
 
 };
 
+static int
+content_receive_callback (const GNUNET_HashCode * query,
+                          const GNUNET_DatastoreValue * reply, void *cls,
+                          unsigned long long uid);
+
 
 /**
  * Close the files and free the associated resources.
@@ -206,20 +216,27 @@ free_request_manager (struct GNUNET_ECRS_DownloadContext *rm)
 
   if (rm->abortFlag == GNUNET_NO)
     rm->abortFlag = GNUNET_YES;
-  GNUNET_FS_destroy_search_context (rm->sctx);
-  rm->sctx = NULL;
+  if (rm->my_sctx == GNUNET_YES)
+    GNUNET_FS_destroy_search_context (rm->sctx);
+  else
+    GNUNET_FS_suspend_search_context (rm->sctx);
   while (rm->head != NULL)
     {
       pos = rm->head;
+      if (rm->my_sctx != GNUNET_YES)
+        GNUNET_FS_stop_search (rm->sctx, &content_receive_callback, pos);
       rm->head = pos->next;
       GNUNET_free (pos);
     }
+  if (rm->my_sctx != GNUNET_YES)
+    GNUNET_FS_resume_search_context (rm->sctx);
   rm->tail = NULL;
   if (rm->handle >= 0)
     CLOSE (rm->handle);
   if (rm->main != NULL)
     GNUNET_thread_release_self (rm->main);
   GNUNET_free_non_null (rm->filename);
+  rm->sctx = NULL;
   GNUNET_free (rm);
 }
 
@@ -273,11 +290,6 @@ write_to_files (struct GNUNET_ECRS_DownloadContext *self,
                                  GNUNET_GE_USER, "write", self->filename);
   return ret;
 }
-
-static int
-content_receive_callback (const GNUNET_HashCode * query,
-                          const GNUNET_DatastoreValue * reply, void *cls,
-                          unsigned long long uid);
 
 /**
  * Queue a request for execution.
@@ -699,6 +711,7 @@ get_real_download_filename (struct GNUNET_GE_Context *ectx,
 struct GNUNET_ECRS_DownloadContext *
 GNUNET_ECRS_file_download_partial_start (struct GNUNET_GE_Context *ectx,
                                          struct GNUNET_GC_Configuration *cfg,
+                                         struct GNUNET_FS_SearchContext *sc,
                                          const struct GNUNET_ECRS_URI *uri,
                                          const char *filename,
                                          unsigned long long offset,
@@ -720,6 +733,21 @@ GNUNET_ECRS_file_download_partial_start (struct GNUNET_GE_Context *ectx,
     }
   rm = GNUNET_malloc (sizeof (struct GNUNET_ECRS_DownloadContext));
   memset (rm, 0, sizeof (struct GNUNET_ECRS_DownloadContext));
+  if (sc == NULL)
+    {
+      rm->sctx = GNUNET_FS_create_search_context (ectx, cfg);
+      if (rm->sctx == NULL)
+        {
+          GNUNET_free (rm);
+          return NULL;
+        }
+      rm->my_sctx = GNUNET_YES;
+    }
+  else
+    {
+      rm->sctx = sc;
+      rm->my_sctx = GNUNET_NO;
+    }
   rm->ectx = ectx;
   rm->cfg = cfg;
   rm->startTime = GNUNET_get_time ();
@@ -774,12 +802,6 @@ GNUNET_ECRS_file_download_partial_start (struct GNUNET_GE_Context *ectx,
           free_request_manager (rm);
           return NULL;
         }
-    }
-  rm->sctx = GNUNET_FS_create_search_context (ectx, cfg);
-  if (rm->sctx == NULL)
-    {
-      free_request_manager (rm);
-      return NULL;
     }
   if (rm->filename != NULL)
     {
@@ -861,11 +883,13 @@ GNUNET_ECRS_file_download_partial (struct GNUNET_GE_Context *ectx,
                                    void *ttClosure)
 {
   struct GNUNET_ECRS_DownloadContext *rm;
+  int ret;
 
   if (length == 0)
     return GNUNET_OK;
   rm = GNUNET_ECRS_file_download_partial_start (ectx,
                                                 cfg,
+                                                NULL,
                                                 uri,
                                                 filename,
                                                 offset,
@@ -879,7 +903,8 @@ GNUNET_ECRS_file_download_partial (struct GNUNET_GE_Context *ectx,
          (GNUNET_YES != GNUNET_shutdown_test ()) &&
          (rm->abortFlag == GNUNET_NO) && (rm->head != NULL))
     GNUNET_thread_sleep (5 * GNUNET_CRON_SECONDS);
-  return GNUNET_ECRS_file_download_partial_stop (rm);
+  ret = GNUNET_ECRS_file_download_partial_stop (rm);
+  return ret;
 }
 
 /**

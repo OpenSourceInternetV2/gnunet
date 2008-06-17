@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2005, 2006 Christian Grothoff (and other contributing authors)
+     (C) 2005, 2006, 2008 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -22,9 +22,6 @@
  * @file applications/fs/fsui/namespace_infotest.c
  * @brief testcase for namespace_info.c
  * @author Christian Grothoff
- *
- * TODO:
- * - more comprehensive testcase!
  */
 
 #include "platform.h"
@@ -37,6 +34,7 @@
 
 static struct GNUNET_GE_Context *ectx;
 
+
 int
 main (int argc, char *argv[])
 {
@@ -44,9 +42,9 @@ main (int argc, char *argv[])
   int ok;
   struct GNUNET_ECRS_URI *uri = NULL;
   struct GNUNET_ECRS_URI *euri = NULL;
-  struct GNUNET_ECRS_MetaData *meta = NULL;
-  GNUNET_HashCode root;
+  struct GNUNET_MetaData *meta = NULL;
   GNUNET_HashCode nsid;
+  char *test_root;
   int old;
   int newVal;
   struct GNUNET_GC_Configuration *cfg;
@@ -67,16 +65,15 @@ main (int argc, char *argv[])
   GNUNET_thread_sleep (5 * GNUNET_CRON_SECONDS);        /* give apps time to start */
 
   /* ACTUAL TEST CODE */
-  meta = GNUNET_ECRS_meta_data_create ();
-  GNUNET_ECRS_meta_data_insert (meta, 0, "test");
-  GNUNET_create_random_hash (&root);
+  meta = GNUNET_meta_data_create ();
+  GNUNET_meta_data_insert (meta, 0, "test");
   uri = GNUNET_NS_namespace_create (ectx,
                                     cfg,
                                     1,
                                     1,
                                     GNUNET_get_time () +
                                     10 * GNUNET_CRON_MINUTES, meta,
-                                    NULL, &root);
+                                    NULL, "root");
   CHECK (uri != NULL);
   GNUNET_ECRS_uri_get_namespace_from_sks (uri, &nsid);
   old = GNUNET_NS_namespace_list_contents (ectx, cfg, &nsid, NULL, NULL);
@@ -85,11 +82,14 @@ main (int argc, char *argv[])
                                      1,
                                      1,
                                      GNUNET_get_time () +
-                                     10 * GNUNET_CRON_MINUTES, &nsid, 42,
-                                     NULL, &root, NULL, uri, meta);
+                                     10 * GNUNET_CRON_MINUTES, &nsid,
+                                     "this", "next", uri, meta);
   CHECK (euri != NULL);
   newVal = GNUNET_NS_namespace_list_contents (ectx, cfg, &nsid, NULL, NULL);
   CHECK (old < newVal);
+  test_root = GNUNET_NS_namespace_get_root (ectx, cfg, &nsid);
+  CHECK (0 == strcmp (test_root, "root"));
+  GNUNET_free (test_root);
   CHECK (GNUNET_OK == GNUNET_NS_namespace_delete (ectx, cfg, &nsid));
   /* END OF TEST CODE */
 FAILURE:
@@ -98,7 +98,7 @@ FAILURE:
   if (euri != NULL)
     GNUNET_ECRS_uri_destroy (euri);
   if (meta != NULL)
-    GNUNET_ECRS_meta_data_destroy (meta);
+    GNUNET_meta_data_destroy (meta);
   GNUNET_ECRS_namespace_delete (ectx, cfg, &nsid);
 
   GNUNET_GE_ASSERT (NULL, GNUNET_OK == GNUNET_daemon_stop (NULL, daemon));

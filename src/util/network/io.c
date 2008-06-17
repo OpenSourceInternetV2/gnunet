@@ -24,8 +24,8 @@
  * @author Christian Grothoff
  */
 
-#include "gnunet_util_network.h"
 #include "platform.h"
+#include "gnunet_util_network.h"
 #include "network.h"
 
 #define DEBUG_IO GNUNET_NO
@@ -115,6 +115,9 @@ GNUNET_socket_destroy (struct GNUNET_SocketHandle *s)
 #ifdef FREEBSD
           (errno != ECONNRESET) &&
 #endif
+#ifdef OPENBSD
+          (errno != EINVAL) &&
+#endif
           (errno != ENOTCONN))
         GNUNET_GE_LOG_STRERROR (s->ectx,
                                 GNUNET_GE_WARNING | GNUNET_GE_ADMIN |
@@ -129,7 +132,7 @@ GNUNET_socket_destroy (struct GNUNET_SocketHandle *s)
 }
 
 /* TODO: log errors! */
-#if OSX || SOMEBSD
+#if OSX || FREEBSD
 static int
 socket_set_nosigpipe (struct GNUNET_SocketHandle *s, int dontSigPipe)
 {
@@ -206,7 +209,7 @@ GNUNET_socket_recv (struct GNUNET_SocketHandle *s,
 #ifdef CYGWIN
   if (0 == (nc & GNUNET_NC_IGNORE_INT))
     flags |= MSG_NOSIGNAL;
-#elif OSX || SOMEBSD
+#elif OSX || FREEBSD
   socket_set_nosigpipe (s, 0 == (nc & GNUNET_NC_IGNORE_INT));
   if (0 == (nc & GNUNET_NC_BLOCKING))
     flags |= MSG_DONTWAIT;
@@ -290,7 +293,7 @@ GNUNET_socket_recv_from (struct GNUNET_SocketHandle *s,
 #ifdef CYGWIN
   if (0 == (nc & GNUNET_NC_IGNORE_INT))
     flags |= MSG_NOSIGNAL;
-#elif OSX || SOMEBSD
+#elif OSX || FREEBSD
   socket_set_nosigpipe (s, 0 == (nc & GNUNET_NC_IGNORE_INT));
   if (0 == (nc & GNUNET_NC_BLOCKING))
     flags |= MSG_DONTWAIT;
@@ -366,7 +369,7 @@ GNUNET_socket_send (struct GNUNET_SocketHandle *s,
 #if SOLARIS
   if (0 == (nc & GNUNET_NC_BLOCKING))
     flags |= MSG_DONTWAIT;
-#elif OSX || SOMEBSD
+#elif OSX || FREEBSD
   socket_set_nosigpipe (s, 0 == (nc & GNUNET_NC_IGNORE_INT));
   if (0 == (nc & GNUNET_NC_BLOCKING))
     flags |= MSG_DONTWAIT;
@@ -443,7 +446,7 @@ GNUNET_socket_send_to (struct GNUNET_SocketHandle *s,
 #if SOLARIS
   if (0 == (nc & GNUNET_NC_BLOCKING))
     flags |= MSG_DONTWAIT;
-#elif OSX || SOMEBSD
+#elif OSX || FREEBSD
   socket_set_nosigpipe (s, 0 == (nc & GNUNET_NC_IGNORE_INT));
   if (0 == (nc & GNUNET_NC_BLOCKING))
     flags |= MSG_DONTWAIT;

@@ -86,9 +86,8 @@ verifyKBlock (struct GNUNET_GE_Context *ectx,
     }
   dstURI = (const char *) &kb[1];
   j++;
-  fi.meta = GNUNET_ECRS_meta_data_deserialize (ectx,
-                                               &((const char *) kb)[j],
-                                               size - j);
+  fi.meta = GNUNET_meta_data_deserialize (ectx,
+                                          &((const char *) kb)[j], size - j);
   if (fi.meta == NULL)
     {
       GNUNET_GE_BREAK (ectx, 0);        /* kblock malformed */
@@ -98,11 +97,11 @@ verifyKBlock (struct GNUNET_GE_Context *ectx,
   if (fi.uri == NULL)
     {
       GNUNET_GE_BREAK (ectx, 0);        /* kblock malformed */
-      GNUNET_ECRS_meta_data_destroy (fi.meta);
+      GNUNET_meta_data_destroy (fi.meta);
       return GNUNET_SYSERR;
     }
   GNUNET_ECRS_uri_destroy (fi.uri);
-  GNUNET_ECRS_meta_data_destroy (fi.meta);
+  GNUNET_meta_data_destroy (fi.meta);
   return GNUNET_OK;
 }
 
@@ -126,7 +125,7 @@ GNUNET_ECRS_publish_under_keyword (struct GNUNET_GE_Context *ectx,
                                    unsigned int priority,
                                    GNUNET_CronTime expirationTime,
                                    const struct GNUNET_ECRS_URI *dst,
-                                   const struct GNUNET_ECRS_MetaData *md)
+                                   const struct GNUNET_MetaData *md)
 {
   struct GNUNET_ClientServerConnection *sock;
   GNUNET_DatastoreValue *value;
@@ -155,9 +154,7 @@ GNUNET_ECRS_publish_under_keyword (struct GNUNET_GE_Context *ectx,
       GNUNET_GE_BREAK (ectx, 0);
       return GNUNET_SYSERR;
     }
-  mdsize =
-    GNUNET_ECRS_meta_data_get_serialized_size (md,
-                                               GNUNET_ECRS_SERIALIZE_PART);
+  mdsize = GNUNET_meta_data_get_serialized_size (md, GNUNET_SERIALIZE_PART);
   dstURI = GNUNET_ECRS_uri_to_string (dst);
   size = mdsize + sizeof (GNUNET_EC_KBlock) + strlen (dstURI) + 1;
   if (size > MAX_KBLOCK_SIZE)
@@ -168,12 +165,12 @@ GNUNET_ECRS_publish_under_keyword (struct GNUNET_GE_Context *ectx,
       kb->type = htonl (GNUNET_ECRS_BLOCKTYPE_KEYWORD);
       memcpy (&kb[1], dstURI, strlen (dstURI) + 1);
       mdsize = size - sizeof (GNUNET_EC_KBlock) - strlen (dstURI) - 1;
-      mdsize = GNUNET_ECRS_meta_data_serialize (ectx,
-                                                md,
-                                                &((char *)
-                                                  &kb[1])[strlen (dstURI) +
-                                                          1], mdsize,
-                                                GNUNET_ECRS_SERIALIZE_PART);
+      mdsize = GNUNET_meta_data_serialize (ectx,
+                                           md,
+                                           &((char *)
+                                             &kb[1])[strlen (dstURI) +
+                                                     1], mdsize,
+                                           GNUNET_SERIALIZE_PART);
       if (mdsize == -1)
         {
           GNUNET_GE_BREAK (ectx, 0);
@@ -191,13 +188,13 @@ GNUNET_ECRS_publish_under_keyword (struct GNUNET_GE_Context *ectx,
       memcpy (&kb[1], dstURI, strlen (dstURI) + 1);
       GNUNET_GE_ASSERT (ectx,
                         mdsize ==
-                        GNUNET_ECRS_meta_data_serialize (ectx,
-                                                         md,
-                                                         &((char *)
-                                                           &kb[1])[strlen
-                                                                   (dstURI) +
-                                                                   1], mdsize,
-                                                         GNUNET_ECRS_SERIALIZE_FULL));
+                        GNUNET_meta_data_serialize (ectx,
+                                                    md,
+                                                    &((char *)
+                                                      &kb[1])[strlen
+                                                              (dstURI) +
+                                                              1], mdsize,
+                                                    GNUNET_SERIALIZE_FULL));
     }
   value->size = htonl (sizeof (GNUNET_DatastoreValue) + size);
   value->type = htonl (GNUNET_ECRS_BLOCKTYPE_KEYWORD);

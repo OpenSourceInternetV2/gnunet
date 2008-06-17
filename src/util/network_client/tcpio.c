@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2006 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2006, 2008 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -229,7 +229,16 @@ GNUNET_client_connection_test_connected (struct GNUNET_ClientServerConnection
 }
 
 /**
- * Check a socket, open and connect if it is closed and it is a client-socket.
+ * Check a socket, open and connect if it is closed.  This code
+ * supports IPv4 and IPv6 (and may try both).  It also waits a bounded
+ * amount of time for the connection to succeed and may even retry the
+ * same IP version a few times since gnunetd may just be starting or
+ * out of sockets; hence this code could fail on first attempt, will
+ * then wait a few milliseconds, retry and conceivably succeed.  Since
+ * this is then done for multiple address families, the whole thing is
+ * slightly more complicated then your ordinary connect call.  Not to
+ * mention that the code also supports another thread coming in in the
+ * middle and closing the socket for good -- or even opening it!
  */
 int
 GNUNET_client_connection_ensure_connected (struct
@@ -238,7 +247,17 @@ GNUNET_client_connection_ensure_connected (struct
 {
   /* list of address families to try for connecting,
      in order of preference */
-  static int addr_families[] = { AF_UNSPEC, AF_INET6, AF_INET, -1 };
+  static int addr_families[] = {
+#ifdef AF_UNSPEC
+    AF_UNSPEC,
+#endif
+#ifdef AF_INET6
+    AF_INET6,
+#endif
+    AF_INET,
+    -1
+  };
+  GNUNET_CronTime select_start;
   struct sockaddr *soaddr;
   socklen_t socklen;
   fd_set rset;
@@ -265,35 +284,38 @@ GNUNET_client_connection_ensure_connected (struct
   host = getGNUnetdHost (sock->ectx, sock->cfg);
   if (host == NULL)
     return GNUNET_SYSERR;
-  af_index = -1;
+  af_index = 0;
+  /* we immediately advance if there is a DNS lookup error
+   * (which would likely persist) or a socket API error
+   * (which would equally likely persist).  We retry a
+   * few times with a small delay if we may just be having
+   * a connection issue.
+   */
+#define TRIES_PER_AF 2
+#define DELAY_PER_RETRY (50 * GNUNET_CRON_MILLISECONDS)
+#define ADVANCE() do { af_index++; tries = TRIES_PER_AF; } while(0)
+#define RETRY() do { tries--; if (tries == 0) { ADVANCE(); } else { GNUNET_thread_sleep(DELAY_PER_RETRY); } } while (0)
+  tries = TRIES_PER_AF;
   /* loop over all possible address families */
   while (1)
     {
-      if (af_index == -1)
-        {
-          tries = 10;
-          af_index = 0;
-        }
-      else
-        {
-          /* wait for 500ms before trying again */
-          GNUNET_thread_sleep (GNUNET_CRON_MILLISECONDS * 500);
-          tries--;
-        }
-      if (tries == 0)
-        {
-          af_index++;
-          tries = 10;
-        }
       if (addr_families[af_index] == -1)
-        return GNUNET_SYSERR;
+        {
+          GNUNET_GE_LOG (sock->ectx,
+                         GNUNET_GE_WARNING | GNUNET_GE_USER | GNUNET_GE_BULK,
+                         _("Error connecting to %s:%u\n"), host, port);
+          return GNUNET_SYSERR;
+        }
       soaddr = NULL;
       socklen = 0;
       if (GNUNET_SYSERR ==
           GNUNET_get_ip_from_hostname (sock->ectx, host,
                                        addr_families[af_index], &soaddr,
                                        &socklen))
-        continue;
+        {
+          ADVANCE ();
+          continue;
+        }
       GNUNET_mutex_lock (sock->destroylock);
       if (sock->sock != NULL)
         {
@@ -316,8 +338,13 @@ GNUNET_client_connection_ensure_connected (struct
         }
       else
         {
+#ifdef PF_INET6
           ((struct sockaddr_in6 *) soaddr)->sin6_port = htons (port);
           osock = SOCKET (PF_INET6, SOCK_STREAM, 0);
+#else
+          osock = -1;
+          errno = EAFNOSUPPORT;
+#endif
         }
       if (osock == -1)
         {
@@ -326,6 +353,7 @@ GNUNET_client_connection_ensure_connected (struct
                                   GNUNET_GE_ADMIN | GNUNET_GE_BULK, "socket");
           GNUNET_mutex_unlock (sock->destroylock);
           GNUNET_free (soaddr);
+          ADVANCE ();
           continue;
         }
       sock->sock = GNUNET_socket_create (sock->ectx, NULL, osock);
@@ -341,6 +369,10 @@ GNUNET_client_connection_ensure_connected (struct
           GNUNET_socket_destroy (sock->sock);
           sock->sock = NULL;
           GNUNET_mutex_unlock (sock->destroylock);
+          if (errno == ECONNREFUSED)
+            RETRY ();           /* gnunetd may just be restarting */
+          else
+            ADVANCE ();
           continue;
         }
       /* we call select() first with a timeout of WAIT_SECONDS to
@@ -352,10 +384,10 @@ GNUNET_client_connection_ensure_connected (struct
       FD_ZERO (&eset);
       FD_SET (osock, &wset);
       FD_SET (osock, &eset);
-#define WAIT_SECONDS 10
-      timeout.tv_sec = WAIT_SECONDS;
-      timeout.tv_usec = 0;
+      timeout.tv_sec = 0;
+      timeout.tv_usec = DELAY_PER_RETRY * TRIES_PER_AF * 1000;
       errno = 0;
+      select_start = GNUNET_get_time ();
       ret = SELECT (osock + 1, &rset, &wset, &eset, &timeout);
       if (ret == -1)
         {
@@ -366,27 +398,23 @@ GNUNET_client_connection_ensure_connected (struct
           GNUNET_socket_destroy (sock->sock);
           sock->sock = NULL;
           GNUNET_mutex_unlock (sock->destroylock);
+          if ((GNUNET_get_time () - select_start >
+               TRIES_PER_AF * DELAY_PER_RETRY) || (errno != EINTR))
+            ADVANCE ();         /* spend enough time trying here */
+          else
+            RETRY ();
           continue;
         }
-      if (FD_ISSET (osock, &eset))
+      if ((FD_ISSET (osock, &eset)) || (!FD_ISSET (osock, &wset)))
         {
-          GNUNET_GE_LOG (sock->ectx,
-                         GNUNET_GE_WARNING | GNUNET_GE_USER | GNUNET_GE_BULK,
-                         _("Error connecting to %s:%u\n"), host, port);
           GNUNET_socket_destroy (sock->sock);
           sock->sock = NULL;
           GNUNET_mutex_unlock (sock->destroylock);
-          continue;
-        }
-      if (!FD_ISSET (osock, &wset))
-        {
-          GNUNET_GE_LOG (sock->ectx,
-                         GNUNET_GE_WARNING | GNUNET_GE_USER | GNUNET_GE_BULK,
-                         _("Failed to connect to %s:%u in %ds\n"),
-                         host, port, WAIT_SECONDS);
-          GNUNET_socket_destroy (sock->sock);
-          sock->sock = NULL;
-          GNUNET_mutex_unlock (sock->destroylock);
+          if (GNUNET_get_time () - select_start >
+              TRIES_PER_AF * DELAY_PER_RETRY)
+            ADVANCE ();         /* spend enough time trying here */
+          else
+            RETRY ();
           continue;
         }
       soerr = 0;
@@ -397,23 +425,28 @@ GNUNET_client_connection_ensure_connected (struct
         GNUNET_GE_LOG_STRERROR (sock->ectx,
                                 GNUNET_GE_WARNING | GNUNET_GE_USER |
                                 GNUNET_GE_BULK, "getsockopt");
-
       if ((soerr != 0) || (ret != 0 && (errno == ENOTSOCK || errno == EBADF)))
         {
-          GNUNET_GE_LOG (sock->ectx,
-                         GNUNET_GE_DEBUG | GNUNET_GE_USER |
-                         GNUNET_GE_BULK,
-                         _("Failed to connect to %s:%u\n"), host, port);
           GNUNET_socket_destroy (sock->sock);
           sock->sock = NULL;
           GNUNET_mutex_unlock (sock->destroylock);
+          if (GNUNET_get_time () - select_start >
+              TRIES_PER_AF * DELAY_PER_RETRY)
+            ADVANCE ();         /* spend enough time trying here */
+          else
+            RETRY ();
           continue;
         }
+      /* yayh! connected! */
       break;
     }
   GNUNET_free (host);
   GNUNET_socket_set_blocking (sock->sock, GNUNET_YES);
   GNUNET_mutex_unlock (sock->destroylock);
+#undef ADVANCE
+#undef RETRY
+#undef TRIES_PER_AF
+#undef DELAY_PER_RETRY
   return GNUNET_OK;
 }
 
@@ -568,7 +601,8 @@ GNUNET_client_connection_read_result (struct GNUNET_ClientServerConnection
     {
       GNUNET_GE_LOG (sock->ectx,
                      GNUNET_GE_WARNING | GNUNET_GE_DEVELOPER | GNUNET_GE_BULK,
-                     _("`%s' failed, reply invalid!\n"), __FUNCTION__);
+                     _
+                     ("Reading result from gnunetd failed, reply invalid!\n"));
       GNUNET_free (rv);
       return GNUNET_SYSERR;
     }

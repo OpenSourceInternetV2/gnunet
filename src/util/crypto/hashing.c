@@ -426,6 +426,11 @@ GNUNET_hash_file (struct GNUNET_GE_Context *ectx, const char *filename,
         }
       if (GNUNET_YES == GNUNET_shutdown_test ())
         {
+          if (0 != CLOSE (fh))
+            GNUNET_GE_LOG_STRERROR_FILE (ectx,
+                                         GNUNET_GE_ERROR | GNUNET_GE_USER |
+                                         GNUNET_GE_ADMIN | GNUNET_GE_BULK,
+                                         "close", filename);
           GNUNET_free (buf);
           return GNUNET_SYSERR;
         }

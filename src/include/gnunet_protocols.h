@@ -125,7 +125,13 @@ extern "C"
 #define GNUNET_CS_PROTO_GAP_QUERY_START 8
 
 /**
+ * client to gnunetd: stop query
+ */
+#define GNUNET_CS_PROTO_GAP_QUERY_STOP 9
+
+/**
  * gnunetd to client: here is your answer
+ * (yes, same number as stop query!)
  */
 #define GNUNET_CS_PROTO_GAP_RESULT 9
 
@@ -429,14 +435,9 @@ extern "C"
 #define GNUNET_ECRS_BLOCKTYPE_KEYWORD 3
 
 /**
- * Namespace advertisement.
- */
-#define GNUNET_ECRS_BLOCKTYPE_NAMESPACE 4
-
-/**
  * Namespace advertisement in keyword space.
  */
-#define GNUNET_ECRS_BLOCKTYPE_KEYWORD_FOR_NAMESPACE 5
+#define GNUNET_ECRS_BLOCKTYPE_KEYWORD_SIGNED 4
 
 /**
  * Type of OnDemand encoded blocks.

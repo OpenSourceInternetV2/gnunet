@@ -24,12 +24,12 @@
  * @author Christian Grothoff
  */
 
+#include "platform.h"
 #include "gnunet_util.h"
 #include "gnunet_protocols.h"
 #include "gnunet_transport.h"
 #include "gnunet_upnp_service.h"
 #include "gnunet_stats_service.h"
-#include "platform.h"
 #include "ip.h"
 
 #define DEBUG_TCP GNUNET_NO
@@ -533,7 +533,9 @@ static int
 tcp_connect (const GNUNET_MessageHello * hello,
              GNUNET_TSession ** tsessionPtr, int may_reuse)
 {
+#if TCP_SYNCNT
   static int zero = 0;
+#endif
   const HostAddress *haddr;
   int sock;
   struct sockaddr_in soaddr4;

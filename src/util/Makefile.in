@@ -63,7 +63,7 @@ libgnunetutil_la_DEPENDENCIES = $(CYGLIBADD) $(WINLIBADD) \
 	crypto/libcrypto.la disk/libdisk.la error/liberror.la \
 	getopt/libgetopt.la loggers/libloggers.la string/libstring.la \
 	network/libnetwork.la network_client/libnetwork_client.la \
-	os/libos.la threads/libthreads.la
+	os/libos.la pseudonym/libpseudonym.la threads/libthreads.la
 am_libgnunetutil_la_OBJECTS = libgnunetutil.lo
 libgnunetutil_la_OBJECTS = $(am_libgnunetutil_la_OBJECTS)
 libgnunetutil_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
@@ -95,7 +95,8 @@ RECURSIVE_CLEAN_TARGETS = mostlyclean-recursive clean-recursive	\
 ETAGS = etags
 CTAGS = ctags
 DIST_SUBDIRS = win boot config containers cron crypto disk error \
-	getopt loggers network network_client os string threads .
+	getopt loggers network network_client os string threads \
+	pseudonym .
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
@@ -271,6 +272,7 @@ SUBDIRS = $(WINSUBDIRS) $(CYGSUBDIRS) \
   os \
   string \
   threads \
+  pseudonym \
   .
 
 INCLUDES = -I$(top_srcdir)/src/include
@@ -302,6 +304,7 @@ libgnunetutil_la_LIBADD = $(GCLIBADD) $(CYGLIBADD) $(WINLIBADD) \
  network/libnetwork.la \
  network_client/libnetwork_client.la \
  os/libos.la \
+ pseudonym/libpseudonym.la \
  threads/libthreads.la
 
 libgnunetutil_la_SOURCES = libgnunetutil.c

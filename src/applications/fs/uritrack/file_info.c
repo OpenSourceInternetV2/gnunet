@@ -27,10 +27,10 @@
  * An IPC semaphore is used to guard the access.
  */
 
+#include "platform.h"
 #include "gnunet_directories.h"
 #include "gnunet_util.h"
 #include "gnunet_uritrack_lib.h"
-#include "platform.h"
 #include "callbacks.h"
 
 #define DEBUG_FILE_INFO GNUNET_NO
@@ -42,20 +42,12 @@ static struct GNUNET_IPC_Semaphore *
 createIPC (struct GNUNET_GE_Context *ectx,
            struct GNUNET_GC_Configuration *cfg)
 {
-  char *basename;
   char *ipcName;
   struct GNUNET_IPC_Semaphore *sem;
-  size_t n;
 
-  GNUNET_GC_get_configuration_value_filename (cfg,
-                                              "GNUNET",
-                                              "GNUNET_HOME",
-                                              GNUNET_DEFAULT_HOME_DIRECTORY,
-                                              &basename);
-  n = strlen (basename) + 512;
-  ipcName = GNUNET_malloc (n);
-  GNUNET_snprintf (ipcName, n, "%s/directory_ipc_lock", basename);
-  GNUNET_free (basename);
+  ipcName =
+    GNUNET_get_home_filename (ectx, cfg, GNUNET_NO, "uritrack_ipc_lock",
+                              NULL);
   sem = GNUNET_IPC_semaphore_create (ectx, ipcName, 1);
   GNUNET_free (ipcName);
   return sem;
@@ -65,42 +57,14 @@ static char *
 getUriDbName (struct GNUNET_GE_Context *ectx,
               struct GNUNET_GC_Configuration *cfg)
 {
-  char *nw;
-  char *pfx;
-
-  GNUNET_GC_get_configuration_value_filename (cfg,
-                                              "GNUNET",
-                                              "GNUNET_HOME",
-                                              GNUNET_DEFAULT_HOME_DIRECTORY,
-                                              &pfx);
-  nw = GNUNET_malloc (strlen (pfx) + strlen (STATE_NAME) + 2);
-  strcpy (nw, pfx);
-  strcat (nw, DIR_SEPARATOR_STR);
-  strcat (nw, STATE_NAME);
-  GNUNET_free (pfx);
-  GNUNET_disk_directory_create_for_file (ectx, nw);
-  return nw;
+  return GNUNET_get_home_filename (ectx, cfg, GNUNET_NO, STATE_NAME, NULL);
 }
 
 static char *
 getToggleName (struct GNUNET_GE_Context *ectx,
                struct GNUNET_GC_Configuration *cfg)
 {
-  char *nw;
-  char *pfx;
-
-  GNUNET_GC_get_configuration_value_filename (cfg,
-                                              "GNUNET",
-                                              "GNUNET_HOME",
-                                              GNUNET_DEFAULT_HOME_DIRECTORY,
-                                              &pfx);
-  nw = GNUNET_malloc (strlen (pfx) + strlen (TRACK_OPTION) + 2);
-  strcpy (nw, pfx);
-  strcat (nw, DIR_SEPARATOR_STR);
-  strcat (nw, TRACK_OPTION);
-  GNUNET_free (pfx);
-  GNUNET_disk_directory_create_for_file (ectx, nw);
-  return nw;
+  return GNUNET_get_home_filename (ectx, cfg, GNUNET_NO, TRACK_OPTION, NULL);
 }
 
 /**
@@ -184,19 +148,19 @@ GNUNET_URITRACK_track (struct GNUNET_GE_Context *ectx,
   GNUNET_URITRACK_list (ectx, cfg, GNUNET_NO, &checkPresent, &cpc);
   if (cpc.present == 1)
     return;
-  size = GNUNET_ECRS_meta_data_get_serialized_size (fi->meta,
-                                                    GNUNET_ECRS_SERIALIZE_FULL
-                                                    |
-                                                    GNUNET_ECRS_SERIALIZE_NO_COMPRESS);
+  size = GNUNET_meta_data_get_serialized_size (fi->meta,
+                                               GNUNET_SERIALIZE_FULL
+                                               |
+                                               GNUNET_SERIALIZE_NO_COMPRESS);
   data = GNUNET_malloc (size);
   GNUNET_GE_ASSERT (ectx,
-                    size == GNUNET_ECRS_meta_data_serialize (ectx,
-                                                             fi->meta,
-                                                             data,
-                                                             size,
-                                                             GNUNET_ECRS_SERIALIZE_FULL
-                                                             |
-                                                             GNUNET_ECRS_SERIALIZE_NO_COMPRESS));
+                    size == GNUNET_meta_data_serialize (ectx,
+                                                        fi->meta,
+                                                        data,
+                                                        size,
+                                                        GNUNET_SERIALIZE_FULL
+                                                        |
+                                                        GNUNET_SERIALIZE_NO_COMPRESS));
   size = htonl (size);
   suri = GNUNET_ECRS_uri_to_string (fi->uri);
   sem = createIPC (ectx, cfg);
@@ -340,7 +304,7 @@ GNUNET_URITRACK_list (struct GNUNET_GE_Context *ectx,
       while ((spos < ret) && (result[spos] != '\0'))
         spos++;
       spos++;                   /* skip '\0' */
-      if ((spos + sizeof (int) >= ret) || (spos + sizeof (int) < spos))
+      if (spos + sizeof (int) >= ret)
         {
           GNUNET_GE_BREAK (ectx, 0);
           goto FORMATERROR;
@@ -362,8 +326,7 @@ GNUNET_URITRACK_list (struct GNUNET_GE_Context *ectx,
         }
       if (need_metadata == GNUNET_YES)
         {
-          fi.meta =
-            GNUNET_ECRS_meta_data_deserialize (ectx, &result[spos], msize);
+          fi.meta = GNUNET_meta_data_deserialize (ectx, &result[spos], msize);
           if (fi.meta == NULL)
             {
               GNUNET_GE_BREAK (ectx, 0);
@@ -381,7 +344,7 @@ GNUNET_URITRACK_list (struct GNUNET_GE_Context *ectx,
           if (GNUNET_OK != iterator (&fi, NULL, GNUNET_NO, closure))
             {
               if (fi.meta != NULL)
-                GNUNET_ECRS_meta_data_destroy (fi.meta);
+                GNUNET_meta_data_destroy (fi.meta);
               GNUNET_ECRS_uri_destroy (fi.uri);
               if (0 != MUNMAP (result, buf.st_size))
                 GNUNET_GE_LOG_STRERROR_FILE (ectx,
@@ -396,7 +359,7 @@ GNUNET_URITRACK_list (struct GNUNET_GE_Context *ectx,
         }
       rval++;
       if (fi.meta != NULL)
-        GNUNET_ECRS_meta_data_destroy (fi.meta);
+        GNUNET_meta_data_destroy (fi.meta);
       GNUNET_ECRS_uri_destroy (fi.uri);
     }
   if (0 != MUNMAP (result, buf.st_size))

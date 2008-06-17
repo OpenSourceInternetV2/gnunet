@@ -24,8 +24,8 @@
  * @author Christian Grothoff
  */
 
-#include "gnunet_util.h"
 #include "platform.h"
+#include "gnunet_util.h"
 #include "network.h"
 
 #define DEBUG_SELECT GNUNET_NO
@@ -383,9 +383,14 @@ writeAndProcess (SelectHandle * sh, Session * session)
 #endif
       if (ret == GNUNET_SYSERR)
         {
-          GNUNET_GE_LOG_STRERROR (sh->ectx,
-                                  GNUNET_GE_WARNING | GNUNET_GE_USER |
-                                  GNUNET_GE_ADMIN | GNUNET_GE_BULK, "send");
+          if ((errno == EPIPE) || (errno == ECONNRESET))
+            GNUNET_GE_LOG_STRERROR (sh->ectx,
+                                    GNUNET_GE_DEBUG | GNUNET_GE_USER |
+                                    GNUNET_GE_ADMIN | GNUNET_GE_BULK, "send");
+          else
+            GNUNET_GE_LOG_STRERROR (sh->ectx,
+                                    GNUNET_GE_WARNING | GNUNET_GE_USER |
+                                    GNUNET_GE_ADMIN | GNUNET_GE_BULK, "send");
           destroySession (sh, session);
           return GNUNET_SYSERR;
         }

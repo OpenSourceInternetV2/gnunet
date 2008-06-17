@@ -161,24 +161,21 @@ createKeywordURI (char **keywords, unsigned int keywordCount)
  * Generate a subspace URI.
  */
 static char *
-createSubspaceURI (const GNUNET_HashCode * namespace,
-                   const GNUNET_HashCode * identifier)
+createSubspaceURI (const GNUNET_HashCode * namespace, const char *identifier)
 {
   size_t n;
   char *ret;
   GNUNET_EncName ns;
-  GNUNET_EncName id;
 
   n =
-    sizeof (GNUNET_EncName) * 2 + strlen (GNUNET_ECRS_URI_PREFIX) +
-    strlen (GNUNET_ECRS_SUBSPACE_INFIX) + 1;
+    sizeof (GNUNET_EncName) + strlen (GNUNET_ECRS_URI_PREFIX) +
+    strlen (GNUNET_ECRS_SUBSPACE_INFIX) + 1 + strlen (identifier);
   ret = GNUNET_malloc (n);
   GNUNET_hash_to_enc (namespace, &ns);
-  GNUNET_hash_to_enc (identifier, &id);
   GNUNET_snprintf (ret, n,
                    "%s%s%s/%s",
                    GNUNET_ECRS_URI_PREFIX, GNUNET_ECRS_SUBSPACE_INFIX,
-                   (char *) &ns, (char *) &id);
+                   (const char *) &ns, identifier);
   return ret;
 }
 
@@ -263,7 +260,7 @@ GNUNET_ECRS_uri_to_string (const struct GNUNET_ECRS_URI *uri)
                                uri->data.ksk.keywordCount);
     case sks:
       return createSubspaceURI (&uri->data.sks.namespace,
-                                &uri->data.sks.identifier);
+                                uri->data.sks.identifier);
     case chk:
       return createFileURI (&uri->data.fi);
     case loc:
@@ -492,7 +489,7 @@ CLEANUP:
 static int
 parseSubspaceURI (struct GNUNET_GE_Context *ectx,
                   const char *uri,
-                  GNUNET_HashCode * namespace, GNUNET_HashCode * identifier)
+                  GNUNET_HashCode * namespace, char **identifier)
 {
   unsigned int pos;
   size_t slen;
@@ -522,15 +519,7 @@ parseSubspaceURI (struct GNUNET_GE_Context *ectx,
       GNUNET_free (up);
       return GNUNET_SYSERR;
     }
-  if ((slen != pos + 2 * sizeof (GNUNET_EncName) - 1) ||
-      (GNUNET_OK !=
-       GNUNET_enc_to_hash (&up[pos + sizeof (GNUNET_EncName)], identifier)))
-    {
-      if (up[slen - 1] == '\\')
-        up[--slen] = '\0';
-      GNUNET_hash (&up[pos + sizeof (GNUNET_EncName)],
-                   slen - (pos + sizeof (GNUNET_EncName)), identifier);
-    }
+  *identifier = GNUNET_strdup (&up[pos + sizeof (GNUNET_EncName)]);
   GNUNET_free (up);
   return GNUNET_OK;
 }
@@ -726,6 +715,9 @@ GNUNET_ECRS_uri_destroy (struct GNUNET_ECRS_URI *uri)
       GNUNET_array_grow (uri->data.ksk.keywords, uri->data.ksk.keywordCount,
                          0);
       break;
+    case sks:
+      GNUNET_free (uri->data.sks.identifier);
+      break;
     case loc:
       break;
     default:
@@ -764,21 +756,19 @@ GNUNET_ECRS_uri_get_namespace_from_sks (const struct GNUNET_ECRS_URI *uri,
 }
 
 /**
- * Get the content ID of an SKS URI.
+ * Get the content identifier of an SKS URI.
  *
- * @return GNUNET_OK on success
+ * @return NULL on error
  */
-int
-GNUNET_ECRS_uri_get_content_hash_from_sks (const struct GNUNET_ECRS_URI *uri,
-                                           GNUNET_HashCode * id)
+char *
+GNUNET_ECRS_uri_get_content_id_from_sks (const struct GNUNET_ECRS_URI *uri)
 {
   if (!GNUNET_ECRS_uri_test_sks (uri))
     {
       GNUNET_GE_BREAK (NULL, 0);
-      return GNUNET_SYSERR;
+      return NULL;
     }
-  *id = uri->data.sks.identifier;
-  return GNUNET_OK;
+  return GNUNET_strdup (uri->data.sks.identifier);
 }
 
 /**
@@ -903,7 +893,10 @@ GNUNET_ECRS_uri_duplicate (const URI * uri)
               GNUNET_strdup (uri->data.ksk.keywords[i]);
         }
       else
-	ret->data.ksk.keywords = NULL; /* just to be sure */
+        ret->data.ksk.keywords = NULL;  /* just to be sure */
+      break;
+    case sks:
+      ret->data.sks.identifier = GNUNET_strdup (uri->data.sks.identifier);
       break;
     case loc:
       break;
@@ -963,6 +956,22 @@ GNUNET_ECRS_uri_expand_keywords_with_date (const URI * uri)
   return ret;
 }
 
+static int
+gather_uri_data (EXTRACTOR_KeywordType type, const char *data, void *cls)
+{
+  URI *uri = cls;
+  char *nkword;
+  int j;
+
+  for (j = uri->data.ksk.keywordCount - 1; j >= 0; j--)
+    if (0 == strcmp (&uri->data.ksk.keywords[j][1], data))
+      return GNUNET_OK;
+  nkword = GNUNET_malloc (strlen (data) + 2);
+  strcpy (nkword, " ");         /* not mandatory */
+  strcat (nkword, data);
+  uri->data.ksk.keywords[uri->data.ksk.keywordCount++] = nkword;
+  return GNUNET_OK;
+}
 
 /**
  * Construct a keyword-URI from meta-data (take all entries
@@ -970,15 +979,9 @@ GNUNET_ECRS_uri_expand_keywords_with_date (const URI * uri)
  * that lists all keywords that can be found in the meta-data).
  */
 URI *
-GNUNET_ECRS_meta_data_to_uri (const MetaData * md)
+GNUNET_meta_data_to_uri (const struct GNUNET_MetaData * md)
 {
   URI *ret;
-  int i;
-  int j;
-  int havePreview;
-  int add;
-  const char *kword;
-  char *nkword;
 
   if (md == NULL)
     return NULL;
@@ -986,56 +989,10 @@ GNUNET_ECRS_meta_data_to_uri (const MetaData * md)
   ret->type = ksk;
   ret->data.ksk.keywordCount = 0;
   ret->data.ksk.keywords = NULL;
-  havePreview = 0;
-  for (i = md->itemCount - 1; i >= 0; i--)
-    {
-      if (md->items[i].type == EXTRACTOR_THUMBNAIL_DATA)
-        {
-          havePreview++;
-        }
-      else
-        {
-          for (j = md->itemCount - 1; j > i; j--)
-            {
-              if (0 == strcmp (md->items[i].data, md->items[j].data))
-                {
-                  havePreview++;        /* duplicate! */
-                  break;
-                }
-            }
-        }
-    }
-  GNUNET_array_grow (ret->data.ksk.keywords,
-                     ret->data.ksk.keywordCount, md->itemCount - havePreview);
-  for (i = md->itemCount - 1; i >= 0; i--)
-    {
-      if (md->items[i].type == EXTRACTOR_THUMBNAIL_DATA)
-        {
-          havePreview--;
-        }
-      else
-        {
-          add = 1;
-          for (j = md->itemCount - 1; j > i; j--)
-            {
-              if (0 == strcmp (md->items[i].data, md->items[j].data))
-                {
-                  havePreview--;
-                  add = 0;
-                  break;
-                }
-            }
-          if (add == 1)
-            {
-              GNUNET_GE_ASSERT (NULL, md->items[i].data != NULL);
-              kword = md->items[i].data;
-              nkword = GNUNET_malloc (strlen (kword) + 2);
-              strcpy (nkword, " ");     /* not mandatory */
-              strcat (nkword, kword);
-              ret->data.ksk.keywords[i - havePreview] = nkword;
-            }
-        }
-    }
+  ret->data.ksk.keywords
+    = GNUNET_malloc (sizeof (char *) *
+                     GNUNET_meta_data_get_contents (md, NULL, NULL));
+  GNUNET_meta_data_get_contents (md, &gather_uri_data, ret);
   return ret;
 }
 
@@ -1065,9 +1022,8 @@ GNUNET_ECRS_uri_test_equal (const struct GNUNET_ECRS_URI *uri1,
       if ((0 == memcmp (&uri1->data.sks.namespace,
                         &uri2->data.sks.namespace,
                         sizeof (GNUNET_HashCode))) &&
-          (0 == memcmp (&uri1->data.sks.identifier,
-                        &uri2->data.sks.identifier,
-                        sizeof (GNUNET_HashCode))))
+          (0 == strcmp (uri1->data.sks.identifier,
+                        uri2->data.sks.identifier)))
 
         return GNUNET_YES;
       return GNUNET_NO;

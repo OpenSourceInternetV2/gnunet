@@ -29,6 +29,7 @@
 
 #include "gnunet_util_core.h"
 #include "gnunet_core.h"
+#include "gnunet_fs_lib.h"
 #include <extractor.h>
 
 #ifdef __cplusplus
@@ -54,6 +55,7 @@ extern "C"
  * 4.1.x: with new error and configuration handling
  * 5.0.x: with location URIs
  * 6.0.0: with support for OR in KSKs
+ * 6.1.x: with simplified namespace support
  * 7.0.0: who knows? :-)
  */
 #define GNUNET_ECRS_VERSION "6.0.0"
@@ -69,30 +71,6 @@ extern "C"
 #define GNUNET_ECRS_FILE_INFIX      "chk/"
 #define GNUNET_ECRS_LOCATION_INFIX  "loc/"
 
-
-/**
- * Fixed GNUNET_EC_SBlock updateInterval codes. Positive values
- * are interpreted as durations (in seconds) for periodical
- * updates.
- */
-#define GNUNET_ECRS_SBLOCK_UPDATE_SPORADIC  -1
-#define GNUNET_ECRS_SBLOCK_UPDATE_NONE       0
-
-/* ***************** metadata API (meta.c) ******************** */
-
-/**
- * Meta data to associate with a file, directory or namespace.
- */
-struct GNUNET_ECRS_MetaData;
-
-/**
- * Iterator over meta data.
- * @return GNUNET_OK to continue to iterate, GNUNET_SYSERR to abort
- */
-typedef int (*GNUNET_ECRS_MetaDataProcessor) (EXTRACTOR_KeywordType type,
-                                              const char *data,
-                                              void *closure);
-
 /**
  * Iterator over keywords
  *
@@ -104,159 +82,13 @@ typedef int (*GNUNET_ECRS_KeywordIterator) (const char *keyword,
                                             int is_mandatory, void *closure);
 
 /**
- * Create a fresh MetaData token.
- */
-struct GNUNET_ECRS_MetaData *GNUNET_ECRS_meta_data_create (void);
-
-/**
- * Duplicate a MetaData token.
- */
-struct GNUNET_ECRS_MetaData *GNUNET_ECRS_meta_data_duplicate (const struct
-                                                              GNUNET_ECRS_MetaData
-                                                              *meta);
-
-/**
- * Free meta data.
- */
-void GNUNET_ECRS_meta_data_destroy (struct GNUNET_ECRS_MetaData *md);
-
-/**
- * Test if two MDs are equal.
- */
-int GNUNET_ECRS_meta_data_test_equal (const struct GNUNET_ECRS_MetaData *md1,
-                                      const struct GNUNET_ECRS_MetaData *md2);
-
-
-/**
- * Extend metadata.
- * @return GNUNET_OK on success, GNUNET_SYSERR if this entry already exists
- */
-int GNUNET_ECRS_meta_data_insert (struct GNUNET_ECRS_MetaData *md,
-                                  EXTRACTOR_KeywordType type,
-                                  const char *data);
-
-/**
- * Remove an item.
- * @return GNUNET_OK on success, GNUNET_SYSERR if the item does not exist in md
- */
-int GNUNET_ECRS_meta_data_delete (struct GNUNET_ECRS_MetaData *md,
-                                  EXTRACTOR_KeywordType type,
-                                  const char *data);
-
-/**
- * Add the current time as the publication date
- * to the meta-data.
- */
-void GNUNET_ECRS_meta_data_add_publication_date (struct GNUNET_ECRS_MetaData
-                                                 *md);
-
-/**
- * Iterate over MD entries, excluding thumbnails.
- *
- * @return number of entries
- */
-int GNUNET_ECRS_meta_data_get_contents (const struct GNUNET_ECRS_MetaData *md,
-                                        GNUNET_ECRS_MetaDataProcessor
-                                        iterator, void *closure);
-
-/**
- * Get the first MD entry of the given type.
- * @return NULL if we do not have any such entry,
- *  otherwise client is responsible for freeing the value!
- */
-char *GNUNET_ECRS_meta_data_get_by_type (const struct GNUNET_ECRS_MetaData
-                                         *md, EXTRACTOR_KeywordType type);
-
-/**
- * Get the first matching MD entry of the given types.
- * @paarm ... -1-terminated list of types
- * @return NULL if we do not have any such entry,
- *  otherwise client is responsible for freeing the value!
- */
-char *GNUNET_ECRS_meta_data_get_first_by_types (const struct
-                                                GNUNET_ECRS_MetaData *md,
-                                                ...);
-
-/**
- * Get a thumbnail from the meta-data (if present).
- *
- * @param thumb will be set to the thumbnail data.  Must be
- *        freed by the caller!
- * @return number of bytes in thumbnail, 0 if not available
- */
-size_t GNUNET_ECRS_meta_data_get_thumbnail (const struct GNUNET_ECRS_MetaData
-                                            *md, unsigned char **thumb);
-
-/**
- * Extract meta-data from a file.
- *
- * @return GNUNET_SYSERR on error, otherwise the number
- *   of meta-data items obtained
- */
-int GNUNET_ECRS_meta_data_extract_from_file (struct GNUNET_GE_Context *ectx,
-                                             struct GNUNET_ECRS_MetaData *md,
-                                             const char *filename,
-                                             EXTRACTOR_ExtractorList *
-                                             extractors);
-
-/* = 0 */
-#define GNUNET_ECRS_SERIALIZE_FULL GNUNET_NO
-
-/* = 1 */
-#define GNUNET_ECRS_SERIALIZE_PART GNUNET_YES
-
-/* disallow compression (if speed is important) */
-#define GNUNET_ECRS_SERIALIZE_NO_COMPRESS 2
-
-
-/**
- * Serialize meta-data to target.
- *
- * @param size maximum number of bytes available
- * @param part is it ok to just write SOME of the
- *        meta-data to match the size constraint,
- *        possibly discarding some data? GNUNET_YES/GNUNET_NO.
- * @return number of bytes written on success,
- *         GNUNET_SYSERR on error (typically: not enough
- *         space)
- */
-int GNUNET_ECRS_meta_data_serialize (struct GNUNET_GE_Context *ectx,
-                                     const struct GNUNET_ECRS_MetaData *md,
-                                     char *target, unsigned int size,
-                                     int part);
-
-/**
- * Compute size of the meta-data in
- * serialized form.
- * @part flags (partial ok, may compress?)
- */
-unsigned int GNUNET_ECRS_meta_data_get_serialized_size (const struct
-                                                        GNUNET_ECRS_MetaData
-                                                        *md, int part);
-
-/**
- * Deserialize meta-data.  Initializes md.
- * @param size number of bytes available
- * @return MD on success, NULL on error (i.e.
- *         bad format)
- */
-struct GNUNET_ECRS_MetaData *GNUNET_ECRS_meta_data_deserialize (struct
-                                                                GNUNET_GE_Context
-                                                                *ectx,
-                                                                const char
-                                                                *input,
-                                                                unsigned int
-                                                                size);
-
-/**
  * Does the meta-data claim that this is a directory?
  * Checks if the mime-type is that of a GNUnet directory.
  *
  * @return GNUNET_YES if it is, GNUNET_NO if it is not, GNUNET_SYSERR if
  *  we have no mime-type information (treat as 'GNUNET_NO')
  */
-int GNUNET_ECRS_meta_data_test_for_directory (const struct
-                                              GNUNET_ECRS_MetaData *md);
+int GNUNET_meta_data_test_for_directory (const struct GNUNET_MetaData *md);
 
 /**
  * Suggest a better filename for a file (and do the
@@ -442,10 +274,13 @@ int GNUNET_ECRS_uri_get_namespace_from_sks (const struct GNUNET_ECRS_URI *uri,
                                             GNUNET_HashCode * nsid);
 
 /**
- * Get the content ID of an SKS URI.
+ * Get the content identifier of an SKS URI.
+ *
+ * @return NULL on error
  */
-int GNUNET_ECRS_uri_get_content_hash_from_sks (const struct GNUNET_ECRS_URI
-                                               *uri, GNUNET_HashCode * nsid);
+char *GNUNET_ECRS_uri_get_content_id_from_sks (const struct GNUNET_ECRS_URI
+                                               *uri);
+
 
 /**
  * Is this a keyword URI?
@@ -476,14 +311,13 @@ int GNUNET_ECRS_uri_test_loc (const struct GNUNET_ECRS_URI *uri);
  * in the meta-data and construct one large keyword URI
  * that lists all keywords that can be found in the meta-data).
  */
-struct GNUNET_ECRS_URI *GNUNET_ECRS_meta_data_to_uri (const struct
-                                                      GNUNET_ECRS_MetaData
-                                                      *md);
+struct GNUNET_ECRS_URI *GNUNET_meta_data_to_uri (const struct
+                                                 GNUNET_MetaData *md);
 
 
 typedef struct
 {
-  struct GNUNET_ECRS_MetaData *meta;
+  struct GNUNET_MetaData *meta;
   struct GNUNET_ECRS_URI *uri;
 } GNUNET_ECRS_FileInfo;
 
@@ -498,7 +332,7 @@ GNUNET_ECRS_getopt_configure_set_keywords (GNUNET_CommandLineProcessorContext
                                            const char *value);
 
 /**
- * @param scls must be of type "struct GNUNET_ECRS_MetaData **"
+ * @param scls must be of type "struct GNUNET_MetaData **"
  */
 int
 GNUNET_ECRS_getopt_configure_set_metadata (GNUNET_CommandLineProcessorContext
@@ -624,8 +458,6 @@ int GNUNET_ECRS_file_unindex (struct GNUNET_GE_Context *ectx,
  * @param meta meta-data for the namespace advertisement
  * @param rootEntry name of the root entry in the namespace (for
  *        the namespace advertisement)
- * @param rootURI set to the URI of the namespace, NULL if
- *        no advertisement was created
  *
  * @return URI on success, NULL on error (namespace already exists)
  */
@@ -635,7 +467,7 @@ struct GNUNET_ECRS_URI *GNUNET_ECRS_namespace_create (struct GNUNET_GE_Context
                                                       GNUNET_GC_Configuration
                                                       *cfg,
                                                       const struct
-                                                      GNUNET_ECRS_MetaData
+                                                      GNUNET_MetaData
                                                       *meta,
                                                       unsigned int
                                                       anonymityLevel,
@@ -645,8 +477,7 @@ struct GNUNET_ECRS_URI *GNUNET_ECRS_namespace_create (struct GNUNET_GE_Context
                                                       const struct
                                                       GNUNET_ECRS_URI
                                                       *advertisementURI,
-                                                      const GNUNET_HashCode *
-                                                      rootEntry);
+                                                      const char *rootEntry);
 
 /**
  * Check if the given namespace exists (locally).
@@ -714,21 +545,15 @@ struct GNUNET_ECRS_URI *GNUNET_ECRS_namespace_add_content (struct
                                                            priority,
                                                            GNUNET_CronTime
                                                            expirationTime,
-                                                           GNUNET_Int32Time
-                                                           creationTime,
-                                                           GNUNET_Int32Time
-                                                           updateInterval,
                                                            const
-                                                           GNUNET_HashCode *
-                                                           thisId,
+                                                           char *thisId,
                                                            const
-                                                           GNUNET_HashCode *
-                                                           nextId,
+                                                           char *nextId,
                                                            const struct
                                                            GNUNET_ECRS_URI
                                                            *dst,
                                                            const struct
-                                                           GNUNET_ECRS_MetaData
+                                                           GNUNET_MetaData
                                                            *md);
 
 /**
@@ -747,7 +572,7 @@ int GNUNET_ECRS_publish_under_keyword (struct GNUNET_GE_Context *ectx,
                                        unsigned int priority,
                                        GNUNET_CronTime expirationTime,
                                        const struct GNUNET_ECRS_URI *dst,
-                                       const struct GNUNET_ECRS_MetaData *md);
+                                       const struct GNUNET_MetaData *md);
 
 /**
  * The search has found another result.  Callback to notify
@@ -769,6 +594,9 @@ struct GNUNET_ECRS_SearchContext;
 /**
  * Start search for content (asynchronous version).
  *
+ * @param sc context to use for searching, you can pass NULL (then
+ *        ECRS will manage its own context); if you pass non-NULL,
+ *        search_stop must be called before you can destroy the sc.
  * @param uri specifies the search parameters;
  *        this must be a simple URI (with a single
  *        keyword)
@@ -779,6 +607,9 @@ struct GNUNET_ECRS_SearchContext *GNUNET_ECRS_search_start (struct
                                                             struct
                                                             GNUNET_GC_Configuration
                                                             *cfg,
+                                                            struct
+                                                            GNUNET_FS_SearchContext
+                                                            *sc,
                                                             const struct
                                                             GNUNET_ECRS_URI
                                                             *uri,
@@ -850,6 +681,9 @@ struct GNUNET_ECRS_DownloadContext;
  * particular portion of the file (optimization), not to strictly
  * limit the download to exactly those bytes.
  *
+ * @param sc context to use for searching, you can pass NULL (then
+ *        ECRS will manage its own context); if you pass non-NULL,
+ *        partial_stop must be called before you can destroy the sc.
  * @param uri the URI of the file (determines what to download)
  * @param filename where to store the file, maybe NULL (then no file is
  *        created on disk)
@@ -861,6 +695,8 @@ struct GNUNET_ECRS_DownloadContext
   *GNUNET_ECRS_file_download_partial_start (struct GNUNET_GE_Context *ectx,
                                             struct GNUNET_GC_Configuration
                                             *cfg,
+                                            struct GNUNET_FS_SearchContext
+                                            *sc,
                                             const struct GNUNET_ECRS_URI *uri,
                                             const char *filename,
                                             unsigned long long offset,
@@ -941,7 +777,7 @@ int GNUNET_ECRS_file_download_partial (struct GNUNET_GE_Context *ectx,
 int GNUNET_ECRS_directory_list_contents (struct GNUNET_GE_Context *ectx,
                                          const char *data,
                                          unsigned long long len,
-                                         struct GNUNET_ECRS_MetaData **md,
+                                         struct GNUNET_MetaData **md,
                                          GNUNET_ECRS_SearchResultProcessor
                                          spcb, void *spcbClosure);
 
@@ -963,7 +799,7 @@ int GNUNET_ECRS_directory_create (struct GNUNET_GE_Context *ectx,
                                   unsigned long long *len,
                                   unsigned int count,
                                   const GNUNET_ECRS_FileInfo * fis,
-                                  struct GNUNET_ECRS_MetaData *meta);
+                                  struct GNUNET_MetaData *meta);
 
 
 #if 0                           /* keep Emacsens' auto-indent happy */

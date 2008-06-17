@@ -29,7 +29,6 @@
 #include "gnunet_util.h"
 #include "gnunet_protocols.h"
 #include "gnunet_chat_lib.h"
-#include "gnunet_pseudonym_lib.h"
 #include "gnunet_directories.h"
 #include "chat.h"
 
@@ -48,7 +47,7 @@ struct GNUNET_CHAT_Room
 
   struct GNUNET_GC_Configuration *cfg;
 
-  struct GNUNET_ECRS_MetaData *member_info;
+  struct GNUNET_MetaData *member_info;
 
   char *room_name;
 
@@ -84,7 +83,7 @@ struct MemberList
   /**
    * Description of the member.
    */
-  struct GNUNET_ECRS_MetaData *meta;
+  struct GNUNET_MetaData *meta;
 
   /**
    * Member ID (pseudonym).
@@ -103,8 +102,7 @@ GNUNET_CHAT_rejoin_room (struct GNUNET_CHAT_Room *chat_room)
   char *room;
 
   meta_len =
-    GNUNET_ECRS_meta_data_get_serialized_size (chat_room->member_info,
-                                               GNUNET_YES);
+    GNUNET_meta_data_get_serialized_size (chat_room->member_info, GNUNET_YES);
   room_len = strlen (chat_room->room_name);
   size_of_join = sizeof (CS_chat_MESSAGE_JoinRequest) + meta_len
     + room_len + ntohs (chat_room->my_private_key->len) -
@@ -125,9 +123,9 @@ GNUNET_CHAT_rejoin_room (struct GNUNET_CHAT_Room *chat_room)
     sizeof (GNUNET_RSA_PrivateKeyEncoded);
   memcpy (room, chat_room->room_name, room_len);
   if (GNUNET_SYSERR ==
-      GNUNET_ECRS_meta_data_serialize (chat_room->ectx,
-                                       chat_room->member_info,
-                                       &room[room_len], meta_len, GNUNET_YES))
+      GNUNET_meta_data_serialize (chat_room->ectx,
+                                  chat_room->member_info,
+                                  &room[room_len], meta_len, GNUNET_YES))
     {
       GNUNET_free (join_msg);
       return GNUNET_SYSERR;
@@ -158,7 +156,7 @@ poll_thread (void *rcls)
   CS_chat_MESSAGE_JoinNotification *join_msg;
   CS_chat_MESSAGE_ReceiveNotification *received_msg;
   GNUNET_HashCode id;
-  struct GNUNET_ECRS_MetaData *meta;
+  struct GNUNET_MetaData *meta;
   struct MemberList *members;
   struct MemberList *pos;
   struct MemberList *prev;
@@ -220,9 +218,9 @@ poll_thread (void *rcls)
             }
           join_msg = (CS_chat_MESSAGE_JoinNotification *) reply;
           meta_len = size - sizeof (CS_chat_MESSAGE_JoinNotification);
-          meta = GNUNET_ECRS_meta_data_deserialize (room->ectx,
-                                                    (const char *)
-                                                    &join_msg[1], meta_len);
+          meta = GNUNET_meta_data_deserialize (room->ectx,
+                                               (const char *)
+                                               &join_msg[1], meta_len);
           if (meta == NULL)
             {
               malformed = GNUNET_YES;
@@ -232,7 +230,7 @@ poll_thread (void *rcls)
           pos->meta = meta;
           GNUNET_hash (&join_msg->public_key,
                        sizeof (GNUNET_RSA_PublicKey), &pos->id);
-          GNUNET_PSEUDO_add (room->ectx, room->cfg, &pos->id, meta);
+          GNUNET_pseudonym_add (room->ectx, room->cfg, &pos->id, meta);
           room->member_list_callback (room->member_list_callback_cls,
                                       meta, &join_msg->public_key,
                                       ntohl (join_msg->msg_options));
@@ -263,7 +261,7 @@ poll_thread (void *rcls)
             members = pos->next;
           else
             prev->next = pos->next;
-          GNUNET_ECRS_meta_data_destroy (pos->meta);
+          GNUNET_meta_data_destroy (pos->meta);
           GNUNET_free (pos);
           break;
         case GNUNET_CS_PROTO_CHAT_MESSAGE_NOTIFICATION:
@@ -318,7 +316,7 @@ poll_thread (void *rcls)
     {
       pos = members;
       members = pos->next;
-      GNUNET_ECRS_meta_data_destroy (pos->meta);
+      GNUNET_meta_data_destroy (pos->meta);
       GNUNET_free (pos);
     }
   return NULL;
@@ -437,7 +435,7 @@ struct GNUNET_CHAT_Room *
 GNUNET_CHAT_join_room (struct GNUNET_GE_Context *ectx,
                        struct GNUNET_GC_Configuration *cfg,
                        const char *nick_name,
-                       struct GNUNET_ECRS_MetaData *member_info,
+                       struct GNUNET_MetaData *member_info,
                        const char *room_name,
                        GNUNET_CHAT_MSG_OPTIONS msg_options,
                        GNUNET_CHAT_MessageCallback messageCallback,
@@ -459,6 +457,7 @@ GNUNET_CHAT_join_room (struct GNUNET_GE_Context *ectx,
   priv_key = GNUNET_RSA_decode_key (key);
   GNUNET_RSA_get_public_key (priv_key, &pub_key);
   GNUNET_hash (&pub_key, sizeof (GNUNET_RSA_PublicKey), me);
+  GNUNET_pseudonym_add (ectx, cfg, me, member_info);
   GNUNET_RSA_free_key (priv_key);
   sock = GNUNET_client_connection_create (ectx, cfg);
   if (sock == NULL)
@@ -469,7 +468,7 @@ GNUNET_CHAT_join_room (struct GNUNET_GE_Context *ectx,
   chat_room = GNUNET_malloc (sizeof (struct GNUNET_CHAT_Room));
   chat_room->msg_options = msg_options;
   chat_room->room_name = GNUNET_strdup (room_name);
-  chat_room->member_info = GNUNET_ECRS_meta_data_duplicate (member_info);
+  chat_room->member_info = GNUNET_meta_data_duplicate (member_info);
   chat_room->my_private_key = key;
   chat_room->message_callback = messageCallback;
   chat_room->message_callback_cls = message_cls;
@@ -486,7 +485,7 @@ GNUNET_CHAT_join_room (struct GNUNET_GE_Context *ectx,
     {
       GNUNET_free (chat_room->room_name);
       GNUNET_client_connection_destroy (chat_room->sock);
-      GNUNET_ECRS_meta_data_destroy (chat_room->member_info);
+      GNUNET_meta_data_destroy (chat_room->member_info);
       GNUNET_free (chat_room);
       GNUNET_free (key);
       return NULL;
@@ -512,7 +511,7 @@ GNUNET_CHAT_leave_room (struct GNUNET_CHAT_Room *chat_room)
   GNUNET_thread_stop_sleep (chat_room->listen_thread);
   GNUNET_thread_join (chat_room->listen_thread, &unused);
   GNUNET_free (chat_room->room_name);
-  GNUNET_ECRS_meta_data_destroy (chat_room->member_info);
+  GNUNET_meta_data_destroy (chat_room->member_info);
   GNUNET_client_connection_destroy (chat_room->sock);
   GNUNET_free (chat_room->my_private_key);
   GNUNET_free (chat_room);
