@@ -1,3 +1,9 @@
+gnunet (0.7.3-1) unstable; urgency=low
+
+  * New upstream release.
+
+ -- Daniel Baumann <daniel@debian.org>  Mon, 24 Dec 2007 16:04:00 +0100
+
 gnunet (0.7.2c-5) unstable; urgency=low
 
   * Building against transitioned libmicrohttpd.

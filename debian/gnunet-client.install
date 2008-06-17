@@ -19,6 +19,7 @@
 /usr/lib/libgnunetnamespace.so.*
 /usr/lib/libgnunetrpc_util.so.*
 /usr/lib/libgnunetstats_api.so.*
+/usr/lib/libgnunettracekit_api.so.*
 /usr/lib/libgnunettraffic_api.so.*
 /usr/lib/libgnuneturitrack.so.*
 /usr/share/man/man1/gnunet-chat.1
@@ -32,3 +33,4 @@
 /usr/share/man/man1/gnunet-tbench.1
 /usr/share/man/man1/gnunet-tracekit.1
 /usr/share/man/man1/gnunet-unindex.1
+/usr/share/man/man1/gnunet-vpn.1
