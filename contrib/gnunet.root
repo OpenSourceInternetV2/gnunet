@@ -59,15 +59,21 @@ LOGLEVEL        = WARNING
 # In which file should gnunetd write the logs?  If you specify
 # nothing, logs are written to stderr (and note that if gnunetd runs
 # in the background, stderr is closed and all logs are discarded).
-# Default: LOGFILE         = $GNUNETD_HOME/logs
-LOGFILE         = $GNUNETD_HOME/logs
+# Default: LOGFILE         = /var/log/gnunetd/gnunetd.log
+
+# Do not change this unless you know exactly what you're doing.
+# Changing this value alone, will break the package.
+LOGFILE         = /var/log/gnunetd/gnunetd.log
 
 # In which file should gnunetd write the process-id of the server?  If
 # you run gnunetd as root, you may want to choose
 # /var/run/gnunetd.pid. It's not the default since gnunetd may not
 # have write rights at that location.
-# Default: PIDFILE         = $GNUNETD_HOME/gnunetd.pid
-PIDFILE         = $GNUNETD_HOME/gnunetd.pid
+# Default: PIDFILE         = /var/run/gnunetd/gnunetd.pid
+
+# Do not change this unless you know exactly what you're doing.
+# Changing this value alone, will break the package.
+PIDFILE         = /var/run/gnunetd/gnunetd.pid
 
 # This directory should be made available periodically --- it contains
 # information how to join GNUnet that is in no way private to the

@@ -1,3 +1,11 @@
+gnunet (0.6.5-1) unstable; urgency=low
+
+  * New upstream release.
+  * debian/rules: Added --without-sqlite. The requirements for sqlite support
+    cannot be satisfied yet on Debian (sqlite >= 3.0.0 is not available).
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Wed, 17 Nov 2004 14:43:07 +0100
+
 gnunet (0.6.4a-7) unstable; urgency=high
 
   * debian/gnunet.postinst: Fixed dash support (Closes: #280422)
