@@ -780,7 +780,7 @@ EOF
 
 GNUNET_USER=$gnunet_user
 GNUNET_GROUP=$gnunet_group
-LAUNCH_AT_STARTUP=$launch_at_startup
+LAUNCH_AT_STARTUP=true
 EOF
 
 	cp -f $CONFIG_NEW $CONFIG_FILE
@@ -788,6 +788,25 @@ EOF
 	# Cleaning
 	rm -f $CONFIG_NEW
 	echo "All done."
+	if [ "$launch_at_startup" = 'true' ]; then
+		if [ -x "/etc/init.d/gnunet" ]; then
+		    update-rc.d gnunet defaults > /dev/null 2>&1 || true
+		    if [ -x /usr/sbin/invoke-rc.d ]; then
+		      invoke-rc.d gnunet start || true
+		    else
+		      /etc/init.d/gnunet start || true
+		    fi
+		fi
+	else
+		if [ -x "/etc/init.d/gnunet" ]; then
+		    if [ -x /usr/sbin/invoke-rc.d ] ; then
+		        invoke-rc.d gnunet stop || true
+		    else
+		        /etc/init.d/gnunet stop || true
+		    fi
+		fi
+		update-rc.d -f gnunet remove > /dev/null 2>&1 || true
+	fi
 
 
     ;;

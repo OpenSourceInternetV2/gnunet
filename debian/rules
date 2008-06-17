@@ -48,7 +48,6 @@ config.status: configure
 		--with-tdb=/usr \
 		--with-bdb=/usr \
 		--without-mysql \
-		--without-sqlite \
 		--enable-guile \
 		--with-pic
 
@@ -119,7 +118,8 @@ binary-common:
 	dh_installmenu
 	dh_installdebconf
 	dh_installlogrotate	
-	dh_installinit
+#	dh_installinit
+	dh_installinit --noscripts
 	dh_installcron
 	dh_installman
 	dh_link

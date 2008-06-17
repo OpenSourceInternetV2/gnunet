@@ -1,3 +1,22 @@
+gnunet (0.6.6-1) unstable; urgency=low
+
+  * New upstream release.
+  * debian/rules: Removed --without-sqlite since sqlite3 is now part of Sarge
+    and Sid.
+
+  * debian/control: Added dependency for sqlite3.
+    Removed libextractor dependencies (Closes: #293014).
+
+  * debian/docs: Added gnunet.user (Closes: #292558).
+  * debian/po/fr.po: Added new french translation, thanks to Eric Madesclair
+    (Closes: #292895).
+
+  * debian/gnunet.postrm, debian/gnunet.prerm, debian/gnunet.postinst,
+    debian/gnunet.init: Improved launch at startup feature. Thanks to Stephen
+    Gran for the initial patch. (Closes: #284549).
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Thu,  3 Feb 2005 00:29:18 +0100
+
 gnunet (0.6.5-3) unstable; urgency=low
 
   * debian/control: Fixed dependencies. (Closes: #291776, #291857). 

@@ -35,13 +35,13 @@ case "$1" in
 	# We should not need --background, but if not here, the invoke-rc.d hangs
 	# when using debconf
 	echo -n "Starting $DESC: "
-	if [ "$LAUNCH_AT_STARTUP" = "true" ]; then
+#	if [ "$LAUNCH_AT_STARTUP" = "true" ]; then
 		start-stop-daemon --start --quiet --background --chuid  $GNUNET_USER --pidfile $PIDFILE \
 			--exec $DAEMON -- -c /etc/gnunet.conf
 		echo "$NAME."
-	else
-		echo "disabled (use \"dpkg-reconfigure gnunet\" to change)"
-	fi
+#	else
+#		echo "disabled (use \"dpkg-reconfigure gnunet\" to change)"
+#	fi
 	;;
   stop)
 	echo -n "Stopping $DESC: "
