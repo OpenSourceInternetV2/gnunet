@@ -1,3 +1,11 @@
+gnunet (0.6.6b-5) unstable; urgency=low
+
+  * debian/control: Bumped policy version to 3.6.2.
+  * debian/control: Updated depedencies to follow C++ ABI changes (Closes: #325844).
+  * debian/po/vi.po: Added new Vietnamese translation of gnunet debconf messages. Thanks to Clytie Siddall (Closes: #314190).
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Sun, 21 Aug 2005 10:54:54 +0200
+
 gnunet (0.6.6b-4) unstable; urgency=high
 
   * Bump revision number and set urgency high and give the package a chance to
