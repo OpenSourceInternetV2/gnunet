@@ -13,5 +13,6 @@ doc/man/gnunet-tbench.1
 doc/man/gnunet-testbed.1
 doc/man/gnunet-tracekit.1
 doc/man/gnunet-transport-check.1
+doc/man/gnunet-update.1
 doc/man/gnunet.conf.5
 doc/man/gnunetd.1

@@ -27,11 +27,14 @@ if [ -r /etc/default/gnunet ]; then
 	. /etc/default/gnunet
 fi
 
+PIDFILE=/var/run/$NAME.pid
+
+
 case "$1" in
   start)
 	echo -n "Starting $DESC: "
 	if [ "$RUN_DAEMON" = "yes" ]; then
-		start-stop-daemon --start --quiet --pidfile /var/run/$NAME.pid \
+		start-stop-daemon --start --quiet --pidfile $PIDFILE \
 			--exec $DAEMON -- -c /etc/gnunet.conf
 		echo "$NAME."
 	else
@@ -40,7 +43,7 @@ case "$1" in
 	;;
   stop)
 	echo -n "Stopping $DESC: "
-	start-stop-daemon --stop --quiet --pidfile /var/run/$NAME.pid \
+	start-stop-daemon --stop --quiet --pidfile $PIDFILE \
 		--exec $DAEMON --oknodo
 	echo "$NAME."
 	;;
@@ -64,10 +67,10 @@ case "$1" in
 	#
 	echo -n "Restarting $DESC: "
 	start-stop-daemon --stop --quiet --pidfile \
-		/var/run/$NAME.pid --exec $DAEMON
+		$PIDFILE --exec $DAEMON
 	sleep 1
 	start-stop-daemon --start --quiet --pidfile \
-		/var/run/$NAME.pid --exec $DAEMON
+		$PIDFILE --exec $DAEMON
 	echo "$NAME."
 	;;
   *)

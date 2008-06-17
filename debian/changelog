@@ -1,3 +1,14 @@
+gnunet (0.6.4a-1) unstable; urgency=medium
+
+  * New upstream release.
+  * debian/gnunet.shlibs: Added missing libs.
+  * contrib/gnunet.desktop: Added menu file for GNOME and KDE.
+  * contrib/gnunet.root: Fixed to follow debian policy.
+  * Removed beta binaries gnunet-dht* and gnunet-setup from package since
+    they are not yet fonctional.
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Wed, 29 Sep 2004 08:09:38 +0200
+
 gnunet (0.6.4-3) unstable; urgency=low
 
   * Fix gnunet-check segfault using CVS (Closes: #271560)

@@ -1,3 +1,4 @@
 usr/bin/gnunet-gtk
 usr/bin/gnunet-download-manager.scm
 usr/share/pixmaps/gnu_in_net.xpm
+usr/share/applications/gnunet.desktop
