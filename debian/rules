@@ -42,12 +42,13 @@ config.status: configure
 		--disable-ipv6 \
 		--with-gcrypt=/usr \
 		--without-crypto \
-		--with-extractor=/usr \
 		--with-gtk=/usr \
 		--with-gdbm=/usr \
 		--with-tdb=/usr \
 		--with-bdb=/usr \
 		--without-mysql \
+		--without-extractor \
+		--without-libextractor \
 		--enable-guile \
 		--with-pic
 

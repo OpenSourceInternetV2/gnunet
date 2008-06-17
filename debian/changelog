@@ -1,3 +1,10 @@
+gnunet (0.6.6-2) unstable; urgency=low
+
+  * debian/rules: Added --without-extractor.
+  * debian/control: Removed forgotten libextractor dependency.
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Tue,  8 Feb 2005 23:29:54 +0100
+
 gnunet (0.6.6-1) unstable; urgency=low
 
   * New upstream release.
