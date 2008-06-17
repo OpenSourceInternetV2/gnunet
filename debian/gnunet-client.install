@@ -16,7 +16,7 @@
 /usr/lib/libgnunetcollection.so.*
 /usr/lib/libgnunetdht_api.so.*
 /usr/lib/libgnunetecrs.so.*
-/usr/lib/libgnunetecrs_core.*
+/usr/lib/libgnunetecrs_core.so.*
 /usr/lib/libgnunetfs.so.*
 /usr/lib/libgnunetfsui.so.*
 /usr/lib/libgnunetgetoption_api.so.*
