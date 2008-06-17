@@ -1,18 +1,19 @@
 Source: gnunet
-Section: net 
+Section: net
 Priority: optional
-Maintainer: Glenn McGrath <bug1@debian.org>
-Build-Depends: debhelper (>> 4.0.0), libgtk1.2-dev, libextractor0-dev (>= 0.2.3), libgdbm-dev, tdb-dev, libdb3-dev, libltdl3-dev, libgcrypt11-dev, guile-1.6
+Maintainer: Arnaud Kyheng <Arnaud.Kyheng@free.fr>
+Uploaders: Daniel Baumann <daniel.baumann@panthera-systems.net>
+Build-Depends: debhelper (>= 4.0.0), libgtk2.0-dev, libextractor0-dev (>= 0.2.3), libgdbm-dev, tdb-dev, libdb3-dev, libltdl3-dev, libgcrypt11-dev, guile-1.6, libgmp3-dev (>= 4.0.0)
 Standards-Version: 3.6.1.0
 
 Package: gnunet
 Architecture: any
 Depends: ${shlibs:Depends}
-Description: Secure, trust-based peer-to-peer framework 
+Description: Secure, trust-based peer-to-peer framework
  GNUnet is a peer-to-peer framework which focuses on providing security.
  All link-to-link messages in the network are confidential and authenticated.
  The framework provides a transport abstraction layer and can currently
- encapsulate the peer-to-peer traffic in UDP, TCP, or SMTP messages. 
+ encapsulate the peer-to-peer traffic in UDP, TCP, or SMTP messages.
 
 Package: gnunet-gtk
 Architecture: any
@@ -20,4 +21,3 @@ Depends: ${shlibs:Depends}
 Description: GTK frontend to GNUnet
  A GTK based frontend to gnunet to allow, an alternative to using the command
  line tools provided by the gnunet package.
-

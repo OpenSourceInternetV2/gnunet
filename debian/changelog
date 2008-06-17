@@ -1,3 +1,20 @@
+gnunet (0.6.4-1) unstable; urgency=low
+
+  * New upstream release.
+  * New maintainer (Closes: #225690)
+  * contrib/gnu_in_net.xpm: Modified the application's icon to make the
+    background transparent.
+    
+  * debian/gnunet.postinst: Perform gnunet-check -a instead of gnunet-check
+    -u. This is needed to migrate data from 0.6.2b or earlier.
+
+  * debian/control: Updated build dependency from libgtk1.2-dev to
+    libgtk2.0-dev as required.
+
+  * debian/control: Added build dependency libgmp3-dev (>= 4.0.0) as required. 
+
+ -- Arnaud Kyheng <Arnaud.Kyheng@free.fr>  Sun, 29 Aug 2004 23:07:45 +0200
+
 gnunet (0.6.2b-1) unstable; urgency=low
 
   * New upstream release (Closes: #249894 #254258)

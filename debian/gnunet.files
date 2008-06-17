@@ -3,6 +3,8 @@ usr/bin/gnunet-chat
 usr/bin/gnunet-check
 usr/bin/gnunet-convert
 usr/bin/gnunet-delete
+usr/bin/gnunet-dht-join
+usr/bin/gnunet-dht-query
 usr/bin/gnunet-directory
 usr/bin/gnunet-download
 usr/bin/gnunet-insert
@@ -15,6 +17,7 @@ usr/bin/gnunet-tbench
 usr/bin/gnunet-testbed
 usr/bin/gnunet-tracekit
 usr/bin/gnunet-transport-check
+usr/bin/gnunet-update
 usr/bin/gnunetd
 usr/lib/*.la
 usr/lib/*.so
