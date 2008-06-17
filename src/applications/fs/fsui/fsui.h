@@ -31,15 +31,42 @@
 #include "gnunet_ecrs_lib.h"
 
 /**
+ * How many seconds do we spend on the first test download?
+ * (each additional probe will take exponentially longer)
+ */
+#define GNUNET_FSUI_PROBE_TIME_FACTOR (2 * GNUNET_CRON_MINUTES)
+
+/**
+ * Given n running probes, how long should we wait
+ * between the end of one probe and the starting of
+ * the next probe?  The exact delay will be n*n*PROBE_DELAY+rand(PROBE_DELAY).
+ */
+#define GNUNET_FSUI_PROBE_DELAY (5 * GNUNET_CRON_MINUTES)
+
+/**
+ * Strict upper limit on the number of concurrent probes.
+ */
+#define GNUNET_FSUI_HARD_PROBE_LIMIT 32
+
+/**
  * Track record for a given result.
  */
-typedef struct
+struct SearchResultList
 {
 
+  struct SearchResultList *next;
+
   /**
-   * What are these keys?
+   * Test download (if any).
    */
-  GNUNET_HashCode *matchingKeys;
+  struct GNUNET_ECRS_DownloadContext *test_download;
+
+  /**
+   * Which individual searches does this result match?
+   * (do NOT free the search records that this array
+   * points to when freeing this result!).
+   */
+  struct SearchRecordList **matchingSearches;
 
   /**
    * What info do we have about this result?
@@ -47,12 +74,75 @@ typedef struct
   GNUNET_ECRS_FileInfo fi;
 
   /**
-   * For how many keys (GNUNET_hash of keyword) did we
-   * get this result?
+   * For how many searches did we get this result?
+   * (size of the matchingSearches array).
    */
-  unsigned int matchingKeyCount;
+  unsigned int matchingSearchCount;
 
-} ResultPending;
+  /**
+   * How many more searches that are mandatory do
+   * we need to match against before displaying?
+   * (once this value reaches zero, we can display
+   * the result).
+   */
+  unsigned int mandatoryMatchesRemaining;
+
+  /**
+   * How often did a test download succeed?
+   */
+  unsigned int probeSuccess;
+
+  /**
+   * How often did a test download fail?
+   */
+  unsigned int probeFailure;
+
+  /**
+   * When did we start the test?  Set to 0
+   * if the download was successful.
+   */
+  GNUNET_CronTime test_download_start_time;
+
+  /**
+   * When did the last probe complete?
+   */
+  GNUNET_CronTime last_probe_time;
+
+};
+
+/**
+ * Track record for the ECRS search requests.
+ */
+struct SearchRecordList
+{
+
+  struct SearchRecordList *next;
+
+  /**
+   * Handles to the ECRS SearchContexts.
+   */
+  struct GNUNET_ECRS_SearchContext *search;
+
+  /**
+   * Which keyword are we searching? (this is
+   * the exact URI given to ECRS which should
+   * contain only a single keyword).
+   */
+  struct GNUNET_ECRS_URI *uri;
+
+  /**
+   * Key for the search.
+   */
+  GNUNET_HashCode key;
+
+  /**
+   * Do we have to have a match in this search
+   * for displaying the result (did the keyword
+   * that was specified start with a "+"?).
+   */
+  unsigned int is_required;
+
+};
 
 /**
  * @brief list of active searches
@@ -66,6 +156,11 @@ typedef struct GNUNET_FSUI_SearchList
   GNUNET_CronTime start_time;
 
   /**
+   * Lock for the search.
+   */
+  struct GNUNET_Mutex *lock;
+
+  /**
    * Searches are kept in a simple linked list.
    */
   struct GNUNET_FSUI_SearchList *next;
@@ -76,9 +171,9 @@ typedef struct GNUNET_FSUI_SearchList
   struct GNUNET_FSUI_Context *ctx;
 
   /**
-   * Handle to the thread which performs the search.
+   * Handles to the ECRS SearchContexts.
    */
-  struct GNUNET_ECRS_SearchContext *handle;
+  struct SearchRecordList *searches;
 
   /**
    * Which URI are we searching?
@@ -86,17 +181,18 @@ typedef struct GNUNET_FSUI_SearchList
   struct GNUNET_ECRS_URI *uri;
 
   /**
-   * What downloads belong to this search?
+   * What downloads belong to this search (full downloads).
    */
   struct GNUNET_FSUI_DownloadList **my_downloads;
 
   /**
    * List of all results found so far.
    */
-  GNUNET_ECRS_FileInfo *resultsReceived;
+  struct SearchResultList *resultsReceived;
 
-  ResultPending *unmatchedResultsReceived;
-
+  /**
+   * Client context for the search.
+   */
   void *cctx;
 
   /**
@@ -105,15 +201,9 @@ typedef struct GNUNET_FSUI_SearchList
   unsigned int anonymityLevel;
 
   /**
-   * Of how many individual queries does the
-   * boolean query consist (1 for non-boolean queries).
+   * Number of mandatory keywords in our URI.
    */
-  unsigned int numberOfURIKeys;
-
-  /**
-   * Size of the resultsReceived array
-   */
-  unsigned int sizeResultsReceived;
+  unsigned int mandatory_keyword_count;
 
   /**
    * Number of downloads associated with this search.
@@ -121,12 +211,8 @@ typedef struct GNUNET_FSUI_SearchList
   unsigned int my_downloads_size;
 
   /**
-   * Size of the queue of results that matched at least
-   * one of the queries in the boolean query, but not
-   * yet all of them.
+   * FSUI state of this search.
    */
-  unsigned int sizeUnmatchedResultsReceived;
-
   GNUNET_FSUI_State state;
 
 } GNUNET_FSUI_SearchList;
@@ -221,6 +307,8 @@ typedef struct GNUNET_FSUI_DownloadList
 
   /**
    * Is this a recursive download? (GNUNET_YES/GNUNET_NO)
+   * Also set to GNUNET_NO once the recursive downloads
+   * have been triggered!
    */
   int is_recursive;
 
@@ -442,6 +530,11 @@ typedef struct GNUNET_FSUI_Context
    * currently active.
    */
   unsigned int activeDownloadThreads;
+
+  /**
+   * Number of currently active search probes.
+   */
+  unsigned int active_probes;
 
 } GNUNET_FSUI_Context;
 

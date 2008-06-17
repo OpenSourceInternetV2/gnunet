@@ -83,6 +83,11 @@ uploadFile (int size)
   name = makeName (size);
   fd =
     GNUNET_disk_file_open (ectx, name, O_WRONLY | O_CREAT, S_IWUSR | S_IRUSR);
+  if (fd == -1)
+    {
+      GNUNET_free (name);
+      return NULL;
+    }
   buf = GNUNET_malloc (size);
   memset (buf, size % 255, size);
   WRITE (fd, buf, size);
@@ -90,7 +95,7 @@ uploadFile (int size)
   GNUNET_disk_file_close (ectx, name, fd);
   ret = GNUNET_ECRS_file_upload (ectx, cfg, name, GNUNET_YES,   /* index */
                                  1,     /* anon */
-                                 0,     /* prio */
+                                 0,     /* priority */
                                  GNUNET_get_time () + 100 * GNUNET_CRON_MINUTES,        /* expire */
                                  NULL, NULL, &testTerminate, NULL, &uri);
   if (ret != GNUNET_SYSERR)
@@ -149,10 +154,6 @@ main (int argc, char **argv)
   int ret;
   int i;
   char buf[128];
-  const char *keywords[] = {
-    "multi-test",
-    NULL,
-  };
 
   ret = 0;
   cfg = GNUNET_GC_create ();
@@ -184,7 +185,7 @@ main (int argc, char **argv)
           return -1;
         }
     }
-  key = GNUNET_ECRS_keyword_strings_to_uri (keywords);
+  key = GNUNET_ECRS_keyword_string_to_uri (NULL, "multi-test");
   fprintf (stderr, "Uploading...");
   for (i = 0; i < TOTAL; i++)
     {

@@ -21,8 +21,8 @@
 #
 #
 AC_PREREQ(2.61)
-AC_INIT([GNUnet], [0.8.0pre0],[bug-gnunet@gnu.org])
-AM_INIT_AUTOMAKE([GNUnet], [0.8.0pre0])
+AC_INIT([GNUnet], [0.8.0pre1],[bug-gnunet@gnu.org])
+AM_INIT_AUTOMAKE([GNUnet], [0.8.0pre1])
 AC_CONFIG_HEADERS([config.h])
 
 AH_TOP([#define _GNU_SOURCE  1])
@@ -39,9 +39,9 @@ AC_DISABLE_STATIC
 AC_LIBTOOL_WIN32_DLL
 AC_LIBLTDL_INSTALLABLE
 AC_PROG_LIBTOOL
-AC_CONFIG_SUBDIRS(libltdl)
 AC_CANONICAL_HOST
 AC_LIB_LTDL
+m4_ifdef([_AC_SEEN_TAG(libltdl)], [], [AC_CONFIG_SUBDIRS(libltdl)])
 AC_SUBST(LTDLINCL)
 AC_SUBST(LIBLTDL)
 AC_SUBST(MKDIR_P)
@@ -169,7 +169,7 @@ netbsd*)
      AC_PROG_CXX
      LIBPREFIX=lib
      DLLDIR=bin
-     QTLIBS="-L$QTDIR/lib -lopengl32 -lglu32 -lgdi32 -luser32 -lmingw32 -lqtmain -lQtOpenGL4 -lQtGui4 -lQtCore4 -mthreads -Wl,-enable-stdcall-fixup -Wl,-enable-auto-import -Wl,-enable-runtime-pseudo-reloc -Wl,-s -Wl,-s -Wl,-subsystem,windows"
+     QTLIBS="-L$QTDIR/lib -lopengl32 -lglu32 -lgdi32 -luser32 -lqtmain -lQtOpenGL4 -lQtGui4 -lQtCore4 -mthreads -Wl,-enable-stdcall-fixup -Wl,-enable-auto-import -Wl,-enable-runtime-pseudo-reloc -Wl,-s -Wl,-s -Wl,-subsystem,windows"
      QTINC="-I$QTDIR/include -I$QTDIR/include/QtCore -I$QTDIR/include/QtGui -I$QTDIR/include/QtOpenGL -DUNICODE -DQT_LARGEFILE_SUPPORT -DQT_DLL -DQT_NO_DEBUG -DQT_OPENGL_LIB -DQT_GUI_LIB -DQT_CORE_LIB -DQT_THREAD_SUPPORT -DQT_NEEDS_QMAIN -frtti -fexceptions"
      QTBIN="$QTDIR/bin"
      ;;
@@ -197,7 +197,7 @@ LIBS="$PTHREAD_LIBS $LIBS"
 
 
 # some other checks for standard libs
-AC_CHECK_LIB(nsl, gethostbyname)
+AC_SEARCH_LIBS([gethostbyname], [nsl ws2_32])
 AC_CHECK_LIB(socket, socket)
 AC_CHECK_LIB(m, log)
 AC_CHECK_LIB(c, getloadavg, AC_DEFINE(HAVE_GETLOADAVG,1,[getloadavg supported]))
@@ -463,6 +463,10 @@ AC_ARG_WITH(dialog,
       AC_CHECK_LIB([dialog], [dlg_menu],
           dialog=1))])
 
+AM_CONDITIONAL(HAVE_DIALOG, test x$dialog = x1)
+AC_DEFINE_UNQUOTED([HAVE_DIALOG], $dialog, [We have dialog])
+
+cdialog=0
 AC_ARG_WITH(cdialog,
    [  --with-cdialog=PFX    Base of cdialog installation],
    [AC_MSG_RESULT([$with_cdialog])
@@ -472,7 +476,7 @@ AC_ARG_WITH(cdialog,
       yes)
         AC_CHECK_HEADERS(cdialog/dialog.h,
           AC_CHECK_LIB([cdialog], [dlg_menu],
-            dialog=1))
+            cdialog=1))
         ;;
       *)
         LDFLAGS="-L$with_cdialog/lib $LDFLAGS"
@@ -480,17 +484,17 @@ AC_ARG_WITH(cdialog,
         AC_CHECK_HEADERS(cdialog/dialog.h,
           AC_CHECK_LIB([cdialog], [dlg_menu],
             EXT_LIB_PATH="-L$with_cdialog/lib $EXT_LIB_PATH"
-              dialog=1))
+              cdialog=1))
         ;;
     esac
    ],
    [AC_MSG_RESULT([--with-cdialog not specified])
     AC_CHECK_HEADERS(cdialog/dialog.h,
       AC_CHECK_LIB([cdialog], [dlg_menu],
-          dialog=1))])
+          cdialog=1))])
 
-AM_CONDITIONAL(HAVE_DIALOG, test x$dialog = x1)
-AC_DEFINE_UNQUOTED([HAVE_DIALOG], $dialog, [We have dialog])
+AM_CONDITIONAL(HAVE_CDIALOG, test x$cdialog = x1)
+AC_DEFINE_UNQUOTED([HAVE_CDIALOG], $cdialog, [We have cdialog])
 # restore LIBS
 LIBS=$SAVE_LIBS
 
@@ -508,7 +512,7 @@ AC_ARG_WITH(qt,
         ;;
       yes)
         AC_CHECK_HEADERS([Qt/qpixmap.h],
-           AC_CHECK_LIB([QtGui], [_ZN7QPixmap12defaultDepthEv],
+        	 AC_SEARCH_LIBS([_ZN7QPixmap12defaultDepthEv], [QtGui QtGui4],
               qt=1))
         ;;
       *)
@@ -517,7 +521,7 @@ AC_ARG_WITH(qt,
         QTINC="$QTINC -I$with_qt/include -I$with_qt/include/qt4"
         CPPFLAGS="$QTINC $CPPFLAGS"
         AC_CHECK_HEADERS([Qt/qpixmap.h],
-           AC_CHECK_LIB([QtGui], [_ZN7QPixmap12defaultDepthEv],
+        	 AC_SEARCH_LIBS([_ZN7QPixmap12defaultDepthEv], [QtGui QtGui4],
            EXT_LIB_PATH="-L$with_qt/lib $EXT_LIB_PATH"
            qt=1))
         ;;
@@ -529,7 +533,7 @@ AC_ARG_WITH(qt,
     QTINC="$QTINC -I/usr/include -I/usr/include/qt4"
     CPPFLAGS="$QTINC $CPPFLAGS"
     AC_CHECK_HEADERS([Qt/qpixmap.h],
-          AC_CHECK_LIB([QtGui], [_ZN7QPixmap12defaultDepthEv],
+       	  AC_SEARCH_LIBS([_ZN7QPixmap12defaultDepthEv], [QtGui QtGui4],
            EXT_LIB_PATH="-L$with_qt/lib $EXT_LIB_PATH"
               qt=1))])
 
@@ -734,14 +738,20 @@ LIBS=$SAVE_LIBS
 # check for gtk >= 2.6.0
 AC_MSG_CHECKING(for gtk)
 AM_PATH_GTK_2_0(2.6.0,without_gtk=false,without_gtk=true)
-AM_CONDITIONAL(HAVE_GTK, test x$without_gtk != xtrue)
 if test $without_gtk != true
 then
- AC_DEFINE_UNQUOTED([HAVE_GTK], 1, [We have GTK])
- PKG_CHECK_MODULES(GNUNETGTK, libglade-2.0) # libgnomeui-2.0 >= 1.110.0
- AC_SUBST(GNUNETGTK_CFLAGS)
- AC_SUBST(GNUNETGTK_LIBS)
+ PKG_CHECK_MODULES(GNUNETGTK, libglade-2.0,  # libgnomeui-2.0 >= 1.110.0
+ [
+  AC_DEFINE_UNQUOTED([HAVE_GTK], 1, [We have GTK])
+  AC_SUBST(GNUNETGTK_CFLAGS)
+  AC_SUBST(GNUNETGTK_LIBS)
+ ],
+ [
+  without_gtk=true
+  AC_MSG_RESULT([libglade-2.0 not found])
+ ])
 fi
+AM_CONDITIONAL(HAVE_GTK, test x$without_gtk != xtrue)
 
 # check for gettext
 AM_GNU_GETTEXT_VERSION([0.13.1])
@@ -794,7 +804,7 @@ AC_FUNC_VPRINTF
 AC_HEADER_SYS_WAIT
 AC_TYPE_OFF_T
 AC_TYPE_UID_T
-AC_CHECK_FUNCS([floor gethostname memmove rmdir strncasecmp strrchr strtol atoll dup2 fdatasync ftruncate gethostbyname gettimeofday memset mkdir mkfifo select socket strcasecmp strchr strdup strerror strstr clock_gettime getrusage rand uname setlocale getcwd mktime gmtime_r gmtime strlcpy strlcat ftruncate stat64 sbrk mmap mremap setrlimit gethostbyaddr initgroups getifaddrs freeifaddrs getnameinfo getaddrinfo inet_ntoa localtime_r nl_langinfo putenv realpath strndup])
+AC_CHECK_FUNCS([floor gethostname memmove rmdir strncasecmp strrchr strtol atoll dup2 fdatasync ftruncate gettimeofday memset mkdir mkfifo select socket strcasecmp strchr strdup strerror strstr clock_gettime getrusage rand uname setlocale getcwd mktime gmtime_r gmtime strlcpy strlcat ftruncate stat64 sbrk mmap mremap setrlimit gethostbyaddr initgroups getifaddrs freeifaddrs getnameinfo getaddrinfo inet_ntoa localtime_r nl_langinfo putenv realpath strndup])
 
 # restore LIBS
 LIBS=$SAVE_LIBS
@@ -804,25 +814,6 @@ AC_SUBST(LIBS)
 AC_SUBST(LDFLAGS)
 AC_SUBST(EXT_LIB_PATH)
 AC_SUBST(EXT_LIBS)
-
-# check for IPv6
-ipv6=1
-AC_MSG_CHECKING([whether to enable ipv6])
-AC_ARG_ENABLE(ipv6,
- [AC_HELP_STRING([--enable-ipv6],[Enable ipv6 support])
-  AC_HELP_STRING([--disable-ipv6],[Disable ipv6 support])],
- [case "$enableval" in
-  no)	AC_MSG_RESULT(no)
-        ipv6=0
-	;;
-  *)    AC_MSG_RESULT(yes)
-  			AC_CHECK_LIB(resolv, gethostbyname2, ipv6=1, ipv6=0)
-	;;
-  esac],
-  [     AC_MSG_RESULT(yes)
-  			AC_CHECK_LIB(resolv, gethostbyname2, ipv6=1, ipv6=0)])
-AM_CONDITIONAL(HAVE_IPV6, test x$ipv6 != x0)
-AC_DEFINE_UNQUOTED(USE_IPV6, $ipv6, [IPV6 available])
 
 # check for guile
 guile=0
@@ -884,6 +875,9 @@ src/applications/Makefile
 src/applications/advertising/Makefile
 src/applications/bootstrap_http/Makefile
 src/applications/chat/Makefile
+src/applications/chat/lib/Makefile
+src/applications/chat/module/Makefile
+src/applications/chat/tools/Makefile
 src/applications/datastore/Makefile
 src/applications/dht/Makefile
 src/applications/dht/tools/Makefile
@@ -898,6 +892,7 @@ src/applications/fs/fsui/Makefile
 src/applications/fs/lib/Makefile
 src/applications/fs/gap/Makefile
 src/applications/fs/namespace/Makefile
+src/applications/fs/pseudonyms/Makefile
 src/applications/fs/uritrack/Makefile
 src/applications/fs/tools/Makefile
 src/applications/getoption/Makefile
@@ -963,7 +958,7 @@ then
 fi
 
 
-if test "$dialog" != 1
+if test "$dialog" != 1 -a "$cdialog" != 1
 then
  AC_MSG_NOTICE([NOTICE: curses based gnunet-setup frontends will not be installed.])
 fi

@@ -27,6 +27,7 @@
 #include "platform.h"
 #include "gnunet_util.h"
 #include "gnunet_ecrs_lib.h"
+#include "fs.h"
 #include "tree.h"
 
 #define START_DAEMON 1
@@ -78,6 +79,11 @@ uploadFile (unsigned int size)
   name = makeName (size);
   fd =
     GNUNET_disk_file_open (NULL, name, O_WRONLY | O_CREAT, S_IWUSR | S_IRUSR);
+  if (fd == -1)
+    {
+      GNUNET_free (name);
+      return NULL;
+    }
   buf = GNUNET_malloc (size);
   memset (buf, size + size / 253, size);
   for (i = 0; i < (int) (size - 42 - 2 * sizeof (GNUNET_HashCode));
@@ -89,7 +95,7 @@ uploadFile (unsigned int size)
   CLOSE (fd);
   ret = GNUNET_ECRS_file_upload (NULL, cfg, name, GNUNET_YES,   /* index */
                                  0,     /* anon */
-                                 0,     /* prio */
+                                 0,     /* priority */
                                  GNUNET_get_time () + 10 * GNUNET_CRON_MINUTES, /* expire */
                                  NULL,  /* progress */
                                  NULL, &testTerminate, NULL, &uri);
@@ -97,13 +103,9 @@ uploadFile (unsigned int size)
     {
       struct GNUNET_ECRS_MetaData *meta;
       struct GNUNET_ECRS_URI *key;
-      const char *keywords[2];
-
-      keywords[0] = name;
-      keywords[1] = NULL;
 
       meta = GNUNET_ECRS_meta_data_create ();
-      key = GNUNET_ECRS_keyword_strings_to_uri (keywords);
+      key = GNUNET_ECRS_keyword_string_to_uri (NULL, name);
       ret = GNUNET_ECRS_publish_under_keyword (NULL, cfg, key, 0, 0, GNUNET_get_time () + 10 * GNUNET_CRON_MINUTES,     /* expire */
                                                uri, meta);
       GNUNET_ECRS_meta_data_destroy (meta);
@@ -193,6 +195,11 @@ downloadFile (unsigned int size, const struct GNUNET_ECRS_URI *uri)
                                               &testTerminate, NULL))
     {
       fd = GNUNET_disk_file_open (NULL, tmpName, O_RDONLY);
+      if (fd == -1)
+        {
+          GNUNET_free (tmpName);
+          return GNUNET_SYSERR;
+        }
       buf = GNUNET_malloc (size);
       in = GNUNET_malloc (size);
       memset (buf, size + size / 253, size);
@@ -201,7 +208,10 @@ downloadFile (unsigned int size, const struct GNUNET_ECRS_URI *uri)
         GNUNET_hash (&buf[i], 42,
                      (GNUNET_HashCode *) & buf[i + sizeof (GNUNET_HashCode)]);
       if (size != READ (fd, in, size))
-        ret = GNUNET_SYSERR;
+        {
+          GNUNET_GE_BREAK (NULL, 0);
+          ret = GNUNET_SYSERR;
+        }
       else if (0 == memcmp (buf, in, size))
         ret = GNUNET_OK;
       GNUNET_free (buf);
@@ -238,12 +248,12 @@ int
 main (int argc, char *argv[])
 {
   static unsigned int filesizes[] = {
-    DBLOCK_SIZE - 1,
-    DBLOCK_SIZE,
-    DBLOCK_SIZE + 1,
-    DBLOCK_SIZE * CHK_PER_INODE - 1,
-    DBLOCK_SIZE * CHK_PER_INODE,
-    DBLOCK_SIZE * CHK_PER_INODE + 1,
+    GNUNET_ECRS_DBLOCK_SIZE - 1,
+    GNUNET_ECRS_DBLOCK_SIZE,
+    GNUNET_ECRS_DBLOCK_SIZE + 1,
+    GNUNET_ECRS_DBLOCK_SIZE * GNUNET_ECRS_CHK_PER_INODE - 1,
+    GNUNET_ECRS_DBLOCK_SIZE * GNUNET_ECRS_CHK_PER_INODE,
+    GNUNET_ECRS_DBLOCK_SIZE * GNUNET_ECRS_CHK_PER_INODE + 1,
     1,
     2,
     4,

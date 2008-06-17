@@ -293,6 +293,7 @@ GNUNET_FSUI_uploadThread (void *cls)
   GNUNET_FSUI_Event event;
   GNUNET_ECRS_FileInfo fi;
   int ret;
+  int is_directory;
   struct GNUNET_GE_Context *ectx;
   char *filename;
   char *pfn;
@@ -319,6 +320,7 @@ GNUNET_FSUI_uploadThread (void *cls)
   if (GNUNET_YES == GNUNET_disk_directory_test (ectx, utc->filename))
     {
       error = NULL;
+      is_directory = 1;
       filename = createDirectoryHelper (ectx,
                                         utc->shared->ctx->cfg,
                                         utc->child, utc->meta, &error);
@@ -334,6 +336,7 @@ GNUNET_FSUI_uploadThread (void *cls)
     }
   else
     {
+      is_directory = 0;
       filename = GNUNET_strdup (utc->filename);
     }
   utc->start_time = GNUNET_get_time ();
@@ -403,7 +406,7 @@ GNUNET_FSUI_uploadThread (void *cls)
         tpos--;
       pfn = GNUNET_malloc (strlen (&utc->filename[tpos + 1]) + 2);
       strcpy (pfn, &utc->filename[tpos + 1]);
-      if ((utc->child != NULL) &&
+      if ((is_directory || (utc->child != NULL)) &&
           ((strlen (pfn) == 0) || (pfn[strlen (pfn) - 1] != DIR_SEPARATOR)))
         strcat (pfn, DIR_SEPARATOR_STR);
       GNUNET_ECRS_meta_data_insert (utc->meta, EXTRACTOR_FILENAME, pfn);
@@ -442,8 +445,8 @@ GNUNET_FSUI_uploadThread (void *cls)
             {
               loc = GNUNET_ECRS_location_to_uri (utc->uri,
                                                  &hello->publicKey,
-                                                 ntohl (hello->
-                                                        expirationTime),
+                                                 ntohl
+                                                 (hello->expiration_time),
                                                  (GNUNET_ECRS_SignFunction) &
                                                  GNUNET_IDENTITY_sign_function,
                                                  sock);
@@ -816,12 +819,14 @@ GNUNET_FSUI_upload_start (struct GNUNET_FSUI_Context *ctx,
  * @return GNUNET_SYSERR on error
  */
 int
-GNUNET_FSUI_upload_abort (struct GNUNET_FSUI_Context *ctx,
-                          struct GNUNET_FSUI_UploadList *ul)
+GNUNET_FSUI_upload_abort (struct GNUNET_FSUI_UploadList *ul)
 {
   GNUNET_FSUI_UploadList *c;
+  struct GNUNET_FSUI_Context *ctx;
 
-  GNUNET_GE_ASSERT (ctx->ectx, ul != NULL);
+  if (ul == NULL)
+    return GNUNET_SYSERR;
+  ctx = ul->shared->ctx;
   if ((ul->state != GNUNET_FSUI_ACTIVE) && (ul->state != GNUNET_FSUI_PENDING))
     return GNUNET_NO;
   if (ul->state == GNUNET_FSUI_ACTIVE)
@@ -830,7 +835,7 @@ GNUNET_FSUI_upload_abort (struct GNUNET_FSUI_Context *ctx,
       c = ul->child;
       while (c != NULL)
         {
-          GNUNET_FSUI_upload_abort (ctx, c);
+          GNUNET_FSUI_upload_abort (c);
           c = c->next;
         }
       GNUNET_thread_stop_sleep (ul->shared->handle);
@@ -841,7 +846,7 @@ GNUNET_FSUI_upload_abort (struct GNUNET_FSUI_Context *ctx,
       c = ul->child;
       while (c != NULL)
         {
-          GNUNET_FSUI_upload_abort (ctx, c);
+          GNUNET_FSUI_upload_abort (c);
           c = c->next;
         }
     }
@@ -855,13 +860,15 @@ GNUNET_FSUI_upload_abort (struct GNUNET_FSUI_Context *ctx,
  * @return GNUNET_SYSERR on error
  */
 int
-GNUNET_FSUI_upload_stop (struct GNUNET_FSUI_Context *ctx,
-                         struct GNUNET_FSUI_UploadList *ul)
+GNUNET_FSUI_upload_stop (struct GNUNET_FSUI_UploadList *ul)
 {
   void *unused;
   struct GNUNET_FSUI_UploadShared *shared;
+  struct GNUNET_FSUI_Context *ctx;
 
-  GNUNET_GE_ASSERT (ctx->ectx, ul != NULL);
+  if (ul == NULL)
+    return GNUNET_SYSERR;
+  ctx = ul->shared->ctx;
   GNUNET_GE_ASSERT (ctx->ectx, ul->parent == &ctx->activeUploads);
   if ((ul->state == GNUNET_FSUI_ACTIVE) ||
       (ul->state == GNUNET_FSUI_COMPLETED) ||

@@ -21,6 +21,11 @@
 /**
  * @file include/gnunet_dht_lib.h
  * @brief convenience API to the DHT infrastructure for use by clients
+ *        This API is synchronous and ugly (each get operation creates
+ *        a thread and a client connection to gnunetd).  If this code
+ *        if ever used by more than a testcase, the API should be
+ *        made asynchronous.
+ *
  * @author Christian Grothoff
  */
 
@@ -37,25 +42,55 @@ extern "C"
 #endif
 #endif
 
+struct GNUNET_DHT_Context;
+
 /**
- * Perform a synchronous GET operation on the DHT looking for
- * key.
+ * Set up a context for performing asynchronous DHT operations.
  *
- * @param key the key to look up
- * @param timeout how long to wait until this operation should
- *        automatically time-out
  * @param resultCallback function to call for results,
  *        the operation also aborts if the callback returns
  *        GNUNET_SYSERR
- * @return number of results on success, GNUNET_SYSERR on error (i.e. timeout)
+ * @return NULL on error
  */
-int GNUNET_DHT_get (struct GNUNET_GC_Configuration *cfg,
-                    struct GNUNET_GE_Context *ectx,
-                    unsigned int type,
-                    const GNUNET_HashCode * key,
-                    GNUNET_CronTime timeout,
-                    GNUNET_ResultProcessor resultCallback,
-                    void *resCallbackClosure);
+struct GNUNET_DHT_Context *GNUNET_DHT_context_create (struct
+                                                      GNUNET_GC_Configuration
+                                                      *cfg,
+                                                      struct GNUNET_GE_Context
+                                                      *ectx,
+                                                      GNUNET_ResultProcessor
+                                                      resultCallback,
+                                                      void
+                                                      *resCallbackClosure);
+
+/**
+ * Start an asynchronous GET operation on the DHT looking for
+ * key.
+ *
+ * @param type the type of key to look up
+ * @param key the key to look up
+ * @return GNUNET_OK on success, GNUNET_SYSERR on error
+ */
+int GNUNET_DHT_get_start (struct GNUNET_DHT_Context *ctx,
+                          unsigned int type, const GNUNET_HashCode * key);
+
+
+/**
+ * Stop an asynchronous GET operation on the DHT looking for
+ * key.
+ * @param type the type of key to look up
+ * @param key the key to look up
+ * @return GNUNET_OK on success, GNUNET_SYSERR on error
+ */
+int GNUNET_DHT_get_stop (struct GNUNET_DHT_Context *ctx,
+                         unsigned int type, const GNUNET_HashCode * key);
+
+/**
+ * Destroy a previously created context for DHT operations.
+ *
+ * @param ctx context to destroy
+ * @return GNUNET_SYSERR on error
+ */
+int GNUNET_DHT_context_destroy (struct GNUNET_DHT_Context *ctx);
 
 /**
  * Perform a synchronous put operation.

@@ -20,7 +20,7 @@
 
 /**
  * @file server/tcpserver.c
- * @brief TCP server (gnunetd-client communication using util/tcpio.c).
+ * @brief TCP server (gnunetd-client communication using util/network_client/tcpio.c).
  * @author Christian Grothoff
  *
  * TODO: configuration management (signaling of configuration change)
@@ -188,7 +188,12 @@ select_accept_handler (void *ah_cls,
           (!(((IN6_IS_ADDR_V4COMPAT (&a6->sin6_addr))
               || (IN6_IS_ADDR_V4MAPPED (&a6->sin6_addr)))
              && (isWhitelisted4 (&ip4)))))
-        return NULL;
+        {
+          GNUNET_GE_LOG (ectx,
+                         GNUNET_GE_DEBUG | GNUNET_GE_ADMIN | GNUNET_GE_BULK,
+                         "Rejected connection from untrusted client");
+          return NULL;
+        }
     }
   else if (addr_len == sizeof (struct sockaddr_in))
     {
@@ -241,8 +246,16 @@ GNUNET_CORE_cs_send_to_client (struct GNUNET_ClientHandle *handle,
                  GNUNET_GE_DEBUG | GNUNET_GE_DEVELOPER | GNUNET_GE_REQUEST,
                  "%s: sending reply to client\n", __FUNCTION__);
 #endif
-  return GNUNET_select_write (selector, handle->sock, message, GNUNET_YES,
+  return GNUNET_select_write (selector, handle->sock, message, GNUNET_NO,
                               force);
+}
+
+int
+GNUNET_CORE_cs_test_send_to_client_now (struct GNUNET_ClientHandle *handle,
+                                        unsigned int size, int force)
+{
+  return GNUNET_select_test_write_now (selector, handle->sock,
+                                       size, GNUNET_NO, force);
 }
 
 void
@@ -642,7 +655,8 @@ GNUNET_CORE_cs_send_error_to_client (struct GNUNET_ClientHandle *sock,
     msgLen = 60000;
   rv = GNUNET_malloc (sizeof (GNUNET_MessageReturnErrorMessage) + msgLen);
   memset (rv, 0, sizeof (GNUNET_MessageReturnErrorMessage) + msgLen);
-  rv->header.size = htons (sizeof (GNUNET_MessageHeader) + msgLen);
+  rv->header.size =
+    htons (sizeof (GNUNET_MessageReturnErrorMessage) + msgLen);
   rv->header.type = htons (GNUNET_CS_PROTO_RETURN_ERROR);
   rv->kind = htonl (kind);
   memcpy (&rv[1], message, strlen (message));

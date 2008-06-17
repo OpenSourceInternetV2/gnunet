@@ -22,7 +22,7 @@ libgnunetecrs_la_LIBADD = \
  -lz \
  -lextractor \
  $(top_builddir)/src/applications/identity/libgnunetidentity_api.la \
- $(top_builddir)/src/applications/fs/libecrs_core.la \
+ $(top_builddir)/src/applications/fs/libgnunetecrs_core.la \
  $(top_builddir)/src/applications/fs/lib/libgnunetfs.la \
  $(top_builddir)/src/applications/getoption/libgnunetgetoption_api.la \
  $(top_builddir)/src/util/libgnunetutil.la 
@@ -34,7 +34,6 @@ check_PROGRAMS = \
   namespacetest \
   uritest \
   metatest \
-  metatest2 \
   searchtest \
   directorytest \
   ecrstest \
@@ -61,12 +60,6 @@ metatest_SOURCES = \
   metatest.c 
 metatest_LDADD = \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la 
-
-metatest2_SOURCES = \
-  metatest2.c 
-metatest2_LDADD = \
-  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la 
-
 
 ecrstest_SOURCES = \
   ecrstest.c

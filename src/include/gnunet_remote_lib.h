@@ -37,20 +37,14 @@ extern "C"
 #endif
 #endif
 
-
-/**
- * Linked list of information about daemon processes.
- */
-struct GNUNET_remote_host
+typedef enum
 {
-  GNUNET_PeerIdentity identity;
-  struct GNUNET_remote_host *next;
+  GNUNET_REMOTE_CLIQUE,
+  GNUNET_REMOTE_SMALL_WORLD,
+  GNUNET_REMOTE_RING,
+  GNUNET_REMOTE_2D_TORUS,
 
-  char *hostname;
-  unsigned long long controlPort;
-  pid_t pid;
-
-};
+} GNUNET_REMOTE_TOPOLOGIES;
 
 /**
  * Starts a single gnunet daemon on a remote machine
@@ -65,8 +59,14 @@ struct GNUNET_remote_host
 int GNUNET_REMOTE_start_daemon (char *gnunetd_home,
                                 char *localConfigPath, char *configFileName,
                                 char *remote_config_path, char *ip_address,
-                                char *username);
+                                char *username,
+                                char *remote_friend_file_path);
 
+/**
+ * Main start function to be called.  Needs a remote config specified, as well
+ * as the number of daemons to start and the type of topology.  Available topology
+ * types are defined in gnunet_remote_lib.h
+ */
 int GNUNET_REMOTE_start_daemons (struct GNUNET_GC_Configuration *newcfg,
                                  unsigned long long number_of_daemons);
 

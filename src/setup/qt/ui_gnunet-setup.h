@@ -126,9 +126,9 @@ public:
     if (SetupWizard->objectName ().isEmpty ())
       SetupWizard->setObjectName (QString::fromUtf8 ("SetupWizard"));
     SetupWizard->resize (640, 480);
-    SetupWizard->
-      setWindowIcon (QIcon
-                     (QString::fromUtf8 (":/pixmaps/gnunet-logo-small.png")));
+    SetupWizard->setWindowIcon (QIcon
+                                (QString::fromUtf8
+                                 (":/pixmaps/gnunet-logo-small.png")));
     vboxLayout = new QVBoxLayout (SetupWizard);
     vboxLayout->setSpacing (6);
     vboxLayout->setObjectName (QString::fromUtf8 ("vboxLayout"));
@@ -603,8 +603,8 @@ public:
       pbPrev = new QPushButton (SetupWizard);
       pbPrev->setObjectName (QString::fromUtf8 ("pbPrev"));
       pbPrev->setMinimumSize (QSize (75, 0));
-      pbPrev->
-      setIcon (QIcon (QString::fromUtf8 (":/pixmaps/go-previous.png")));
+      pbPrev->setIcon (QIcon
+                       (QString::fromUtf8 (":/pixmaps/go-previous.png")));
       pbPrev->setIconSize (QSize (22, 22));
 
       hboxLayout9->addWidget (pbPrev);
@@ -639,160 +639,125 @@ public:
 
   void retranslateUi (QWidget * SetupWizard)
   {
-    SetupWizard->
-      setWindowTitle (QApplication::
-                      translate ("SetupWizard", "GNUnet setup", 0,
-                                 QApplication::UnicodeUTF8));
-    groupBox->
-      setTitle (QApplication::
-                translate ("SetupWizard",
-                           "Network connection - enter information about your network connection here",
-                           0, QApplication::UnicodeUTF8));
-    label->
-      setText (QApplication::
-               translate ("SetupWizard",
-                          "Choose the device that connects your computer to the internet. This is usually a modem, an ISDN card or a network card in case you are using DSL.",
-                          0, QApplication::UnicodeUTF8));
-    label_2->
-      setText (QApplication::
-               translate ("SetupWizard", "Network interface:", 0,
-                          QApplication::UnicodeUTF8));
-    label_3->
-      setText (QApplication::
-               translate ("SetupWizard",
-                          "If your provider always assigns the same IP-Address to you (a \"static\" IP-Address), enter it into this field. If your IP-Address changes every now and then (\"dynamic\" IP-Address) but there's a hostname that always points to your actual IP-Address (\"Dynamic DNS\"), you can also enter it here.\n"
-                          "If in doubt, leave the field empty. GNUnet will then try to determine your IP-Address.",
-                          0, QApplication::UnicodeUTF8));
-    label_4->
-      setText (QApplication::
-               translate ("SetupWizard", "IP-Address/Hostname:", 0,
-                          QApplication::UnicodeUTF8));
-    label_5->
-      setText (QApplication::
-               translate ("SetupWizard",
-                          "If you are connected to the internet through another computer doing SNAT, a router or a \"hardware firewall\" and other computers on the internet cannot connect to this computer, check the this option on this page. Leave it unchecked on direct connections through modems, ISDN cards and DNAT (also known as \"port forwarding\").",
-                          0, QApplication::UnicodeUTF8));
-    cbSNAT->
-      setText (QApplication::
-               translate ("SetupWizard",
-                          "Computer cannot receive inbound connections", 0,
-                          QApplication::UnicodeUTF8));
-    groupBox_2->
-      setTitle (QApplication::
-                translate ("SetupWizard",
+    SetupWizard->setWindowTitle (QApplication::translate
+                                 ("SetupWizard", "GNUnet setup", 0,
+                                  QApplication::UnicodeUTF8));
+    groupBox->setTitle (QApplication::translate
+                        ("SetupWizard",
+                         "Network connection - enter information about your network connection here",
+                         0, QApplication::UnicodeUTF8));
+    label->setText (QApplication::translate
+                    ("SetupWizard",
+                     "Choose the device that connects your computer to the internet. This is usually a modem, an ISDN card or a network card in case you are using DSL.",
+                     0, QApplication::UnicodeUTF8));
+    label_2->setText (QApplication::translate
+                      ("SetupWizard", "Network interface:", 0,
+                       QApplication::UnicodeUTF8));
+    label_3->setText (QApplication::translate
+                      ("SetupWizard",
+                       "If your provider always assigns the same IP-Address to you (a \"static\" IP-Address), enter it into this field. If your IP-Address changes every now and then (\"dynamic\" IP-Address) but there's a hostname that always points to your actual IP-Address (\"Dynamic DNS\"), you can also enter it here.\n"
+                       "If in doubt, leave the field empty. GNUnet will then try to determine your IP-Address.",
+                       0, QApplication::UnicodeUTF8));
+    label_4->setText (QApplication::translate
+                      ("SetupWizard", "IP-Address/Hostname:", 0,
+                       QApplication::UnicodeUTF8));
+    label_5->setText (QApplication::translate
+                      ("SetupWizard",
+                       "If you are connected to the internet through another computer doing SNAT, a router or a \"hardware firewall\" and other computers on the internet cannot connect to this computer, check the this option on this page. Leave it unchecked on direct connections through modems, ISDN cards and DNAT (also known as \"port forwarding\").",
+                       0, QApplication::UnicodeUTF8));
+    cbSNAT->setText (QApplication::translate
+                     ("SetupWizard",
+                      "Computer cannot receive inbound connections", 0,
+                      QApplication::UnicodeUTF8));
+    groupBox_2->setTitle (QApplication::translate
+                          ("SetupWizard",
                            "Load limitation - limit GNUnet's ressource usage here",
                            0, QApplication::UnicodeUTF8));
-    label_6->
-      setText (QApplication::
-               translate ("SetupWizard",
-                          "This is how much data may be sent per second. If you have a flatrate you can set it to the maximum speed of your internet connection.",
-                          0, QApplication::UnicodeUTF8));
-    label_7->
-      setText (QApplication::
-               translate ("SetupWizard", "Upstream (Bytes/s):", 0,
-                          QApplication::UnicodeUTF8));
-    label_8->
-      setText (QApplication::
-               translate ("SetupWizard", "Downstream (Bytes/s):", 0,
-                          QApplication::UnicodeUTF8));
-    rbFull->
-      setText (QApplication::
-               translate ("SetupWizard", "Use denoted bandwidth for GNUnet",
-                          0, QApplication::UnicodeUTF8));
-    rbShared->
-      setText (QApplication::
-               translate ("SetupWizard",
-                          "Share denoted bandwidth with other applications",
-                          0, QApplication::UnicodeUTF8));
-    label_9->
-      setText (QApplication::
-               translate ("SetupWizard",
-                          "Enter the percentage of processor time GNUnet is allowed to use here.",
-                          0, QApplication::UnicodeUTF8));
-    label_10->
-      setText (QApplication::
-               translate ("SetupWizard", "Maximum CPU usage (%):", 0,
-                          QApplication::UnicodeUTF8));
-    groupBox_3->
-      setTitle (QApplication::
-                translate ("SetupWizard",
+    label_6->setText (QApplication::translate
+                      ("SetupWizard",
+                       "This is how much data may be sent per second. If you have a flatrate you can set it to the maximum speed of your internet connection.",
+                       0, QApplication::UnicodeUTF8));
+    label_7->setText (QApplication::translate
+                      ("SetupWizard", "Upstream (Bytes/s):", 0,
+                       QApplication::UnicodeUTF8));
+    label_8->setText (QApplication::translate
+                      ("SetupWizard", "Downstream (Bytes/s):", 0,
+                       QApplication::UnicodeUTF8));
+    rbFull->setText (QApplication::translate
+                     ("SetupWizard", "Use denoted bandwidth for GNUnet", 0,
+                      QApplication::UnicodeUTF8));
+    rbShared->setText (QApplication::translate
+                       ("SetupWizard",
+                        "Share denoted bandwidth with other applications", 0,
+                        QApplication::UnicodeUTF8));
+    label_9->setText (QApplication::translate
+                      ("SetupWizard",
+                       "Enter the percentage of processor time GNUnet is allowed to use here.",
+                       0, QApplication::UnicodeUTF8));
+    label_10->setText (QApplication::translate
+                       ("SetupWizard", "Maximum CPU usage (%):", 0,
+                        QApplication::UnicodeUTF8));
+    groupBox_3->setTitle (QApplication::translate
+                          ("SetupWizard",
                            "Security settings - specify the user and the group owning the GNUnet service here",
                            0, QApplication::UnicodeUTF8));
-    label_11->
-      setText (QApplication::
-               translate ("SetupWizard",
-                          "For security reasons, it is a good idea to let this setup create a new user account and a new group under which the GNUnet service is started at system startup.\n"
-                          "\n"
-                          "However, GNUnet may not be able to access files other than its own. This includes files you want to publish in GNUnet. You will have to grant read permissions to the user specified below.\n"
-                          "\n"
-                          "Leave the fields empty to run GNUnet with system privileges.",
-                          0, QApplication::UnicodeUTF8));
-    label_12->
-      setText (QApplication::
-               translate ("SetupWizard", "User account:", 0,
-                          QApplication::UnicodeUTF8));
-    label_13->
-      setText (QApplication::
-               translate ("SetupWizard", "Group:", 0,
-                          QApplication::UnicodeUTF8));
-    groupBox_4->
-      setTitle (QApplication::
-                translate ("SetupWizard", "Other settings", 0,
+    label_11->setText (QApplication::translate
+                       ("SetupWizard",
+                        "For security reasons, it is a good idea to let this setup create a new user account and a new group under which the GNUnet service is started at system startup.\n"
+                        "\n"
+                        "However, GNUnet may not be able to access files other than its own. This includes files you want to publish in GNUnet. You will have to grant read permissions to the user specified below.\n"
+                        "\n"
+                        "Leave the fields empty to run GNUnet with system privileges.",
+                        0, QApplication::UnicodeUTF8));
+    label_12->setText (QApplication::translate
+                       ("SetupWizard", "User account:", 0,
+                        QApplication::UnicodeUTF8));
+    label_13->setText (QApplication::translate
+                       ("SetupWizard", "Group:", 0,
+                        QApplication::UnicodeUTF8));
+    groupBox_4->setTitle (QApplication::translate
+                          ("SetupWizard", "Other settings", 0,
                            QApplication::UnicodeUTF8));
-    label_14->
-      setText (QApplication::
-               translate ("SetupWizard",
-                          "GNUnet is able to store data from other peers in your datastore. This is useful if an adversary has access to your inserted content and you need to deny that the content is yours. With \"content migration\" on, the content could have \"migrated\" over the internet to your node without your knowledge.\n"
-                          "It also helps to spread popular content over different peers to enhance availability.",
-                          0, QApplication::UnicodeUTF8));
-    cbMigr->
-      setText (QApplication::
-               translate ("SetupWizard", "Store migrated content", 0,
+    label_14->setText (QApplication::translate
+                       ("SetupWizard",
+                        "GNUnet is able to store data from other peers in your datastore. This is useful if an adversary has access to your inserted content and you need to deny that the content is yours. With \"content migration\" on, the content could have \"migrated\" over the internet to your node without your knowledge.\n"
+                        "It also helps to spread popular content over different peers to enhance availability.",
+                        0, QApplication::UnicodeUTF8));
+    cbMigr->setText (QApplication::translate
+                     ("SetupWizard", "Store migrated content", 0,
+                      QApplication::UnicodeUTF8));
+    label_15->setText (QApplication::translate
+                       ("SetupWizard",
+                        "The GNUnet datastore contains all data that GNUnet generates (index data, inserted and migrated content). Its maximum size can be specified below.",
+                        0, QApplication::UnicodeUTF8));
+    label_16->setText (QApplication::translate
+                       ("SetupWizard", "Maximum datastore size (MB):", 0,
+                        QApplication::UnicodeUTF8));
+    cbAutostart->setText (QApplication::translate
+                          ("SetupWizard",
+                           "Start GNUnet background process on computer startup",
+                           0, QApplication::UnicodeUTF8));
+    label_17->setText (QApplication::translate
+                       ("SetupWizard",
+                        "If you are an experienced user, you may want to tweak your GNUnet installation using the enhanced configurator.",
+                        0, QApplication::UnicodeUTF8));
+    cbEnhConfig->setText (QApplication::translate
+                          ("SetupWizard", "Open the enhanced configurator", 0,
+                           QApplication::UnicodeUTF8));
+    label_18->setText (QApplication::translate
+                       ("SetupWizard",
+                        "After changing the configuration and/or updating GNUnet, it is sometimes required to run gnunet-update to update internal data structures. Depending on the changes made, this may take some time.",
+                        0, QApplication::UnicodeUTF8));
+    cbGNUpdate->setText (QApplication::translate
+                         ("SetupWizard", "Run gnunet-update", 0,
                           QApplication::UnicodeUTF8));
-    label_15->
-      setText (QApplication::
-               translate ("SetupWizard",
-                          "The GNUnet datastore contains all data that GNUnet generates (index data, inserted and migrated content). Its maximum size can be specified below.",
-                          0, QApplication::UnicodeUTF8));
-    label_16->
-      setText (QApplication::
-               translate ("SetupWizard", "Maximum datastore size (MB):", 0,
-                          QApplication::UnicodeUTF8));
-    cbAutostart->
-      setText (QApplication::
-               translate ("SetupWizard",
-                          "Start GNUnet background process on computer startup",
-                          0, QApplication::UnicodeUTF8));
-    label_17->
-      setText (QApplication::
-               translate ("SetupWizard",
-                          "If you are an experienced user, you may want to tweak your GNUnet installation using the enhanced configurator.",
-                          0, QApplication::UnicodeUTF8));
-    cbEnhConfig->
-      setText (QApplication::
-               translate ("SetupWizard", "Open the enhanced configurator", 0,
-                          QApplication::UnicodeUTF8));
-    label_18->
-      setText (QApplication::
-               translate ("SetupWizard",
-                          "After changing the configuration and/or updating GNUnet, it is sometimes required to run gnunet-update to update internal data structures. Depending on the changes made, this may take some time.",
-                          0, QApplication::UnicodeUTF8));
-    cbGNUpdate->
-      setText (QApplication::
-               translate ("SetupWizard", "Run gnunet-update", 0,
-                          QApplication::UnicodeUTF8));
-    pbPrev->
-      setText (QApplication::
-               translate ("SetupWizard", "Previous", 0,
-                          QApplication::UnicodeUTF8));
-    pbNext->
-      setText (QApplication::
-               translate ("SetupWizard", "Next", 0,
-                          QApplication::UnicodeUTF8));
-    pbClose->
-      setText (QApplication::
-               translate ("SetupWizard", "Close", 0,
-                          QApplication::UnicodeUTF8));
+    pbPrev->setText (QApplication::translate
+                     ("SetupWizard", "Previous", 0,
+                      QApplication::UnicodeUTF8));
+    pbNext->setText (QApplication::translate
+                     ("SetupWizard", "Next", 0, QApplication::UnicodeUTF8));
+    pbClose->setText (QApplication::translate
+                      ("SetupWizard", "Close", 0, QApplication::UnicodeUTF8));
     Q_UNUSED (SetupWizard);
   }                             // retranslateUi
 

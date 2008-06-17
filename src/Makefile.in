@@ -220,7 +220,7 @@ target_alias = @target_alias@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 INCLUDES = -I$(top_srcdir)/src/include
-SUBDIRS = include util setup server applications transports
+SUBDIRS = include util setup server transports applications 
 all: all-recursive
 
 .SUFFIXES:

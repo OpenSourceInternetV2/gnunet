@@ -46,7 +46,7 @@ GNUNET_FS_ANONYMITY_check (unsigned int level, unsigned short content_type)
   level--;
   if (traffic == NULL)
     return GNUNET_SYSERR;
-  if (GNUNET_OK != traffic->get (5 * GNUNET_CRON_SECONDS / GNUNET_TRAFFIC_TIME_UNIT,    /* TTL_DECREMENT/TTU */
+  if (GNUNET_OK != traffic->get (5 * GNUNET_CRON_SECONDS / GNUNET_TRAFFIC_TIME_UNIT,    /* GNUNET_GAP_TTL_DECREMENT/TTU */
                                  content_type,
                                  GNUNET_TRAFFIC_TYPE_RECEIVED, &count, &peers,
                                  &sizes, &timevect))
@@ -97,7 +97,7 @@ void
 GNUNET_FS_ANONYMITY_init (GNUNET_CoreAPIForPlugins * capi)
 {
   coreAPI = capi;
-  traffic = capi->request_service ("traffic");
+  traffic = capi->service_request ("traffic");
 }
 
 void
@@ -105,7 +105,7 @@ GNUNET_FS_ANONYMITY_done ()
 {
   if (traffic != NULL)
     {
-      coreAPI->release_service (traffic);
+      coreAPI->service_release (traffic);
       traffic = NULL;
     }
   coreAPI = NULL;

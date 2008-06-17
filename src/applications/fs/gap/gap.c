@@ -106,9 +106,9 @@ send_delayed (void *cls)
 
   if (stats != NULL)
     stats->change (stat_gap_content_found_locally, 1);
-  coreAPI->p2p_inject_message (NULL,
-                               (const char *) msg,
-                               ntohs (msg->size), GNUNET_YES, NULL);
+  coreAPI->loopback_send (NULL,
+                          (const char *) msg,
+                          ntohs (msg->size), GNUNET_YES, NULL);
   GNUNET_free (msg);
 }
 
@@ -159,7 +159,7 @@ datastore_value_processor (const GNUNET_HashCode * key,
   if (cls->iteration_count > 10 * (1 + req->value))
     {
       if (cls->result_count > 0)
-        req->have_more += HAVE_MORE_INCREMENT;
+        req->have_more += GNUNET_GAP_HAVE_MORE_INCREMENT;
       want_more = GNUNET_SYSERR;
     }
   enc = NULL;
@@ -178,13 +178,13 @@ datastore_value_processor (const GNUNET_HashCode * key,
       if (GNUNET_YES == GNUNET_bloomfilter_test (req->bloomfilter, &mhc))
         return want_more;       /* not useful */
     }
-  et = GNUNET_ntohll (value->expirationTime);
+  et = GNUNET_ntohll (value->expiration_time);
   now = GNUNET_get_time ();
   if (now > et)
     et -= now;
   else
     et = 0;
-  et %= MAX_MIGRATION_EXP;
+  et %= GNUNET_GAP_MAX_MIGRATION_EXP;
   size =
     sizeof (P2P_gap_reply_MESSAGE) + ntohl (value->size) -
     sizeof (GNUNET_DatastoreValue);
@@ -197,7 +197,7 @@ datastore_value_processor (const GNUNET_HashCode * key,
   cls->result_count++;
   if (cls->result_count > 2 * (1 + req->value))
     {
-      req->have_more += HAVE_MORE_INCREMENT;
+      req->have_more += GNUNET_GAP_HAVE_MORE_INCREMENT;
       want_more = GNUNET_SYSERR;
     }
   if (stats != NULL)
@@ -209,7 +209,7 @@ datastore_value_processor (const GNUNET_HashCode * key,
   GNUNET_cron_add_job (cron,
                        send_delayed,
                        GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK,
-                                          TTL_DECREMENT), 0, msg);
+                                          GNUNET_GAP_TTL_DECREMENT), 0, msg);
   ret =
     (ntohl (value->type) ==
      GNUNET_ECRS_BLOCKTYPE_DATA) ? GNUNET_SYSERR : want_more;
@@ -316,7 +316,7 @@ GNUNET_FS_GAP_execute_query (const GNUNET_PeerIdentity * respond_to,
             rl->bloomfilter = GNUNET_bloomfilter_init (coreAPI->ectx,
                                                        bloomfilter_data,
                                                        filter_size,
-                                                       GAP_BLOOMFILTER_K);
+                                                       GNUNET_GAP_BLOOMFILTER_K);
           else
             rl->bloomfilter = NULL;
           GNUNET_FS_PT_change_rc (peer, -1);
@@ -370,7 +370,7 @@ GNUNET_FS_GAP_execute_query (const GNUNET_PeerIdentity * respond_to,
       rl->bloomfilter = GNUNET_bloomfilter_init (coreAPI->ectx,
                                                  bloomfilter_data,
                                                  filter_size,
-                                                 GAP_BLOOMFILTER_K);
+                                                 GNUNET_GAP_BLOOMFILTER_K);
     }
   rl->anonymityLevel = 1;
   rl->type = type;
@@ -424,7 +424,8 @@ unsigned int
 GNUNET_FS_GAP_handle_response (const GNUNET_PeerIdentity * sender,
                                const GNUNET_HashCode * primary_query,
                                GNUNET_CronTime expiration,
-                               unsigned int size, const DBlock * data)
+                               unsigned int size,
+                               const GNUNET_EC_DBlock * data)
 {
   GNUNET_HashCode hc;
   GNUNET_PeerIdentity target;
@@ -437,6 +438,7 @@ GNUNET_FS_GAP_handle_response (const GNUNET_PeerIdentity * sender,
   PID_INDEX blocked[MAX_ENTRIES_PER_SLOT + 1];
   unsigned int block_count;
   int was_new;
+  unsigned int rl_value;
 
   value = 0;
   GNUNET_mutex_lock (GNUNET_FS_lock);
@@ -466,28 +468,18 @@ GNUNET_FS_GAP_handle_response (const GNUNET_PeerIdentity * sender,
           GNUNET_FS_PT_resolve (rl->response_target, &target);
           GNUNET_GE_ASSERT (NULL, block_count <= MAX_ENTRIES_PER_SLOT);
           blocked[block_count++] = rl->response_target;
-          /* queue response */
-          msg = GNUNET_malloc (sizeof (P2P_gap_reply_MESSAGE) + size);
-          msg->header.type = htons (GNUNET_P2P_PROTO_GAP_RESULT);
-          msg->header.size = htons (sizeof (P2P_gap_reply_MESSAGE) + size);
-          msg->reserved = 0;
-          msg->expiration = GNUNET_htonll (expiration);
-          memcpy (&msg[1], data, size);
-          coreAPI->unicast (&target,
-                            &msg->header,
-                            BASE_REPLY_PRIORITY * (1 + rl->value),
-                            MAX_GAP_DELAY);
-          GNUNET_free (msg);
+          GNUNET_FS_PT_change_rc (rl->response_target, 1);
+
+          rl->value_offered = 0;
           if (stats != NULL)
-            {
-              stats->change (stat_trust_earned, rl->value_offered);
-              rl->value_offered = 0;
-            }
+            stats->change (stat_trust_earned, rl->value_offered);
           if (rl->type != GNUNET_ECRS_BLOCKTYPE_DATA)
             GNUNET_FS_SHARED_mark_response_seen (rl, &hc);
           GNUNET_FS_PLAN_success (rid, NULL, rl->response_target, rl);
           value += rl->value;
+          rl_value = rl->value;
           rl->value = 0;
+
           if (rl->type == GNUNET_ECRS_BLOCKTYPE_DATA)
             {
               if (prev == NULL)
@@ -501,6 +493,27 @@ GNUNET_FS_GAP_handle_response (const GNUNET_PeerIdentity * sender,
                 rl = prev->next;
               continue;
             }
+
+          /* queue response (do this last since ciphertext_send may
+             cause the core to detect that the connection died which
+             may result in changes to the request list!) */
+          msg = GNUNET_malloc (sizeof (P2P_gap_reply_MESSAGE) + size);
+          msg->header.type = htons (GNUNET_P2P_PROTO_GAP_RESULT);
+          msg->header.size = htons (sizeof (P2P_gap_reply_MESSAGE) + size);
+          msg->reserved = 0;
+          msg->expiration = GNUNET_htonll (expiration);
+          memcpy (&msg[1], data, size);
+          coreAPI->ciphertext_send (&target,
+                                    &msg->header,
+                                    GNUNET_GAP_BASE_REPLY_PRIORITY * (1 +
+                                                                      rl_value),
+                                    GNUNET_GAP_MAX_GAP_DELAY);
+          GNUNET_free (msg);
+
+          /* since the linked list may have changed, start again
+             from the beginning! */
+          rl = table[index];
+          continue;
         }
       prev = rl;
       rl = rl->next;
@@ -509,7 +522,7 @@ GNUNET_FS_GAP_handle_response (const GNUNET_PeerIdentity * sender,
     GNUNET_FS_MIGRATION_inject (primary_query,
                                 size, data, expiration, block_count, blocked);
   GNUNET_mutex_unlock (GNUNET_FS_lock);
-  GNUNET_FS_PT_change_rc (rid, -1);
+  GNUNET_FS_PT_decrement_rcs (blocked, block_count);    /* includes rid */
   return value;
 }
 
@@ -635,16 +648,16 @@ GNUNET_FS_GAP_init (GNUNET_CoreAPIForPlugins * capi)
   unsigned long long ts;
 
   coreAPI = capi;
-  datastore = capi->request_service ("datastore");
+  datastore = capi->service_request ("datastore");
   random_qsel = GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK, 0xFFFF);
   if (-1 ==
       GNUNET_GC_get_configuration_value_number (coreAPI->cfg, "GAP",
                                                 "TABLESIZE",
-                                                MIN_INDIRECTION_TABLE_SIZE,
+                                                GNUNET_GAP_MIN_INDIRECTION_TABLE_SIZE,
                                                 GNUNET_MAX_GNUNET_malloc_CHECKED
                                                 /
                                                 sizeof (struct RequestList *),
-                                                MIN_INDIRECTION_TABLE_SIZE,
+                                                GNUNET_GAP_MIN_INDIRECTION_TABLE_SIZE,
                                                 &ts))
     return GNUNET_SYSERR;
   table_size = ts;
@@ -652,14 +665,13 @@ GNUNET_FS_GAP_init (GNUNET_CoreAPIForPlugins * capi)
   memset (table, 0, sizeof (struct RequestList *) * table_size);
   GNUNET_GE_ASSERT (coreAPI->ectx,
                     GNUNET_SYSERR !=
-                    coreAPI->
-                    register_notify_peer_disconnect
+                    coreAPI->peer_disconnect_notification_register
                     (&cleanup_on_peer_disconnect, NULL));
   GNUNET_cron_add_job (capi->cron,
                        &have_more_processor,
                        HAVE_MORE_FREQUENCY, HAVE_MORE_FREQUENCY, NULL);
 
-  stats = capi->request_service ("stats");
+  stats = capi->service_request ("stats");
   if (stats != NULL)
     {
       stat_gap_query_dropped =
@@ -671,8 +683,8 @@ GNUNET_FS_GAP_init (GNUNET_CoreAPIForPlugins * capi)
       stat_gap_content_found_locally =
         stats->create (gettext_noop ("# gap content found locally"));
       stat_gap_query_refreshed =
-        stats->
-        create (gettext_noop ("# gap queries refreshed existing record"));
+        stats->create (gettext_noop
+                       ("# gap queries refreshed existing record"));
       stat_trust_earned = stats->create (gettext_noop ("# trust earned"));
     }
   cron = GNUNET_cron_create (coreAPI->ectx);
@@ -688,7 +700,8 @@ GNUNET_FS_GAP_done ()
 
   GNUNET_cron_del_job (coreAPI->cron,
                        &have_more_processor, HAVE_MORE_FREQUENCY, NULL);
-
+  GNUNET_cron_stop (cron);
+  GNUNET_cron_destroy (cron);
   for (i = 0; i < table_size; i++)
     {
       while (NULL != (rl = table[i]))
@@ -701,16 +714,13 @@ GNUNET_FS_GAP_done ()
   table = NULL;
   GNUNET_GE_ASSERT (coreAPI->ectx,
                     GNUNET_SYSERR !=
-                    coreAPI->
-                    unregister_notify_peer_disconnect
+                    coreAPI->peer_disconnect_notification_unregister
                     (&cleanup_on_peer_disconnect, NULL));
-  coreAPI->release_service (datastore);
+  coreAPI->service_release (datastore);
   datastore = NULL;
-  GNUNET_cron_stop (cron);
-  GNUNET_cron_destroy (cron);
   if (stats != NULL)
     {
-      coreAPI->release_service (stats);
+      coreAPI->service_release (stats);
       stats = NULL;
     }
   return 0;

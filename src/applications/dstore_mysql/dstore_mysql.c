@@ -317,13 +317,9 @@ checkQuota ()
       GNUNET_mutex_unlock (lock);
       return GNUNET_SYSERR;
     }
-  if (0 != mysql_stmt_fetch (select_old_value))
+  if (mysql_stmt_fetch (select_old_value))
     {
-      GNUNET_GE_LOG (coreAPI->ectx,
-                     GNUNET_GE_ERROR | GNUNET_GE_BULK | GNUNET_GE_USER,
-                     _("`%s' failed at %s:%d with error: %s\n"),
-                     "mysql_stmt_fetch",
-                     __FILE__, __LINE__, mysql_stmt_error (select_old_value));
+      /* odd -- over quota but cannot select old!? */
       GNUNET_free (rbind[4].buffer);
       mysql_stmt_reset (select_old_value);
       mysql_thread_end ();
@@ -793,7 +789,7 @@ provide_module_dstore_mysql (GNUNET_CoreAPIForPlugins * capi)
                                        5);
       CLOSE (fd);
     }
-  stats = capi->request_service ("stats");
+  stats = capi->service_request ("stats");
   if (stats != NULL)
     {
       stat_dstore_size = stats->create (gettext_noop ("# bytes in dstore"));
@@ -820,7 +816,7 @@ release_module_dstore_mysql ()
   bloom_name = NULL;
   if (stats != NULL)
     {
-      coreAPI->release_service (stats);
+      coreAPI->service_release (stats);
       stats = NULL;
     }
 #if DEBUG_SQLITE

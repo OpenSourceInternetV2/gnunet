@@ -400,8 +400,8 @@ auto_share_main (const char *dirname)
       GNUNET_disk_directory_scan (ectx, dirname, &probe_directory, NULL);
       if (GNUNET_YES == upload_done)
         {
-          GNUNET_FSUI_upload_abort (ctx, ul);
-          GNUNET_FSUI_upload_stop (ctx, ul);
+          GNUNET_FSUI_upload_abort (ul);
+          GNUNET_FSUI_upload_stop (ul);
           upload_done = GNUNET_NO;
           ul = NULL;
         }
@@ -542,6 +542,7 @@ main (int argc, char *const *argv)
   char *dirname;
 
   errorCode = 0;
+  myout = stdout;
   i = GNUNET_init (argc,
                    argv,
                    "gnunet-auto-share [OPTIONS] DIRECTORY",
@@ -559,11 +560,7 @@ main (int argc, char *const *argv)
       errorCode = -1;
       goto end;
     }
-  if (GNUNET_YES == debug_flag)
-    {
-      myout = stdout;
-    }
-  else
+  if (GNUNET_YES != debug_flag)
     {
       GNUNET_GC_get_configuration_value_filename (cfg,
                                                   "GNUNET-AUTO-SHARE",

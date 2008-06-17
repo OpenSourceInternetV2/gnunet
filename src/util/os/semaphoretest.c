@@ -108,6 +108,7 @@ testIPCSemaphore ()
                   printf ("Could not write to testfile: %s\n",
                           STRERROR (errno));
                   ret = 1;
+                  fclose (fd);
                   goto END;
                 }
               fclose (fd);

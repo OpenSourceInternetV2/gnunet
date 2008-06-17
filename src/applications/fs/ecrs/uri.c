@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2003, 2004, 2005, 2006, 2007 Christian Grothoff (and other contributing authors)
+     (C) 2003, 2004, 2005, 2006, 2007, 2008 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -75,7 +75,7 @@
  * </li></ul>
  *
  * The encoding for hexadecimal values is defined in the hashing.c
- * module (GNUNET_EncName) in the gnunet-util library and discussed there.
+ * module (GNUNET_EncName) in the gnunetutil library and discussed there.
  * <p>
  */
 
@@ -83,6 +83,17 @@
 #include "ecrs.h"
 #include "gnunet_protocols.h"
 #include "gnunet_ecrs_lib.h"
+
+/**
+ * In URI-encoding, does the given character
+ * need to be encoded using %-encoding?
+ */
+static int
+needs_percent (char c)
+{
+  return (!((isalnum (c)) ||
+            (c == '-') || (c == '_') || (c == '.') || (c == '~')));
+}
 
 /**
  * Generate a keyword URI.
@@ -94,20 +105,54 @@ createKeywordURI (char **keywords, unsigned int keywordCount)
   size_t n;
   char *ret;
   unsigned int i;
+  unsigned int j;
+  unsigned int wpos;
+  size_t slen;
+  const char *keyword;
 
   n =
     keywordCount + strlen (GNUNET_ECRS_URI_PREFIX) +
     strlen (GNUNET_ECRS_SEARCH_INFIX) + 1;
   for (i = 0; i < keywordCount; i++)
-    n += strlen (keywords[i]);
+    {
+      keyword = keywords[i];
+      slen = strlen (keyword);
+      n += slen;
+      for (j = 0; j < slen; j++)
+        {
+          if ((j == 0) && (keyword[j] == ' '))
+            {
+              n--;
+              continue;         /* skip leading space */
+            }
+          if (needs_percent (keyword[j]))
+            n += 2;             /* will use %-encoding */
+        }
+    }
   ret = GNUNET_malloc (n);
   strcpy (ret, GNUNET_ECRS_URI_PREFIX);
   strcat (ret, GNUNET_ECRS_SEARCH_INFIX);
+  wpos = strlen (ret);
   for (i = 0; i < keywordCount; i++)
     {
-      strcat (ret, keywords[i]);
+      keyword = keywords[i];
+      slen = strlen (keyword);
+      for (j = 0; j < slen; j++)
+        {
+          if ((j == 0) && (keyword[j] == ' '))
+            continue;           /* skip leading space */
+          if (needs_percent (keyword[j]))
+            {
+              sprintf (&ret[wpos], "%%%02X", keyword[j]);
+              wpos += 3;
+            }
+          else
+            {
+              ret[wpos++] = keyword[j];
+            }
+        }
       if (i != keywordCount - 1)
-        strcat (ret, "+");
+        ret[wpos++] = '+';
     }
   return ret;
 }
@@ -141,7 +186,7 @@ createSubspaceURI (const GNUNET_HashCode * namespace,
  * Generate a file URI.
  */
 static char *
-createFileURI (const FileIdentifier * fi)
+createFileURI (const GNUNET_EC_FileIdentifier * fi)
 {
   char *ret;
   GNUNET_EncName keyhash;
@@ -230,7 +275,118 @@ GNUNET_ECRS_uri_to_string (const struct GNUNET_ECRS_URI *uri)
 }
 
 /**
- * Parses an AFS search URI.
+ * Convert keyword URI to a human readable format
+ * (i.e. the search query that was used in the first place)
+ */
+char *
+GNUNET_ECRS_ksk_uri_to_human_readable_string (const struct GNUNET_ECRS_URI
+                                              *uri)
+{
+  size_t n;
+  char *ret;
+  unsigned int i;
+  const char *keyword;
+  char **keywords;
+  unsigned int keywordCount;
+
+  if ((uri == NULL) || (uri->type != ksk))
+    {
+      GNUNET_GE_BREAK (NULL, 0);
+      return NULL;
+    }
+  keywords = uri->data.ksk.keywords;
+  keywordCount = uri->data.ksk.keywordCount;
+  n = keywordCount + 1;
+  for (i = 0; i < keywordCount; i++)
+    {
+      keyword = keywords[i];
+      n += strlen (keyword) - 1;
+      if (NULL != strstr (&keyword[1], " "))
+        n += 2;
+      if (keyword[0] == '+')
+        n++;
+    }
+  ret = GNUNET_malloc (n);
+  strcpy (ret, "");
+  for (i = 0; i < keywordCount; i++)
+    {
+      keyword = keywords[i];
+      if (NULL != strstr (&keyword[1], " "))
+        {
+          strcat (ret, "\"");
+          if (keyword[0] == '+')
+            strcat (ret, keyword);
+          else
+            strcat (ret, &keyword[1]);
+          strcat (ret, "\"");
+        }
+      else
+        {
+          if (keyword[0] == '+')
+            strcat (ret, keyword);
+          else
+            strcat (ret, &keyword[1]);
+        }
+      strcat (ret, " ");
+    }
+  return ret;
+}
+
+/**
+ * Given a keyword with %-encoding (and possibly quotes to protect
+ * spaces), return a copy of the keyword without %-encoding and
+ * without double-quotes (%22).  Also, add a space at the beginning
+ * if there is not a '+'.
+ */
+static char *
+percent_decode_keyword (const char *in)
+{
+  char *out;
+  char *ret;
+  unsigned int rpos;
+  unsigned int wpos;
+  unsigned int hx;
+
+  out = GNUNET_strdup (in);
+  rpos = 0;
+  wpos = 0;
+  while (out[rpos] != '\0')
+    {
+      if (out[rpos] == '%')
+        {
+          if (1 != sscanf (&out[rpos + 1], "%2X", &hx))
+            {
+              GNUNET_free (out);
+              return NULL;
+            }
+          rpos += 3;
+          if (hx == '"')
+            continue;           /* skip double quote */
+          out[wpos++] = (char) hx;
+        }
+      else
+        {
+          out[wpos++] = out[rpos++];
+        }
+    }
+  out[wpos] = '\0';
+  if (out[0] == '+')
+    {
+      ret = GNUNET_strdup (out);
+    }
+  else
+    {
+      /* need to prefix with space */
+      ret = GNUNET_malloc (strlen (out) + 2);
+      strcpy (ret, " ");
+      strcat (ret, out);
+    }
+  GNUNET_free (out);
+  return ret;
+}
+
+/**
+ * Parses an ECRS search URI.
  *
  * @param uri an uri string
  * @param keyword will be set to an array with the keywords
@@ -247,6 +403,7 @@ parseKeywordURI (struct GNUNET_GE_Context *ectx, const char *uri,
   int i;
   size_t slen;
   char *dup;
+  int saw_quote;
 
   GNUNET_GE_ASSERT (ectx, uri != NULL);
 
@@ -270,30 +427,58 @@ parseKeywordURI (struct GNUNET_GE_Context *ectx, const char *uri,
     return GNUNET_SYSERR;       /* no keywords / malformed */
 
   ret = 1;
+  saw_quote = 0;
   for (i = pos; i < slen; i++)
     {
-      if (uri[i] == '+')
+      if ((uri[i] == '%') && (&uri[i] == strstr (&uri[i], "%22")))
+        {
+          saw_quote = (saw_quote + 1) % 2;
+          i += 3;
+          continue;
+        }
+      if ((uri[i] == '+') && (saw_quote == 0))
         {
           ret++;
           if (uri[i - 1] == '+')
             return GNUNET_SYSERR;       /* "++" not allowed */
         }
     }
+  if (saw_quote == 1)
+    return GNUNET_SYSERR;       /* quotes not balanced */
   iret = ret;
   dup = GNUNET_strdup (uri);
   (*keywords) = GNUNET_malloc (ret * sizeof (char *));
+  for (i = 0; i < ret; i++)
+    (*keywords)[i] = NULL;
   for (i = slen - 1; i >= pos; i--)
     {
-      if (dup[i] == '+')
+      if ((uri[i] == '%') && (&uri[i] == strstr (&uri[i], "%22")))
         {
-          (*keywords)[--ret] = GNUNET_strdup (&dup[i + 1]);
+          saw_quote = (saw_quote + 1) % 2;
+          i += 3;
+          continue;
+        }
+      if ((dup[i] == '+') && (saw_quote == 0))
+        {
+          (*keywords)[--ret] = percent_decode_keyword (&dup[i + 1]);
+          if (NULL == (*keywords)[ret])
+            goto CLEANUP;
           dup[i] = '\0';
         }
     }
-  (*keywords)[--ret] = GNUNET_strdup (&dup[pos]);
+  (*keywords)[--ret] = percent_decode_keyword (&dup[pos]);
+  if (NULL == (*keywords)[ret])
+    goto CLEANUP;
   GNUNET_GE_ASSERT (ectx, ret == 0);
   GNUNET_free (dup);
   return iret;
+CLEANUP:
+  for (i = 0; i < ret; i++)
+    GNUNET_free_non_null ((*keywords)[i]);
+  GNUNET_free (*keywords);
+  *keywords = NULL;
+  GNUNET_free (dup);
+  return GNUNET_SYSERR;
 }
 
 /**
@@ -359,7 +544,7 @@ parseSubspaceURI (struct GNUNET_GE_Context *ectx,
  */
 static int
 parseFileURI (struct GNUNET_GE_Context *ectx, const char *uri,
-              FileIdentifier * fi)
+              GNUNET_EC_FileIdentifier * fi)
 {
   unsigned int pos;
   size_t slen;
@@ -472,7 +657,7 @@ parseLocationURI (struct GNUNET_GE_Context *ectx, const char *uri,
     goto ERR;
   /* Finally: verify sigs! */
   if (GNUNET_OK != GNUNET_RSA_verify (&loc->fi,
-                                      sizeof (FileIdentifier) +
+                                      sizeof (GNUNET_EC_FileIdentifier) +
                                       sizeof (GNUNET_PeerIdentity) +
                                       sizeof (GNUNET_Int32Time),
                                       &loc->contentSignature, &loc->peer))
@@ -560,22 +745,6 @@ GNUNET_ECRS_uri_test_sks (const struct GNUNET_ECRS_URI *uri)
 }
 
 /**
- * Get the (globally unique) name for the given namespace.
- *
- * @return the name (GNUNET_hash) of the namespace, caller
- *  must free it.
- */
-char *
-GNUNET_ECRS_get_namespace_name (const GNUNET_HashCode * id)
-{
-  char *ret;
-
-  ret = GNUNET_malloc (sizeof (GNUNET_EncName));
-  GNUNET_hash_to_enc (id, (GNUNET_EncName *) ret);
-  return ret;
-}
-
-/**
  * Get the (globally unique) ID of the namespace
  * from the given namespace URI.
  *
@@ -653,19 +822,22 @@ GNUNET_ECRS_uri_get_keywords_from_ksk (const struct GNUNET_ECRS_URI *uri,
                                        GNUNET_ECRS_KeywordIterator iterator,
                                        void *cls)
 {
-  int i;
+  unsigned int i;
+  char *keyword;
+
   if (uri->type != ksk)
+    return -1;
+  if (iterator == NULL)
+    return uri->data.ksk.keywordCount;
+  for (i = 0; i < uri->data.ksk.keywordCount; i++)
     {
-      return -1;
+      keyword = uri->data.ksk.keywords[i];
+      /* first character of keyword indicates
+         if it is mandatory or not */
+      if (GNUNET_OK != iterator (&keyword[1], keyword[0] == '+', cls))
+        return i;
     }
-  else
-    {
-      for (i = 0; i < uri->data.ksk.keywordCount; i++)
-        if (iterator != NULL)
-          if (GNUNET_OK != iterator (uri->data.ksk.keywords[i], cls))
-            return i;
-      return i;
-    }
+  return i;
 }
 
 
@@ -730,6 +902,8 @@ GNUNET_ECRS_uri_duplicate (const URI * uri)
             ret->data.ksk.keywords[i] =
               GNUNET_strdup (uri->data.ksk.keywords[i]);
         }
+      else
+	ret->data.ksk.keywords = NULL; /* just to be sure */
       break;
     case loc:
       break;
@@ -803,6 +977,8 @@ GNUNET_ECRS_meta_data_to_uri (const MetaData * md)
   int j;
   int havePreview;
   int add;
+  const char *kword;
+  char *nkword;
 
   if (md == NULL)
     return NULL;
@@ -852,41 +1028,16 @@ GNUNET_ECRS_meta_data_to_uri (const MetaData * md)
           if (add == 1)
             {
               GNUNET_GE_ASSERT (NULL, md->items[i].data != NULL);
-              ret->data.ksk.keywords[i - havePreview]
-                = GNUNET_strdup (md->items[i].data);
+              kword = md->items[i].data;
+              nkword = GNUNET_malloc (strlen (kword) + 2);
+              strcpy (nkword, " ");     /* not mandatory */
+              strcat (nkword, kword);
+              ret->data.ksk.keywords[i - havePreview] = nkword;
             }
         }
     }
   return ret;
 }
-
-/**
- * Convert a NULL-terminated array of keywords
- * to an ECRS URI.
- */
-struct GNUNET_ECRS_URI *
-GNUNET_ECRS_keyword_strings_to_uri (const char *keyword[])
-{
-  unsigned int count;
-  URI *ret;
-  unsigned int i;
-
-  count = 0;
-  while (keyword[count] != NULL)
-    count++;
-
-  ret = GNUNET_malloc (sizeof (URI));
-  ret->type = ksk;
-  ret->data.ksk.keywordCount = 0;
-  ret->data.ksk.keywords = NULL;
-  GNUNET_array_grow (ret->data.ksk.keywords, ret->data.ksk.keywordCount,
-                     count);
-  for (i = 0; i < count; i++)
-    ret->data.ksk.keywords[i] = GNUNET_strdup (keyword[i]);
-  return ret;
-}
-
-
 
 /**
  * Are these two URIs equal?
@@ -907,7 +1058,7 @@ GNUNET_ECRS_uri_test_equal (const struct GNUNET_ECRS_URI *uri1,
     {
     case chk:
       if (0 == memcmp (&uri1->data.fi,
-                       &uri2->data.fi, sizeof (FileIdentifier)))
+                       &uri2->data.fi, sizeof (GNUNET_EC_FileIdentifier)))
         return GNUNET_YES;
       return GNUNET_NO;
     case sks:
@@ -942,7 +1093,7 @@ GNUNET_ECRS_uri_test_equal (const struct GNUNET_ECRS_URI *uri1,
     case loc:
       if (memcmp (&uri1->data.loc,
                   &uri2->data.loc,
-                  sizeof (FileIdentifier) +
+                  sizeof (GNUNET_EC_FileIdentifier) +
                   sizeof (GNUNET_RSA_PublicKey) +
                   sizeof (GNUNET_Int32Time) +
                   sizeof (unsigned short) + sizeof (unsigned short)) != 0)
@@ -991,7 +1142,7 @@ GNUNET_ECRS_uri_get_content_uri_from_loc (const struct GNUNET_ECRS_URI *uri)
  *
  * @param baseURI content offered by the sender
  * @param sender identity of the peer with the content
- * @param expirationTime how long will the content be offered?
+ * @param expiration_time how long will the content be offered?
  * @param proto transport protocol to reach the peer
  * @param sas sender address size (for HELLO)
  * @param address sas bytes of address information
@@ -1017,7 +1168,7 @@ GNUNET_ECRS_location_to_uri (const struct GNUNET_ECRS_URI *baseUri,
   uri->data.loc.peer = *sender;
   uri->data.loc.expirationTime = expirationTime;
   signer (signer_cls,
-          sizeof (FileIdentifier) +
+          sizeof (GNUNET_EC_FileIdentifier) +
           sizeof (GNUNET_PeerIdentity) +
           sizeof (GNUNET_Int32Time),
           &uri->data.loc.fi, &uri->data.loc.contentSignature);

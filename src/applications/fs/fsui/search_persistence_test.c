@@ -19,7 +19,7 @@
 */
 
 /**
- * @file applications/fs/fsui/serializetest3.c
+ * @file applications/fs/fsui/search_persistence_test.c
  * @brief testcase for fsui download persistence for search
  * @author Christian Grothoff
  */
@@ -30,7 +30,7 @@
 
 #define DEBUG_VERBOSE GNUNET_NO
 
-#define UPLOAD_PREFIX "/tmp/gnunet-fsui-serializetest3"
+#define UPLOAD_PREFIX "/tmp/gnunet-fsui-search_persistence_test"
 
 #define CHECK(a) if (!(a)) { ok = GNUNET_NO; GNUNET_GE_BREAK(ectx, 0); goto FAILURE; }
 
@@ -105,6 +105,7 @@ eventCallback (void *cls, const GNUNET_FSUI_Event * event)
     case GNUNET_FSUI_search_started:
     case GNUNET_FSUI_search_aborted:
     case GNUNET_FSUI_search_stopped:
+    case GNUNET_FSUI_search_update:
     case GNUNET_FSUI_unindex_started:
     case GNUNET_FSUI_unindex_stopped:
       break;
@@ -130,7 +131,6 @@ main (int argc, char *argv[])
   char *keywords[] = {
     "down_foo",
     "down_bar",
-    NULL,
   };
   char keyword[40];
   int prog;
@@ -155,11 +155,10 @@ main (int argc, char *argv[])
   /* ACTUAL TEST CODE */
 #endif
   ctx = GNUNET_FSUI_start (NULL,
-                           cfg, "serializetest3", 32, GNUNET_YES,
+                           cfg, "search_persistence_test", 32, GNUNET_YES,
                            &eventCallback, NULL);
   CHECK (ctx != NULL);
-  GNUNET_snprintf (keyword, 40, "%s %s %s", keywords[0], _("AND"),
-                   keywords[1]);
+  GNUNET_snprintf (keyword, 40, "+%s +%s", keywords[0], keywords[1]);
   uri = GNUNET_ECRS_keyword_string_to_uri (ectx, keyword);
   search = GNUNET_FSUI_search_start (ctx, 0, uri);
   CHECK (search != NULL);
@@ -181,7 +180,7 @@ main (int argc, char *argv[])
           CHECK (search == NULL);
           ctx = GNUNET_FSUI_start (NULL,
                                    cfg,
-                                   "serializetest3", 32, GNUNET_YES,
+                                   "search_persistence_test", 32, GNUNET_YES,
                                    &eventCallback, NULL);
 #if DEBUG_VERBOSE
           printf ("Resumed...\n");
@@ -192,8 +191,8 @@ main (int argc, char *argv[])
       if (GNUNET_shutdown_test () == GNUNET_YES)
         break;
     }
-  GNUNET_FSUI_search_abort (ctx, search);
-  GNUNET_FSUI_search_stop (ctx, search);
+  GNUNET_FSUI_search_abort (search);
+  GNUNET_FSUI_search_stop (search);
   search = NULL;
   /* END OF TEST CODE */
 FAILURE:
@@ -211,4 +210,4 @@ FAILURE:
   return (ok == GNUNET_YES) ? 0 : 1;
 }
 
-/* end of serializetest3.c */
+/* end of search_persistence_test.c */

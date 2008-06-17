@@ -55,6 +55,9 @@
 /* Define to 1 if you have the `bcopy' function. */
 #undef HAVE_BCOPY
 
+/* We have cdialog */
+#undef HAVE_CDIALOG
+
 /* Define to 1 if you have the <cdialog/dialog.h> header file. */
 #undef HAVE_CDIALOG_DIALOG_H
 
@@ -149,9 +152,6 @@
 
 /* Define to 1 if you have the `gethostbyaddr' function. */
 #undef HAVE_GETHOSTBYADDR
-
-/* Define to 1 if you have the `gethostbyname' function. */
-#undef HAVE_GETHOSTBYNAME
 
 /* Define to 1 if you have the `gethostname' function. */
 #undef HAVE_GETHOSTNAME
@@ -254,9 +254,6 @@
 
 /* Define to 1 if you have the `ncursesw' library (-lncursesw). */
 #undef HAVE_LIBNCURSESW
-
-/* Define to 1 if you have the `nsl' library (-lnsl). */
-#undef HAVE_LIBNSL
 
 /* Define to 1 if you have the `resolv' library (-lresolv). */
 #undef HAVE_LIBRESOLV
@@ -701,9 +698,6 @@
 
 /* Define to 1 if your <sys/time.h> declares `struct tm'. */
 #undef TM_IN_SYS_TIME
-
-/* IPV6 available */
-#undef USE_IPV6
 
 /* Version number of package */
 #undef VERSION

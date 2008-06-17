@@ -49,13 +49,13 @@ public:
     if (MainWindow->objectName ().isEmpty ())
       MainWindow->setObjectName (QString::fromUtf8 ("MainWindow"));
     MainWindow->resize (640, 480);
-    MainWindow->
-      setWindowIcon (QIcon
-                     (QString::fromUtf8 (":/pixmaps/gnunet-logo-small.png")));
+    MainWindow->setWindowIcon (QIcon
+                               (QString::fromUtf8
+                                (":/pixmaps/gnunet-logo-small.png")));
     actionSave = new QAction (MainWindow);
     actionSave->setObjectName (QString::fromUtf8 ("actionSave"));
-    actionSave->
-      setIcon (QIcon (QString::fromUtf8 (":/pixmaps/media-floppy.png")));
+    actionSave->setIcon (QIcon
+                         (QString::fromUtf8 (":/pixmaps/media-floppy.png")));
     actionAbout = new QAction (MainWindow);
     actionAbout->setObjectName (QString::fromUtf8 ("actionAbout"));
     actionAbout->setIcon (QIcon (QString::fromUtf8 (":/pixmaps/about.png")));
@@ -133,86 +133,70 @@ public:
 
   void retranslateUi (QMainWindow * MainWindow)
   {
-    MainWindow->
-      setWindowTitle (QApplication::
-                      translate ("MainWindow", "gnunet-setup", 0,
+    MainWindow->setWindowTitle (QApplication::translate
+                                ("MainWindow", "gnunet-setup", 0,
                                  QApplication::UnicodeUTF8));
-    actionSave->
-      setText (QApplication::
-               translate ("MainWindow", "Save", 0,
+    actionSave->setText (QApplication::translate
+                         ("MainWindow", "Save", 0,
                           QApplication::UnicodeUTF8));
-    actionAbout->
-      setText (QApplication::
-               translate ("MainWindow", "About", 0,
-                          QApplication::UnicodeUTF8));
-    actionExit->
-      setText (QApplication::
-               translate ("MainWindow", "Exit", 0,
+    actionAbout->setText (QApplication::translate
+                          ("MainWindow", "About", 0,
+                           QApplication::UnicodeUTF8));
+    actionExit->setText (QApplication::translate
+                         ("MainWindow", "Exit", 0,
                           QApplication::UnicodeUTF8));
     listWidget->clear ();
 
     QListWidgetItem *__item = new QListWidgetItem (listWidget);
-    __item->
-      setText (QApplication::
-               translate ("MainWindow", "Meta-configuration", 0,
-                          QApplication::UnicodeUTF8));
+    __item->setText (QApplication::translate
+                     ("MainWindow", "Meta-configuration", 0,
+                      QApplication::UnicodeUTF8));
     __item->setIcon (QIcon (QString::fromUtf8 (":/pixmaps/sect-meta.png")));
 
     QListWidgetItem *__item1 = new QListWidgetItem (listWidget);
-    __item1->
-      setText (QApplication::
-               translate ("MainWindow", "Path settings", 0,
-                          QApplication::UnicodeUTF8));
+    __item1->setText (QApplication::translate
+                      ("MainWindow", "Path settings", 0,
+                       QApplication::UnicodeUTF8));
     __item1->setIcon (QIcon (QString::fromUtf8 (":/pixmaps/sect-paths.png")));
 
     QListWidgetItem *__item2 = new QListWidgetItem (listWidget);
-    __item2->
-      setText (QApplication::
-               translate ("MainWindow", "General settings", 0,
-                          QApplication::UnicodeUTF8));
-    __item2->
-      setIcon (QIcon (QString::fromUtf8 (":/pixmaps/sect-general.png")));
+    __item2->setText (QApplication::translate
+                      ("MainWindow", "General settings", 0,
+                       QApplication::UnicodeUTF8));
+    __item2->setIcon (QIcon
+                      (QString::fromUtf8 (":/pixmaps/sect-general.png")));
 
     QListWidgetItem *__item3 = new QListWidgetItem (listWidget);
-    __item3->
-      setText (QApplication::
-               translate ("MainWindow", "Logging system", 0,
-                          QApplication::UnicodeUTF8));
+    __item3->setText (QApplication::translate
+                      ("MainWindow", "Logging system", 0,
+                       QApplication::UnicodeUTF8));
     __item3->setIcon (QIcon (QString::fromUtf8 (":/pixmaps/sect-log.png")));
 
     QListWidgetItem *__item4 = new QListWidgetItem (listWidget);
-    __item4->
-      setText (QApplication::
-               translate ("MainWindow", "Load management", 0,
-                          QApplication::UnicodeUTF8));
+    __item4->setText (QApplication::translate
+                      ("MainWindow", "Load management", 0,
+                       QApplication::UnicodeUTF8));
     __item4->setIcon (QIcon (QString::fromUtf8 (":/pixmaps/sect-load.png")));
 
     QListWidgetItem *__item5 = new QListWidgetItem (listWidget);
-    __item5->
-      setText (QApplication::
-               translate ("MainWindow", "Modules", 0,
-                          QApplication::UnicodeUTF8));
-    __item5->
-      setIcon (QIcon (QString::fromUtf8 (":/pixmaps/sect-modules.png")));
+    __item5->setText (QApplication::translate ("MainWindow", "Modules", 0,
+                                               QApplication::UnicodeUTF8));
+    __item5->setIcon (QIcon
+                      (QString::fromUtf8 (":/pixmaps/sect-modules.png")));
 
     QListWidgetItem *__item6 = new QListWidgetItem (listWidget);
-    __item6->
-      setText (QApplication::
-               translate ("MainWindow", "Transports", 0,
-                          QApplication::UnicodeUTF8));
-    __item6->
-      setIcon (QIcon (QString::fromUtf8 (":/pixmaps/sect-transports.png")));
+    __item6->setText (QApplication::translate ("MainWindow", "Transports", 0,
+                                               QApplication::UnicodeUTF8));
+    __item6->setIcon (QIcon
+                      (QString::fromUtf8 (":/pixmaps/sect-transports.png")));
 
     QListWidgetItem *__item7 = new QListWidgetItem (listWidget);
-    __item7->
-      setText (QApplication::
-               translate ("MainWindow", "Applications", 0,
-                          QApplication::UnicodeUTF8));
+    __item7->setText (QApplication::translate
+                      ("MainWindow", "Applications", 0,
+                       QApplication::UnicodeUTF8));
     __item7->setIcon (QIcon (QString::fromUtf8 (":/pixmaps/sect-apps.png")));
-    menuFile->
-      setTitle (QApplication::
-                translate ("MainWindow", "File", 0,
-                           QApplication::UnicodeUTF8));
+    menuFile->setTitle (QApplication::translate ("MainWindow", "File", 0,
+                                                 QApplication::UnicodeUTF8));
   }                             // retranslateUi
 
 };

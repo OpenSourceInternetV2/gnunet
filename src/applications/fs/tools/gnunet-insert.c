@@ -31,6 +31,7 @@
 #include "gnunet_directories.h"
 #include "gnunet_fsui_lib.h"
 #include "gnunet_namespace_lib.h"
+#include "gnunet_pseudonym_lib.h"
 #include "gnunet_util.h"
 
 /* hmm. Man says time.h, but that doesn't yield the
@@ -110,6 +111,7 @@ postProcess (const struct GNUNET_ECRS_URI *uri)
   GNUNET_HashCode prevId;
   GNUNET_HashCode thisId;
   GNUNET_HashCode nextId;
+  GNUNET_HashCode nsid;
   struct GNUNET_ECRS_URI *nsuri;
   char *us;
 
@@ -118,12 +120,17 @@ postProcess (const struct GNUNET_ECRS_URI *uri)
   convertId (next_id, &nextId);
   convertId (this_id, &thisId);
   convertId (prev_id, &prevId);
+  if (GNUNET_OK != GNUNET_PSEUDO_name_to_id (ectx, cfg, pseudonym, &nsid))
+    {
+      printf (_("\tUnknown namespace `%s'\n"), pseudonym);
+      return;
+    }
   nsuri = GNUNET_NS_add_to_namespace (ectx,
                                       cfg,
                                       anonymity,
                                       priority,
                                       GNUNET_get_time () +
-                                      2 * GNUNET_CRON_YEARS, pseudonym,
+                                      2 * GNUNET_CRON_YEARS, &nsid,
                                       (GNUNET_Int32Time) interval,
                                       prev_id == NULL ? NULL : &prevId,
                                       this_id == NULL ? NULL : &thisId,
@@ -366,6 +373,7 @@ main (int argc, char *const *argv)
   int i;
   char *tmp;
   unsigned long long verbose;
+  GNUNET_HashCode pid;
 
   meta = GNUNET_ECRS_meta_data_create ();
   i = GNUNET_init (argc,
@@ -429,6 +437,7 @@ main (int argc, char *const *argv)
       GNUNET_free (dirname);
       EXTRACTOR_removeAll (l);
       GNUNET_ECRS_meta_data_destroy (meta);
+      meta = NULL;
 
       errorCode = 0;
       goto quit;
@@ -441,8 +450,10 @@ main (int argc, char *const *argv)
   /* check arguments */
   if (pseudonym != NULL)
     {
-      if (GNUNET_OK !=
-          GNUNET_ECRS_namespace_test_exists (ectx, cfg, pseudonym, NULL))
+      if ((GNUNET_OK !=
+           GNUNET_PSEUDO_name_to_id (ectx, cfg,
+                                     pseudonym, &pid)) ||
+          (GNUNET_OK != GNUNET_ECRS_namespace_test_exists (ectx, cfg, &pid)))
         {
           printf (_("Could not access namespace `%s' (does not exist?).\n"),
                   pseudonym);
@@ -568,8 +579,8 @@ main (int argc, char *const *argv)
     {
       GNUNET_shutdown_wait_for ();
       if (errorCode == 1)
-        GNUNET_FSUI_upload_abort (ctx, ul);
-      GNUNET_FSUI_upload_stop (ctx, ul);
+        GNUNET_FSUI_upload_abort (ul);
+      GNUNET_FSUI_upload_stop (ul);
     }
   GNUNET_FSUI_stop (ctx);
 quit:

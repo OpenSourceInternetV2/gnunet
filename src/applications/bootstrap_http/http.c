@@ -231,7 +231,7 @@ downloadHostlist (GNUNET_BootstrapHelloCallback callback,
     {
       if (transport == NULL)
         protocols |= (1LL << i);
-      else if (transport->isAvailable ((unsigned short) i))
+      else if (transport->test_available ((unsigned short) i))
         protocols |= (1LL << i);
     }
   sprintf (purl, "%s?p=%llu", url, protocols);
@@ -303,13 +303,12 @@ downloadHostlist (GNUNET_BootstrapHelloCallback callback,
       tv.tv_usec = 1000;
       sret = SELECT (max + 1, &rs, &ws, &es, &tv);
       if (sret == -1)
-	{
+        {
           GNUNET_GE_LOG_STRERROR (ectx,
-				  GNUNET_GE_ERROR | GNUNET_GE_ADMIN | GNUNET_GE_USER |
-				  GNUNET_GE_BULK,
-				  "select");
-	  goto cleanup;
-	}
+                                  GNUNET_GE_ERROR | GNUNET_GE_ADMIN |
+                                  GNUNET_GE_USER | GNUNET_GE_BULK, "select");
+          goto cleanup;
+        }
       if (GNUNET_YES != termTest (targ))
         break;
       do
@@ -418,8 +417,8 @@ provide_module_bootstrap (GNUNET_CoreAPIForPlugins * capi)
 
   coreAPI = capi;
   ectx = capi->ectx;
-  transport = coreAPI->request_service ("transport");
-  stats = coreAPI->request_service ("stats");
+  transport = coreAPI->service_request ("transport");
+  stats = coreAPI->service_request ("stats");
   if (stats != NULL)
     {
       stat_hellodownloaded
@@ -433,9 +432,9 @@ void
 release_module_bootstrap ()
 {
   if (stats != NULL)
-    coreAPI->release_service (stats);
+    coreAPI->service_release (stats);
   if (transport != NULL)
-    coreAPI->release_service (transport);
+    coreAPI->service_release (transport);
   transport = NULL;
   coreAPI = NULL;
 }

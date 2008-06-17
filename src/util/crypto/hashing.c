@@ -31,7 +31,7 @@
  */
 
 #include "platform.h"
-#include "gnunet_util_crypto.h"
+#include "gnunet_util.h"
 
 #define SHA512_DIGEST_SIZE 64
 #define SHA512_HMAC_BLOCK_SIZE 128
@@ -421,6 +421,11 @@ GNUNET_hash_file (struct GNUNET_GE_Context *ectx, const char *filename,
                                          GNUNET_GE_ERROR | GNUNET_GE_USER |
                                          GNUNET_GE_ADMIN | GNUNET_GE_BULK,
                                          "close", filename);
+          GNUNET_free (buf);
+          return GNUNET_SYSERR;
+        }
+      if (GNUNET_YES == GNUNET_shutdown_test ())
+        {
           GNUNET_free (buf);
           return GNUNET_SYSERR;
         }

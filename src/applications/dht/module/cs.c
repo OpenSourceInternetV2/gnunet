@@ -23,7 +23,7 @@
  * @brief DHT application protocol using the DHT service.
  *   This is merely for the dht-client library.  The code
  *   of this file is mostly converting from and to TCP messages.
- * @author Marko Räihä, Christian Grothoff
+ * @author Marko RÃ¤ihÃ¤, Christian Grothoff
  */
 
 #include "platform.h"
@@ -31,6 +31,7 @@
 #include "gnunet_protocols.h"
 #include "dht.h"
 #include "gnunet_dht_service.h"
+#include "service.h"
 
 #define DEBUG_CS GNUNET_NO
 
@@ -116,6 +117,7 @@ get_result (const GNUNET_HashCode * key,
   msg = GNUNET_malloc (n);
   msg->header.size = htons (n);
   msg->header.type = htons (GNUNET_CS_PROTO_DHT_REQUEST_PUT);
+  msg->type = htonl (type);
   msg->key = *key;
   memcpy (&msg[1], value, size);
 #if DEBUG_CS
@@ -125,20 +127,20 @@ get_result (const GNUNET_HashCode * key,
                  __FUNCTION__, __FILE__, __LINE__, size, value);
 #endif
   if (GNUNET_OK !=
-      coreAPI->cs_send_to_client (record->client, &msg->header, GNUNET_YES))
+      coreAPI->cs_send_message (record->client, &msg->header, GNUNET_YES))
     {
       GNUNET_GE_LOG (coreAPI->ectx,
                      GNUNET_GE_ERROR | GNUNET_GE_IMMEDIATE | GNUNET_GE_USER,
                      _("`%s' failed. Terminating connection to client.\n"),
                      "cs_send_to_client");
-      coreAPI->cs_terminate_client_connection (record->client);
+      coreAPI->cs_disconnect_now (record->client);
     }
   GNUNET_free (msg);
   return GNUNET_OK;
 }
 
 /**
- * CS handler for inserting <key,value>-pair into DHT-table.
+ * CS handler for getting key from DHT.
  */
 static int
 csGet (struct GNUNET_ClientHandle *client,
@@ -167,6 +169,59 @@ csGet (struct GNUNET_ClientHandle *client,
   cpc->next = getRecords;
   getRecords = cpc;
   GNUNET_mutex_unlock (lock);
+  return GNUNET_OK;
+}
+
+/**
+ * CS handler for stopping existing get from DHT.
+ */
+static int
+csGetEnd (struct GNUNET_ClientHandle *client,
+          const GNUNET_MessageHeader * message)
+{
+  const CS_dht_request_get_MESSAGE *get;
+  struct DHT_CLIENT_GET_RECORD *pos;
+  struct DHT_CLIENT_GET_RECORD *prev;
+
+  if (ntohs (message->size) != sizeof (CS_dht_request_get_MESSAGE))
+    {
+      GNUNET_GE_BREAK (NULL, 0);
+      return GNUNET_SYSERR;
+    }
+#if DEBUG_CS
+  GNUNET_GE_LOG (coreAPI->ectx,
+                 GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
+                 "`%s' at %s:%d processes get\n", __FUNCTION__, __FILE__,
+                 __LINE__);
+#endif
+
+  get = (const CS_dht_request_get_MESSAGE *) message;
+  GNUNET_mutex_lock (lock);
+  pos = getRecords;
+  prev = NULL;
+  while (pos != NULL)
+    {
+      if ((memcmp (pos->client, client, sizeof (client)) == 0) &&
+          (memcmp
+           (&pos->get_record->key, &get->key, sizeof (GNUNET_HashCode)))
+          && (ntohs (get->type) == pos->get_record->type))
+        break;
+      prev = pos;
+      pos = pos->next;
+    }
+  if (pos == NULL)
+    {
+      GNUNET_mutex_unlock (lock);
+      return GNUNET_OK;
+    }
+  if (prev == NULL)
+    getRecords = pos->next;
+  else
+    prev->next = pos->next;
+  GNUNET_mutex_unlock (lock);
+  dhtAPI->get_stop (pos->get_record);
+  GNUNET_free (pos);
+
   return GNUNET_OK;
 }
 
@@ -211,7 +266,7 @@ initialize_module_dht (GNUNET_CoreAPIForPlugins * capi)
 {
   int status;
 
-  dhtAPI = capi->request_service ("dht");
+  dhtAPI = capi->service_request ("dht");
   if (dhtAPI == NULL)
     return GNUNET_SYSERR;
   coreAPI = capi;
@@ -223,12 +278,16 @@ initialize_module_dht (GNUNET_CoreAPIForPlugins * capi)
   status = GNUNET_OK;
   lock = GNUNET_mutex_create (GNUNET_NO);
   if (GNUNET_SYSERR ==
-      capi->registerClientHandler (GNUNET_CS_PROTO_DHT_REQUEST_PUT, &csPut))
+      capi->cs_handler_register (GNUNET_CS_PROTO_DHT_REQUEST_PUT, &csPut))
     status = GNUNET_SYSERR;
   if (GNUNET_SYSERR ==
-      capi->registerClientHandler (GNUNET_CS_PROTO_DHT_REQUEST_GET, &csGet))
+      capi->cs_handler_register (GNUNET_CS_PROTO_DHT_REQUEST_GET, &csGet))
     status = GNUNET_SYSERR;
-  if (GNUNET_SYSERR == capi->cs_exit_handler_register (&csClientExit))
+  if (GNUNET_SYSERR ==
+      capi->cs_handler_register (GNUNET_CS_PROTO_DHT_REQUEST_GET_END,
+                                 &csGetEnd))
+    status = GNUNET_SYSERR;
+  if (GNUNET_SYSERR == capi->cs_disconnect_handler_register (&csClientExit))
     status = GNUNET_SYSERR;
   GNUNET_GE_ASSERT (capi->ectx,
                     0 == GNUNET_GC_set_configuration_value_string (capi->cfg,
@@ -288,19 +347,19 @@ done_module_dht ()
                  GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,
                  "DHT: shutdown\n");
   if (GNUNET_OK !=
-      coreAPI->unregisterClientHandler (GNUNET_CS_PROTO_DHT_REQUEST_PUT,
-                                        &csPut))
+      coreAPI->cs_handler_unregister (GNUNET_CS_PROTO_DHT_REQUEST_PUT,
+                                      &csPut))
     status = GNUNET_SYSERR;
   if (GNUNET_OK !=
-      coreAPI->unregisterClientHandler (GNUNET_CS_PROTO_DHT_REQUEST_GET,
-                                        &csGet))
+      coreAPI->cs_handler_unregister (GNUNET_CS_PROTO_DHT_REQUEST_GET,
+                                      &csGet))
     status = GNUNET_SYSERR;
-  if (GNUNET_OK != coreAPI->cs_exit_handler_unregister (&csClientExit))
+  if (GNUNET_OK != coreAPI->cs_disconnect_handler_unregister (&csClientExit))
     status = GNUNET_SYSERR;
 
   while (getRecords != NULL)
     kill_record (getRecords);
-  coreAPI->release_service (dhtAPI);
+  coreAPI->service_release (dhtAPI);
   dhtAPI = NULL;
   coreAPI = NULL;
   GNUNET_mutex_destroy (lock);

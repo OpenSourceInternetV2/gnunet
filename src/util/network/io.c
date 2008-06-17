@@ -112,6 +112,9 @@ GNUNET_socket_destroy (struct GNUNET_SocketHandle *s)
           (errno != EINVAL) &&  /* OS X returns these instead of ENOTCONN */
           (errno != EHOSTDOWN) && (errno != EHOSTUNREACH) &&
 #endif
+#ifdef FREEBSD
+          (errno != ECONNRESET) &&
+#endif
           (errno != ENOTCONN))
         GNUNET_GE_LOG_STRERROR (s->ectx,
                                 GNUNET_GE_WARNING | GNUNET_GE_ADMIN |
@@ -126,7 +129,7 @@ GNUNET_socket_destroy (struct GNUNET_SocketHandle *s)
 }
 
 /* TODO: log errors! */
-#ifdef OSX
+#if OSX || SOMEBSD
 static int
 socket_set_nosigpipe (struct GNUNET_SocketHandle *s, int dontSigPipe)
 {
@@ -203,11 +206,11 @@ GNUNET_socket_recv (struct GNUNET_SocketHandle *s,
 #ifdef CYGWIN
   if (0 == (nc & GNUNET_NC_IGNORE_INT))
     flags |= MSG_NOSIGNAL;
-#elif OSX
+#elif OSX || SOMEBSD
   socket_set_nosigpipe (s, 0 == (nc & GNUNET_NC_IGNORE_INT));
   if (0 == (nc & GNUNET_NC_BLOCKING))
     flags |= MSG_DONTWAIT;
-#elif SOMEBSD || SOLARIS
+#elif SOLARIS
   if (0 == (nc & GNUNET_NC_BLOCKING))
     flags |= MSG_DONTWAIT;
 #elif LINUX
@@ -227,7 +230,11 @@ GNUNET_socket_recv (struct GNUNET_SocketHandle *s,
       GNUNET_GE_ASSERT (NULL, s->checksum == -s->handle);
       if ((ret == (size_t) - 1) &&
           (errno == EINTR) && (0 != (nc & GNUNET_NC_IGNORE_INT)))
-        continue;
+        {
+          if (GNUNET_shutdown_test () == GNUNET_YES)
+            return GNUNET_SYSERR;
+          continue;
+        }
       if ((ret == (size_t) - 1) || (ret > max - pos))
         {
           if (errno == EINTR)
@@ -283,11 +290,11 @@ GNUNET_socket_recv_from (struct GNUNET_SocketHandle *s,
 #ifdef CYGWIN
   if (0 == (nc & GNUNET_NC_IGNORE_INT))
     flags |= MSG_NOSIGNAL;
-#elif OSX
+#elif OSX || SOMEBSD
   socket_set_nosigpipe (s, 0 == (nc & GNUNET_NC_IGNORE_INT));
   if (0 == (nc & GNUNET_NC_BLOCKING))
     flags |= MSG_DONTWAIT;
-#elif SOMEBSD || SOLARIS
+#elif SOLARIS
   if (0 == (nc & GNUNET_NC_BLOCKING))
     flags |= MSG_DONTWAIT;
 #elif LINUX
@@ -356,10 +363,10 @@ GNUNET_socket_send (struct GNUNET_SocketHandle *s,
 
   GNUNET_socket_set_blocking (s, 0 != (nc & GNUNET_NC_BLOCKING));
   flags = 0;
-#if SOMEBSD || SOLARIS
+#if SOLARIS
   if (0 == (nc & GNUNET_NC_BLOCKING))
     flags |= MSG_DONTWAIT;
-#elif OSX
+#elif OSX || SOMEBSD
   socket_set_nosigpipe (s, 0 == (nc & GNUNET_NC_IGNORE_INT));
   if (0 == (nc & GNUNET_NC_BLOCKING))
     flags |= MSG_DONTWAIT;
@@ -433,10 +440,10 @@ GNUNET_socket_send_to (struct GNUNET_SocketHandle *s,
 
   GNUNET_socket_set_blocking (s, 0 != (nc & GNUNET_NC_BLOCKING));
   flags = 0;
-#if SOMEBSD || SOLARIS
+#if SOLARIS
   if (0 == (nc & GNUNET_NC_BLOCKING))
     flags |= MSG_DONTWAIT;
-#elif OSX
+#elif OSX || SOMEBSD
   socket_set_nosigpipe (s, 0 == (nc & GNUNET_NC_IGNORE_INT));
   if (0 == (nc & GNUNET_NC_BLOCKING))
     flags |= MSG_DONTWAIT;

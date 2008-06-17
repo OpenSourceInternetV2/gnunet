@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet
-     (C) 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
+     (C) 2004, 2005, 2006, 2008 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -38,19 +38,6 @@ extern "C"
 #endif
 
 /**
- * Iterator over all namespaces.
- *
- * @param rating the local rating of the namespace
- * @return GNUNET_OK to continue iteration, GNUNET_SYSERR to abort
- */
-typedef int (*GNUNET_NS_NamespaceIterator) (void *cls,
-                                            const char *namespaceName,
-                                            const GNUNET_HashCode *
-                                            namespaceId,
-                                            const struct GNUNET_ECRS_MetaData
-                                            * md, int rating);
-
-/**
  * Iterator over all updateable content.
  *
  * @param uri URI of the last content published
@@ -78,7 +65,25 @@ typedef int (*GNUNET_NS_UpdateIterator) (void *cls,
  * @param meta meta-data about the namespace (maybe NULL)
  * @return URI on success, NULL on error (namespace already exists)
  */
-struct GNUNET_ECRS_URI *GNUNET_NS_namespace_create (struct GNUNET_GE_Context *ectx, struct GNUNET_GC_Configuration *cfg, unsigned int anonymityLevel, unsigned int insertPriority, GNUNET_CronTime insertExpiration, const char *namespaceName, const struct GNUNET_ECRS_MetaData *meta, const struct GNUNET_ECRS_URI *advertisementURI, const GNUNET_HashCode * rootEntry);    /* namespace_info.c */
+struct GNUNET_ECRS_URI *GNUNET_NS_namespace_create (struct GNUNET_GE_Context
+                                                    *ectx,
+                                                    struct
+                                                    GNUNET_GC_Configuration
+                                                    *cfg,
+                                                    unsigned int
+                                                    anonymityLevel,
+                                                    unsigned int
+                                                    insertPriority,
+                                                    GNUNET_CronTime
+                                                    insertExpiration,
+                                                    const struct
+                                                    GNUNET_ECRS_MetaData
+                                                    *meta,
+                                                    const struct
+                                                    GNUNET_ECRS_URI
+                                                    *advertisementURI,
+                                                    const GNUNET_HashCode *
+                                                    rootEntry);
 
 /**
  * Delete a local namespace.  Only prevents future insertions into the
@@ -86,32 +91,9 @@ struct GNUNET_ECRS_URI *GNUNET_NS_namespace_create (struct GNUNET_GE_Context *ec
  *
  * @return GNUNET_OK on success, GNUNET_SYSERR on error
  */
-int GNUNET_NS_namespace_delete (struct GNUNET_GE_Context *ectx, struct GNUNET_GC_Configuration *cfg, const char *namespaceName);        /* namespace.c */
-
-/**
- * Change the ranking of a (non-local) namespace.
- *
- * @param ns the name of the namespace, as obtained
- *  from GNUNET_ECRS_get_namespace_name
- * @param delta by how much should the rating be
- *  changed?
- * @return new rating of the namespace
- */
-int GNUNET_NS_namespace_rank (struct GNUNET_GE_Context *ectx, struct GNUNET_GC_Configuration *cfg, const char *ns, int delta);  /* namespace_info.c */
-
-/**
- * Add a namespace to the set of known namespaces.  For all namespace
- * advertisements that we discover this function should be
- * callled.
- *
- * @param ns the namespace identifier
- */
-void GNUNET_NS_namespace_add_information (struct GNUNET_GE_Context *ectx,
-                                          struct GNUNET_GC_Configuration *cfg,
-                                          const struct GNUNET_ECRS_URI *uri,
-                                          const struct GNUNET_ECRS_MetaData
-                                          *meta);
-
+int GNUNET_NS_namespace_delete (struct GNUNET_GE_Context *ectx,
+                                struct GNUNET_GC_Configuration *cfg,
+                                const GNUNET_HashCode * nsid);
 
 /**
  * Get the root of the namespace (if we have one).
@@ -119,34 +101,12 @@ void GNUNET_NS_namespace_add_information (struct GNUNET_GE_Context *ectx,
  */
 int GNUNET_NS_namespace_get_root (struct GNUNET_GE_Context *ectx,
                                   struct GNUNET_GC_Configuration *cfg,
-                                  const char *ns, GNUNET_HashCode * root);
+                                  const GNUNET_HashCode * nsid,
+                                  GNUNET_HashCode * root);
 
 void GNUNET_NS_namespace_set_root (struct GNUNET_GE_Context *ectx,
                                    struct GNUNET_GC_Configuration *cfg,
                                    const struct GNUNET_ECRS_URI *uri);
-
-/**
- * List all available (local or non-local) namespaces.
- */
-int GNUNET_NS_namespace_list_all (struct GNUNET_GE_Context *ectx, struct GNUNET_GC_Configuration *cfg, GNUNET_NS_NamespaceIterator iterator, void *closure);    /* namespace_info.c */
-
-/**
- * Register callback to be invoked whenever we discover
- * a new namespace.
- */
-int GNUNET_NS_register_discovery_callback (struct GNUNET_GE_Context *ectx,
-                                           struct GNUNET_GC_Configuration
-                                           *cfg,
-                                           GNUNET_NS_NamespaceIterator
-                                           iterator, void *closure);
-
-/**
- * Unregister namespace discovery callback.
- */
-int GNUNET_NS_unregister_discovery_callback (GNUNET_NS_NamespaceIterator
-                                             iterator, void *closure);
-
-
 
 /**
  * Add an entry into a namespace (also for publishing
@@ -172,7 +132,7 @@ int GNUNET_NS_unregister_discovery_callback (GNUNET_NS_NamespaceIterator
  * </ul>
  * And yes, reading the ECRS paper maybe a good idea.
  *
- * @param name in which namespace to publish
+ * @param nsid in which namespace to publish
  * @param updateInterval the desired frequency for updates
  * @param lastId the ID of the last value (maybe NULL)
  *        set if this is an update to an existing entry
@@ -187,7 +147,31 @@ int GNUNET_NS_unregister_discovery_callback (GNUNET_NS_NamespaceIterator
  *        entry?
  * @return the resulting URI, NULL on error
  */
-struct GNUNET_ECRS_URI *GNUNET_NS_add_to_namespace (struct GNUNET_GE_Context *ectx, struct GNUNET_GC_Configuration *cfg, unsigned int anonymityLevel, unsigned int insertPriority, GNUNET_CronTime insertExpiration, const char *name, GNUNET_Int32Time updateInterval, const GNUNET_HashCode * lastId, const GNUNET_HashCode * thisId, const GNUNET_HashCode * nextId, const struct GNUNET_ECRS_URI *dst, const struct GNUNET_ECRS_MetaData *md);      /* namespace_info.c */
+struct GNUNET_ECRS_URI *GNUNET_NS_add_to_namespace (struct GNUNET_GE_Context
+                                                    *ectx,
+                                                    struct
+                                                    GNUNET_GC_Configuration
+                                                    *cfg,
+                                                    unsigned int
+                                                    anonymityLevel,
+                                                    unsigned int
+                                                    insertPriority,
+                                                    GNUNET_CronTime
+                                                    insertExpiration,
+                                                    const GNUNET_HashCode *
+                                                    nsid,
+                                                    GNUNET_Int32Time
+                                                    updateInterval,
+                                                    const GNUNET_HashCode *
+                                                    lastId,
+                                                    const GNUNET_HashCode *
+                                                    thisId,
+                                                    const GNUNET_HashCode *
+                                                    nextId,
+                                                    const struct
+                                                    GNUNET_ECRS_URI *dst,
+                                                    const struct
+                                                    GNUNET_ECRS_MetaData *md);
 
 /**
  * Compute the next ID for peridodically updated content.
@@ -197,7 +181,7 @@ struct GNUNET_ECRS_URI *GNUNET_NS_add_to_namespace (struct GNUNET_GE_Context *ec
  */
 int GNUNET_NS_compute_next_identifier (struct GNUNET_GE_Context *ectx,
                                        struct GNUNET_GC_Configuration *cfg,
-                                       const char *name,
+                                       const GNUNET_HashCode * nsid,
                                        const GNUNET_HashCode * lastId,
                                        const GNUNET_HashCode * thisId,
                                        GNUNET_Int32Time updateInterval,
@@ -206,8 +190,23 @@ int GNUNET_NS_compute_next_identifier (struct GNUNET_GE_Context *ectx,
 /**
  * List all updateable content in a given namespace.
  */
-int GNUNET_NS_namespace_list_contents (struct GNUNET_GE_Context *ectx, struct GNUNET_GC_Configuration *cfg, const char *name, GNUNET_NS_UpdateIterator iterator, void *closure);        /* namespace_info.c */
+int GNUNET_NS_namespace_list_contents (struct GNUNET_GE_Context *ectx,
+                                       struct GNUNET_GC_Configuration *cfg,
+                                       const GNUNET_HashCode * nsid,
+                                       GNUNET_NS_UpdateIterator iterator,
+                                       void *closure);
 
+/**
+ * Convert namespace URI to a human readable format
+ * (using the namespace description, if available).
+ */
+char *GNUNET_NS_sks_uri_to_human_readable_string (struct GNUNET_GE_Context
+                                                  *ectx,
+                                                  struct
+                                                  GNUNET_GC_Configuration
+                                                  *cfg,
+                                                  const struct GNUNET_ECRS_URI
+                                                  *uri);
 
 
 

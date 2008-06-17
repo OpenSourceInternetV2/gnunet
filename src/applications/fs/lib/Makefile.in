@@ -60,7 +60,7 @@ libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libgnunetfs_la_DEPENDENCIES =  \
 	$(top_builddir)/src/util/libgnunetutil.la \
-	$(top_builddir)/src/applications/fs/libecrs_core.la
+	$(top_builddir)/src/applications/fs/libgnunetecrs_core.la
 am_libgnunetfs_la_OBJECTS = fslib.lo
 libgnunetfs_la_OBJECTS = $(am_libgnunetfs_la_OBJECTS)
 am_fslibtest_OBJECTS = fslibtest.$(OBJEXT)
@@ -251,7 +251,7 @@ libgnunetfs_la_SOURCES = \
 
 libgnunetfs_la_LIBADD = \
  $(top_builddir)/src/util/libgnunetutil.la \
- $(top_builddir)/src/applications/fs/libecrs_core.la
+ $(top_builddir)/src/applications/fs/libgnunetecrs_core.la
 
 TESTS = $(check_PROGRAMS)
 fslibtest_SOURCES = \

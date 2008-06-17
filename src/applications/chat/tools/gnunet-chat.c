@@ -19,7 +19,7 @@
 */
 
 /**
- * @file applications/chat/gnunet-chat.c
+ * @file applications/chat/tools/gnunet-chat.c
  * @brief Minimal chat command line tool
  * @author Christian Grothoff
  * @author Nathan Evans
@@ -29,6 +29,8 @@
 #include "gnunet_protocols.h"
 #include "gnunet_directories.h"
 #include "gnunet_chat_lib.h"
+#include "gnunet_ecrs_lib.h"
+#include "gnunet_pseudonym_lib.h"
 
 #define MAX_MESSAGE_LENGTH 1024
 
@@ -80,23 +82,41 @@ static struct GNUNET_CommandLineOption gnunetchatOptions[] = {
 static int
 receive_callback (void *cls,
                   struct GNUNET_CHAT_Room *room,
-                  const char *senderNick,
-                  const char *message,
-                  GNUNET_CronTime timestamp, GNUNET_CHAT_MSG_OPTIONS options)
+                  const GNUNET_HashCode * sender,
+                  const struct GNUNET_ECRS_MetaData *meta,
+                  const char *message, GNUNET_CHAT_MSG_OPTIONS options)
 {
-  fprintf (stdout, _("`%s' said: %s\n"), senderNick, message);
+  char *nick;
+
+  nick = GNUNET_PSEUDO_id_to_name (ectx, cfg, sender);
+  fprintf (stdout, _("`%s' said: %s\n"), nick, message);
+  GNUNET_free (nick);
+  return GNUNET_OK;
+}
+
+static int
+member_list_callback (void *cls,
+                      const struct GNUNET_ECRS_MetaData *member_info,
+                      const GNUNET_RSA_PublicKey * member_id,
+                      GNUNET_CHAT_MSG_OPTIONS options)
+{
+  char *nick;
+  GNUNET_HashCode id;
+
+  GNUNET_hash (member_id, sizeof (GNUNET_RSA_PublicKey), &id);
+  nick = GNUNET_PSEUDO_id_to_name (ectx, cfg, &id);
+  fprintf (stdout, member_info != NULL
+           ? _("`%s' entered the room\n") : _("`%s' left the room\n"), nick);
+  GNUNET_free (nick);
   return GNUNET_OK;
 }
 
 /**
  * Message delivery confirmations.
  *
- * @param timestamp when was the message sent?
- * @param senderNick what is the nickname of the receiver?
+ * @param timestamp when was the message received?
  * @param message the message (maybe NULL)
  * @param room in which room was the message received?
- * @param options what were the options of the message
- * @param response what was the receivers response (GNUNET_OK, GNUNET_NO, GNUNET_SYSERR).
  * @param receipt signature confirming delivery (maybe NULL, only
  *        if confirmation was requested)
  * @return GNUNET_OK to continue, GNUNET_SYSERR to refuse processing further
@@ -105,12 +125,11 @@ receive_callback (void *cls,
 static int
 confirmation_callback (void *cls,
                        struct GNUNET_CHAT_Room *room,
-                       const char *receiverNick,
-                       const GNUNET_RSA_PublicKey * receiverKey,
-                       const char *message,
+                       unsigned int orig_seq_number,
                        GNUNET_CronTime timestamp,
-                       GNUNET_CHAT_MSG_OPTIONS options,
-                       int response, const GNUNET_RSA_Signature * receipt)
+                       const GNUNET_HashCode * receiver,
+                       const GNUNET_HashCode * msg_hash,
+                       const GNUNET_RSA_Signature * receipt)
 {
   return GNUNET_OK;
 }
@@ -127,10 +146,11 @@ main (int argc, char **argv)
 {
   struct GNUNET_CHAT_Room *room;
   struct GNUNET_RSA_PrivateKey *my_priv;
-  GNUNET_RSA_PublicKey my_pub;
+  struct GNUNET_ECRS_MetaData *meta;
   char message[MAX_MESSAGE_LENGTH + 1];
-
-  /* GNUNET_disable_entropy_gathering (); */
+  char *my_name;
+  unsigned int seq;
+  GNUNET_HashCode me;
 
   if (GNUNET_SYSERR == GNUNET_init (argc,
                                     argv,
@@ -145,15 +165,18 @@ main (int argc, char **argv)
       return -1;
     }
 
-  fprintf (stderr, "Generating public/private key pair\n");
-  /* FIXME: try to read key from disk! */
-  my_priv = GNUNET_RSA_create_key ();
-  GNUNET_RSA_get_public_key (my_priv, &my_pub);
+  meta = GNUNET_ECRS_meta_data_create ();
+  GNUNET_ECRS_meta_data_insert (meta, EXTRACTOR_TITLE, nickname);
   room = GNUNET_CHAT_join_room (ectx,
                                 cfg,
-                                nickname, room_name,
-                                &my_pub, my_priv, "", &receive_callback,
-                                NULL);
+                                nickname,
+                                meta,
+                                room_name,
+                                -1,
+                                &receive_callback, NULL,
+                                &member_list_callback, NULL,
+                                &confirmation_callback, NULL, &me);
+  GNUNET_ECRS_meta_data_destroy (meta);
   if (room == NULL)
     {
       fprintf (stderr, _("Failed to join room `%s'\n"), room_name);
@@ -161,10 +184,12 @@ main (int argc, char **argv)
       GNUNET_fini (ectx, cfg);
       return -1;
     }
+  my_name = GNUNET_PSEUDO_id_to_name (ectx, cfg, &me);
   fprintf (stdout,
            _
-           ("Joined room `%s'.\nType message and hit return to send.\nType `%s' when ready to quit.\n"),
-           room_name, QUIT_COMMAND);
+           ("Joined room `%s' as user `%s'.\nType message and hit return to send.\nType `%s' when ready to quit.\n"),
+           room_name, my_name, QUIT_COMMAND);
+  GNUNET_free (my_name);
   /* read messages from command line and send */
   while ((0 != strcmp (message, QUIT_COMMAND)) &&
          (GNUNET_shutdown_test () == GNUNET_NO))
@@ -178,10 +203,8 @@ main (int argc, char **argv)
         message[strlen (message) - 1] = '\0';
       if (GNUNET_OK != GNUNET_CHAT_send_message (room,
                                                  message,
-                                                 &confirmation_callback,
-                                                 NULL,
                                                  GNUNET_CHAT_MSG_OPTION_NONE,
-                                                 NULL))
+                                                 NULL, &seq))
         fprintf (stderr, _("Failed to send message.\n"));
     }
 

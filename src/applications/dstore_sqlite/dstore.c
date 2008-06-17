@@ -543,6 +543,12 @@ d_get (const GNUNET_HashCode * key,
         }
       dat = sqlite3_column_blob (stmt, 1);
       cnt++;
+#if DEBUG_DSTORE
+      GNUNET_GE_LOG (coreAPI->ectx,
+                     GNUNET_GE_DEBUG | GNUNET_GE_REQUEST |
+                     GNUNET_GE_DEVELOPER,
+                     "dstore found result for get: `%.*s\n", size, dat);
+#endif
       if ((handler != NULL) &&
           (GNUNET_OK != handler (key, type, size, dat, closure)))
         {
@@ -593,7 +599,7 @@ provide_module_dstore_sqlite (GNUNET_CoreAPIForPlugins * capi)
                                        5);
       CLOSE (fd);
     }
-  stats = capi->request_service ("stats");
+  stats = capi->service_request ("stats");
   if (stats != NULL)
     {
       stat_dstore_size = stats->create (gettext_noop ("# bytes in dstore"));
@@ -623,7 +629,7 @@ release_module_dstore_sqlite ()
   bloom_name = NULL;
   if (stats != NULL)
     {
-      coreAPI->release_service (stats);
+      coreAPI->service_release (stats);
       stats = NULL;
     }
 #if DEBUG_SQLITE

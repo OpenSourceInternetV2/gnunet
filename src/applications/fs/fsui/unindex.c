@@ -220,8 +220,7 @@ GNUNET_FSUI_unindex_start (struct GNUNET_FSUI_Context *ctx,
  * @return GNUNET_SYSERR if no such unindex is pending
  */
 int
-GNUNET_FSUI_unindex_abort (struct GNUNET_FSUI_Context *ctx,
-                           struct GNUNET_FSUI_UnindexList *ul)
+GNUNET_FSUI_unindex_abort (struct GNUNET_FSUI_UnindexList *ul)
 {
   if ((ul->state != GNUNET_FSUI_ACTIVE) && (ul->state != GNUNET_FSUI_PENDING))
     return GNUNET_NO;
@@ -244,20 +243,18 @@ GNUNET_FSUI_unindex_abort (struct GNUNET_FSUI_Context *ctx,
  * @return GNUNET_SYSERR if no such unindex is pending
  */
 int
-GNUNET_FSUI_unindex_stop (struct GNUNET_FSUI_Context *ctx,
-                          struct GNUNET_FSUI_UnindexList *dl)
+GNUNET_FSUI_unindex_stop (struct GNUNET_FSUI_UnindexList *dl)
 {
   GNUNET_FSUI_UnindexList *prev;
+  struct GNUNET_FSUI_Context *ctx;
   struct GNUNET_GE_Context *ectx;
   void *unused;
   GNUNET_FSUI_Event event;
 
-  ectx = ctx->ectx;
   if (dl == NULL)
-    {
-      GNUNET_GE_BREAK (ectx, 0);
-      return GNUNET_SYSERR;
-    }
+    return GNUNET_SYSERR;
+  ctx = dl->ctx;
+  ectx = ctx->ectx;
 #if 0
   GNUNET_GE_LOG (ectx,
                  GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_USER,

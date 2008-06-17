@@ -21,10 +21,11 @@
 /**
  * @file include/gnunet_dht.h
  * @brief data structures exchanged between between DHT clients and the GNUnet DHT module
- * @author Tomi Tukiainen, Marko R‰ih‰, Christian Grothoff
+ * @author Tomi Tukiainen, Marko R√§ih√§, Christian Grothoff
  *
  * Typical clients are likely to prefer using the synchronous
  * gnunet_dht_lib instead of sending these messages manually.
+ * Only code in src/applications/dht/ should refer to this file!
  */
 
 #ifndef GNUNET_DHT_H
@@ -42,7 +43,7 @@ extern "C"
 
 /**
  * TCP communication: put <key,value>-mapping to table.
- * When send by a client to gnunetd, this message is
+ * When sent by a client to gnunetd, this message is
  * used to initiate a PUT on the DHT.  gnunetd also
  * uses this message to communicate results from a GET
  * operation back to the client.<p>

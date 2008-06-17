@@ -251,6 +251,7 @@ top_srcdir = @top_srcdir@
 INCLUDES = -I$(top_srcdir)/src/include
 @HAVE_GTK_TRUE@gtk_dir = gtk
 @HAVE_QT_TRUE@qt_dir = qt
+@HAVE_CDIALOG_TRUE@curses_dir = ncurses
 @HAVE_DIALOG_TRUE@curses_dir = ncurses
 @HAVE_GUILE_TRUE@@MINGW_FALSE@textdir = text
 SUBDIRS = lib $(textdir) . $(curses_dir) $(gtk_dir) $(qt_dir) .

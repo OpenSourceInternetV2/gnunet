@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005, 2006, 2008 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -34,8 +34,8 @@
 #define DEBUG_SEARCH GNUNET_NO
 
 /**
- * This struct is followed by keyCount keys of
- * type "GNUNET_HashCode".
+ * Context for an individual search.  Followed
+ *  by keyCount keys of type GNUNET_HashCode.
  */
 struct PendingSearch
 {
@@ -48,15 +48,12 @@ struct PendingSearch
    */
   GNUNET_HashCode decryptKey;
 
+  unsigned int keyCount;
+
   /**
    * What type of query is it?
    */
   unsigned int type;
-
-  /**
-   * How many keys are there?
-   */
-  unsigned int keyCount;
 
 };
 
@@ -88,8 +85,6 @@ struct GNUNET_ECRS_SearchContext
   GNUNET_ECRS_SearchResultProcessor spcb;
 
   void *spcbClosure;
-
-  struct GNUNET_Mutex *lock;
 
   struct GNUNET_GE_Context *ectx;
 
@@ -125,10 +120,8 @@ add_search (unsigned int type,
   memcpy (&ps[1], keys, sizeof (GNUNET_HashCode) * keyCount);
   ps->decryptKey = *dkey;
   ps->context = sqc;
-  GNUNET_mutex_lock (sqc->lock);
   ps->next = sqc->queries;
   sqc->queries = ps;
-  GNUNET_mutex_unlock (sqc->lock);
   GNUNET_FS_start_search (sqc->sctx,
                           NULL,
                           type,
@@ -176,6 +169,7 @@ add_search_for_uri (const struct GNUNET_ECRS_URI *uri,
         struct GNUNET_RSA_PrivateKey *pk;
         GNUNET_RSA_PublicKey pub;
         int i;
+        const char *keyword;
 
 #if DEBUG_SEARCH
         GNUNET_GE_LOG (ectx,
@@ -184,8 +178,11 @@ add_search_for_uri (const struct GNUNET_ECRS_URI *uri,
 #endif
         for (i = 0; i < uri->data.ksk.keywordCount; i++)
           {
-            GNUNET_hash (uri->data.ksk.keywords[i],
-                         strlen (uri->data.ksk.keywords[i]), &hc);
+            keyword = uri->data.ksk.keywords[i];
+            /* first character of the keyword is
+               "+" or " " to indicate mandatory or
+               not -- ignore for hashing! */
+            GNUNET_hash (&keyword[1], strlen (&keyword[1]), &hc);
             pk = GNUNET_RSA_create_key_from_hash (&hc);
             GNUNET_RSA_get_public_key (pk, &pub);
             GNUNET_hash (&pub, sizeof (GNUNET_RSA_PublicKey), &query);
@@ -213,17 +210,17 @@ add_search_for_uri (const struct GNUNET_ECRS_URI *uri,
 }
 
 /**
- * Compute the "current" ID of an updateable SBlock.  Will set the ID
+ * Compute the "current" ID of an updateable GNUNET_EC_SBlock.  Will set the ID
  * of the sblock itself for non-updateable content, the ID of the next
  * identifier for sporadically updated SBlocks and the ID computed from
  * the timing function for periodically updated SBlocks.
  *
- * @param sb the SBlock (must be in plaintext)
+ * @param sb the GNUNET_EC_SBlock (must be in plaintext)
  * @param now the time for which the ID should be computed
  * @param c the resulting current ID (set)
  */
 static int
-compute_id_at_time (const SBlock * sb, GNUNET_Int32Time now,
+compute_id_at_time (const GNUNET_EC_SBlock * sb, GNUNET_Int32Time now,
                     GNUNET_HashCode * c)
 {
   GNUNET_Int32Time pos;
@@ -261,12 +258,12 @@ compute_id_at_time (const SBlock * sb, GNUNET_Int32Time now,
 }
 
 /**
- * We found an NBlock.  Decode the meta-data and call the callback of
+ * We found an GNUNET_EC_NBlock.  Decode the meta-data and call the callback of
  * the SQC with the root-URI for the namespace, together with the
  * namespace advertisement.
  */
 static int
-process_nblock_result (const NBlock * nb,
+process_nblock_result (const GNUNET_EC_NBlock * nb,
                        const GNUNET_HashCode * key,
                        unsigned int size,
                        struct GNUNET_ECRS_SearchContext *sqc)
@@ -278,7 +275,8 @@ process_nblock_result (const NBlock * nb,
 
   fi.meta = GNUNET_ECRS_meta_data_deserialize (ectx,
                                                (const char *) &nb[1],
-                                               size - sizeof (NBlock));
+                                               size -
+                                               sizeof (GNUNET_EC_NBlock));
   if (fi.meta == NULL)
     {
       GNUNET_GE_BREAK (ectx, 0);        /* nblock malformed */
@@ -330,8 +328,9 @@ receive_response_callback (const GNUNET_HashCode * key,
 #endif
   if (GNUNET_OK !=
       GNUNET_EC_file_block_check_and_get_query (size,
-                                                (const DBlock *) &value[1],
-                                                GNUNET_YES, &query))
+                                                (const GNUNET_EC_DBlock *)
+                                                &value[1], GNUNET_YES,
+                                                &query))
     {
       GNUNET_GE_BREAK (NULL, 0);
       return GNUNET_SYSERR;
@@ -341,8 +340,8 @@ receive_response_callback (const GNUNET_HashCode * key,
         && ((ps->type == type) || (ps->type == GNUNET_ECRS_BLOCKTYPE_ANY))
         && (GNUNET_YES ==
             GNUNET_EC_is_block_applicable_for_query (type, size,
-                                                     (const DBlock *)
-                                                     &value[1], &query,
+                                                     (const GNUNET_EC_DBlock
+                                                      *) &value[1], &query,
                                                      ps->keyCount,
                                                      (GNUNET_HashCode *) &
                                                      ps[1]))))
@@ -354,14 +353,14 @@ receive_response_callback (const GNUNET_HashCode * key,
     {
     case GNUNET_ECRS_BLOCKTYPE_KEYWORD:
       {
-        KBlock *kb;
+        GNUNET_EC_KBlock *kb;
         const char *dstURI;
 #if DEBUG_SEARCH
         GNUNET_EncName enc;
 #endif
         int j;
 
-        if (size < sizeof (KBlock))
+        if (size < sizeof (GNUNET_EC_KBlock))
           {
             GNUNET_GE_BREAK (NULL, 0);
             return GNUNET_SYSERR;
@@ -378,8 +377,8 @@ receive_response_callback (const GNUNET_HashCode * key,
                        "Decrypting KBlock with key %s.\n", &enc);
 #endif
         GNUNET_ECRS_decryptInPlace (&ps->decryptKey,
-                                    &kb[1], size - sizeof (KBlock));
-        j = sizeof (KBlock);
+                                    &kb[1], size - sizeof (GNUNET_EC_KBlock));
+        j = sizeof (GNUNET_EC_KBlock);
         while ((j < size) && (((const char *) kb)[j] != '\0'))
           j++;
         if (j == size)
@@ -423,43 +422,43 @@ receive_response_callback (const GNUNET_HashCode * key,
       }
     case GNUNET_ECRS_BLOCKTYPE_NAMESPACE:
       {
-        const NBlock *nb;
+        const GNUNET_EC_NBlock *nb;
 
-        if (size < sizeof (NBlock))
+        if (size < sizeof (GNUNET_EC_NBlock))
           return GNUNET_SYSERR;
-        nb = (const NBlock *) &value[1];
+        nb = (const GNUNET_EC_NBlock *) &value[1];
         return process_nblock_result (nb, NULL, size, sqc);
       }
     case GNUNET_ECRS_BLOCKTYPE_KEYWORD_FOR_NAMESPACE:
       {
-        KNBlock *kb;
+        GNUNET_EC_KNBlock *kb;
         int ret;
 
-        if (size < sizeof (KNBlock))
+        if (size < sizeof (GNUNET_EC_KNBlock))
           return GNUNET_SYSERR;
         kb = GNUNET_malloc (size);
         memcpy (kb, &value[1], size);
         GNUNET_ECRS_decryptInPlace (&ps->decryptKey,
                                     &kb->nblock,
-                                    size - sizeof (KBlock) -
+                                    size - sizeof (GNUNET_EC_KBlock) -
                                     sizeof (unsigned int));
         ret =
           process_nblock_result (&kb->nblock, &ps->decryptKey,
-                                 size - sizeof (KNBlock) + sizeof (NBlock),
-                                 sqc);
+                                 size - sizeof (GNUNET_EC_KNBlock) +
+                                 sizeof (GNUNET_EC_NBlock), sqc);
         GNUNET_free (kb);
         return ret;
       }
     case GNUNET_ECRS_BLOCKTYPE_SIGNED:
       {
-        SBlock *sb;
+        GNUNET_EC_SBlock *sb;
         const char *dstURI;
         int j;
         GNUNET_Int32Time now;
         GNUNET_HashCode updateId;
         URI updateURI;
 
-        if (size < sizeof (SBlock))
+        if (size < sizeof (GNUNET_EC_SBlock))
           return GNUNET_SYSERR;
         sb = GNUNET_malloc (size);
         memcpy (sb, &value[1], size);
@@ -472,9 +471,9 @@ receive_response_callback (const GNUNET_HashCode * key,
                                     - sizeof (GNUNET_HashCode));
         j = 0;
         dstURI = (const char *) &sb[1];
-        while ((j < size - sizeof (SBlock)) && (dstURI[j] != '\0'))
+        while ((j < size - sizeof (GNUNET_EC_SBlock)) && (dstURI[j] != '\0'))
           j++;
-        if (j == size - sizeof (SBlock))
+        if (j == size - sizeof (GNUNET_EC_SBlock))
           {
             GNUNET_GE_BREAK (ectx, 0);  /* sblock malformed */
             GNUNET_free (sb);
@@ -485,7 +484,8 @@ receive_response_callback (const GNUNET_HashCode * key,
         fi.meta = GNUNET_ECRS_meta_data_deserialize (ectx,
                                                      &dstURI[j],
                                                      size - j -
-                                                     sizeof (SBlock));
+                                                     sizeof
+                                                     (GNUNET_EC_SBlock));
         if (fi.meta == NULL)
           {
             GNUNET_GE_BREAK (ectx, 0);  /* sblock malformed */
@@ -511,7 +511,7 @@ receive_response_callback (const GNUNET_HashCode * key,
         GNUNET_ECRS_uri_destroy (fi.uri);
         GNUNET_ECRS_meta_data_destroy (fi.meta);
 
-        /* compute current/NEXT URI (if updateable SBlock) and issue
+        /* compute current/NEXT URI (if updateable GNUNET_EC_SBlock) and issue
            respective query automatically! */
         GNUNET_get_time_int32 (&now);
         if (GNUNET_OK != compute_id_at_time (sb, now, &updateId))
@@ -562,6 +562,16 @@ GNUNET_ECRS_search_start (struct GNUNET_GE_Context *ectx,
 {
   struct GNUNET_ECRS_SearchContext *ctx;
 
+  if (GNUNET_YES == GNUNET_ECRS_uri_test_ksk (uri))
+    {
+      if (1 != GNUNET_ECRS_uri_get_keyword_count_from_ksk (uri))
+        return NULL;
+    }
+  else
+    {
+      if (GNUNET_YES != GNUNET_ECRS_uri_test_sks (uri))
+        return NULL;
+    }
   ctx = GNUNET_malloc (sizeof (struct GNUNET_ECRS_SearchContext));
   ctx->start = GNUNET_get_time ();
   ctx->anonymityLevel = anonymityLevel;
@@ -571,8 +581,12 @@ GNUNET_ECRS_search_start (struct GNUNET_GE_Context *ectx,
   ctx->spcb = spcb;
   ctx->spcbClosure = spcbClosure;
   ctx->aborted = GNUNET_NO;
-  ctx->lock = GNUNET_mutex_create (GNUNET_YES);
-  ctx->sctx = GNUNET_FS_create_search_context (ectx, cfg, ctx->lock);
+  ctx->sctx = GNUNET_FS_create_search_context (ectx, cfg);
+  if (ctx->sctx == NULL)
+    {
+      GNUNET_free (ctx);
+      return NULL;
+    }
   add_search_for_uri (uri, ctx);
   return ctx;
 }
@@ -594,7 +608,6 @@ GNUNET_ECRS_search_stop (struct GNUNET_ECRS_SearchContext *ctx)
       ctx->queries = pos->next;
       GNUNET_free (pos);
     }
-  GNUNET_mutex_destroy (ctx->lock);
   GNUNET_free (ctx);
 }
 
@@ -619,6 +632,8 @@ GNUNET_ECRS_search (struct GNUNET_GE_Context *ectx,
   ctx =
     GNUNET_ECRS_search_start (ectx, cfg, uri, anonymityLevel, spcb,
                               spcbClosure);
+  if (ctx == NULL)
+    return GNUNET_SYSERR;
   while (((NULL == tt) || (GNUNET_OK == tt (ttClosure)))
          && (GNUNET_NO == GNUNET_shutdown_test ())
          && (ctx->aborted == GNUNET_NO))

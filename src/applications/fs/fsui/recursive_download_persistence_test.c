@@ -19,9 +19,9 @@
 */
 
 /**
- * @file applications/fs/fsui/serializetest2.c
+ * @file applications/fs/fsui/recursive_download_persistence_test.c
  * @brief testcase for fsui download persistence for recursive
- *        download linked to search
+ *        download
  * @author Christian Grothoff
  */
 
@@ -31,7 +31,7 @@
 
 #define DEBUG_VERBOSE GNUNET_NO
 
-#define UPLOAD_PREFIX "/tmp/gnunet-fsui-serializetest2"
+#define UPLOAD_PREFIX "/tmp/gnunet-fsui-recursive_download_persistence_test"
 
 #define CHECK(a) if (!(a)) { ok = GNUNET_NO; GNUNET_GE_BREAK(ectx, 0); goto FAILURE; }
 
@@ -52,7 +52,6 @@ makeName (unsigned int i)
 
 static struct GNUNET_FSUI_Context *ctx;
 static struct GNUNET_ECRS_URI *upURI;
-static struct GNUNET_FSUI_SearchList *search;
 static struct GNUNET_FSUI_DownloadList *download;
 static int have_error;
 
@@ -70,11 +69,8 @@ eventCallback (void *cls, const GNUNET_FSUI_Event * event)
     return NULL;
   switch (event->type)
     {
-    case GNUNET_FSUI_search_suspended:
-      search = NULL;
-      break;
     case GNUNET_FSUI_download_suspended:
-      if (event->data.DownloadSuspended.dc.spos != search)
+      if (event->data.DownloadSuspended.dc.spos != NULL)
         {
           fprintf (stderr,
                    "Download suspended but search reference not set correctly.\n");
@@ -98,16 +94,10 @@ eventCallback (void *cls, const GNUNET_FSUI_Event * event)
       if (event->data.DownloadSuspended.dc.pos == download)
         download = NULL;
       break;
-    case GNUNET_FSUI_search_resumed:
-#if DEBUG_VERBOSE
-      printf ("Search resuming\n");
-#endif
-      search = event->data.SearchResumed.sc.pos;
-      break;
     case GNUNET_FSUI_download_resumed:
       if (download == NULL)
         download = event->data.DownloadResumed.dc.pos;
-      if (event->data.DownloadResumed.dc.spos != search)
+      if (event->data.DownloadResumed.dc.spos != NULL)
         {
           fprintf (stderr,
                    "Download resuming but search reference not set correctly.\n");
@@ -131,11 +121,6 @@ eventCallback (void *cls, const GNUNET_FSUI_Event * event)
       printf ("Download resuming\n");
 #endif
       break;
-    case GNUNET_FSUI_search_result:
-#if DEBUG_VERBOSE
-      printf ("Received search result\n");
-#endif
-      break;
     case GNUNET_FSUI_upload_progress:
 #if DEBUG_VERBOSE
       printf ("Upload is progressing (%llu/%llu)...\n",
@@ -152,7 +137,7 @@ eventCallback (void *cls, const GNUNET_FSUI_Event * event)
 #endif
       break;
     case GNUNET_FSUI_download_completed:
-      if (event->data.DownloadCompleted.dc.spos != search)
+      if (event->data.DownloadCompleted.dc.spos != NULL)
         {
           fprintf (stderr,
                    "Download completed but search reference not set correctly.\n");
@@ -177,7 +162,7 @@ eventCallback (void *cls, const GNUNET_FSUI_Event * event)
 #endif
       break;
     case GNUNET_FSUI_download_progress:
-      if (event->data.DownloadResumed.dc.spos != search)
+      if (event->data.DownloadResumed.dc.spos != NULL)
         {
           fprintf (stderr,
                    "Download progressing but search reference not set correctly.\n");
@@ -216,21 +201,9 @@ eventCallback (void *cls, const GNUNET_FSUI_Event * event)
 #endif
       break;
     case GNUNET_FSUI_unindex_error:
-      fprintf (stderr,
-               "Received ERROR: %d %s\n",
-               event->type, event->data.UnindexError.message);
-      GNUNET_GE_BREAK (ectx, 0);
-      break;
     case GNUNET_FSUI_upload_error:
-      fprintf (stderr,
-               "Received ERROR: %d %s\n",
-               event->type, event->data.UploadError.message);
-      GNUNET_GE_BREAK (ectx, 0);
-      break;
     case GNUNET_FSUI_download_error:
-      fprintf (stderr,
-               "Received ERROR: %d %s\n",
-               event->type, event->data.DownloadError.message);
+      fprintf (stderr, "Received ERROR: %d\n", event->type);
       GNUNET_GE_BREAK (ectx, 0);
       break;
     case GNUNET_FSUI_download_aborted:
@@ -247,7 +220,7 @@ eventCallback (void *cls, const GNUNET_FSUI_Event * event)
     case GNUNET_FSUI_download_started:
       if (download == NULL)
         download = event->data.DownloadStarted.dc.pos;
-      if (event->data.DownloadStarted.dc.spos != search)
+      if (event->data.DownloadStarted.dc.spos != NULL)
         {
           fprintf (stderr,
                    "Download started but search reference not set correctly.\n");
@@ -269,7 +242,7 @@ eventCallback (void *cls, const GNUNET_FSUI_Event * event)
         }
       break;
     case GNUNET_FSUI_download_stopped:
-      if (event->data.DownloadStopped.dc.spos != search)
+      if (event->data.DownloadStopped.dc.spos != NULL)
         {
           fprintf (stderr,
                    "Download stopped but search reference not set correctly.\n");
@@ -323,7 +296,6 @@ main (int argc, char *argv[])
   char *keywords[] = {
     "down_foo",
     "down_bar",
-    NULL,
   };
   char keyword[40];
   int prog;
@@ -353,10 +325,10 @@ main (int argc, char *argv[])
   /* ACTUAL TEST CODE */
 #endif
   ctx = GNUNET_FSUI_start (NULL,
-                           cfg, "serializetest2", 32, GNUNET_YES,
-                           &eventCallback, NULL);
+                           cfg, "recursive_download_persistence_test", 32,
+                           GNUNET_YES, &eventCallback, NULL);
   CHECK (ctx != NULL);
-  for (j = 4; j < 256; j += 4)
+  for (j = 4; j < 16; j += 4)
     {
       fn = makeName (j);
       buf = GNUNET_malloc (FILESIZE * j);
@@ -367,7 +339,9 @@ main (int argc, char *argv[])
       GNUNET_free (fn);
     }
   meta = GNUNET_ECRS_meta_data_create ();
-  kuri = GNUNET_ECRS_keyword_list_to_uri (ectx, 2, (const char **) keywords);
+  kuri =
+    GNUNET_ECRS_keyword_command_line_to_uri (ectx, 2,
+                                             (const char **) keywords);
   GNUNET_ECRS_meta_data_insert (meta, EXTRACTOR_MIMETYPE,
                                 GNUNET_DIRECTORY_MIME);
   upload =
@@ -380,29 +354,25 @@ main (int argc, char *argv[])
   CHECK (upload != NULL);
   GNUNET_ECRS_uri_destroy (kuri);
   kuri = NULL;
-  GNUNET_FSUI_upload_stop (ctx, upload);
+  GNUNET_FSUI_upload_stop (upload);
   CHECK (upURI != NULL);
-  GNUNET_snprintf (keyword, 40, "%s %s %s", keywords[0], _("AND"),
-                   keywords[1]);
+  GNUNET_snprintf (keyword, 40, "+%s +%s", keywords[0], keywords[1]);
   uri = GNUNET_ECRS_keyword_string_to_uri (ectx, keyword);
-  search = GNUNET_FSUI_search_start (ctx, 0, uri);
-  CHECK (search != NULL);
   download = GNUNET_FSUI_download_start (ctx,
                                          0,
                                          GNUNET_YES,
                                          upURI,
-                                         meta,
-                                         UPLOAD_PREFIX "-download", search,
-                                         NULL);
+                                         meta, UPLOAD_PREFIX "-download",
+                                         NULL, NULL);
   GNUNET_ECRS_meta_data_destroy (meta);
   prog = 0;
   suspendRestart = 10;
-  while (prog < 1000)
+  while (prog < 100)
     {
       prog++;
       GNUNET_thread_sleep (50 * GNUNET_CRON_MILLISECONDS);
       if ((suspendRestart > 0)
-          && (GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK, 100) == 0))
+          && (GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK, 10) == 0))
         {
 #if 1
 #if DEBUG_VERBOSE
@@ -410,36 +380,26 @@ main (int argc, char *argv[])
 #endif
           GNUNET_FSUI_stop (ctx);       /* download possibly incomplete
                                            at this point, thus testing resume */
-          CHECK (search == NULL);
           CHECK (download == NULL);
           ctx = GNUNET_FSUI_start (NULL,
                                    cfg,
-                                   "serializetest2", 32, GNUNET_YES,
-                                   &eventCallback, NULL);
+                                   "recursive_download_persistence_test", 32,
+                                   GNUNET_YES, &eventCallback, NULL);
 #if DEBUG_VERBOSE
           printf ("Resumed...\n");
 #endif
 #endif
           suspendRestart--;
         }
-      if ((search != NULL) && (suspendRestart >= 5))
-        {
-          no_check = 1;
-          GNUNET_thread_sleep (50 * GNUNET_CRON_MILLISECONDS);
-          GNUNET_FSUI_search_abort (ctx, search);
-          GNUNET_FSUI_search_stop (ctx, search);
-          search = NULL;
-          no_check = 0;
-        }
       if (GNUNET_shutdown_test () == GNUNET_YES)
         break;
     }
-  GNUNET_FSUI_download_stop (ctx, download);
-  for (j = 4; j < 256; j += 4)
+  GNUNET_FSUI_download_stop (download);
+  for (j = 4; j < 16; j += 4)
     {
       fn = makeName (j);
       unindex = GNUNET_FSUI_unindex_start (ctx, fn);
-      GNUNET_FSUI_unindex_stop (ctx, unindex);
+      GNUNET_FSUI_unindex_stop (unindex);
       UNLINK (fn);
       GNUNET_free (fn);
     }
@@ -463,4 +423,4 @@ FAILURE:
   return (ok == GNUNET_YES) ? 0 : 1;
 }
 
-/* end of serializetest2.c */
+/* end of recursive_download_persistence_test.c */

@@ -1,6 +1,6 @@
 /*
-     This file is part of GNUnet.
-     (C) 2008 Christian Grothoff (and other contributing authors)
+     This file is part of GNUnet
+     (C) 2003, 2004, 2005, 2006, 2007, 2008 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -19,39 +19,23 @@
 */
 
 /**
- * @author Nathan Evans
- * @file applications/chat/chat_p2p.c
+ * @file applications/fs/pseudonym/pseudonym_notification.h
+ * @brief implementation of the notification mechanism
+ * @author Christian Grothoff
  */
-#include "chat_p2p.h"
 
-int
-p2pHandleChatJoinRequest (struct GNUNET_ClientHandle *client,
-                          const GNUNET_MessageHeader * message)
-{
-  return GNUNET_SYSERR;
-}
 
-int
-p2pHandleChatMSG (struct GNUNET_ClientHandle *client,
-                  const GNUNET_MessageHeader * message)
-{
-  return GNUNET_SYSERR;
-}
+#include "gnunet_pseudonym_lib.h"
 
-int
-p2pSendChatMSG (const GNUNET_MessageHeader * message)
-{
-  return GNUNET_SYSERR;
-}
+#ifndef PSEUDONYM_NOTIFICATON_H
+#define PSEUDONYM_NOTIFICATON_H
 
-int
-p2pGetRoomList ()
-{
-  return GNUNET_SYSERR;
-}
+/**
+ * Internal notification about new tracked pseudonym.
+ */
+void
+GNUNET_PSEUDO_internal_notify_ (const GNUNET_HashCode * id,
+                                const struct GNUNET_ECRS_MetaData *md,
+                                int rating);
 
-int
-p2pSendRoomList ()
-{
-  return GNUNET_SYSERR;
-}
+#endif

@@ -114,13 +114,11 @@ main (int argc, char **argv)
   struct GNUNET_TESTING_DaemonContext *peers;
 #endif
   int i;
-  int ok;
   int ret;
   struct GNUNET_ClientServerConnection *sock;
   struct GNUNET_GC_Configuration *cfg;
 
   ret = 0;
-  ok = 1;
   cfg = GNUNET_GC_create ();
   if (-1 == GNUNET_GC_parse_configuration (cfg, "check.conf"))
     {
@@ -157,20 +155,21 @@ main (int argc, char **argv)
   /* 'blast' pass: hit bandwidth limits! */
   for (i = 8; i < 60000; i *= 2)
     {
+      if (GNUNET_shutdown_test () == GNUNET_YES)
+        break;
       if (ret == 0)
         ret =
           test (sock, i, 1 + 1024 / i, 4, 10 * GNUNET_CRON_MILLISECONDS, 2,
                 2 * GNUNET_CRON_SECONDS);
     }
-  ret =
-    test (sock, 32768, 10, 10, 500 * GNUNET_CRON_MILLISECONDS, 1,
-          10 * GNUNET_CRON_SECONDS);
+  if (GNUNET_shutdown_test () != GNUNET_YES)
+    ret =
+      test (sock, 32768, 10, 10, 500 * GNUNET_CRON_MILLISECONDS, 1,
+            10 * GNUNET_CRON_SECONDS);
   GNUNET_client_connection_destroy (sock);
 #if START_PEERS
   GNUNET_TESTING_stop_daemons (peers);
 #endif
-  if (ok == 0)
-    ret = 1;
 
   GNUNET_GC_free (cfg);
   return ret;

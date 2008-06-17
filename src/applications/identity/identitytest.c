@@ -64,7 +64,7 @@ runTest ()
   GNUNET_cron_start (cron);
   /* give cron job chance to run */
   GNUNET_thread_sleep (5 * GNUNET_CRON_SECONDS);
-  hello = transport->createhello (GNUNET_TRANSPORT_PROTOCOL_NUMBER_ANY);
+  hello = transport->hello_create (GNUNET_TRANSPORT_PROTOCOL_NUMBER_ANY);
   if (NULL == hello)
     {
       printf ("Cannot run test, failed to create any hello.\n");
@@ -134,6 +134,7 @@ main (int argc, char *argv[])
 {
   int err;
 
+  GNUNET_disable_entropy_gathering ();
   cfg = GNUNET_GC_create ();
   if (-1 == GNUNET_GC_parse_configuration (cfg, "check.conf"))
     {

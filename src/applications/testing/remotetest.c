@@ -28,6 +28,7 @@
 #include "gnunet_protocols.h"
 #include "gnunet_remote_lib.h"
 #include "gnunet_directories.h"
+#include "remote.h"
 
 static char *configFile = GNUNET_DEFAULT_DAEMON_CONFIG_FILE;
 static unsigned long long number_of_daemons;
@@ -41,7 +42,8 @@ static struct GNUNET_CommandLineOption gnunetRemoteOptions[] = {
   {'n', "number_of_daemons", "NUMBER_OF_DAEMONS",
    gettext_noop ("set number of daemons to start"),
    1, &GNUNET_getopt_configure_set_ulong, &number_of_daemons},  /* -n */
-  GNUNET_COMMAND_LINE_OPTION_END
+  GNUNET_COMMAND_LINE_OPTION_VERBOSE,
+  GNUNET_COMMAND_LINE_OPTION_END,
 };
 
 /**
@@ -56,7 +58,6 @@ main (int argc, char *const *argv)
   struct GNUNET_GC_Configuration *cfg;
   struct GNUNET_GE_Context *ectx;
   struct GNUNET_GC_Configuration *hostConfig;
-
   res =
     GNUNET_init (argc, argv, "remotetest", &configFile, gnunetRemoteOptions,
                  &ectx, &cfg);

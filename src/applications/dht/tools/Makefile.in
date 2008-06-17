@@ -34,7 +34,8 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 noinst_PROGRAMS = gnunet-dht-query$(EXEEXT)
-check_PROGRAMS = dhttest2$(EXEEXT) dhttest$(EXEEXT)
+check_PROGRAMS = dht_loopback_test$(EXEEXT) dht_twopeer_test$(EXEEXT) \
+	dht_multipeer_test$(EXEEXT)
 subdir = src/applications/dht/tools
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -65,16 +66,23 @@ libgnunetdht_api_la_DEPENDENCIES =  \
 am_libgnunetdht_api_la_OBJECTS = dht_api.lo
 libgnunetdht_api_la_OBJECTS = $(am_libgnunetdht_api_la_OBJECTS)
 PROGRAMS = $(noinst_PROGRAMS)
-am_dhttest_OBJECTS = dhttest.$(OBJEXT)
-dhttest_OBJECTS = $(am_dhttest_OBJECTS)
-dhttest_DEPENDENCIES =  \
+am_dht_loopback_test_OBJECTS = dht_loopback_test.$(OBJEXT)
+dht_loopback_test_OBJECTS = $(am_dht_loopback_test_OBJECTS)
+dht_loopback_test_DEPENDENCIES =  \
 	$(top_builddir)/src/applications/stats/libgnunetstats_api.la \
 	$(top_builddir)/src/applications/testing/libgnunettesting_api.la \
 	$(top_builddir)/src/applications/dht/tools/libgnunetdht_api.la \
 	$(top_builddir)/src/util/libgnunetutil.la
-am_dhttest2_OBJECTS = dhttest2.$(OBJEXT)
-dhttest2_OBJECTS = $(am_dhttest2_OBJECTS)
-dhttest2_DEPENDENCIES =  \
+am_dht_multipeer_test_OBJECTS = dht_multipeer_test.$(OBJEXT)
+dht_multipeer_test_OBJECTS = $(am_dht_multipeer_test_OBJECTS)
+dht_multipeer_test_DEPENDENCIES =  \
+	$(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+	$(top_builddir)/src/applications/testing/libgnunettesting_api.la \
+	$(top_builddir)/src/applications/dht/tools/libgnunetdht_api.la \
+	$(top_builddir)/src/util/libgnunetutil.la
+am_dht_twopeer_test_OBJECTS = dht_twopeer_test.$(OBJEXT)
+dht_twopeer_test_OBJECTS = $(am_dht_twopeer_test_OBJECTS)
+dht_twopeer_test_DEPENDENCIES =  \
 	$(top_builddir)/src/applications/stats/libgnunetstats_api.la \
 	$(top_builddir)/src/applications/testing/libgnunettesting_api.la \
 	$(top_builddir)/src/applications/dht/tools/libgnunetdht_api.la \
@@ -95,10 +103,12 @@ CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
-SOURCES = $(libgnunetdht_api_la_SOURCES) $(dhttest_SOURCES) \
-	$(dhttest2_SOURCES) $(gnunet_dht_query_SOURCES)
-DIST_SOURCES = $(libgnunetdht_api_la_SOURCES) $(dhttest_SOURCES) \
-	$(dhttest2_SOURCES) $(gnunet_dht_query_SOURCES)
+SOURCES = $(libgnunetdht_api_la_SOURCES) $(dht_loopback_test_SOURCES) \
+	$(dht_multipeer_test_SOURCES) $(dht_twopeer_test_SOURCES) \
+	$(gnunet_dht_query_SOURCES)
+DIST_SOURCES = $(libgnunetdht_api_la_SOURCES) \
+	$(dht_loopback_test_SOURCES) $(dht_multipeer_test_SOURCES) \
+	$(dht_twopeer_test_SOURCES) $(gnunet_dht_query_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -264,7 +274,7 @@ lib_LTLIBRARIES = \
   libgnunetdht_api.la 
 
 libgnunetdht_api_la_SOURCES = \
-  dht_api.c 
+  dht_api.c dht_api.h
 
 libgnunetdht_api_la_LIBADD = \
   $(top_builddir)/src/util/libgnunetutil.la
@@ -277,19 +287,28 @@ gnunet_dht_query_LDADD = \
   $(top_builddir)/src/util/libgnunetutil.la
 
 TESTS = $(check_PROGRAMS)
-dhttest2_SOURCES = \
-  dhttest2.c 
+dht_loopback_test_SOURCES = \
+  dht_loopback_test.c 
 
-dhttest2_LDADD = \
+dht_loopback_test_LDADD = \
   $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
   $(top_builddir)/src/applications/testing/libgnunettesting_api.la \
   $(top_builddir)/src/applications/dht/tools/libgnunetdht_api.la \
   $(top_builddir)/src/util/libgnunetutil.la 
 
-dhttest_SOURCES = \
-  dhttest.c 
+dht_twopeer_test_SOURCES = \
+  dht_twopeer_test.c 
 
-dhttest_LDADD = \
+dht_twopeer_test_LDADD = \
+  $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+  $(top_builddir)/src/applications/testing/libgnunettesting_api.la \
+  $(top_builddir)/src/applications/dht/tools/libgnunetdht_api.la \
+  $(top_builddir)/src/util/libgnunetutil.la 
+
+dht_multipeer_test_SOURCES = \
+  dht_multipeer_test.c 
+
+dht_multipeer_test_LDADD = \
   $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
   $(top_builddir)/src/applications/testing/libgnunettesting_api.la \
   $(top_builddir)/src/applications/dht/tools/libgnunetdht_api.la \
@@ -374,12 +393,15 @@ clean-noinstPROGRAMS:
 	  echo " rm -f $$p $$f"; \
 	  rm -f $$p $$f ; \
 	done
-dhttest$(EXEEXT): $(dhttest_OBJECTS) $(dhttest_DEPENDENCIES) 
-	@rm -f dhttest$(EXEEXT)
-	$(LINK) $(dhttest_OBJECTS) $(dhttest_LDADD) $(LIBS)
-dhttest2$(EXEEXT): $(dhttest2_OBJECTS) $(dhttest2_DEPENDENCIES) 
-	@rm -f dhttest2$(EXEEXT)
-	$(LINK) $(dhttest2_OBJECTS) $(dhttest2_LDADD) $(LIBS)
+dht_loopback_test$(EXEEXT): $(dht_loopback_test_OBJECTS) $(dht_loopback_test_DEPENDENCIES) 
+	@rm -f dht_loopback_test$(EXEEXT)
+	$(LINK) $(dht_loopback_test_OBJECTS) $(dht_loopback_test_LDADD) $(LIBS)
+dht_multipeer_test$(EXEEXT): $(dht_multipeer_test_OBJECTS) $(dht_multipeer_test_DEPENDENCIES) 
+	@rm -f dht_multipeer_test$(EXEEXT)
+	$(LINK) $(dht_multipeer_test_OBJECTS) $(dht_multipeer_test_LDADD) $(LIBS)
+dht_twopeer_test$(EXEEXT): $(dht_twopeer_test_OBJECTS) $(dht_twopeer_test_DEPENDENCIES) 
+	@rm -f dht_twopeer_test$(EXEEXT)
+	$(LINK) $(dht_twopeer_test_OBJECTS) $(dht_twopeer_test_LDADD) $(LIBS)
 gnunet-dht-query$(EXEEXT): $(gnunet_dht_query_OBJECTS) $(gnunet_dht_query_DEPENDENCIES) 
 	@rm -f gnunet-dht-query$(EXEEXT)
 	$(LINK) $(gnunet_dht_query_OBJECTS) $(gnunet_dht_query_LDADD) $(LIBS)
@@ -392,8 +414,9 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dht-query.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dht_api.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dhttest.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dhttest2.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dht_loopback_test.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dht_multipeer_test.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dht_twopeer_test.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<

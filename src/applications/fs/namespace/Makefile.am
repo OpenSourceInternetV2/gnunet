@@ -4,8 +4,13 @@ lib_LTLIBRARIES = \
   libgnunetnamespace.la 
 
 libgnunetnamespace_la_SOURCES = \
-  namespace_info.c 
+  common.c common.h \
+  info.c \
+  root_info.c \
+  update_info.c \
+  uri.c 
 libgnunetnamespace_la_LIBADD = \
+ $(top_builddir)/src/applications/fs/pseudonyms/libgnunetpseudonym.la \
  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
  $(top_builddir)/src/util/libgnunetutil.la 
 

@@ -175,7 +175,7 @@ reply_process_thread (void *cls)
             }
           rep = (const CS_fs_reply_content_MESSAGE *) hdr;
           size = ntohs (hdr->size) - sizeof (CS_fs_reply_content_MESSAGE);
-          if (GNUNET_OK != GNUNET_EC_file_block_check_and_get_query (size, (DBlock *) & rep[1], GNUNET_NO,      /* gnunetd will have checked already */
+          if (GNUNET_OK != GNUNET_EC_file_block_check_and_get_query (size, (GNUNET_EC_DBlock *) & rep[1], GNUNET_NO,    /* gnunetd will have checked already */
                                                                      &query))
             {
               GNUNET_GE_BREAK (ctx->ectx, 0);
@@ -184,15 +184,16 @@ reply_process_thread (void *cls)
             }
           unique =
             GNUNET_EC_file_block_get_type (size,
-                                           (DBlock *) & rep[1]) ==
+                                           (GNUNET_EC_DBlock *) & rep[1]) ==
             GNUNET_ECRS_BLOCKTYPE_DATA;
           value = GNUNET_malloc (sizeof (GNUNET_DatastoreValue) + size);
           value->size = htonl (size + sizeof (GNUNET_DatastoreValue));
           value->type =
-            htonl (GNUNET_EC_file_block_get_type (size, (DBlock *) & rep[1]));
-          value->prio = htonl (0);
-          value->anonymityLevel = rep->anonymityLevel;
-          value->expirationTime = rep->expirationTime;
+            htonl (GNUNET_EC_file_block_get_type
+                   (size, (GNUNET_EC_DBlock *) & rep[1]));
+          value->priority = htonl (0);
+          value->anonymity_level = rep->anonymity_level;
+          value->expiration_time = rep->expiration_time;
           memcpy (&value[1], &rep[1], size);
           matched = 0;
           GNUNET_mutex_lock (ctx->lock);
@@ -270,20 +271,19 @@ reply_process_thread (void *cls)
 
 struct GNUNET_FS_SearchContext *
 GNUNET_FS_create_search_context (struct GNUNET_GE_Context *ectx,
-                                 struct GNUNET_GC_Configuration *cfg,
-                                 struct GNUNET_Mutex *lock)
+                                 struct GNUNET_GC_Configuration *cfg)
 {
   struct GNUNET_FS_SearchContext *ret;
 
-  GNUNET_GE_ASSERT (ectx, lock != NULL);
   ret = GNUNET_malloc (sizeof (struct GNUNET_FS_SearchContext));
   memset (ret, 0, sizeof (struct GNUNET_FS_SearchContext));
   ret->ectx = ectx;
   ret->cfg = cfg;
-  ret->lock = lock;
+  ret->lock = GNUNET_mutex_create (GNUNET_YES);
   ret->sock = GNUNET_client_connection_create (ectx, cfg);
   if (ret->sock == NULL)
     {
+      GNUNET_mutex_destroy (ret->lock);
       GNUNET_free (ret);
       return NULL;
     }
@@ -303,13 +303,10 @@ GNUNET_FS_destroy_search_context (struct GNUNET_FS_SearchContext *ctx)
   void *unused;
   struct GNUNET_FS_SearchHandle *pos;
 
-  GNUNET_mutex_lock (ctx->lock);
   ctx->abort = GNUNET_YES;
   GNUNET_client_connection_close_forever (ctx->sock);
-  GNUNET_mutex_unlock (ctx->lock);
   GNUNET_thread_stop_sleep (ctx->thread);
   GNUNET_thread_join (ctx->thread, &unused);
-  ctx->lock = NULL;
   GNUNET_client_connection_destroy (ctx->sock);
   while (ctx->handles != NULL)
     {
@@ -317,6 +314,7 @@ GNUNET_FS_destroy_search_context (struct GNUNET_FS_SearchContext *ctx)
       ctx->handles = pos->next;
       GNUNET_free (pos);
     }
+  GNUNET_mutex_destroy (ctx->lock);
   GNUNET_free (ctx);
 }
 
@@ -324,11 +322,11 @@ GNUNET_FS_destroy_search_context (struct GNUNET_FS_SearchContext *ctx)
  * Search for blocks matching the given key and type.
  *
  * @param timeout how long to search
- * @param anonymityLevel what are the anonymity
+ * @param anonymity_level what are the anonymity
  *        requirements for this request? 0 for no
  *        anonymity (DHT/direct transfer ok)
  * @param callback method to call for each result
- * @param prio priority to use for the search
+ * @param priority priority to use for the search
  */
 int
 GNUNET_FS_start_search (struct GNUNET_FS_SearchContext *ctx,
@@ -358,7 +356,7 @@ GNUNET_FS_start_search (struct GNUNET_FS_SearchContext *ctx,
     htons (sizeof (CS_fs_request_search_MESSAGE) +
            (keyCount - 1) * sizeof (GNUNET_HashCode));
   req->header.type = htons (GNUNET_CS_PROTO_GAP_QUERY_START);
-  req->anonymityLevel = htonl (anonymityLevel);
+  req->anonymity_level = htonl (anonymityLevel);
   req->type = htonl (type);
   if (target != NULL)
     req->target = *target;
@@ -404,9 +402,9 @@ GNUNET_FS_insert (struct GNUNET_ClientServerConnection *sock,
   ri = GNUNET_malloc (sizeof (CS_fs_request_insert_MESSAGE) + size);
   ri->header.size = htons (sizeof (CS_fs_request_insert_MESSAGE) + size);
   ri->header.type = htons (GNUNET_CS_PROTO_GAP_INSERT);
-  ri->prio = block->prio;
-  ri->expiration = block->expirationTime;
-  ri->anonymityLevel = block->anonymityLevel;
+  ri->priority = block->priority;
+  ri->expiration = block->expiration_time;
+  ri->anonymity_level = block->anonymity_level;
   memcpy (&ri[1], &block[1], size);
   retry = AUTO_RETRY;
   do
@@ -497,14 +495,15 @@ GNUNET_FS_index (struct GNUNET_ClientServerConnection *sock,
   ri = GNUNET_malloc (sizeof (CS_fs_request_index_MESSAGE) + size);
   ri->header.size = htons (sizeof (CS_fs_request_index_MESSAGE) + size);
   ri->header.type = htons (GNUNET_CS_PROTO_GAP_INDEX);
-  ri->prio = block->prio;
-  ri->expiration = block->expirationTime;
-  ri->anonymityLevel = block->anonymityLevel;
+  ri->priority = block->priority;
+  ri->expiration = block->expiration_time;
+  ri->anonymity_level = block->anonymity_level;
   ri->fileId = *fileHc;
   ri->fileOffset = GNUNET_htonll (offset);
   memcpy (&ri[1], &block[1], size);
 #if DEBUG_FSLIB
-  GNUNET_EC_file_block_get_query ((const DBlock *) &block[1], size, &hc);
+  GNUNET_EC_file_block_get_query ((const GNUNET_EC_DBlock *) &block[1], size,
+                                  &hc);
   GNUNET_hash_to_enc (&hc, &enc);
   fprintf (stderr,
            "Sending index request for `%s' to gnunetd)\n",

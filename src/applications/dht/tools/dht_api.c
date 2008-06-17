@@ -1,6 +1,6 @@
 /*
       This file is part of GNUnet
-      (C) 2004, 2005, 2006, 2007 Christian Grothoff (and other contributing authors)
+      (C) 2004, 2005, 2006, 2007, 2008 Christian Grothoff (and other contributing authors)
 
       GNUnet is free software; you can redistribute it and/or modify
       it under the terms of the GNU General Public License as published
@@ -21,64 +21,17 @@
 /**
  * @file dht/tools/dht_api.c
  * @brief DHT-module's core API's implementation.
- * @author Tomi Tukiainen, Christian Grothoff
+ * @author Tomi Tukiainen, Christian Grothoff, Nathan Evans
  */
 
-#include "platform.h"
-#include "gnunet_protocols.h"
-#include "dht.h"
-#include "gnunet_dht_lib.h"
-#include "gnunet_util.h"
+#include "dht_api.h"
 
 #define DEBUG_DHT_API GNUNET_NO
-
-/**
- * Data exchanged between main thread and GET thread.
- */
-typedef struct
-{
-
-  /**
-   * Connection with gnunetd.
-   */
-  struct GNUNET_ClientServerConnection *sock;
-
-  /**
-   * Callback to call for each result.
-   */
-  GNUNET_ResultProcessor processor;
-
-  /**
-   * Extra argument for processor.
-   */
-  void *closure;
-
-  /**
-   * Parent thread that is waiting for the
-   * timeout (used to notify if we are exiting
-   * early, i.e. because of gnunetd closing the
-   * connection or the processor callback requesting
-   * it).
-   */
-  struct GNUNET_ThreadHandle *parent;
-
-  /**
-   * Are we done (for whichever reason)?
-   */
-  int aborted;
-
-  /**
-   * Total number of results obtained
-   */
-  unsigned int total;
-
-} GetInfo;
-
 
 static void *
 poll_thread (void *cls)
 {
-  GetInfo *info = cls;
+  struct GNUNET_DHT_Context *info = cls;
   GNUNET_MessageHeader *reply;
   CS_dht_request_put_MESSAGE *put;
   unsigned int size;
@@ -100,92 +53,125 @@ poll_thread (void *cls)
       size = ntohs (reply->size) - sizeof (CS_dht_request_put_MESSAGE);
       put = (CS_dht_request_put_MESSAGE *) reply;
       if ((info->processor != NULL) &&
-          (GNUNET_OK != info->processor (&put->key, 0 /* unknown! */ ,
+          (GNUNET_OK != info->processor (&put->key,
+                                         ntohl (put->type),
                                          size,
                                          (const char *) &put[1],
                                          info->closure)))
         info->aborted = GNUNET_YES;
-      info->total++;
       GNUNET_free (reply);
     }
   info->aborted = GNUNET_YES;
-  GNUNET_thread_stop_sleep (info->parent);
+  GNUNET_thread_stop_sleep (info->poll_thread);
   return NULL;
+}
+
+/**
+ * Set up a context for performing asynchronous DHT operations.
+ *
+ * @param resultCallback function to call for results,
+ *        the operation also aborts if the callback returns
+ *        GNUNET_SYSERR
+ * @return NULL on error
+ */
+struct GNUNET_DHT_Context *
+GNUNET_DHT_context_create (struct GNUNET_GC_Configuration
+                           *cfg,
+                           struct GNUNET_GE_Context
+                           *ectx,
+                           GNUNET_ResultProcessor
+                           resultCallback, void *resCallbackClosure)
+{
+  struct GNUNET_DHT_Context *ctx;
+  struct GNUNET_ClientServerConnection *sock;
+
+  sock = GNUNET_client_connection_create (ectx, cfg);
+  if (sock == NULL)
+    return NULL;
+
+  ctx = GNUNET_malloc (sizeof (struct GNUNET_DHT_Context));
+  ctx->sock = sock;
+  ctx->closure = resCallbackClosure;
+  ctx->processor = resultCallback;
+  ctx->poll_thread = GNUNET_thread_create (&poll_thread, ctx, 1024 * 8);
+  ctx->aborted = GNUNET_NO;
+  return ctx;
 }
 
 
 /**
- * Perform a synchronous GET operation on the DHT identified by
- * 'table' using 'key' as the key; store the result in 'result'.  If
- * result->dataLength == 0 the result size is unlimited and
- * result->data needs to be allocated; otherwise result->data refers
- * to dataLength bytes and the result is to be stored at that
- * location; dataLength is to be set to the actual size of the
- * result.
+ * Start an asynchronous GET operation on the DHT looking for
+ * key.
  *
- * The peer does not have to be part of the table!
- *
- * @param table table to use for the lookup
+ * @param type the type of key to look up
  * @param key the key to look up
- * @param timeout how long to wait until this operation should
- *        automatically time-out
- * @param maxResults maximum number of results to obtain, size of the results array
- * @param results where to store the results (on success)
- * @return number of results on success, GNUNET_SYSERR on error (i.e. timeout)
+ * @return GNUNET_OK on success, GNUNET_SYSERR on error
  */
 int
-GNUNET_DHT_get (struct GNUNET_GC_Configuration *cfg,
-                struct GNUNET_GE_Context *ectx,
-                unsigned int type,
-                const GNUNET_HashCode * key,
-                GNUNET_CronTime timeout, GNUNET_ResultProcessor processor,
-                void *closure)
+GNUNET_DHT_get_start (struct GNUNET_DHT_Context *ctx,
+                      unsigned int type, const GNUNET_HashCode * key)
 {
-  struct GNUNET_ClientServerConnection *sock;
   CS_dht_request_get_MESSAGE req;
-  struct GNUNET_ThreadHandle *thread;
-  GNUNET_CronTime start;
-  GNUNET_CronTime now;
-  GNUNET_CronTime delta;
-  GetInfo info;
-  void *unused;
 
-  sock = GNUNET_client_connection_create (ectx, cfg);
-  if (sock == NULL)
+  if (ctx->sock == NULL)
     return GNUNET_SYSERR;
   req.header.size = htons (sizeof (CS_dht_request_get_MESSAGE));
   req.header.type = htons (GNUNET_CS_PROTO_DHT_REQUEST_GET);
   req.type = htonl (type);
   req.key = *key;
-  if (GNUNET_OK != GNUNET_client_connection_write (sock, &req.header))
+  if (GNUNET_OK != GNUNET_client_connection_write (ctx->sock, &req.header))
     {
-      GNUNET_client_connection_destroy (sock);
       return GNUNET_SYSERR;
     }
-  info.sock = sock;
-  info.processor = processor;
-  info.closure = closure;
-  info.parent = GNUNET_thread_get_self ();
-  info.aborted = GNUNET_NO;
-  info.total = 0;
-  thread = GNUNET_thread_create (&poll_thread, &info, 1024 * 8);
-  start = GNUNET_get_time ();
-  while ((start + timeout > (now = GNUNET_get_time ())) &&
-         (GNUNET_shutdown_test () == GNUNET_NO)
-         && (info.aborted == GNUNET_NO))
+
+  return GNUNET_OK;
+}
+
+
+/**
+ * Stop an asynchronous GET operation on the DHT looking for
+ * key.
+ * @param type the type of key to look up
+ * @param key the key to look up
+ * @return GNUNET_OK on success, GNUNET_SYSERR on error
+ */
+int
+GNUNET_DHT_get_stop (struct GNUNET_DHT_Context *ctx,
+                     unsigned int type, const GNUNET_HashCode * key)
+{
+
+  CS_dht_request_get_MESSAGE req;
+
+  if (ctx->sock == NULL)
+    return GNUNET_SYSERR;
+  req.header.size = htons (sizeof (CS_dht_request_get_MESSAGE));
+  req.header.type = htons (GNUNET_CS_PROTO_DHT_REQUEST_GET_END);
+  req.type = htonl (type);
+  req.key = *key;
+  if (GNUNET_OK != GNUNET_client_connection_write (ctx->sock, &req.header))
     {
-      delta = (start + timeout) - now;
-      if (delta > 100 * GNUNET_CRON_MILLISECONDS)
-        delta = 100 * GNUNET_CRON_MILLISECONDS; /* in case we miss SIGINT
-                                                   on CTRL-C */
-      GNUNET_thread_sleep (delta);
+      return GNUNET_SYSERR;
     }
-  info.aborted = GNUNET_YES;
-  GNUNET_client_connection_close_forever (sock);
-  GNUNET_thread_join (thread, &unused);
-  GNUNET_thread_release_self (info.parent);
-  GNUNET_client_connection_destroy (sock);
-  return info.total;
+
+  return GNUNET_OK;
+
+}
+
+/**
+ * Destroy a previously created context for DHT operations.
+ *
+ * @param ctx context to destroy
+ * @return GNUNET_SYSERR on error
+ */
+int
+GNUNET_DHT_context_destroy (struct GNUNET_DHT_Context *ctx)
+{
+  void *unused;
+  ctx->aborted = GNUNET_YES;
+  GNUNET_client_connection_close_forever (ctx->sock);
+  GNUNET_thread_join (ctx->poll_thread, &unused);
+  GNUNET_client_connection_destroy (ctx->sock);
+  return GNUNET_OK;
 }
 
 /**

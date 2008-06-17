@@ -427,7 +427,12 @@ getaddrinfo_resolve (struct GNUNET_GE_Context *ectx,
   struct addrinfo *result;
 
   memset (&hints, 0, sizeof (struct addrinfo));
+// FIXME in PlibC
+#ifndef MINGW
   hints.ai_family = domain;
+#else
+  hints.ai_family = AF_INET;
+#endif
   hints.ai_socktype = 0;
   hints.ai_protocol = 0;        /* Any protocol */
   hints.ai_canonname = NULL;
@@ -437,9 +442,12 @@ getaddrinfo_resolve (struct GNUNET_GE_Context *ectx,
   if (0 != (s = getaddrinfo (hostname, NULL, &hints, &result)))
     {
       GNUNET_GE_LOG (ectx,
-                     GNUNET_GE_ERROR | GNUNET_GE_USER |
+                     GNUNET_GE_WARNING | GNUNET_GE_USER |
                      GNUNET_GE_BULK,
-                     _("Could not resolve `%s': %s\n"), hostname,
+                     _("Could not resolve `%s' (%s): %s\n"), hostname,
+                     (domain ==
+                      AF_INET) ? "IPv4" : ((domain ==
+                                            AF_INET6) ? "IPv6" : "any"),
                      gai_strerror (s));
       return GNUNET_SYSERR;
     }
@@ -503,6 +511,9 @@ GNUNET_get_ip_from_hostname (struct GNUNET_GE_Context *ectx,
 #if HAVE_GETHOSTBYNAME
   if ((ret == GNUNET_NO) && ((domain == AF_UNSPEC) || (domain == PF_INET)))
     ret = gethostbyname_resolve (ectx, hostname, sa, socklen);
+#endif
+#if !defined(HAVE_GETADDRINFO) && !defined(HAVE_GETHOSTBYNAME2) && !defined(HAVE_GETHOSTBYNAME)
+#error No resolver function available
 #endif
   GNUNET_mutex_unlock (lock);
   if (ret == GNUNET_NO)

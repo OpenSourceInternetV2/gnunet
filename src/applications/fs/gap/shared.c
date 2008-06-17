@@ -27,6 +27,7 @@
 #include "platform.h"
 #include "gnunet_protocols.h"
 #include "shared.h"
+#include "ondemand.h"
 #include "fs.h"
 
 /**
@@ -83,7 +84,7 @@ int
 GNUNET_FS_SHARED_test_valid_new_response (struct RequestList *rl,
                                           const GNUNET_HashCode * primary_key,
                                           unsigned int size,
-                                          const DBlock * data,
+                                          const GNUNET_EC_DBlock * data,
                                           GNUNET_HashCode * hc)
 {
   struct ResponseList *seen;
@@ -110,6 +111,7 @@ GNUNET_FS_SHARED_test_valid_new_response (struct RequestList *rl,
   GNUNET_hash (data, size, hc);
   GNUNET_FS_HELPER_mingle_hash (hc, rl->bloomfilter_mutator, &m);
   if ((rl->bloomfilter != NULL) &&
+      (rl->response_client == NULL) &&
       (GNUNET_YES == GNUNET_bloomfilter_test (rl->bloomfilter, &m)))
     return GNUNET_NO;           /* not useful */
   /* bloomfilter should cover these already */
@@ -150,7 +152,7 @@ GNUNET_FS_SHARED_mark_response_seen (struct RequestList *rl,
 
 /**
  * If the data portion and type of the value match our value in the
- * closure, copy the header (prio, anonymityLevel, expirationTime) and
+ * closure, copy the header (priority, anonymity_level, expiration_time) and
  * abort the iteration: we found what we're looing for.  Otherwise
  * continue.
  */
@@ -196,7 +198,7 @@ GNUNET_FS_HELPER_mingle_hash (const GNUNET_HashCode * in,
  * value for the ttl that can be requested.
  *
  * @param ttl_in requested ttl
- * @param prio given priority
+ * @param priority given priority
  * @return ttl_in if ttl_in is below the limit,
  *         otherwise the ttl-limit for the given priority
  */
@@ -206,16 +208,86 @@ GNUNET_FS_HELPER_bound_ttl (int ttl_in, unsigned int prio)
   if (ttl_in <= 0)
     return ttl_in;
   if (ttl_in >
-      ((unsigned long long) prio) * TTL_DECREMENT / GNUNET_CRON_SECONDS)
+      ((unsigned long long) prio) * GNUNET_GAP_TTL_DECREMENT /
+      GNUNET_CRON_SECONDS)
     {
-      if (((unsigned long long) prio) * TTL_DECREMENT / GNUNET_CRON_SECONDS >=
-          (1 << 30))
+      if (((unsigned long long) prio) * GNUNET_GAP_TTL_DECREMENT /
+          GNUNET_CRON_SECONDS >= (1 << 30))
         return 1 << 30;
-      return (int) ((unsigned long long) prio) * TTL_DECREMENT /
+      return (int) ((unsigned long long) prio) * GNUNET_GAP_TTL_DECREMENT /
         GNUNET_CRON_SECONDS;
     }
   return ttl_in;
 }
 
+/**
+ * Send a response to a local client.
+ *
+ * @param request used to check if the response is new and
+ *        unique, maybe NULL (skip test in that case)
+ * @param hc set to hash of the message by this function
+ *
+ * @return GNUNET_OK on success,
+ *         GNUNET_NO if the block should be deleted
+ *         GNUNET_SYSERR to retry later
+ */
+int
+GNUNET_FS_HELPER_send_to_client (GNUNET_CoreAPIForPlugins * coreAPI,
+                                 const GNUNET_HashCode * key,
+                                 const GNUNET_DatastoreValue * value,
+                                 struct GNUNET_ClientHandle *client,
+                                 struct RequestList *request,
+                                 GNUNET_HashCode * hc)
+{
+  const GNUNET_EC_DBlock *dblock;
+  CS_fs_reply_content_MESSAGE *msg;
+  unsigned int size;
+  GNUNET_DatastoreValue *enc;
+  const GNUNET_DatastoreValue *use;
+  int ret;
+
+  size = ntohl (value->size) - sizeof (GNUNET_DatastoreValue);
+  dblock = (const GNUNET_EC_DBlock *) &value[1];
+  enc = NULL;
+  if ((ntohl (dblock->type) == GNUNET_ECRS_BLOCKTYPE_ONDEMAND) &&
+      (GNUNET_OK != GNUNET_FS_ONDEMAND_get_indexed_content (value,
+                                                            key, &enc)))
+    {
+      return GNUNET_NO;         /* data corrupt: delete block! */
+    }
+  if (enc == NULL)
+    use = value;
+  else
+    use = enc;
+  size = ntohl (use->size) - sizeof (GNUNET_DatastoreValue);
+  dblock = (const GNUNET_EC_DBlock *) &use[1];
+  if (request != NULL)
+    {
+      if (GNUNET_OK != GNUNET_FS_SHARED_test_valid_new_response (request,
+                                                                 key,
+                                                                 size,
+                                                                 dblock, hc))
+        {
+          GNUNET_free_non_null (enc);
+          return GNUNET_SYSERR; /* duplicate or invalid */
+        }
+    }
+  else
+    {
+      GNUNET_hash (dblock, size, hc);
+    }
+  msg = GNUNET_malloc (sizeof (CS_fs_reply_content_MESSAGE) + size);
+  msg->header.type = htons (GNUNET_CS_PROTO_GAP_RESULT);
+  msg->header.size = htons (sizeof (CS_fs_reply_content_MESSAGE) + size);
+  msg->anonymity_level = use->anonymity_level;
+  msg->expiration_time = use->expiration_time;
+  memcpy (&msg[1], dblock, size);
+  GNUNET_free_non_null (enc);
+  ret = coreAPI->cs_send_message (client, &msg->header, GNUNET_NO);
+  GNUNET_free (msg);
+  if (ret == GNUNET_OK)
+    return GNUNET_OK;
+  return GNUNET_SYSERR;
+}
 
 /* end of shared.c */
