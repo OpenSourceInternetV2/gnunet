@@ -29,6 +29,7 @@
 
 #include "gnunet_afs_esed2.h"
 
+#define CONTENTDIR "content/"
 
 /**
  * Handle for a high-level database (mysql, simple)
@@ -135,14 +136,15 @@ int unlinkFromDB(HighDBHandle handle,
                  const HashCode160 * query);
 
 /**
- * Return a random key from the database (just the key, not the
- * content!).
+ * Return a random key from the database (and data too,
+ * if _not_ ondemand!)
  *
  * @param ce output information about the key
  * @return SYSERR on error, OK if ok.
  */
 int getRandomContent(HighDBHandle handle,
-                     ContentIndex * ce);
+                     ContentIndex * ce,
+		     CONTENT_Block ** data);
 
 /**
  * Delete low-priority content from the database

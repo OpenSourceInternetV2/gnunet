@@ -16,43 +16,25 @@
      Free Software Foundation, Inc., 59 Temple Place - Suite 330,
      Boston, MA 02111-1307, USA.
 */
-
 /**
- * @file server/core.h
- * @brief Implementation of the APIs to the GNUnet core
+ * @file server/fragmentation.h
+ * @brief module to do fragmentation
  * @author Christian Grothoff
  */
 
-#ifndef CORE_H
-#define CORE_H
+#ifndef FRAGMENTATION_H
+#define FRAGMENTATION_H
 
 /**
- * Initialize the CORE's globals.
+ * Initialize Fragmentation
  */
-void initCore();
+void initFragmentation();
+ 
 
 /**
- * Stop processing messages from the transports
- * (stage 0 of the shutdown, call before doneCore()).
+ * Shutdown fragmentation.
  */
-void disableCoreProcessing();
-
-/**
- * Shutdown the CORE modules (also shuts down all
- * application modules).
- */
-void doneCore();
-
-CoreAPIForTransport * getCoreAPIForTransport();
-
-CoreAPIForApplication * getCoreAPIForApplication();
-
-void loadApplicationModules();
-
-/**
- * Processing of a message from the transport layer
- * (receive implementation).
- */
-void core_receive(MessagePack * mp);
+void doneFragmentation();
 
 #endif
+/* end of fragmentation.h */

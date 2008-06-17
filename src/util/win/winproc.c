@@ -355,14 +355,14 @@ long DetermineRootDir()
 
   lDirLen = strlen(szDir);
 
-  if(strcmp(szDir + lDirLen - 15, "\\usr\\local\\bin\\") == 0)
+  if(stricmp(szDir + lDirLen - 15, "\\usr\\local\\bin\\") == 0)
     szDir[lDirLen -= 14] = 0;
   /* "\\local\\bin" is right, "/usr" points to "/" under MinGW */
-  else if(strcmp(szDir + lDirLen - 11, "\\local\\bin\\") == 0)
+  else if(stricmp(szDir + lDirLen - 11, "\\local\\bin\\") == 0)
     szDir[lDirLen -= 10] = 0;
-  else if(strcmp(szDir + lDirLen - 9, "\\usr\\bin\\") == 0)
+  else if(stricmp(szDir + lDirLen - 9, "\\usr\\bin\\") == 0)
     szDir[lDirLen -= 8] = 0;
-  else if(strcmp(szDir + lDirLen - 5, "\\bin\\") == 0)
+  else if(stricmp(szDir + lDirLen - 5, "\\bin\\") == 0)
     szDir[lDirLen -= 4] = 0;
   else
   {

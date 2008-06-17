@@ -44,13 +44,22 @@ LIB_BDB =
 XBDB =
 endif
 
+if HAVE_SQLITE
+LIB_SQLITE = libgnunetafs_database_sqlite.la
+TEST_SQLITE = high_db_test_sqlite
+else
+LIB_SQLITE = 
+TEST_SQLITE = 
+endif
+
 lib_LTLIBRARIES = \
   libgnunetafs_protocol.la \
   $(LIB_BDB) \
   $(LIB_DIRECTORY) \
   $(LIB_GDBM) \
   $(LIB_MYSQL) \
-  $(LIB_TDB)
+  $(LIB_TDB) \
+  $(LIB_SQLITE)
 
 
 
@@ -144,6 +153,15 @@ libgnunetafs_database_mysql_la_LDFLAGS = \
 endif
 
 
+libgnunetafs_database_sqlite_la_SOURCES = \
+  high_sqlite.c
+
+libgnunetafs_database_sqlite_la_LIBADD = \
+ $(top_builddir)/src/util/libgnunetutil.la
+
+libgnunetafs_database_sqlite_la_LDFLAGS = \
+ -export-dynamic -avoid-version -module -lsqlite3
+
 libgnunetafs_database_tdb_la_SOURCES = \
   high_simple.c \
   high_simple_helper.c \
@@ -172,7 +190,7 @@ gnunet_convert_LDADD = \
 
 
 check_PROGRAMS = \
- $(TEST_GDBM) $(TEST_TDB) $(TEST_MYSQL) $(TEST_DIRECTORY) $(TEST_BDB)
+ $(TEST_GDBM) $(TEST_TDB) $(TEST_MYSQL) $(TEST_DIRECTORY) $(TEST_BDB) $(TEST_SQLITE)
 
 TESTS = \
  $(check_PROGRAMS)
@@ -241,4 +259,11 @@ high_db_test_mysql_LDADD    = \
  $(top_builddir)/src/util/libgnunetutil.la  
 high_db_test_mysql_CFLAGS = \
  -DDBSELECT="\"mysql\""
+
+high_db_test_sqlite_SOURCES = \
+ high_db_test.c
+high_db_test_sqlite_LDADD    = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+high_db_test_sqlite_CFLAGS = \
+ -DDBSELECT="\"sqlite\""
 

@@ -1207,7 +1207,7 @@ static int httpConnect(HELO_Message * helo,
   if ( (i < 0) &&
        (errno != EINPROGRESS) ) {
     LOG(LOG_ERROR,
-	_("Cannot connect to %d.%d.%d.%d:%d (%s)\n"),
+	_("Cannot connect to %d.%d.%d.%d:%d: %s\n"),
 	PRIP(ntohl(*(int*)&haddr->ip)),
 	ntohs(haddr->port),
 	STRERROR(errno));
@@ -1478,7 +1478,7 @@ TransportAPI * inittransport_http(CoreAPIForTransport * core) {
     mtu = 1400;
   if (mtu < 1200)
     LOG(LOG_ERROR,
-	_("MTU for '%s' is probably to low (fragmentation not implemented!)\n"),
+	_("MTU for '%s' is probably too low (fragmentation not implemented!)\n"),
 	"HTTP");
  
   proxy = getConfigurationString("GNUNETD", "HTTP-PROXY");

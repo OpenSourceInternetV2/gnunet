@@ -1019,7 +1019,7 @@ static int tcpConnect(HELO_Message * helo,
   if ( (i < 0) &&
        (errno != EINPROGRESS) ) {
     LOG(LOG_ERROR,
-	_("Cannot connect to %d.%d.%d.%d:%d (%s).\n"),
+	_("Cannot connect to %d.%d.%d.%d:%d: %s\n"),
 	PRIP(ntohl(*(int*)&haddr->ip)),
 	ntohs(haddr->port),
 	STRERROR(errno));

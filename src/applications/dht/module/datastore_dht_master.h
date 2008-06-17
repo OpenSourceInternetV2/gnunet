@@ -18,7 +18,7 @@
  */
  
 /**
- * @file include/gnunet_dht_datastore_memory.h
+ * @file applications/dht/module/datastore_dht_master.h
  * @brief provides the implementation of the 
  * DHT_Datastore API for keeping the table data in memory.
  * @author Simo Viitanen, Christian Grothoff
@@ -30,16 +30,16 @@
 #include "gnunet_dht_service.h"
 
 /**
- * Create a DHT Datastore (in memory)
+ * Create a DHT Master Datastore
  * @param max_memory do not use more than max_memory memory.
  */
-DHT_Datastore * create_datastore_memory(size_t max_memory);
+DHT_Datastore * create_datastore_dht_master(size_t max_memory);
 
 /**
- * Destroy a DHT Datastore (in memory)
+ * Destroy a DHT Master Datastore (in memory)
  * @param ds the Datastore to destroy; must have been
  *  created by create_datastore_memory.
  */
-void destroy_datastore_memory(DHT_Datastore * ds);
+void destroy_datastore_dht_master(DHT_Datastore * ds);
 
 #endif

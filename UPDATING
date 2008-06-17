@@ -8,6 +8,13 @@ If no migration procedure is listed for your version, a
 data-preserving migration may not be possible.  For CVS versions,
 you're on your own.
 
+0.6.4a to 0.6.5:
+================
+
+Recompile, restart gnunetd, go.  Oh, and read the documentation 
+on collections :-).
+
+
 0.6.4 to 0.6.4a:
 ================
 

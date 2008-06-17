@@ -255,12 +255,13 @@ typedef struct {
    *   the leave request (has no impact on success or failure);
    *   but only timeout time is available for migrating data, so
    *   pick this value with caution.
-   * @param flags 
+   * @param flags maximum number of parallel puts for migration (0
+   *   implies 'use value from gnunet.conf').
    * @return SYSERR on error, OK on success
    */
   int (*leave)(const DHT_TableId * table,
 	       cron_t timeout,
-	       int flags); 
+	       unsigned int flags); 
 
 
   /**

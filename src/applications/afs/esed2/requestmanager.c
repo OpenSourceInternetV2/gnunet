@@ -347,7 +347,7 @@ static void issueRequest(RequestManager * this,
 				  msg);
     if (ok == SYSERR) {
       LOG(LOG_WARNING,
-	  _("Could not send request to gnunetd, is gnunetd running?\n"));
+	  _("Could not send request to gnunetd.\n"));
       runContinuation(this,
 		      SYSERR);
     } else {

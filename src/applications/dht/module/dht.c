@@ -26,31 +26,33 @@
  * @author Marko Räihä, Christian Grothoff
  *
  * 
- * Warning: what follows is 3.000+ lines of incomplete, crazy,
- * recursive, asynchronous, multithreaded routing code with plenty of
- * function pointers, too little documentation and no testing.  Pray
- * to the C gods before venturing any further.
+ * WARNING (to self): What follows is 4.000+ lines of incomplete,
+ * crazy, recursive, asynchronous, multithreaded routing code with
+ * plenty of function pointers, too little documentation and not
+ * enough testing.  Pray to the C gods before venturing any further.
  *
  *
  * Todo:
- * - various OPTIMIZE-MEs (make protocol cheaper by adding
- *   extra fields to messages, handle content migration, etc.)
- * - master-table-datastore needs content timeout functionality!
- * - fix plenty of bugs (unavoidable...)
- * - document (lots!)
+ * 1) handle content migration (migrate if this peer is no longer
+ *    responsible for it)
+ * 2) document (lots!)
  *   
- * Problems to investigate:
- * - get/put/remove routing: the first step by the initiator
- *   MAY go in any direction if the peer does not participate
- *   in the table, but after that we MUST guarantee that we
- *   always only route to peers closer to key (to avoid looping)
- * - put: to ensure we hit the replication level with reasonable
- *   precision, we must only store data locally if we're in the
- *   k-best peers for the datum by our best estimate
- * - put: check consistency between table-replication level
- *   and the user-specified replication level!
- * - security: how to pick priorities?  Access rights?
- * - errors: how to communicate errors (RPC vs. DHT errors)
+ * Issues to investigate:
+ * 1) get/put/remove routing: the first step by the initiator
+ *    MAY go in any direction if the peer does not participate
+ *    in the table, but after that we MUST guarantee that we
+ *    always only route to peers closer to key (to avoid looping);
+ *    The current code does not check this. (BUG!)
+ * 2) put: to ensure we hit the replication level with reasonable
+ *    precision, we must only store data locally if we're in the
+ *    k-best peers for the datum by our best estimate (verify!)
+ * 3) put: check consistency between table-replication level
+ *    and the user-specified replication level!
+ * 
+ * Desirable features:
+ * 1) error handling: how to communicate errors (RPC vs. DHT errors)
+ * 2) security: how to pick priorities?  Access rights? 
+ * 3) performance: make protocol cheaper by adding extra fields to messages
  */
 
 #include "platform.h"
@@ -58,7 +60,7 @@
 #include "gnunet_core.h"
 #include "gnunet_rpc_service.h"
 #include "gnunet_dht_service.h"
-#include "gnunet_dht_datastore_memory.h"
+#include "datastore_dht_master.h"
 
 /* ********************* CONSTANTS ******************* */
 
@@ -88,15 +90,28 @@
 #define DHT_MAINTAIN_FREQUENCY (15 * cronSECONDS)
 
 /**
+ * How often do we do maintenance 'find' operations on
+ * each table to maintain the routing table (finding
+ * peers close to ourselves)?
+ */
+#define DHT_MAINTAIN_FIND_FREQUENCY (2 * cronMINUTES)
+
+/**
  * How often should we notify the master-table about our
  * bucket status?
  */ 
 #define DHT_MAINTAIN_BUCKET_FREQUENCY (5 * cronMINUTES)
 
 /**
+ * How often should we ping a peer?  Only applies once we
+ * are nearing the DHT_INACTIVITY_DEATH time.
+ */
+#define DHT_PING_FREQUENCY (64 * DHT_MAINTAIN_FREQUENCY)
+
+/**
  * After what time do peers always expire for good?
  */
-#define DHT_INACTIVITY_DEATH (56 * DHT_MAINTAIN_FREQUENCY)
+#define DHT_INACTIVITY_DEATH (4 * DHT_PING_FREQUENCY)
 
 /**
  * For how long after the last message do we consider a peer
@@ -189,6 +204,12 @@ typedef struct {
    * this table to the master table?
    */ 
   cron_t lastMasterAdvertisement;
+
+  /**
+   * What was the last time we ran a find-node operation on
+   * this table to find neighbouring peers?
+   */
+  cron_t lastFindOperation;
 } LocalTableData;
 
 
@@ -551,7 +572,10 @@ typedef struct {
 
 typedef struct {
   DHT_TableId table;
-  cron_t timeout;  
+  cron_t timeout; 
+  unsigned int maxPuts;
+  DHT_PUT_RECORD ** puts;
+  unsigned int putsPos;
 } MigrationClosure;
 
 
@@ -738,7 +762,7 @@ static unsigned int tablesCount;
 /**
  * Mutex to synchronize access to tables.
  */
-static Mutex lock;
+static Mutex * lock;
 
 /**
  * Handle for the masterTable datastore that is used by this node
@@ -759,6 +783,49 @@ static unsigned int abortTableSize;
 
 /* *********************** CODE! ********************* */
 
+#if DEBUG_DHT
+static void printRoutingTable() {
+  unsigned int i;
+
+  MUTEX_LOCK(lock);
+  LOG(LOG_DEBUG,
+      "DHT ROUTING TABLE:\n");
+  for (i=0;i<bucketCount;i++) {
+    if (buckets[i].peers != NULL) {
+      PeerInfo * pos = NULL;
+
+      pos = vectorGetFirst(buckets[i].peers);
+      while (pos != NULL) {
+	EncName enc;
+	EncName tabs[3];
+	int j;
+
+	memset(tabs, 0, sizeof(EncName)*3);
+	hash2enc(&pos->id.hashPubKey,
+		 &enc);
+	for (j=0;j<pos->tableCount;j++)
+	  hash2enc(&pos->tables[j],
+		   &tabs[j]);
+	
+	LOG(LOG_DEBUG,
+	    "[%4d: %3d-%3d]: %s with %u tables (%s, %s, %s)\n",
+	    i,
+	    buckets[i].bstart, buckets[i].bend,
+	    &enc, 
+	    pos->tableCount,
+	    &tabs[0],
+	    &tabs[1],
+	    &tabs[2]);
+	pos = vectorGetNext(buckets[i].peers);
+      }
+    }
+  }
+  LOG(LOG_DEBUG,
+      "DHT ROUTING TABLE END\n");
+  MUTEX_UNLOCK(lock);
+}
+#endif
+
 /**
  * we need to prevent unloading of the
  * DHT module while this cron-job is pending (or
@@ -768,13 +835,13 @@ static unsigned int abortTableSize;
 static void addAbortJob(CronJob job,
 			void * arg) {
   ENTER();
-  MUTEX_LOCK(&lock);
+  MUTEX_LOCK(lock);
   GROW(abortTable,
        abortTableSize,
        abortTableSize+1);
   abortTable[abortTableSize-1].job = job;
   abortTable[abortTableSize-1].arg = arg;
-  MUTEX_UNLOCK(&lock);
+  MUTEX_UNLOCK(lock);
 }
 
 /**
@@ -785,7 +852,7 @@ static void delAbortJob(CronJob job,
   int i;
 
   ENTER();
-  MUTEX_LOCK(&lock);
+  MUTEX_LOCK(lock);
   for (i=0;i<abortTableSize;i++) {
     if ( (abortTable[i].job == job) &&
 	 (abortTable[i].arg == arg) ) {
@@ -796,7 +863,7 @@ static void delAbortJob(CronJob job,
       break;
     }
   }
-  MUTEX_UNLOCK(&lock);
+  MUTEX_UNLOCK(lock);
 }
 
 /**
@@ -813,29 +880,71 @@ static LocalTableData * getLocalTableData(const DHT_TableId * id) {
 }
 
 /**
+ * If this peer supports the given table and the
+ * other peer is not closer than this peer to the
+ * given key, returns YES.
+ */
+static int isNotCloserThanMe(const DHT_TableId * table,
+			     const HostIdentity * peer,
+			     const HashCode160 * key) {
+  if (NULL == getLocalTableData(table))
+    return NO;
+  if (-1 == hashCodeCompareDistance(&peer->hashPubKey,
+				    &coreAPI->myIdentity->hashPubKey,
+				    key))
+    return NO;
+  else
+    return YES; 
+}
+
+/**
  * Find the bucket into which the given peer belongs.
  */
 static PeerBucket * findBucket(const HostIdentity * peer) {
   unsigned int index;
   int i;
   int diff;
+#if DEBUG_DHT
+  EncName enc1;
+  EncName enc2;
+#endif
 
   index = sizeof(HashCode160)*8;
   for (i = sizeof(HashCode160)*8 - 1; i >= 0; --i) {
     diff = getHashCodeBit(&peer->hashPubKey, i) - getHashCodeBit(&coreAPI->myIdentity->hashPubKey, i);
     if (diff != 0) {
       index = i;
-      continue;
+      break;
     }
   } 
+#if DEBUG_DHT
+  hash2enc(&peer->hashPubKey,
+	   &enc1);
+  hash2enc(&coreAPI->myIdentity->hashPubKey,
+	   &enc2);
+  LOG(LOG_DEBUG,
+      "Bit-distance from '%s' to this peer '%s' is %u bit.\n",
+      &enc1,
+      &enc2,
+      index);
+#endif
   i = bucketCount-1;
   while ( (buckets[i].bstart >= index) &&
-	  (i > 0) )
+	  (i > 0) ) {
     i--;
+  }
   if ( (buckets[i].bstart <  index) &&  
        (buckets[i].bend   >= index) ) {
     return &buckets[i];
   } else {    
+#if DEBUG_DHT
+    LOG(LOG_WARNING,
+	"Index %d not in range for bucket %d which is [%d,%d[\n",
+	index,
+	i,
+	buckets[i].bstart,
+	buckets[i].bend);
+#endif
     return NULL; /* should only happen for localhost! */
   }
 }
@@ -923,11 +1032,11 @@ static void create_find_nodes_rpc_complete_callback(const HostIdentity * respond
 
   ENTER();
   /* update peer list */
-  MUTEX_LOCK(&lock);
+  MUTEX_LOCK(lock);
   info = findPeerInfo(responder);
   if (info != NULL) 
     info->lastActivity = cronTime(NULL);   
-  MUTEX_UNLOCK(&lock);
+  MUTEX_UNLOCK(lock);
 
   if (OK != RPC_paramValueByName(results,
 				 "peers",
@@ -992,6 +1101,9 @@ static void create_find_nodes_rpc_complete_callback(const HostIdentity * respond
 static void create_find_nodes_rpc(const HostIdentity * peer,
 				  FindNodesContext * fnc) {
   RPC_Param * param;
+  cron_t now;
+  cron_t rel;
+  LocalTableData * table;
 #if DEBUG_DHT
   EncName enc;
 
@@ -1004,8 +1116,15 @@ static void create_find_nodes_rpc(const HostIdentity * peer,
       &enc);
 #endif
   ENTER();
+  cronTime(&now);
   param = RPC_paramNew();
   MUTEX_LOCK(&fnc->lock);
+  if (equalsHashCode160(&fnc->key,
+			&coreAPI->myIdentity->hashPubKey)) {    
+    table = getLocalTableData(&fnc->table);
+    if (table != NULL)
+      table->lastFindOperation = now;
+  }
   RPC_paramAdd(param,
 	       "table",
 	       sizeof(DHT_TableId),
@@ -1018,12 +1137,16 @@ static void create_find_nodes_rpc(const HostIdentity * peer,
   GROW(fnc->rpc,
        fnc->rpcRepliesExpected,
        fnc->rpcRepliesExpected+1);
+  if (fnc->timeout > now)
+    rel = fnc->timeout - now;
+  else
+    rel = 0;
   fnc->rpc[fnc->rpcRepliesExpected-1]
     = rpcAPI->RPC_start(peer,
 			"DHT_findNode", 
 			param, 
 			0, 
-			fnc->timeout - cronTime(NULL), 
+			rel,
 			(RPC_Complete) &create_find_nodes_rpc_complete_callback, 
 			fnc);  
   MUTEX_UNLOCK(&fnc->lock);
@@ -1089,9 +1212,17 @@ static void ping_reply_handler(const HostIdentity * responder,
 #endif
 
   /* update buckets */
-  MUTEX_LOCK(&lock);
+  MUTEX_LOCK(lock);
   pos = findPeerInfo(responder);
   bucket = findBucket(responder); 
+  if (bucket == NULL) {
+    IFLOG(LOG_WARNING,
+	  hash2enc(&responder->hashPubKey,
+		   &enc));
+    LOG(LOG_WARNING,
+	_("Could not find peer '%s' in routing table!\n"),
+	&enc);
+  }
   GNUNET_ASSERT(bucket != NULL);
   if (pos == NULL) {
     PeerInfo * oldest = NULL;
@@ -1157,7 +1288,7 @@ static void ping_reply_handler(const HostIdentity * responder,
 	   tables,
 	   sizeof(DHT_TableId) * tableCount);
   }
-  MUTEX_UNLOCK(&lock);  
+  MUTEX_UNLOCK(lock);  
 
   if (fnc == NULL)
     return;
@@ -1204,6 +1335,8 @@ static void request_DHT_ping(const HostIdentity * identity,
 			     FindNodesContext * fnc) {  
   Vector * request_param;
   PeerInfo * pos;
+  cron_t now;
+  cron_t rel;
 #if DEBUG_DHT
   EncName enc;
 
@@ -1221,12 +1354,13 @@ static void request_DHT_ping(const HostIdentity * identity,
     BREAK();
     return; /* refuse to self-ping!... */
   }
-  MUTEX_LOCK(&lock);
+  MUTEX_LOCK(lock);
   /* test if this peer is already in buckets */
   pos = findPeerInfo(identity);
+  cronTime(&now);
   if (pos != NULL)
-    pos->lastTimePingSend = cronTime(NULL);
-  MUTEX_UNLOCK(&lock);
+    pos->lastTimePingSend = now;
+  MUTEX_UNLOCK(lock);
 
   /* peer not in RPC buckets; try PINGing via RPC */
   MUTEX_LOCK(&fnc->lock);
@@ -1234,12 +1368,16 @@ static void request_DHT_ping(const HostIdentity * identity,
        fnc->rpcRepliesExpected,
        fnc->rpcRepliesExpected+1);
   request_param = vectorNew(4);
+  if (fnc->timeout > now)
+    rel = fnc->timeout - now;
+  else 
+    rel = 0;
   fnc->rpc[fnc->rpcRepliesExpected-1]
     = rpcAPI->RPC_start(identity,
 			"DHT_ping",
 			request_param,
 			0,
-			fnc->timeout,							  
+			rel,
 			(RPC_Complete) &ping_reply_handler, 
 			fnc);
   vectorFree(request_param);
@@ -1324,10 +1462,10 @@ static void dht_findvalue_rpc_reply_callback(const HostIdentity * responder,
   EncName enc;      
 
   ENTER();
-  MUTEX_LOCK(&lock);
+  MUTEX_LOCK(lock);
   pos = findPeerInfo(responder);
   pos->lastActivity = cronTime(NULL);
-  MUTEX_UNLOCK(&lock);
+  MUTEX_UNLOCK(lock);
 
   max = RPC_paramCount(results);
 #if DEBUG_DHT
@@ -1379,6 +1517,7 @@ static void send_dht_get_rpc(const HostIdentity * peer,
   unsigned long long timeout;
   unsigned int maxResults;
   cron_t delta;
+  cron_t now;
 #if DEBUG_DHT
   EncName enc;
 
@@ -1391,7 +1530,15 @@ static void send_dht_get_rpc(const HostIdentity * peer,
       "DHT_findvalue",
       &enc);
 #endif
-  delta = (record->timeout - cronTime(NULL)) / 2;
+  if (isNotCloserThanMe(&record->table,
+			peer,		     
+			&record->key))
+    return; /* refuse! */
+  cronTime(&now);
+  if (record->timeout > now)
+    delta = (record->timeout - now) / 2;
+  else
+    delta = 0;
   timeout = htonll(delta);
   maxResults = htonl(record->maxResults);
   param = RPC_paramNew();
@@ -1467,6 +1614,14 @@ static struct DHT_GET_RECORD * dht_get_async_start(const DHT_TableId * table,
       &enc,
       &enc2);
 #endif
+
+  if (timeout > 1 * cronHOURS) {
+    LOG(LOG_WARNING,
+	_("'%s' called with timeout above 1 hour (bug?)\n"),
+	__FUNCTION__);
+    timeout = 1 * cronHOURS;    
+  }
+
   if (maxResults == 0)
     maxResults = 1; /* huh? */
   ret = MALLOC(sizeof(DHT_GET_RECORD));
@@ -1481,7 +1636,7 @@ static struct DHT_GET_RECORD * dht_get_async_start(const DHT_TableId * table,
   ret->rpcRepliesExpected = 0;
   ret->resultsFound = 0;
   ret->kfnc = NULL;
-  MUTEX_LOCK(&lock);
+  MUTEX_LOCK(lock);
 
 
   ltd = getLocalTableData(table);
@@ -1512,7 +1667,7 @@ static struct DHT_GET_RECORD * dht_get_async_start(const DHT_TableId * table,
     if (count == 0) {
       BREAK();
       /* Assertion failed: I participate in a table but findLocalNodes returned 0! */
-      MUTEX_UNLOCK(&lock);
+      MUTEX_UNLOCK(lock);
       return NULL;
     }
     /* if this peer is in 'hosts', try local datastore lookup */
@@ -1603,7 +1758,7 @@ static struct DHT_GET_RECORD * dht_get_async_start(const DHT_TableId * table,
 			 (NodeFoundCallback) &send_dht_get_rpc,
 			 ret);
   }  
-  MUTEX_UNLOCK(&lock);
+  MUTEX_UNLOCK(lock);
   return ret;
 }
 
@@ -2037,9 +2192,9 @@ static int findKNodes_stop(FindKNodesContext * fnc) {
 static void dht_get_sync_callback(const DHT_DataContainer * value,
 				  DHT_GET_SYNC_CONTEXT * context) {
   ENTER();
-  MUTEX_LOCK(&lock);
+  MUTEX_LOCK(lock);
   if (context->count >= context->maxResults) {
-    MUTEX_UNLOCK(&lock);
+    MUTEX_UNLOCK(lock);
     return;
   }
   if (context->results[context->count].dataLength > 0) {
@@ -2059,7 +2214,7 @@ static void dht_get_sync_callback(const DHT_DataContainer * value,
   context->count++;
   if (context->count == context->maxResults)
     SEMAPHORE_UP(context->semaphore); /* done early! */
-  MUTEX_UNLOCK(&lock);
+  MUTEX_UNLOCK(lock);
 }
 
 
@@ -2188,9 +2343,28 @@ static void send_dht_put_rpc(const HostIdentity * peer,
   RPC_Param * param;
   unsigned long long timeout;
   cron_t delta;
+  cron_t now;
+#if DEBUG_DHT
+  EncName enc;
 
+  IFLOG(LOG_DEBUG,
+	hash2enc(&peer->hashPubKey,
+		 &enc));
+  LOG(LOG_DEBUG,
+      "sending RPC '%s' to peer '%s'.\n",
+      "DHT_store",
+      &enc);
+#endif
   ENTER();
-  delta = (record->timeout - cronTime(NULL)) / 2;
+  if (isNotCloserThanMe(&record->table,
+			peer,		     
+			&record->key))
+    return;
+  cronTime(&now);
+  if (record->timeout > now)
+    delta = (record->timeout - now) / 2;
+  else
+    delta = 0;
   timeout = htonll(delta);
   param = RPC_paramNew();
   RPC_paramAdd(param,
@@ -2267,6 +2441,13 @@ static struct DHT_PUT_RECORD * dht_put_async_start(const DHT_TableId * table,
       &enc,
       &enc2);
 #endif
+  if (timeout > 1 * cronHOURS) {
+    LOG(LOG_WARNING,
+	_("'%s' called with timeout above 1 hour (bug?)\n"),
+	__FUNCTION__);
+    timeout = 1 * cronHOURS;    
+  }
+
   if (replicationLevel == 0)
     replicationLevel = 1;
   ret = MALLOC(sizeof(DHT_PUT_RECORD));
@@ -2283,7 +2464,7 @@ static struct DHT_PUT_RECORD * dht_put_async_start(const DHT_TableId * table,
   ret->confirmedReplicas = 0;
   ret->replicas = NULL;
   ret->kfnc = NULL;
-  MUTEX_LOCK(&lock);
+  MUTEX_LOCK(lock);
 
 
   ltd = getLocalTableData(table);
@@ -2314,7 +2495,7 @@ static struct DHT_PUT_RECORD * dht_put_async_start(const DHT_TableId * table,
     if (count == 0) {
       BREAK();
       /* Assertion failed: I participate in a table but findLocalNodes returned 0! */
-      MUTEX_UNLOCK(&lock);
+      MUTEX_UNLOCK(lock);
       return NULL;
     }
     /* if this peer is in 'hosts', try local datastore lookup */
@@ -2331,7 +2512,7 @@ static struct DHT_PUT_RECORD * dht_put_async_start(const DHT_TableId * table,
 	  ret->confirmedReplicas++;
 	  if (replicationLevel == 1) {
 	    /* that's it then */
-	    MUTEX_UNLOCK(&lock);
+	    MUTEX_UNLOCK(lock);
 	    return ret;
 	  }
 	} else {
@@ -2364,7 +2545,7 @@ static struct DHT_PUT_RECORD * dht_put_async_start(const DHT_TableId * table,
 			 (NodeFoundCallback) &send_dht_put_rpc,
 			 ret);
   }  
-  MUTEX_UNLOCK(&lock);
+  MUTEX_UNLOCK(lock);
   return ret;
 }
 
@@ -2405,15 +2586,15 @@ static int dht_put_async_stop(struct DHT_PUT_RECORD * record) {
 static void dht_put_sync_callback(const DHT_DataContainer * value,
 				  DHT_PUT_SYNC_CONTEXT * context) {
   ENTER();
-  MUTEX_LOCK(&lock);
+  MUTEX_LOCK(lock);
   if (context->confirmedReplicas >= context->targetReplicas) {
-    MUTEX_UNLOCK(&lock);
+    MUTEX_UNLOCK(lock);
     return;
   }
   context->confirmedReplicas++;
   if (context->confirmedReplicas == context->targetReplicas)
     SEMAPHORE_UP(context->semaphore); /* done early! */
-  MUTEX_UNLOCK(&lock);
+  MUTEX_UNLOCK(lock);
 }
 
 /**
@@ -2478,7 +2659,6 @@ static void dht_remove_rpc_reply_callback(const HostIdentity * responder,
   PeerInfo * pos;
   unsigned int i;
   unsigned int max;
-  unsigned int j;
 
   ENTER();
   MUTEX_LOCK(&record->lock);
@@ -2521,9 +2701,28 @@ static void send_dht_remove_rpc(const HostIdentity * peer,
   RPC_Param * param;
   unsigned long long timeout;
   cron_t delta;
+  cron_t now;
+#if DEBUG_DHT
+  EncName enc;
 
   ENTER();
-  delta = (record->timeout - cronTime(NULL)) / 2;
+  IFLOG(LOG_DEBUG,
+	hash2enc(&peer->hashPubKey,
+		 &enc));
+  LOG(LOG_DEBUG,
+      "sending RPC '%s' to peer '%s'.\n",
+      "DHT_remove",
+      &enc);
+#endif
+  if (isNotCloserThanMe(&record->table,
+			peer,		     
+			&record->key))
+    return; /* refuse! */
+  cronTime(&now);
+  if (record->timeout > now)
+    delta = (record->timeout - now) / 2;
+  else
+    delta = 0;
   timeout = htonll(delta);
   param = RPC_paramNew();
   RPC_paramAdd(param,
@@ -2566,24 +2765,31 @@ static void send_dht_remove_rpc(const HostIdentity * peer,
  * @param table table to use for the lookup
  * @param key the key to look up  
  * @param timeout how long to wait until this operation should
- *        automatically time-out
+ *        automatically time-out (relative time)
  * @param replicationLevel how many copies should we make?
  * @param callback function to call on successful completion
  * @param closure extra argument to callback
  * @return handle to stop the async remove
  */
-static struct DHT_REMOVE_RECORD * dht_remove_async_start(const DHT_TableId * table,
-							 const HashCode160 * key,
-							 cron_t timeout,
-							 const DHT_DataContainer * value,
-							 unsigned int replicationLevel,
-							 DHT_REMOVE_Complete callback,
-							 void * closure) {
+static struct DHT_REMOVE_RECORD * 
+dht_remove_async_start(const DHT_TableId * table,
+		       const HashCode160 * key,
+		       cron_t timeout,
+		       const DHT_DataContainer * value,
+		       unsigned int replicationLevel,
+		       DHT_REMOVE_Complete callback,
+		       void * closure) {
   int i;
   LocalTableData * ltd;
   DHT_REMOVE_RECORD * ret;
   unsigned int count;
-
+  
+  if (timeout > 1 * cronHOURS) {
+    LOG(LOG_WARNING,
+	_("'%s' called with timeout above 1 hour (bug?)\n"),
+	__FUNCTION__);
+    timeout = 1 * cronHOURS;    
+  }
   ENTER();
   ret = MALLOC(sizeof(DHT_REMOVE_RECORD));
   ret->timeout = cronTime(NULL) + timeout;
@@ -2602,7 +2808,7 @@ static struct DHT_REMOVE_RECORD * dht_remove_async_start(const DHT_TableId * tab
   ret->rpcRepliesExpected = 0;
   ret->confirmedReplicas = 0;
   ret->kfnc = NULL;
-  MUTEX_LOCK(&lock);
+  MUTEX_LOCK(lock);
 
 
   ltd = getLocalTableData(table);
@@ -2624,7 +2830,7 @@ static struct DHT_REMOVE_RECORD * dht_remove_async_start(const DHT_TableId * tab
     if (count == 0) {
       BREAK();
       /* Assertion failed: I participate in a table but findLocalNodes returned 0! */
-      MUTEX_UNLOCK(&lock);
+      MUTEX_UNLOCK(lock);
       return NULL;
     }
     /* if this peer is in 'hosts', try local datastore lookup */
@@ -2641,7 +2847,7 @@ static struct DHT_REMOVE_RECORD * dht_remove_async_start(const DHT_TableId * tab
 	  ret->confirmedReplicas++;
 	  if (replicationLevel == 1) {
 	    /* that's it then */
-	    MUTEX_UNLOCK(&lock);
+	    MUTEX_UNLOCK(lock);
 	    return ret;
 	  }
 	} else {
@@ -2674,7 +2880,7 @@ static struct DHT_REMOVE_RECORD * dht_remove_async_start(const DHT_TableId * tab
 			 (NodeFoundCallback) &send_dht_remove_rpc,
 			 ret);
   }  
-  MUTEX_UNLOCK(&lock);
+  MUTEX_UNLOCK(lock);
   return ret;
 }
 
@@ -2712,15 +2918,15 @@ static int dht_remove_async_stop(struct DHT_REMOVE_RECORD * record) {
 static void dht_remove_sync_callback(const DHT_DataContainer * value,
 				     DHT_REMOVE_SYNC_CONTEXT * context) {
   ENTER();
-  MUTEX_LOCK(&lock);
+  MUTEX_LOCK(lock);
   if (context->confirmedReplicas >= context->targetReplicas) {
-    MUTEX_UNLOCK(&lock);
+    MUTEX_UNLOCK(lock);
     return;
   }
   context->confirmedReplicas++;
   if (context->confirmedReplicas == context->targetReplicas)
     SEMAPHORE_UP(context->semaphore); /* done early! */
-  MUTEX_UNLOCK(&lock);
+  MUTEX_UNLOCK(lock);
 }
 
 /**
@@ -2789,10 +2995,10 @@ static int dht_join(DHT_Datastore * datastore,
   int i;
 
   ENTER();
-  MUTEX_LOCK(&lock);
+  MUTEX_LOCK(lock);
   for (i=0;i<tablesCount;i++) {
     if (equalsDHT_TableId(&tables[i].id, table)) {
-      MUTEX_UNLOCK(&lock);
+      MUTEX_UNLOCK(lock);
       return SYSERR;
     }
   }
@@ -2802,7 +3008,7 @@ static int dht_join(DHT_Datastore * datastore,
   tables[tablesCount-1].id = *table;
   tables[tablesCount-1].store = datastore;
   tables[tablesCount-1].flags = flags;
-  MUTEX_UNLOCK(&lock);
+  MUTEX_UNLOCK(lock);
   return OK;
 }
 
@@ -2814,32 +3020,27 @@ static int dht_migrate(const HashCode160 * key,
 		       const DHT_DataContainer * value,
 		       int flags,
 		       MigrationClosure * cls) {
-  cron_t now;
-
   ENTER();
-  cronTime(&now);
-  if (now >= cls->timeout) {
-    LOG(LOG_DEBUG,
-	"Aborting DHT migration due to timeout.\n");
-    return SYSERR; /* abort: timeout */
-  } 
-  /* OPTIMIZE-ME: we may want to do the migration using
-     async RPCs; but we need to be careful not to
-     flood the network too badly at that point.  Tricky! */
-  if (OK != dht_put(&cls->table,
-		    key,
-		    cls->timeout - now,
-		    value,
-		    flags))
-    LOG(LOG_DEBUG,
-	"Failed to migrate DHT content.\n");
-  return OK;  
+  if (cls->puts[cls->putsPos] != NULL) 
+    dht_put_async_stop(cls->puts[cls->putsPos]);
+  cls->puts[cls->putsPos] 
+    = dht_put_async_start(&cls->table,
+			  key,
+			  cls->timeout,
+			  value,
+			  flags,
+			  NULL,
+			  NULL);
+  cls->putsPos = (cls->putsPos + 1) % cls->maxPuts;  
+  gnunet_util_sleep(cls->timeout / cls->maxPuts);
+  return OK;
 }
 
   
 /**
  * Leave a table (stop storing data for the table).  Leave
- * fails if the node is not joint with the table.
+ * fails if the node is not joint with the table.  Blocks 
+ * for at most timeout ms to migrate content elsewhere.
  *
  * @param datastore the storage callbacks to use for the table
  * @param table the ID of the table
@@ -2847,19 +3048,27 @@ static int dht_migrate(const HashCode160 * key,
  *   the leave request (has no impact on success or failure);
  *   but only timeout time is available for migrating data, so
  *   pick this value with caution.
- * @param flags 
+ * @param flags  maximum number of parallel puts for migration (0
+ *   implies 'use value from gnunet.conf').
  * @return SYSERR on error, OK on success
  */
 static int dht_leave(const DHT_TableId * table,
 		     cron_t timeout,
-		     int flags) {
+		     unsigned int flags) {
   int i;
   int idx;
   LocalTableData old;
   MigrationClosure cls;
+  DHT_REMOVE_RECORD * remRec;
 
+  if (timeout > 1 * cronHOURS) {
+    LOG(LOG_WARNING,
+	_("'%s' called with timeout above 1 hour (bug?)\n"),
+	__FUNCTION__);
+    timeout = 1 * cronHOURS;    
+  }
   ENTER();
-  MUTEX_LOCK(&lock);
+  MUTEX_LOCK(lock);
   idx = -1;
   for (i=0;i<tablesCount;i++) {
     if (equalsDHT_TableId(&tables[i].id, table)) {
@@ -2868,7 +3077,7 @@ static int dht_leave(const DHT_TableId * table,
     }
   }
   if (idx == -1) {
-    MUTEX_UNLOCK(&lock);
+    MUTEX_UNLOCK(lock);
     return SYSERR;
   }
   old = tables[i];
@@ -2876,24 +3085,63 @@ static int dht_leave(const DHT_TableId * table,
   GROW(tables,
        tablesCount,
        tablesCount-1);
-  MUTEX_UNLOCK(&lock);
+  MUTEX_UNLOCK(lock);
+  if (! equalsHashCode160(&masterTableId,
+			  table)) {
+    /* issue dht_remove to remove this peer
+       from the master table for this table;
+       not needed/possible if we quit the DHT
+       altogether... */
+    DHT_DataContainer value;
+    
+    value.dataLength = sizeof(HostIdentity);
+    value.data = coreAPI->myIdentity;
+    remRec = dht_remove_async_start(&masterTableId,
+				    table,
+				    timeout,
+				    &value,
+				    ALPHA,
+				    NULL,
+				    NULL);
+  } else {
+    remRec = NULL;
+  }
 
   /* migrate content if applicable! */
   if ((flags & DHT_FLAGS_TABLE_MIGRATION_FLAG) > 0) {
+    unsigned int count;
+
+    count = old.store->iterate(old.store->closure, 0,
+			       NULL, NULL);
     cls.table = *table;
-    cls.timeout = cronTime(NULL) + timeout;
+    if (flags != 0) {
+      cls.maxPuts = flags;
+    } else {
+      cls.maxPuts = getConfigurationInt("DHT",
+					"MAX-MIGRATION-PARALLELISM");
+      if (cls.maxPuts == 0)
+	cls.maxPuts = 16;
+    }
+    /* migration time for each entry:
+       total time times parallelism by count */
+    cls.timeout = timeout * cls.maxPuts / count;
+    cls.puts = MALLOC(sizeof(DHT_PUT_RECORD*)*cls.maxPuts);
+    memset(cls.puts, 0, sizeof(DHT_PUT_RECORD*)*cls.maxPuts);
+    cls.putsPos = 0;
     old.store->iterate(old.store->closure,
 		       0,
 		       (DHT_DataProcessor) &dht_migrate,
 		       &cls);
+    for (i=0;i<cls.maxPuts;i++)
+      if (cls.puts[i] != NULL) {
+	dht_put_async_stop(cls.puts[i]);
+	cls.puts[i] = NULL;
+      }
+    FREE(cls.puts);
   }
-  if (! equalsHashCode160(&masterTableId,
-			  table)) {
-    /* OPTIMIZE-ME: also issue dht_remove to remove this peer
-       from the master node! (timeout used here!);
-       use async operation to do it concurrently with
-       dht_migrate! */
-  }
+  /* clean up! */
+  if (remRec != NULL)
+    dht_remove_async_stop(remRec);
   return OK;
 }
 
@@ -2922,11 +3170,11 @@ static void rpc_DHT_ping(const HostIdentity * sender,
       &enc);
 #endif
   ENTER();
-  MUTEX_LOCK(&lock);
+  MUTEX_LOCK(lock);
   tabs = MALLOC(sizeof(DHT_TableId) * tablesCount);
   for (i=0;i<tablesCount;i++)
     tabs[i] = tables[i].id;
-  MUTEX_UNLOCK(&lock);
+  MUTEX_UNLOCK(lock);
   RPC_paramAdd(results,
 	       "tables",
 	       sizeof(DHT_TableId) * tablesCount,
@@ -3258,7 +3506,7 @@ static void rpc_DHT_store(const HostIdentity * sender,
   fw_context 
     = MALLOC(sizeof(RPC_DHT_store_Context));
   MUTEX_CREATE_RECURSIVE(&fw_context->lock);
-  MUTEX_LOCK(&lock);
+  MUTEX_LOCK(lock);
   ltd = getLocalTableData(table);
   if (ltd == NULL) {    
     LOG(LOG_WARNING,
@@ -3268,7 +3516,7 @@ static void rpc_DHT_store(const HostIdentity * sender,
   } else {
     fw_context->replicationLevel = ltd->flags & DHT_FLAGS_TABLE_REPLICATION_MASK;
   }
-  MUTEX_UNLOCK(&lock);
+  MUTEX_UNLOCK(lock);
   fw_context->count
     = 0;
   fw_context->done
@@ -3421,7 +3669,7 @@ static void rpc_DHT_remove(const HostIdentity * sender,
   fw_context 
     = MALLOC(sizeof(RPC_DHT_remove_Context));
   MUTEX_CREATE_RECURSIVE(&fw_context->lock);
-  MUTEX_LOCK(&lock);
+  MUTEX_LOCK(lock);
   ltd = getLocalTableData(table);
   if (ltd == NULL) {    
     LOG(LOG_DEBUG,
@@ -3431,7 +3679,7 @@ static void rpc_DHT_remove(const HostIdentity * sender,
   } else {
     fw_context->replicationLevel = ltd->flags & DHT_FLAGS_TABLE_REPLICATION_MASK;
   }
-  MUTEX_UNLOCK(&lock);
+  MUTEX_UNLOCK(lock);
   fw_context->count
     = 0;
   fw_context->done
@@ -3468,14 +3716,19 @@ static void rpc_DHT_remove(const HostIdentity * sender,
  * that the cron-job will not allocate new resources (since all
  * tables and all buckets are empty at that point).
  */ 
-static void dhtMaintainJob(void * unused) {
+static void dhtMaintainJob(void * shutdownFlag) {
   static struct RPC_Record ** pingRecords = NULL;
+  static cron_t * pingTimes = NULL;
   static unsigned int pingRecordsSize = 0;
+  static unsigned int pingTimesSize = 0;
   static struct DHT_PUT_RECORD ** putRecords = 0;
+  static cron_t * putTimes = 0;
   static unsigned int putRecordsSize = 0;
+  static unsigned int putTimesSize = 0;
   static FindNodesContext ** findRecords = NULL;
+  static cron_t * findTimes = NULL;
   static unsigned int findRecordsSize = 0;
-
+  static unsigned int findTimesSize = 0;
   int i;
   Vector * request_param;
   PeerBucket * bucket;
@@ -3484,37 +3737,67 @@ static void dhtMaintainJob(void * unused) {
   DHT_DataContainer value;
 
   ENTER();
-  MUTEX_LOCK(&lock);
-  /* first, free resources from ASYNC calls started last time */
+  MUTEX_LOCK(lock);
 #if DEBUG_DHT
+  printRoutingTable();
+  /* first, free resources from ASYNC calls started last time */
   LOG(LOG_CRON,
       "'%s' stops async requests from last cron round.\n",
       __FUNCTION__);
 #endif
-  for (i=0;i<putRecordsSize;i++)
-    dht_put_async_stop(putRecords[i]);
-  GROW(putRecords, 
-       putRecordsSize,
-       0);
-  for (i=0;i<findRecordsSize;i++)
-    findNodes_stop(findRecords[i],
-		   NULL,
-		   NULL);
-  GROW(findRecords,
-       findRecordsSize,
-       0);
-  for (i=0;i<pingRecordsSize;i++)
-    rpcAPI->RPC_stop(pingRecords[i]);
-  GROW(pingRecords,
-       pingRecordsSize,
-       0);
+  cronTime(&now);
+  for (i=putRecordsSize-1;i>=0;i--) {
+    if ( (shutdownFlag != NULL) ||
+	 (putTimes[i] + DHT_MAINTAIN_BUCKET_FREQUENCY < now)) {
+      dht_put_async_stop(putRecords[i]);
+      putRecords[i] = putRecords[putRecordsSize-1];
+      putTimes[i] = putTimes[putRecordsSize-1];
+      GROW(putRecords, 
+	   putRecordsSize,
+	   putRecordsSize-1);
+      GROW(putRecords, 
+	   putTimesSize,
+	   putTimesSize-1);
+    }
+  }
+  for (i=findRecordsSize-1;i>=0;i--) {
+    if ( (shutdownFlag != NULL) ||
+	 (findTimes[i] + DHT_MAINTAIN_FIND_FREQUENCY < cronTime(NULL))) {
+      findNodes_stop(findRecords[i],
+		     NULL,
+		     NULL);
+      findTimes[i] = findTimes[findRecordsSize-1];
+      findRecords[i] = findRecords[findRecordsSize-1];
+      GROW(findRecords,
+	   findRecordsSize,
+	   findRecordsSize-1);
+      GROW(findTimes,
+	   findTimesSize,
+	   findTimesSize-1);
+    }
+  }
+  for (i=0;i<pingRecordsSize;i++) {
+    if ( (shutdownFlag != NULL) ||
+	 (pingTimes[i] + DHT_PING_FREQUENCY < cronTime(NULL))) {
+      rpcAPI->RPC_stop(pingRecords[i]);
+      pingRecords[i] = pingRecords[pingRecordsSize-1];
+      pingTimes[i] = pingTimes[pingRecordsSize-1];
+      GROW(pingRecords,
+	   pingRecordsSize,
+	   pingRecordsSize-1);
+      GROW(pingTimes,
+	   pingTimesSize,
+	   pingTimesSize-1);
+    }
+  }
+  if (shutdownFlag != NULL) {
+    MUTEX_UNLOCK(lock);    
+    return;
+  }
 
   /* now trigger next round of ASYNC calls */
 
-  cronTime(&now);
   /* for all of our tables, do a PUT on the master table */
-  /* OPTIMIZE-ME: limit how often we do this! (every 15s is
-     definitively too excessive!)*/
   request_param = vectorNew(4);
   value.dataLength = sizeof(HostIdentity);
   value.data = coreAPI->myIdentity;
@@ -3523,24 +3806,32 @@ static void dhtMaintainJob(void * unused) {
       "'%s' issues DHT_PUTs to advertise tables this peer participates in.\n",
       __FUNCTION__);
 #endif
+    
   for (i=0;i<tablesCount;i++) {
-    if (! equalsHashCode160(&tables[i].id, 
-			    &masterTableId)) {
+    if (tables[i].lastMasterAdvertisement + DHT_MAINTAIN_BUCKET_FREQUENCY < now) {
+      tables[i].lastMasterAdvertisement = now;
+      if (equalsHashCode160(&tables[i].id, 
+			    &masterTableId))
+	continue;
       GROW(putRecords,
 	   putRecordsSize,
 	   putRecordsSize+1);
+      GROW(putTimes,
+	   putTimesSize,
+	   putTimesSize+1);
       putRecords[putRecordsSize-1] 
 	= dht_put_async_start(&masterTableId,
 			      &tables[i].id,
-			      DHT_MAINTAIN_FREQUENCY,
+			      DHT_MAINTAIN_BUCKET_FREQUENCY,
 			      &value,
 			      ALPHA,
 			      NULL,
 			      NULL);
+      putTimes[putTimesSize-1] = now;    
     }
   }
   vectorFree(request_param);
-
+  
   /*
     for each table that we have joined gather OUR neighbours
   */
@@ -3550,15 +3841,21 @@ static void dhtMaintainJob(void * unused) {
       __FUNCTION__);
 #endif
   for (i=0;i<tablesCount;i++) {
-    GROW(findRecords,
-	 findRecordsSize,
-	 findRecordsSize+1);
-    findRecords[findRecordsSize-1] 
-      = findNodes_start(&tables[i].id,
-			&coreAPI->myIdentity->hashPubKey,
-			DHT_MAINTAIN_FREQUENCY); /* ?? */
+    if (tables[i].lastFindOperation + DHT_MAINTAIN_FIND_FREQUENCY < now) {
+      tables[i].lastFindOperation = now;
+      GROW(findRecords,
+	   findRecordsSize,
+	   findRecordsSize+1);
+      GROW(findTimes,
+	   findTimesSize,
+	   findTimesSize+1);
+      findRecords[findRecordsSize-1] 
+	= findNodes_start(&tables[i].id,
+			  &coreAPI->myIdentity->hashPubKey,
+			  DHT_MAINTAIN_FIND_FREQUENCY);
+      findTimes[findTimesSize-1] = now;
+    }
   }
-
   /* 
      for all peers in RT:
      a) if lastTableRefresh is very old, send ping
@@ -3586,19 +3883,36 @@ static void dhtMaintainJob(void * unused) {
 	continue;
       }
       if ( (now - pos->lastTableRefresh > DHT_INACTIVITY_DEATH / 2) &&
-	   (now - pos->lastTimePingSend > DHT_INACTIVITY_DEATH / 6) ) {
+	   (now - pos->lastTimePingSend > DHT_PING_FREQUENCY) ) {
+#if DEBUG_DHT
+	EncName enc;
+	
+	ENTER();
+	IFLOG(LOG_DEBUG,
+	      hash2enc(&pos->id.hashPubKey,
+		       &enc));
+	LOG(LOG_DEBUG,
+	    "sending RPC '%s' to peer '%s'.\n",
+	    "DHT_ping",
+	    &enc);
+#endif
 	pos->lastTimePingSend = now;
 	GROW(pingRecords,
 	     pingRecordsSize,
 	     pingRecordsSize+1);
+	GROW(pingTimes,
+	     pingTimesSize,
+	     pingTimesSize+1);
 	pingRecords[pingRecordsSize-1]
 	  = rpcAPI->RPC_start(&pos->id,
 			      "DHT_ping",
 			      request_param,
 			      0,
-			      DHT_MAINTAIN_FREQUENCY,
+			      DHT_PING_FREQUENCY,
 			      (RPC_Complete) &ping_reply_handler, 
 			      NULL);
+	pingTimes[pingTimesSize-1] 
+	  = now;
       }   
       pos = vectorGetNext(bucket->peers);
     }
@@ -3611,7 +3925,7 @@ static void dhtMaintainJob(void * unused) {
      check if this peer should still be responsible for
      it, if not, migrate!
   */
-  MUTEX_UNLOCK(&lock);
+  MUTEX_UNLOCK(lock);
 } 
 
 /**
@@ -3653,7 +3967,7 @@ DHT_ServiceAPI * provide_dht_protocol(CoreAPIForApplication * capi) {
 			     &rpc_DHT_store);
   rpcAPI->RPC_register_async("DHT_remove",
 			     &rpc_DHT_remove);
-  MUTEX_CREATE_RECURSIVE(&lock);
+  lock = coreAPI->getConnectionModuleLock();
   api.get = &dht_get;
   api.put = &dht_put;
   api.remove = &dht_remove;
@@ -3673,7 +3987,7 @@ DHT_ServiceAPI * provide_dht_protocol(CoreAPIForApplication * capi) {
   if (i == 0)
     i = 65536; /* 64k memory should suffice */
   masterTableDatastore 
-    = create_datastore_memory(i);
+    = create_datastore_dht_master(i);
   dht_join(masterTableDatastore,
 	   &masterTableId,
 	   0,
@@ -3731,10 +4045,10 @@ int release_dht_protocol() {
        bucketCount,
        0);
 
-  dhtMaintainJob(NULL); /* free's cron's internal resources! */
-  destroy_datastore_memory(masterTableDatastore);
+  dhtMaintainJob((void*)1); /* free's cron's internal resources! */
+  destroy_datastore_dht_master(masterTableDatastore);
   coreAPI->releaseService(rpcAPI);
-  MUTEX_DESTROY(&lock);
+  lock = NULL;
   rpcAPI = NULL;
   coreAPI = NULL;
   return OK;

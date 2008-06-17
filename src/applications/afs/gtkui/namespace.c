@@ -1100,6 +1100,7 @@ typedef struct {
   GtkWidget * mimetype;
   GtkWidget * uri;
   GtkWidget * contact;
+  GtkWidget * rating;
 } NamespaceSearchWindowModel;
 
 
@@ -1411,6 +1412,7 @@ static void namespace_combo_changed(GtkWidget * unused,
   char * ur;
   char * cont;
   char * mm;
+  char * rat;
   EncName enc;
 
   memset(&z, 0, sizeof(HashCode160));
@@ -1431,6 +1433,9 @@ static void namespace_combo_changed(GtkWidget * unused,
       mm = STRNDUP(list[i].mimetype, MAX_MIMETYPE_LEN/2);
       cont = STRNDUP(list[i].contact, MAX_CONTACT_LEN);
       ns = list[i].rootEntry;
+      rat = MALLOC(20);
+      SNPRINTF(rat, 20, "%d", evaluateNamespace(&list[i].namespace,
+						0));
       FREE(nick);
       break;
     }          
@@ -1442,6 +1447,7 @@ static void namespace_combo_changed(GtkWidget * unused,
     ur = STRDUP("");
     mm = STRDUP("");
     cont = STRDUP("");
+    rat = STRDUP("0");
   }
   FREENONNULL(list);
   hash2enc(&ns, &enc);
@@ -1456,6 +1462,8 @@ static void namespace_combo_changed(GtkWidget * unused,
 		     ur);
   gtk_label_set_text(GTK_LABEL(ewm->contact),
 		     cont);
+  gtk_label_set_text(GTK_LABEL(ewm->rating),
+		     rat);  
   if (equalsHashCode160(&ns, &z))
     gtk_entry_set_text(GTK_ENTRY(ewm->searchkeyLine), 
 		       "");
@@ -1468,6 +1476,7 @@ static void namespace_combo_changed(GtkWidget * unused,
   FREE(ur);
   FREE(mm);
   FREE(cont);
+  FREE(rat);
 }
 
 /**
@@ -1504,7 +1513,7 @@ void searchNamespace(GtkWidget * unused,
   ewm->window = window;
   gtk_widget_set_usize(GTK_WIDGET(window),
 		       650,
-		       320);
+		       360);
   gtk_window_set_title(GTK_WINDOW(window), 
 		       _("Search Namespace"));
 
@@ -1738,6 +1747,29 @@ void searchNamespace(GtkWidget * unused,
 		     FALSE, 
 		     0);
   gtk_widget_show(ewm->contact); 
+
+
+  hbox = gtk_hbox_new(FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(vbox),
+		     hbox,
+		     TRUE,
+		     TRUE,
+		     0);
+  gtk_widget_show(hbox);
+  label = gtk_label_new(_("Rating:"));
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     label, 
+		     FALSE, 
+		     FALSE, 
+		     0);
+  gtk_widget_show(label); 
+  ewm->rating = gtk_label_new("0");
+  gtk_box_pack_start(GTK_BOX(hbox),
+		     ewm->rating, 
+		     FALSE, 
+		     FALSE, 
+		     0);
+  gtk_widget_show(ewm->rating); 
 
   /* end namespace information */
  

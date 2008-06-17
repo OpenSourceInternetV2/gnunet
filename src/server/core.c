@@ -177,7 +177,8 @@ static void * threadMain(int id) {
  * (receive implementation).
  */
 void core_receive(MessagePack * mp) {
-  if (SYSERR == SEMAPHORE_DOWN_NONBLOCKING(bufferQueueWrite_)) {
+  if ( (mainShutdownSignal != NULL) ||
+       (SYSERR == SEMAPHORE_DOWN_NONBLOCKING(bufferQueueWrite_)) ) {
     /* discard message, buffer is full! */
     FREE(mp->msg);
     FREE(mp);
@@ -654,12 +655,25 @@ void loadApplicationModules() {
   FREE(dso);
 }
 
+void disableCoreProcessing() {
+  int i;
+  void * unused;
+
+  /* shutdown processing of inbound messages... */
+  mainShutdownSignal = SEMAPHORE_NEW(0);
+  for (i=0;i<THREAD_COUNT;i++) {
+    SEMAPHORE_UP(bufferQueueRead_);
+    SEMAPHORE_DOWN(mainShutdownSignal);
+  }
+  for (i=0;i<THREAD_COUNT;i++) 
+    PTHREAD_JOIN(&threads_[i], &unused);
+}
+
 /**
  * Shutdown the CORE modules (shuts down all application modules).
  */
 void doneCore() {
   int i;
-  void * unused;
   ShutdownList * pos;
   ShutdownList * prev;
   ShutdownList * nxt;
@@ -669,15 +683,6 @@ void doneCore() {
 
   /* stop receiving messages, note that "send" may still be called! */ 
   stopTransports();
-
-  /* shutdown processing of inbound  messages... */
-  mainShutdownSignal = SEMAPHORE_NEW(0);
-  for (i=0;i<THREAD_COUNT;i++) {
-    SEMAPHORE_UP(bufferQueueRead_);
-    SEMAPHORE_DOWN(mainShutdownSignal);
-  }
-  for (i=0;i<THREAD_COUNT;i++) 
-    PTHREAD_JOIN(&threads_[i], &unused);
 
   /* shutdown application modules */
   pos = shutdownList;

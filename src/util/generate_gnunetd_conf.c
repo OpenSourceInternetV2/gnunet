@@ -454,7 +454,7 @@ void  generate_gnunetd_conf (FILE * f) {
  fprintf(f, "%s\n","DISKQUOTA 	= 1024");
  fprintf(f, "%s\n","");
  fprintf(f, "%s\n","# Which database type should be used for content? Valid types are");
- fprintf(f, "%s\n","# \"gdbm\", \"mysql\", \"tdb\" and \"directory\". Specified type must have");
+ fprintf(f, "%s\n","# \"gdbm\", \"mysql\", \"tdb\", \"sqlite\" and \"directory\". Specified type must have");
  fprintf(f, "%s\n","# been available at compile time. \"directory\" is available on all");
  fprintf(f, "%s\n","# systems but typically uses more space and can also be slower.  mysql");
  fprintf(f, "%s\n","# will require some additional setup of the database.");

@@ -345,6 +345,10 @@ typedef Hostkey__ * Hostkey;
  */
 #define DHT_CS_PROTO_REPLY_ACK        78
 
+/**
+ * Client to CS: iterate over table
+ */
+#define DHT_CS_PROTO_REQUEST_ITERATE   79
 
 
 /* **************** common structs ******************* */
@@ -449,6 +453,11 @@ typedef struct {
  * Advertise capability (or limitation).
  */
 #define p2p_PROTO_CAPABILITY 8
+
+/**
+ * Fragmented message.
+ */
+#define p2p_PROTO_FRAGMENT 9
 
 /* ************* p2p AFS application messages *********** */
 

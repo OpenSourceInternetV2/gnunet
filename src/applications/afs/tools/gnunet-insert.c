@@ -512,7 +512,7 @@ int main(int argc, char ** argv) {
 #if USE_LIBEXTRACTOR
   EXTRACTOR_ExtractorList * extractors;
 #endif
-  int interval;
+  int interval = 0; /* make gcc happy */
   int skip;
   GNUNET_TCP_SOCKET * sock;
   int verbose;
@@ -573,6 +573,7 @@ int main(int argc, char ** argv) {
 				"YES"))
       errexit(_("Option '%s' makes no sense without option '%s'.\n"),
 	      "-S", "-s");
+  } else { /* have namespace (pseudonym != NULL) */
     if ( (fileNameCount > 1) && 
 	 (! testConfigurationString("GNUNET-INSERT",
 				    "BUILDDIR",
@@ -855,6 +856,16 @@ int main(int argc, char ** argv) {
   } /* end top-level processing for all files (for i=0;i<fileNameCount;i++) */
 
 
+  description = getConfigurationString("GNUNET-INSERT",
+				       "DESCRIPTION");
+  if (description == NULL)
+    description = STRDUP("No description supplied.");  
+  
+  mimetype = getConfigurationString("GNUNET-INSERT",
+				    "MIMETYPE");
+  if (mimetype == NULL)
+    mimetype = STRDUP("unknown");
+  
 
   /* if SBlock requested and just one file left here, create SBlock */
   if (pseudonym != NULL) {
@@ -868,6 +879,7 @@ int main(int argc, char ** argv) {
     GNUNET_ASSERT(fileNameCount == 1);
     shortFN = getConfigurationString("GNUNET-INSERT",
 				     "FILENAME");
+    fileName = expandFileName(fileNames[0]);
     if ( (shortFN == NULL) && (fileName != NULL)) {
       shortFN = &fileName[strlen(fileName)-1];
       while ( (shortFN[-1] != DIR_SEPARATOR) &&
@@ -875,6 +887,7 @@ int main(int argc, char ** argv) {
 	shortFN--;
       shortFN = STRDUP(shortFN);
     }  
+    FREENONNULL(fileName);
     timestr = getConfigurationString("GNUNET-INSERT",
                     		     "INSERTTIME");
     if (timestr != NULL) {
@@ -1024,7 +1037,6 @@ int main(int argc, char ** argv) {
   for (i=0;i<fileNameCount+skip;i++)
     FREE(fileNames[i]);
   FREE(fileNames);
-  FREENONNULL(fileName);
   for (i=0;i<topKeywordCnt;i++) 
     FREE(topKeywords[i]);
   GROW(topKeywords, topKeywordCnt, 0);

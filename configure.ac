@@ -21,8 +21,8 @@
 #
 #
 AC_PREREQ(2.57)
-AC_INIT([GNUnet], [0.6.4a],[bug-gnunet@gnu.org])
-AM_INIT_AUTOMAKE([GNUnet], [0.6.4a])
+AC_INIT([GNUnet], [0.6.5],[bug-gnunet@gnu.org])
+AM_INIT_AUTOMAKE([GNUnet], [0.6.5])
 AM_CONFIG_HEADER([config.h])
 
 AH_TOP([#define _GNU_SOURCE  1])
@@ -107,6 +107,7 @@ netbsd*)
 *mingw*)
      AC_DEFINE_UNQUOTED(MINGW,1,[This is a MinGW system])
      AC_DEFINE_UNQUOTED(WINDOWS,1,[This is a Windows system])
+     AC_DEFINE_UNQUOTED(_WIN32,1,[This is a Windows system])
      AC_CHECK_LIB(intl, gettext)
      LDFLAGS="$LDFLAGS -no-undefined -Wl,--export-all-symbols -lws2_32"
      CFLAGS="-mms-bitfields $CFLAGS"
@@ -132,25 +133,22 @@ AM_CONDITIONAL(SOLARIS, test "$build_target" = "solaris")
 AC_MSG_RESULT([$build_target])
 
 # We have two choices for the crypto stuff.  
-# 1) We use OpenSSL if it is present and the user specified
-#    --with-crypto or we're building Windows executables.
-# 2) We use libgcrypt if it is present and the user specified
-#    --with-gcrypt.
+# 1) By default we use whatever is present (OpenSSL or gcrypt)
+# 2) If both are present, we default to libgcrypt
+# 3) If both are present and --with-openssl=PFX is given,
+#    we use OpenSSL
 
 # gcrypt
 gcrypt=0
 AC_MSG_CHECKING(for libgcrypt) 
 AM_PATH_LIBGCRYPT(1.2.0, gcrypt=1)
-if test "x$LIBGCRYPT_LIBS" != "x"
-then
-    LDFLAGS="$LDFLAGS $LIBGCRYPT_LIBS"
-fi
-if test "x$LIBGCRYPT_CFLAGS" != "x"
-then
-	CPPFLAGS="$CPPFLAGS $LIBGCRYPT_CFLAGS"
-fi
 
 # openssl
+if test "$build_target" = "mingw"
+then
+  openssl_libs="-lgdi32"
+fi
+
 openssl=0
 AC_ARG_WITH(crypto,
   [  --with-crypto=PFX        Base of OpenSSL installation],
@@ -160,35 +158,47 @@ AC_ARG_WITH(crypto,
        ;;
    yes) AC_CHECK_LIB([crypto], [RSA_generate_key],
          [AC_CHECK_HEADERS([openssl/rsa.h openssl/blowfish.h],
-          openssl=1)])
+          openssl=1;gcrypt=0)], ,["$openssl_libs"])
        ;;
    *) LDFLAGS="$LDFLAGS -L$with_crypto/lib"
       CPPFLAGS="$CPPFLAGS -I$with_crypto/include"
       AC_CHECK_LIB([crypto], [RSA_generate_key],
        [AC_CHECK_HEADERS([openssl/rsa.h openssl/blowfish.h], 
-         openssl=1)])
+         openssl=1;gcrypt=0)], , ["$openssl_libs"])
        ;;
    esac],
    [AC_CHECK_LIB([crypto], [RSA_generate_key],
      [AC_CHECK_HEADERS([openssl/rsa.h openssl/blowfish.h],
-      openssl=1)])])
+      openssl=1)], , [-lgdi32])])
 
-if test $openssl == 0 
+if test $openssl = 0 
 then
-if test $gcrypt == 0
+if test $gcrypt = 0
 then
   AC_MSG_ERROR([GNUnet needs libgcrypt or OpenSSL])
 fi
 fi
 
 # Given the choice, the preference is libgcrypt
-if test $openssl == 1
+if test $openssl = 1
 then
-if test $gcrypt == 1
+if test $gcrypt = 1
 then
 openssl=0
 fi
 fi
+
+if test $gcrypt = 1
+then
+  if test "x$LIBGCRYPT_LIBS" != "x"
+  then
+    LDFLAGS="$LDFLAGS $LIBGCRYPT_LIBS"
+  fi
+  if test "x$LIBGCRYPT_CFLAGS" != "x"
+  then
+    CPPFLAGS="$CPPFLAGS $LIBGCRYPT_CFLAGS"
+  fi
+fi  
 
 AM_CONDITIONAL(USE_GCRYPT, test x$gcrypt = x1)
 AC_DEFINE_UNQUOTED(USE_GCRYPT, $gcrypt, [gcrypt available])
@@ -327,6 +337,34 @@ fi
 AM_CONDITIONAL(HAVE_BDB_DLL, test x$bdb_dll = xtrue)
 
 
+
+# test for sqlite
+sqlite=false
+AC_MSG_CHECKING(for SQLite)
+AC_ARG_WITH(sqlite,
+  [  --with-sqlite=PFX   Base of SQLite installation],
+  [AC_MSG_RESULT("$with_sqlite")
+   case $with_sqlite in
+   no) 
+     ;;
+   yes)
+    AC_CHECK_HEADERS(sqlite3.h,
+     sqlite=true)
+     ;;
+   *)
+    LDFLAGS="-L$with_sqlite/lib $LDFLAGS"
+    CPPFLAGS="-I$with_sqlite/include $CPPFLAGS"
+    AC_CHECK_HEADERS(sqlite3.h,
+     EXT_LIB_PATH="-L$with_sqlite/lib $EXT_LIB_PATH"
+     sqlite=true)
+    ;;
+   esac
+  ],
+  [AC_MSG_RESULT([--with-sqlite not specified])
+    AC_CHECK_HEADERS(sqlite3.h, sqlite=true)])
+AM_CONDITIONAL(HAVE_SQLITE, test x$sqlite = xtrue)
+
+
 # test for libz (maybe required for linking mysql)
 saveLIBS=$LIBS
 zlib=1
@@ -407,11 +445,11 @@ AC_CHECK_LIB(nsl, gethostbyname)
 AC_CHECK_LIB(socket, socket)
 AC_CHECK_LIB(m, log)
 AC_CHECK_LIB(c, getloadavg, AC_DEFINE(HAVE_GETLOADAVG,1,[getloadavg supported]))
-AC_CHECK_LIB(gmp, __gmpz_set,, AC_MSG_ERROR([GNUnet requires the GNU MP library (libgmp)]))
+AC_CHECK_LIB(gmp, __gmpz_import,, AC_MSG_ERROR([GNUnet requires the GNU MP library (libgmp)]))
 
-# check for gtk >= 2.0.0 (which version do we truely need? I use 2.4)
+# check for gtk >= 2.4.0 
 AC_MSG_CHECKING(for gtk)
-AM_PATH_GTK_2_0(2.0.0,without_gtk=false,without_gtk=true)
+AM_PATH_GTK_2_0(2.4.0,without_gtk=false,without_gtk=true)
 AM_CONDITIONAL(HAVE_GTK, test x$without_gtk != xtrue)
 
 # check for gettext
@@ -497,7 +535,7 @@ then
 fi
 
 guile=0
-if test "$enable_guile" == "yes"
+if test "$enable_guile" = "yes"
 then
     AC_PATH_PROG([guile_available], [guile])
     if test -z "$guile_available"
@@ -615,14 +653,14 @@ then
   AC_MSG_NOTICE([NOTICE: gnunet-gtk user interface will NOT be compiled.])
 fi
 
-AC_MSG_NOTICE([NOTICE: Database support is set to GDBM: $gdb, TDB: $tdb, BDB: $bdb, MySQL: $mysql])
+AC_MSG_NOTICE([NOTICE: Database support is set to GDBM: $gdb, TDB: $tdb, BDB: $bdb, MySQL: $mysql, SQLite: $sqlite])
 
-if test $openssl == 1
+if test $openssl = 1
 then
   AC_MSG_NOTICE([NOTICE: Using OpenSSL for cryptographic primitives.])
 fi
 
-if test $gcrypt == 1
+if test $gcrypt = 1
 then
   AC_MSG_NOTICE([NOTICE: Using libgcrypt for cryptographic primitives.])
 fi

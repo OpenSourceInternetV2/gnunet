@@ -178,6 +178,7 @@ void gnunet_main() {
       "gnunetd");
 
   /* init 5: shutdown in inverse order */   
+  disableCoreProcessing();
   stopCron();
   stopTCPServer();
   doneCore();

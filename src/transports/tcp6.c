@@ -1381,7 +1381,7 @@ TransportAPI * inittransport_tcp6(CoreAPIForTransport * core) {
     mtu = 1440;
   if (mtu < 1200)
     LOG(LOG_ERROR,
-	_("MTU for '%s' is probably to low (fragmentation not implemented!)\n"),
+	_("MTU for '%s' is probably too low (fragmentation not implemented!)\n"),
 	"TCP6");
  
   tcp6API.protocolNumber       = TCP6_PROTOCOL_NUMBER;

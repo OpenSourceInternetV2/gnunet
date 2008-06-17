@@ -10,10 +10,10 @@
  * @author Nils Durner
  */
 
+#include "platform.h"
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
-#include "gnunet_util.h"
 
 #define LKC_DIRECT_LINK
 #include "lkc.h"
@@ -21,6 +21,10 @@
 #ifdef HAVE_UNAME
  #include <sys/utsname.h>
 #endif
+#ifdef OK
+#undef OK
+#endif
+#include "gnunet_util.h"
 
 struct symbol symbol_yes = {
 	.name = "y",

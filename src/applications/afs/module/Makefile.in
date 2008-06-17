@@ -15,7 +15,7 @@
 @SET_MAKE@
 
 
-SOURCES = $(libgnunetafs_database_bdb_la_SOURCES) $(libgnunetafs_database_directory_la_SOURCES) $(libgnunetafs_database_gdbm_la_SOURCES) $(libgnunetafs_database_mysql_la_SOURCES) $(libgnunetafs_database_tdb_la_SOURCES) $(libgnunetafs_protocol_la_SOURCES) $(gnunet_check_SOURCES) $(gnunet_convert_SOURCES) $(high_db_test_bdb_SOURCES) $(high_db_test_directory_SOURCES) $(high_db_test_gdbm_SOURCES) $(high_db_test_mysql_SOURCES) $(high_db_test_tdb_SOURCES) $(low_db_test_bdb_SOURCES) $(low_db_test_directory_SOURCES) $(low_db_test_gdbm_SOURCES) $(low_db_test_tdb_SOURCES)
+SOURCES = $(libgnunetafs_database_bdb_la_SOURCES) $(libgnunetafs_database_directory_la_SOURCES) $(libgnunetafs_database_gdbm_la_SOURCES) $(libgnunetafs_database_mysql_la_SOURCES) $(libgnunetafs_database_sqlite_la_SOURCES) $(libgnunetafs_database_tdb_la_SOURCES) $(libgnunetafs_protocol_la_SOURCES) $(gnunet_check_SOURCES) $(gnunet_convert_SOURCES) $(high_db_test_bdb_SOURCES) $(high_db_test_directory_SOURCES) $(high_db_test_gdbm_SOURCES) $(high_db_test_mysql_SOURCES) $(high_db_test_sqlite_SOURCES) $(high_db_test_tdb_SOURCES) $(low_db_test_bdb_SOURCES) $(low_db_test_directory_SOURCES) $(low_db_test_gdbm_SOURCES) $(low_db_test_tdb_SOURCES)
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -40,7 +40,7 @@ POST_UNINSTALL = :
 host_triplet = @host@
 bin_PROGRAMS = gnunet-check$(EXEEXT) gnunet-convert$(EXEEXT)
 check_PROGRAMS = $(am__EXEEXT_1) $(am__EXEEXT_2) $(am__EXEEXT_3) \
-	$(am__EXEEXT_4) $(am__EXEEXT_5)
+	$(am__EXEEXT_4) $(am__EXEEXT_5) $(am__EXEEXT_6)
 subdir = src/applications/afs/module
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -82,6 +82,11 @@ libgnunetafs_database_mysql_la_DEPENDENCIES =  \
 am_libgnunetafs_database_mysql_la_OBJECTS = high_mysql.lo
 libgnunetafs_database_mysql_la_OBJECTS =  \
 	$(am_libgnunetafs_database_mysql_la_OBJECTS)
+libgnunetafs_database_sqlite_la_DEPENDENCIES =  \
+	$(top_builddir)/src/util/libgnunetutil.la
+am_libgnunetafs_database_sqlite_la_OBJECTS = high_sqlite.lo
+libgnunetafs_database_sqlite_la_OBJECTS =  \
+	$(am_libgnunetafs_database_sqlite_la_OBJECTS)
 libgnunetafs_database_tdb_la_DEPENDENCIES =  \
 	$(top_builddir)/src/util/libgnunetutil.la
 am_libgnunetafs_database_tdb_la_OBJECTS = high_simple.lo \
@@ -105,6 +110,7 @@ binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 @HAVE_DIRECTORY_TRUE@	high_db_test_directory$(EXEEXT)
 @HAVE_BDB_TRUE@am__EXEEXT_5 = low_db_test_bdb$(EXEEXT) \
 @HAVE_BDB_TRUE@	high_db_test_bdb$(EXEEXT)
+@HAVE_SQLITE_TRUE@am__EXEEXT_6 = high_db_test_sqlite$(EXEEXT)
 PROGRAMS = $(bin_PROGRAMS)
 am_gnunet_check_OBJECTS = gnunet-check.$(OBJEXT)
 gnunet_check_OBJECTS = $(am_gnunet_check_OBJECTS)
@@ -132,6 +138,11 @@ am_high_db_test_mysql_OBJECTS =  \
 	high_db_test_mysql-high_db_test.$(OBJEXT)
 high_db_test_mysql_OBJECTS = $(am_high_db_test_mysql_OBJECTS)
 high_db_test_mysql_DEPENDENCIES =  \
+	$(top_builddir)/src/util/libgnunetutil.la
+am_high_db_test_sqlite_OBJECTS =  \
+	high_db_test_sqlite-high_db_test.$(OBJEXT)
+high_db_test_sqlite_OBJECTS = $(am_high_db_test_sqlite_OBJECTS)
+high_db_test_sqlite_DEPENDENCIES =  \
 	$(top_builddir)/src/util/libgnunetutil.la
 am_high_db_test_tdb_OBJECTS = high_db_test_tdb-high_db_test.$(OBJEXT)
 high_db_test_tdb_OBJECTS = $(am_high_db_test_tdb_OBJECTS)
@@ -167,10 +178,12 @@ am__depfiles_maybe = depfiles
 @AMDEP_TRUE@	./$(DEPDIR)/high_db_test_directory-high_db_test.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/high_db_test_gdbm-high_db_test.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/high_db_test_mysql-high_db_test.Po \
+@AMDEP_TRUE@	./$(DEPDIR)/high_db_test_sqlite-high_db_test.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/high_db_test_tdb-high_db_test.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/high_mysql.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/high_simple.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/high_simple_helper.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/high_sqlite.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/large_file_support.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/low_bdb.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/low_db_test_bdb-low_db_test.Po \
@@ -195,24 +208,28 @@ SOURCES = $(libgnunetafs_database_bdb_la_SOURCES) \
 	$(libgnunetafs_database_directory_la_SOURCES) \
 	$(libgnunetafs_database_gdbm_la_SOURCES) \
 	$(libgnunetafs_database_mysql_la_SOURCES) \
+	$(libgnunetafs_database_sqlite_la_SOURCES) \
 	$(libgnunetafs_database_tdb_la_SOURCES) \
 	$(libgnunetafs_protocol_la_SOURCES) $(gnunet_check_SOURCES) \
 	$(gnunet_convert_SOURCES) $(high_db_test_bdb_SOURCES) \
 	$(high_db_test_directory_SOURCES) $(high_db_test_gdbm_SOURCES) \
-	$(high_db_test_mysql_SOURCES) $(high_db_test_tdb_SOURCES) \
-	$(low_db_test_bdb_SOURCES) $(low_db_test_directory_SOURCES) \
-	$(low_db_test_gdbm_SOURCES) $(low_db_test_tdb_SOURCES)
+	$(high_db_test_mysql_SOURCES) $(high_db_test_sqlite_SOURCES) \
+	$(high_db_test_tdb_SOURCES) $(low_db_test_bdb_SOURCES) \
+	$(low_db_test_directory_SOURCES) $(low_db_test_gdbm_SOURCES) \
+	$(low_db_test_tdb_SOURCES)
 DIST_SOURCES = $(libgnunetafs_database_bdb_la_SOURCES) \
 	$(libgnunetafs_database_directory_la_SOURCES) \
 	$(libgnunetafs_database_gdbm_la_SOURCES) \
 	$(libgnunetafs_database_mysql_la_SOURCES) \
+	$(libgnunetafs_database_sqlite_la_SOURCES) \
 	$(libgnunetafs_database_tdb_la_SOURCES) \
 	$(libgnunetafs_protocol_la_SOURCES) $(gnunet_check_SOURCES) \
 	$(gnunet_convert_SOURCES) $(high_db_test_bdb_SOURCES) \
 	$(high_db_test_directory_SOURCES) $(high_db_test_gdbm_SOURCES) \
-	$(high_db_test_mysql_SOURCES) $(high_db_test_tdb_SOURCES) \
-	$(low_db_test_bdb_SOURCES) $(low_db_test_directory_SOURCES) \
-	$(low_db_test_gdbm_SOURCES) $(low_db_test_tdb_SOURCES)
+	$(high_db_test_mysql_SOURCES) $(high_db_test_sqlite_SOURCES) \
+	$(high_db_test_tdb_SOURCES) $(low_db_test_bdb_SOURCES) \
+	$(low_db_test_directory_SOURCES) $(low_db_test_gdbm_SOURCES) \
+	$(low_db_test_tdb_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -277,6 +294,8 @@ HAVE_IPV6_FALSE = @HAVE_IPV6_FALSE@
 HAVE_IPV6_TRUE = @HAVE_IPV6_TRUE@
 HAVE_MYSQL_FALSE = @HAVE_MYSQL_FALSE@
 HAVE_MYSQL_TRUE = @HAVE_MYSQL_TRUE@
+HAVE_SQLITE_FALSE = @HAVE_SQLITE_FALSE@
+HAVE_SQLITE_TRUE = @HAVE_SQLITE_TRUE@
 HAVE_TDB_FALSE = @HAVE_TDB_FALSE@
 HAVE_TDB_TRUE = @HAVE_TDB_TRUE@
 HAVE_ZLIB_FALSE = @HAVE_ZLIB_FALSE@
@@ -402,13 +421,18 @@ INCLUDES = -I$(top_srcdir)/src/include
 @HAVE_BDB_TRUE@LIB_BDB = libgnunetafs_database_bdb.la
 @HAVE_BDB_TRUE@TEST_BDB = low_db_test_bdb high_db_test_bdb
 @HAVE_BDB_FALSE@XBDB = 
+@HAVE_SQLITE_FALSE@LIB_SQLITE = 
+@HAVE_SQLITE_TRUE@LIB_SQLITE = libgnunetafs_database_sqlite.la
+@HAVE_SQLITE_FALSE@TEST_SQLITE = 
+@HAVE_SQLITE_TRUE@TEST_SQLITE = high_db_test_sqlite
 lib_LTLIBRARIES = \
   libgnunetafs_protocol.la \
   $(LIB_BDB) \
   $(LIB_DIRECTORY) \
   $(LIB_GDBM) \
   $(LIB_MYSQL) \
-  $(LIB_TDB)
+  $(LIB_TDB) \
+  $(LIB_SQLITE)
 
 libgnunetafs_protocol_la_SOURCES = \
   afs.c \
@@ -488,6 +512,15 @@ libgnunetafs_database_mysql_la_LIBADD = \
 
 @HAVE_ZLIB_TRUE@libgnunetafs_database_mysql_la_LDFLAGS = \
 @HAVE_ZLIB_TRUE@ -export-dynamic -avoid-version -module -lmysqlclient -lz
+
+libgnunetafs_database_sqlite_la_SOURCES = \
+  high_sqlite.c
+
+libgnunetafs_database_sqlite_la_LIBADD = \
+ $(top_builddir)/src/util/libgnunetutil.la
+
+libgnunetafs_database_sqlite_la_LDFLAGS = \
+ -export-dynamic -avoid-version -module -lsqlite3
 
 libgnunetafs_database_tdb_la_SOURCES = \
   high_simple.c \
@@ -598,6 +631,15 @@ high_db_test_mysql_LDADD = \
 high_db_test_mysql_CFLAGS = \
  -DDBSELECT="\"mysql\""
 
+high_db_test_sqlite_SOURCES = \
+ high_db_test.c
+
+high_db_test_sqlite_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  
+
+high_db_test_sqlite_CFLAGS = \
+ -DDBSELECT="\"sqlite\""
+
 all: all-am
 
 .SUFFIXES:
@@ -666,6 +708,8 @@ libgnunetafs_database_gdbm.la: $(libgnunetafs_database_gdbm_la_OBJECTS) $(libgnu
 	$(LINK) -rpath $(libdir) $(libgnunetafs_database_gdbm_la_LDFLAGS) $(libgnunetafs_database_gdbm_la_OBJECTS) $(libgnunetafs_database_gdbm_la_LIBADD) $(LIBS)
 libgnunetafs_database_mysql.la: $(libgnunetafs_database_mysql_la_OBJECTS) $(libgnunetafs_database_mysql_la_DEPENDENCIES) 
 	$(LINK) -rpath $(libdir) $(libgnunetafs_database_mysql_la_LDFLAGS) $(libgnunetafs_database_mysql_la_OBJECTS) $(libgnunetafs_database_mysql_la_LIBADD) $(LIBS)
+libgnunetafs_database_sqlite.la: $(libgnunetafs_database_sqlite_la_OBJECTS) $(libgnunetafs_database_sqlite_la_DEPENDENCIES) 
+	$(LINK) -rpath $(libdir) $(libgnunetafs_database_sqlite_la_LDFLAGS) $(libgnunetafs_database_sqlite_la_OBJECTS) $(libgnunetafs_database_sqlite_la_LIBADD) $(LIBS)
 libgnunetafs_database_tdb.la: $(libgnunetafs_database_tdb_la_OBJECTS) $(libgnunetafs_database_tdb_la_DEPENDENCIES) 
 	$(LINK) -rpath $(libdir) $(libgnunetafs_database_tdb_la_LDFLAGS) $(libgnunetafs_database_tdb_la_OBJECTS) $(libgnunetafs_database_tdb_la_LIBADD) $(LIBS)
 libgnunetafs_protocol.la: $(libgnunetafs_protocol_la_OBJECTS) $(libgnunetafs_protocol_la_DEPENDENCIES) 
@@ -723,6 +767,9 @@ high_db_test_gdbm$(EXEEXT): $(high_db_test_gdbm_OBJECTS) $(high_db_test_gdbm_DEP
 high_db_test_mysql$(EXEEXT): $(high_db_test_mysql_OBJECTS) $(high_db_test_mysql_DEPENDENCIES) 
 	@rm -f high_db_test_mysql$(EXEEXT)
 	$(LINK) $(high_db_test_mysql_LDFLAGS) $(high_db_test_mysql_OBJECTS) $(high_db_test_mysql_LDADD) $(LIBS)
+high_db_test_sqlite$(EXEEXT): $(high_db_test_sqlite_OBJECTS) $(high_db_test_sqlite_DEPENDENCIES) 
+	@rm -f high_db_test_sqlite$(EXEEXT)
+	$(LINK) $(high_db_test_sqlite_LDFLAGS) $(high_db_test_sqlite_OBJECTS) $(high_db_test_sqlite_LDADD) $(LIBS)
 high_db_test_tdb$(EXEEXT): $(high_db_test_tdb_OBJECTS) $(high_db_test_tdb_DEPENDENCIES) 
 	@rm -f high_db_test_tdb$(EXEEXT)
 	$(LINK) $(high_db_test_tdb_LDFLAGS) $(high_db_test_tdb_OBJECTS) $(high_db_test_tdb_LDADD) $(LIBS)
@@ -755,10 +802,12 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/high_db_test_directory-high_db_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/high_db_test_gdbm-high_db_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/high_db_test_mysql-high_db_test.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/high_db_test_sqlite-high_db_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/high_db_test_tdb-high_db_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/high_mysql.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/high_simple.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/high_simple_helper.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/high_sqlite.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/large_file_support.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/low_bdb.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/low_db_test_bdb-low_db_test.Po@am__quote@
@@ -893,6 +942,30 @@ high_db_test_mysql-high_db_test.lo: high_db_test.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	depfile='$(DEPDIR)/high_db_test_mysql-high_db_test.Plo' tmpdepfile='$(DEPDIR)/high_db_test_mysql-high_db_test.TPlo' @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LIBTOOL) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(high_db_test_mysql_CFLAGS) $(CFLAGS) -c -o high_db_test_mysql-high_db_test.lo `test -f 'high_db_test.c' || echo '$(srcdir)/'`high_db_test.c
+
+high_db_test_sqlite-high_db_test.o: high_db_test.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(high_db_test_sqlite_CFLAGS) $(CFLAGS) -MT high_db_test_sqlite-high_db_test.o -MD -MP -MF "$(DEPDIR)/high_db_test_sqlite-high_db_test.Tpo" -c -o high_db_test_sqlite-high_db_test.o `test -f 'high_db_test.c' || echo '$(srcdir)/'`high_db_test.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/high_db_test_sqlite-high_db_test.Tpo" "$(DEPDIR)/high_db_test_sqlite-high_db_test.Po"; else rm -f "$(DEPDIR)/high_db_test_sqlite-high_db_test.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='high_db_test.c' object='high_db_test_sqlite-high_db_test.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	depfile='$(DEPDIR)/high_db_test_sqlite-high_db_test.Po' tmpdepfile='$(DEPDIR)/high_db_test_sqlite-high_db_test.TPo' @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(high_db_test_sqlite_CFLAGS) $(CFLAGS) -c -o high_db_test_sqlite-high_db_test.o `test -f 'high_db_test.c' || echo '$(srcdir)/'`high_db_test.c
+
+high_db_test_sqlite-high_db_test.obj: high_db_test.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(high_db_test_sqlite_CFLAGS) $(CFLAGS) -MT high_db_test_sqlite-high_db_test.obj -MD -MP -MF "$(DEPDIR)/high_db_test_sqlite-high_db_test.Tpo" -c -o high_db_test_sqlite-high_db_test.obj `if test -f 'high_db_test.c'; then $(CYGPATH_W) 'high_db_test.c'; else $(CYGPATH_W) '$(srcdir)/high_db_test.c'; fi`; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/high_db_test_sqlite-high_db_test.Tpo" "$(DEPDIR)/high_db_test_sqlite-high_db_test.Po"; else rm -f "$(DEPDIR)/high_db_test_sqlite-high_db_test.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='high_db_test.c' object='high_db_test_sqlite-high_db_test.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	depfile='$(DEPDIR)/high_db_test_sqlite-high_db_test.Po' tmpdepfile='$(DEPDIR)/high_db_test_sqlite-high_db_test.TPo' @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(high_db_test_sqlite_CFLAGS) $(CFLAGS) -c -o high_db_test_sqlite-high_db_test.obj `if test -f 'high_db_test.c'; then $(CYGPATH_W) 'high_db_test.c'; else $(CYGPATH_W) '$(srcdir)/high_db_test.c'; fi`
+
+high_db_test_sqlite-high_db_test.lo: high_db_test.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(high_db_test_sqlite_CFLAGS) $(CFLAGS) -MT high_db_test_sqlite-high_db_test.lo -MD -MP -MF "$(DEPDIR)/high_db_test_sqlite-high_db_test.Tpo" -c -o high_db_test_sqlite-high_db_test.lo `test -f 'high_db_test.c' || echo '$(srcdir)/'`high_db_test.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/high_db_test_sqlite-high_db_test.Tpo" "$(DEPDIR)/high_db_test_sqlite-high_db_test.Plo"; else rm -f "$(DEPDIR)/high_db_test_sqlite-high_db_test.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='high_db_test.c' object='high_db_test_sqlite-high_db_test.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	depfile='$(DEPDIR)/high_db_test_sqlite-high_db_test.Plo' tmpdepfile='$(DEPDIR)/high_db_test_sqlite-high_db_test.TPlo' @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(high_db_test_sqlite_CFLAGS) $(CFLAGS) -c -o high_db_test_sqlite-high_db_test.lo `test -f 'high_db_test.c' || echo '$(srcdir)/'`high_db_test.c
 
 high_db_test_tdb-high_db_test.o: high_db_test.c
 @am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(high_db_test_tdb_CFLAGS) $(CFLAGS) -MT high_db_test_tdb-high_db_test.o -MD -MP -MF "$(DEPDIR)/high_db_test_tdb-high_db_test.Tpo" -c -o high_db_test_tdb-high_db_test.o `test -f 'high_db_test.c' || echo '$(srcdir)/'`high_db_test.c; \

@@ -58,7 +58,7 @@ static int handleChatMSG(const HostIdentity * sender,
 
   if (ntohs(message->size) != sizeof(CHAT_p2p_MESSAGE)) {
     LOG(LOG_WARNING,
-	" message received from peer is invalid.\n");
+	_("Message received from peer is invalid.\n"));
     return SYSERR;
   }
   pmsg = (CHAT_p2p_MESSAGE*)message;
@@ -104,7 +104,7 @@ static void csHandleChatRequest(ClientHandle client,
 
   if (ntohs(message->size) != sizeof(CHAT_CS_MESSAGE)) {
     LOG(LOG_WARNING,
-	" message received from client is invalid\n");
+	_("Message received from client is invalid\n"));
     return; /* invalid message */
   }
   pmsg = (CHAT_p2p_MESSAGE*)message;
@@ -126,11 +126,11 @@ static void csHandleChatRequest(ClientHandle client,
   if (j == -1) {
     if (clientCount == MAX_CLIENTS)
       LOG(LOG_WARNING,
-	  " maximum number of chat clients reached\n");
+	  _("Maximum number of chat clients reached.\n"));
     else {
       clients[clientCount++] = client;
       LOG(LOG_DEBUG,
-	  " now %d of %d chat clients at this node\n",
+	  _("Now %d of %d chat clients at this node.\n"),
 	  clientCount, MAX_CLIENTS);
     }
   }
@@ -145,7 +145,7 @@ static void chatClientExitHandler(ClientHandle client) {
   for (i=0;i<clientCount;i++)
     if (clients[i] == client) {
       LOG(LOG_DEBUG,
-	  " Chat client exits.\n");
+	  "Chat client exits.\n");
       clients[i] = clients[--clientCount];
       break;
     }
@@ -160,18 +160,13 @@ static void chatClientExitHandler(ClientHandle client) {
 int initialize_chat_protocol(CoreAPIForApplication * capi) {
   int ok = OK;
 
-  if (CHAT_p2p_PROTO_MSG != CHAT_CS_PROTO_MSG)
-    errexit("Message type ids for p2p and CS CHAT must be equal! (%d != %d)\n",
-	    CHAT_p2p_PROTO_MSG, CHAT_CS_PROTO_MSG);
-  if (sizeof(CHAT_p2p_MESSAGE) != sizeof(CHAT_CS_MESSAGE))
-    errexit("Message sizes for p2p and CS chat must be equals! (%d != %d)\n",
-	    sizeof(CHAT_p2p_MESSAGE), sizeof(CHAT_CS_MESSAGE));
-
+  GNUNET_ASSERT(CHAT_p2p_PROTO_MSG == CHAT_CS_PROTO_MSG);
+  GNUNET_ASSERT(sizeof(CHAT_p2p_MESSAGE) == sizeof(CHAT_CS_MESSAGE));
   MUTEX_CREATE(&chatMutex);
   clientCount = 0;
   coreAPI = capi;
   LOG(LOG_DEBUG,
-      " CHAT registering handlers %d and %d\n",
+      "CHAT registering handlers %d and %d\n",
       CHAT_p2p_PROTO_MSG,
       CHAT_CS_PROTO_MSG);
 

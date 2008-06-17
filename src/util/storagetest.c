@@ -9,7 +9,7 @@
 
 #define TESTSTRING "Hello World\0"
 
-int testReadWrite() {
+static int testReadWrite() {
   HashCode160 ha;
   HexName filename;
   char tmp[100];

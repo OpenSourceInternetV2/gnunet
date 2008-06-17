@@ -726,7 +726,8 @@ int unlinkFromDB(HighDBHandle handle,
  * @return OK on success, SYSERR on error
  */
 int getRandomContent(HighDBHandle handle,
-                     ContentIndex * ce) {
+                     ContentIndex * ce,
+		     CONTENT_Block ** data) {
   mysqlHandle * dbh = handle;
   MYSQL_RES * sql_res;
   MYSQL_ROW sql_row;
@@ -758,7 +759,7 @@ int getRandomContent(HighDBHandle handle,
   mysql_escape_string(escapedHash, hash, sizeof(HashCode160));
   SNPRINTF(scratch,
 	  n,
-          "SELECT hash,type,priority,fileOffset,fileIndex "
+          "SELECT hash,type,priority,fileOffset,fileIndex,content "
           "FROM data%uof%u "
           "WHERE hash >= '%s' "
           "AND (type = %d OR type = %d) "
@@ -789,7 +790,7 @@ int getRandomContent(HighDBHandle handle,
     mysql_free_result(sql_res);
     SNPRINTF(scratch,
 	     n,
-	     "SELECT hash,type,priority,fileOffset,fileIndex "
+	     "SELECT hash,type,priority,fileOffset,fileIndex,content "
 	     "FROM data%uof%u "
 	     "WHERE hash >= '' "
 	     "AND (type = %d OR type = %d) "
@@ -833,6 +834,12 @@ int getRandomContent(HighDBHandle handle,
     ce->importance = htonl(atol(sql_row[2]));
     ce->fileOffset = htonl(atol(sql_row[3]));
     ce->fileNameIndex = htons(atol(sql_row[4]));
+    if(ntohs(ce->fileNameIndex)==0) {
+      *data = MALLOC(sizeof(CONTENT_Block));
+      memcpy(*data,
+	     sql_row[5],
+	     sizeof(CONTENT_Block));
+    }
     found = YES;
     mysql_free_result(sql_res);
   }

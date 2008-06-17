@@ -6,6 +6,7 @@ lib_LTLIBRARIES = \
 libgnunet_afs_esed2_la_SOURCES = \
   block.c \
   contentencoding.c \
+  collection.c \
   deleteutil.c \
   directory.c \
   downloadutil.c \

@@ -40,7 +40,7 @@
  * roughly the main GNUnet version scheme, but is
  * more a compatibility ID.
  */
-#define GNUNET_CORE_VERSION 0x00060105
+#define GNUNET_CORE_VERSION 0x00060500
 
 
 /**
@@ -319,6 +319,42 @@ typedef struct {
    */
   int challenge;
 } PINGPONG_Message;
+
+/**
+ * Message fragment.
+ */
+typedef struct {
+  p2p_HEADER header;
+
+  /**
+   * Fragment identity.
+   */
+  int id;
+
+  /**
+   * Fragment offset.
+   */
+  unsigned short off;
+
+  /**
+   * Total fragment size
+   */
+  unsigned short len;
+
+} FRAGMENT_Message;
+
+/**
+ * Message fragment.
+ */
+typedef struct {
+  FRAGMENT_Message fragment_message;
+
+  char data[1];
+} FRAGMENT_Message_GENERIC;
+
+
+
+
 
 /**
  * GNUnet CORE API for applications and services that are implemented

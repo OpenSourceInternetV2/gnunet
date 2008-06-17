@@ -21,9 +21,10 @@
 #define LKC_DIRECT_LINK
 #include "lkc.h"
 
-const char conf_def_filename[] = "/etc/GNUnet/.config";
+const char conf_def_dir[] = "/etc/GNUnet/";
+const char conf_def_filename[] = ".config";
 
-const char conf_defname[] = "/etc/GNUnet/defconfig";
+const char conf_defname[] = "defconfig";
 
 const char *conf_confnames[] = {
 	".config",
@@ -298,7 +299,7 @@ int conf_write(const char *name)
 	struct symbol *sym;
 	struct menu *menu;
 	const char *basename;
-	char dirname[128], tmpname[128], newname[128];
+	char dirname[128], tmpname[128], tmpname2[128], newname[128];
 	int type, l;
 	const char *str;
 
@@ -318,8 +319,11 @@ int conf_write(const char *name)
 	} else
 		basename = conf_def_filename;
 
+	if (! dirname[0])
+		strcpy(dirname, conf_def_dir);
+
 	sprintf(newname, 
-		"/etc/GNUnet/%s.tmpconfig.%u", 
+		"%s.tmpconfig.%u", 
 		dirname, 
 		(unsigned int) getpid());
 	out = FOPEN(newname, "w");
@@ -327,7 +331,8 @@ int conf_write(const char *name)
 		return 1;
 	out_h = NULL;
 	if (!name) {
-		out_h = FOPEN("/etc/GNUnet/.tmpconfig.conf", "w");
+		sprintf(tmpname, "%s.tmpconfig.conf", dirname);
+		out_h = FOPEN(tmpname, "w");
 		if (!out_h)
 			return 1;
 	}
@@ -453,9 +458,9 @@ int conf_write(const char *name)
 	fclose(out);
 	if (out_h) {
 		fclose(out_h);
-		RENAME("/etc/GNUnet/.tmpconfig.conf", "/etc/GNUnet/gnunet.conf");
-		/* GNUnet Setup doesn't need to record deps
-		   file_write_dep(NULL); */
+		sprintf(tmpname, "%s.tmpconfig.conf", dirname);
+		sprintf(tmpname2, "%sgnunet.conf", dirname);
+		RENAME(tmpname, tmpname2);
 	}
 	if (!name || basename != conf_def_filename) {
 		if (!name)

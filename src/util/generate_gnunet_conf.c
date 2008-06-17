@@ -129,8 +129,9 @@ void  generate_gnunet_conf (FILE * f) {
  fprintf(f, "%s\n","# How important is the trace message? (default: 1000)");
  fprintf(f, "%s\n","PRIORITY = 1000");
  fprintf(f, "%s\n","");
- fprintf(f, "%s\n","# Output format, 0 is human readable, 1 is dot (default: 1)");
- fprintf(f, "%s\n","FORMAT   = 1");
+ fprintf(f, "%s\n","# Output format, 0 is human readable, 1 is dot,");
+ fprintf(f, "%s\n","# 2 is vcg (default: 2)");
+ fprintf(f, "%s\n","FORMAT   = 2");
  fprintf(f, "%s\n","");
  fprintf(f, "%s\n","");
  fprintf(f, "%s\n","[GNUNET-TESTBED]");
@@ -142,6 +143,6 @@ void  generate_gnunet_conf (FILE * f) {
  fprintf(f, "%s\n","");
  fprintf(f, "%s\n","# At which URL does the registration software");
  fprintf(f, "%s\n","# run?");
- fprintf(f, "%s\n","# Default is http://www.ovmj.org/GNUnet/testbed/");
- fprintf(f, "%s\n","REGISTERURL = \"http://www.ovmj.org/GNUnet/testbed/\"");
+ fprintf(f, "%s\n","# Default is http://ovmj.org/GNUnet/testbed/");
+ fprintf(f, "%s\n","REGISTERURL = \"http://ovmj.org/GNUnet/testbed/\"");
 }

@@ -106,6 +106,10 @@ static void resetLogging() {
     loglevelname
       = getConfigurationString("GNUNETD",
 			       "LOGLEVEL");
+   if (loglevelname == NULL) {
+      loglevelname = "WARNING";
+      levelstatic = 1;
+    }
   } else {
     base = "GNUNET";
     loglevelname
@@ -255,21 +259,18 @@ void LOG(int minLogLevel,
   } else
     len = vfprintf(stderr, format, args);
   va_end(args);
+  if (bInited)
+    MUTEX_UNLOCK(&logMutex);
   va_start(args, format);
   if (customLog) {
     char * txt;
     
     txt = MALLOC(len + 1);
-    if (len != vsnprintf(txt, len, format, args))
-      errexit(_("Assertion failed at %s:%d\n"),
-	      __FILE__, __LINE__);
+    GNUNET_ASSERT(len == vsnprintf(txt, len, format, args));
     customLog(txt);
     FREE(txt);
   }
-  va_end(args);
-  
-  if (bInited)
-    MUTEX_UNLOCK(&logMutex);
+  va_end(args);  
 }
 
 /**
@@ -282,18 +283,21 @@ void errexit(const char *format, ...) {
 
   /* NO locking here, we're supposed to die,
      and we don't want to take chances on that... */
-  va_start(args, format);
   if (logfile != NULL) {
+    va_start(args, format);
     printTime();
     vfprintf(logfile, format, args);
     fflush(logfile);
-  } else {
+    va_end(args); 
+  }
+  if (logfile != stderr) {
+    va_start(args, format);
 #ifdef MINGW
     AllocConsole();
 #endif
     vfprintf(stderr, format, args);
+    va_end(args);
   }
-  va_end(args);
   BREAK();
   abort();
   exit(-1); /* just in case... */

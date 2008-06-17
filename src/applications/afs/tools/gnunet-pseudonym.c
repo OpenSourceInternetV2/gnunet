@@ -29,6 +29,8 @@
 
 static void printhelp() {
   static Help help[] = {
+    { 'a', "automate", NULL,
+      gettext_noop("automate creation of a namespace by starting a collection") },
     HELP_CONFIG,
     { 'C', "create", "NICKNAME",
       gettext_noop("create a new pseudonym under the given NICKNAME (with the given password if specified)") },
@@ -36,6 +38,8 @@ static void printhelp() {
       gettext_noop("delete the pseudonym with the given NICKNAME") },
     { 'e', "email", "EMAIL",
       gettext_noop("specify the given EMAIL address as the contact address for the pseudonym (use when creating a new pseudonym)") },
+    { 'E', "end", NULL,
+      gettext_noop("end automated building of a namespace (ends collection)") },
     HELP_HELP,
     HELP_LOGLEVEL,
     { 'k', "keyword", "KEYWORD",
@@ -52,6 +56,8 @@ static void printhelp() {
       gettext_noop("specify NAME to be the realname of the user controlling the namespace (use when creating a new pseudonym)") },
     { 'R', "root", "IDENTIFIER",
       gettext_noop("specify IDENTIFIER to be the address of the entrypoint to content in the namespace (use when creating a new pseudonym)") },
+    { 's', "set-rating", "ID:VALUE",
+      gettext_noop("") },
     { 't', "text", "DESCRIPTION",
       gettext_noop("use DESCRIPTION to describe the content of the namespace (use when creating a new pseudonym)") },
     { 'u', "uri", "URI",
@@ -75,9 +81,11 @@ static int parser(int argc,
     int option_index = 0;
     static struct GNoption long_options[] = {
       LONG_DEFAULT_OPTIONS,
+      { "automate", 0, 0, 'a' },
       { "create", 1, 0, 'C' },
       { "delete", 1, 0, 'D' },
       { "email", 1, 0, 'e'  },      
+      { "end", 0, 0, 'E' },
       { "keyword", 1, 0, 'k' },
       { "mimetype", 1, 0, 'm' },     
       { "no-advertisement", 0, 0, 'n' },
@@ -85,6 +93,7 @@ static int parser(int argc,
       { "quiet", 0, 0, 'q' },
       { "realname", 1, 0, 'r' }, 
       { "root", 1, 0, 'R' },
+      { "set-rating", 1, 0, 's' },
       { "text", 1, 0, 't' },
       { "uri", 1, 0, 'u' },
       { 0,0,0,0 }
@@ -92,7 +101,7 @@ static int parser(int argc,
     
     c = GNgetopt_long(argc,
 		      argv, 
-		      "c:C:D:e:hk:L:m:np:qr:R:t:u:v", 
+		      "ac:C:D:e:Ehk:L:m:np:qr:R:s:t:u:v", 
 		      long_options, 
 		      &option_index);
     
@@ -101,6 +110,11 @@ static int parser(int argc,
     if (YES == parseDefaultOptions(c, GNoptarg))
       continue;
     switch(c) {
+    case 'a':
+      FREENONNULL(setConfigurationString("PSEUDONYM",
+					 "AUTOMATE",
+					 "START"));
+      break;
     case 'C':
       FREENONNULL(setConfigurationString("PSEUDONYM",
 					 "CREATE",
@@ -115,6 +129,11 @@ static int parser(int argc,
       FREENONNULL(setConfigurationString("PSEUDONYM",
 					 "EMAIL",
 					 GNoptarg));
+      break;
+    case 'E':
+      FREENONNULL(setConfigurationString("PSEUDONYM",
+					 "AUTOMATE",
+					 "STOP"));
       break;
     case 'k':
       /* TODO: support using -k multiple times! */
@@ -165,6 +184,11 @@ static int parser(int argc,
 					 (char*)&enc));
       break;
     }
+    case 's':
+      FREENONNULL(setConfigurationString("PSEUDONYM",
+					 "SET-RATING",
+					 GNoptarg));
+      break;
     case 't':
       FREENONNULL(setConfigurationString("PSEUDONYM",
 					 "DESCRIPTION",
@@ -201,6 +225,7 @@ int main(int argc, char *argv[]) {
   char ** list;
   int i;
   int cnt;
+  int cpos;
   char * pass;
   char * pname;
   int success;
@@ -212,6 +237,14 @@ int main(int argc, char *argv[]) {
   success = 0; /* no errors */
   if (OK != initUtil(argc, argv, &parser))
     return SYSERR;
+
+  if (testConfigurationString("PSEUDONYM",
+			      "AUTOMATE",
+			      "STOP")) {
+    printf(_("Collection stopped.\n"));
+    stopCollection();
+  }
+
 
   pname = getConfigurationString("PSEUDONYM",
 				 "DELETE");
@@ -232,120 +265,155 @@ int main(int argc, char *argv[]) {
   pname = getConfigurationString("PSEUDONYM",
 				 "CREATE");
   if (pname != NULL) {
-    if(pass == NULL || pass[0]=='\n')
-      LOG(LOG_WARNING, 
-	  _("No password supplied.\n"));
-    hk = createPseudonym(pname,
-			 pass);
-    if (hk == NULL) {
-      printf(_("Could not create pseudonym '%s' (exists?).\n"),
-	     pname);
-      success += 1;
+    if (testConfigurationString("PSEUDONYM",
+				"AUTOMATE",
+				"START")) {
+      char * nickname;
+      char * description;
+      char * realname;
+      char * uri;
+      char * contact;
+
+      printf(_("Starting collection.\n"));
+      hk = NULL;
+      nickname = STRDUP(pname);
+      description = getConfigurationString("PSEUDONYM",
+					   "DESCRIPTION");
+      realname = getConfigurationString("PSEUDONYM",
+					"REALNAME");
+      uri = getConfigurationString("PSEUDONYM",
+				   "URI");
+      contact = getConfigurationString("PSEUDONYM",
+				       "EMAIL");
+      startCollection(nickname,
+		      description,
+		      realname,
+		      uri,
+		      contact);
+      FREENONNULL(nickname);
+      FREENONNULL(description);
+      FREENONNULL(realname);
+      FREENONNULL(uri);
+      FREENONNULL(contact);      
     } else {
-      printf(_("Pseudonym '%s' created.\n"),
-	     pname);
-
-      if (! testConfigurationString("PSEUDONYM",
-				    "NO-ADVERTISEMENT",
-				    "YES")) {
-	NBlock * nblock;
-	char * nickname;
-	char * description;
-	char * realname;
-	char * mimetype;
-	char * uri;
-	char * contact;
-	char * root;
-	char * summary;
-	char * keyword;
-	HashCode160 rootEntry;
-	GNUNET_TCP_SOCKET * sock;
-  
-	nickname = getConfigurationString("PSEUDONYM",
-					  "CREATE");
-	description = getConfigurationString("PSEUDONYM",
-					     "DESCRIPTION");
-	realname = getConfigurationString("PSEUDONYM",
-					  "REALNAME");
-	mimetype = getConfigurationString("PSEUDONYM",
-					  "MIMETYPE");
-	uri = getConfigurationString("PSEUDONYM",
-				     "URI");
-	contact = getConfigurationString("PSEUDONYM",
-					 "EMAIL");
-	root = getConfigurationString("PSEUDONYM",
-				      "ROOT");
-	if (root == NULL)
-	  memset(&rootEntry, 0, sizeof(HashCode160));
-	else
-	  enc2hash(root, &rootEntry);
-
-	nblock = buildNBlock(hk,
-			     nickname,
-			     description,
-			     realname,
-			     mimetype,
-			     uri,
-			     contact,
-			     &rootEntry);
-	FREENONNULL(nickname);
-	FREENONNULL(description);
-	FREENONNULL(realname);
-	FREENONNULL(mimetype);
-	FREENONNULL(uri);
-	FREENONNULL(contact);
-	FREENONNULL(root);	
-	GNUNET_ASSERT(nblock != NULL); /* sign failed!? */
-
-	decryptNBlock(nblock);
-	addNamespace(nblock);
-
-	summary = rootNodeToString((const RootNode*) nblock);
-	printf(_("Advertising namespace with description:\n%s\n"),
-	       summary);
-	FREE(summary);
-
-	/* now what? 
-	   a) addNamespaceMetadata(nblock) [ store locally ]
-	   b) encrypt with key and send to gnunetd!
-	*/
-	sock = getClientSocket();
-	if (sock == NULL)
-	  errexit(_("Could not connect to gnunetd.\n"));
-
-	keyword = getConfigurationString("PSEUDONYM",
-					 "KEYWORD");
-	if (keyword == NULL)
-	  keyword = STRDUP("namespace"); /* default keyword */
-	if (OK != insertRootWithKeyword(sock,
-					(const RootNode*) nblock,
-					keyword,
-					getConfigurationInt("GNUNET-INSERT",
-							    "CONTENT-PRIORITY")))
-	  printf(_("Error inserting NBlock under keyword '%s'. "
-		   "Is gnunetd running and space available?\n"),
-		 keyword);
-	FREE(keyword);	
-
-	/* also publish nblock as SBlock in namespace! */
-
-	
-	memset(&k,0, sizeof(HashCode160));	
-	encryptSBlock(&k, 
-		      (const SBlock*) nblock,
-		      (SBlock*) &out);
-	if (OK != insertSBlock(sock,
-			       (const SBlock *) &out)) 
-	  printf(_("Error inserting NBlock into namespace. "
-		   "Is gnunetd running and space available?\n"));
-	releaseClientSocket(sock);
-	FREE(nblock);
+      if ( (pass == NULL) || (pass[0]=='\n') )
+	LOG(LOG_WARNING, 
+	    _("No password supplied.\n"));
+      
+      hk = createPseudonym(pname,
+			   pass);
+      if (hk == NULL) {
+	printf(_("Could not create pseudonym '%s' (exists?).\n"),
+	       pname);
+	success += 1;
+      } else {
+	printf(_("Pseudonym '%s' created.\n"),
+	       pname);
       }
-      freeHostkey(hk);
     }
+    
+    if ( (hk != NULL) &&
+	 (! testConfigurationString("PSEUDONYM",
+				    "NO-ADVERTISEMENT",
+				    "YES")) ) {
+      NBlock * nblock;
+      char * nickname;
+      char * description;
+      char * realname;
+      char * mimetype;
+      char * uri;
+      char * contact;
+      char * root;
+      char * summary;
+      char * keyword;
+      HashCode160 rootEntry;
+      GNUNET_TCP_SOCKET * sock;
+      
+      nickname = getConfigurationString("PSEUDONYM",
+					"CREATE");
+      description = getConfigurationString("PSEUDONYM",
+					   "DESCRIPTION");
+      realname = getConfigurationString("PSEUDONYM",
+					"REALNAME");
+      mimetype = getConfigurationString("PSEUDONYM",
+					"MIMETYPE");
+      uri = getConfigurationString("PSEUDONYM",
+				   "URI");
+      contact = getConfigurationString("PSEUDONYM",
+				       "EMAIL");
+      root = getConfigurationString("PSEUDONYM",
+				    "ROOT");
+      if (root == NULL)
+	memset(&rootEntry, 0, sizeof(HashCode160));
+      else
+	enc2hash(root, &rootEntry);
+      
+      nblock = buildNBlock(hk,
+			   nickname,
+			   description,
+			   realname,
+			   mimetype,
+			   uri,
+			   contact,
+			   &rootEntry);
+      FREENONNULL(nickname);
+      FREENONNULL(description);
+      FREENONNULL(realname);
+      FREENONNULL(mimetype);
+      FREENONNULL(uri);
+      FREENONNULL(contact);
+      FREENONNULL(root);	
+      GNUNET_ASSERT(nblock != NULL); /* sign failed!? */
+      
+      decryptNBlock(nblock);
+      addNamespace(nblock);
+      
+      summary = rootNodeToString((const RootNode*) nblock);
+      printf(_("Advertising namespace with description:\n%s\n"),
+	     summary);
+      FREE(summary);
+      
+      /* now what? 
+	 a) addNamespaceMetadata(nblock) [ store locally ]
+	 b) encrypt with key and send to gnunetd!
+      */
+      sock = getClientSocket();
+      if (sock == NULL)
+	errexit(_("Could not connect to gnunetd.\n"));
+      
+      keyword = getConfigurationString("PSEUDONYM",
+				       "KEYWORD");
+      if (keyword == NULL)
+	keyword = STRDUP("namespace"); /* default keyword */
+      if (OK != insertRootWithKeyword(sock,
+				      (const RootNode*) nblock,
+				      keyword,
+				      getConfigurationInt("GNUNET-INSERT",
+							  "CONTENT-PRIORITY")))
+	printf(_("Error inserting NBlock under keyword '%s'. "
+		 "Is gnunetd running and space available?\n"),
+	       keyword);
+      FREE(keyword);	
+      
+      /* also publish nblock as SBlock in namespace! */
+      
+      
+      memset(&k,0, sizeof(HashCode160));	
+      encryptSBlock(&k, 
+		    (const SBlock*) nblock,
+		    (SBlock*) &out);
+      if (OK != insertSBlock(sock,
+			     (const SBlock *) &out)) 
+	printf(_("Error inserting NBlock into namespace. "
+		 "Is gnunetd running and space available?\n"));
+      releaseClientSocket(sock);
+      FREE(nblock);
+    }
+    if (hk != NULL)
+      freeHostkey(hk);  
     FREE(pname);
   }
-  
+
   if (testConfigurationString("PSEUDONYM",
 			      "QUIET",
 			      "YES"))
@@ -383,8 +451,56 @@ int main(int argc, char *argv[]) {
   cnt = listNamespaces(&info);
   if (cnt == -1) 
     printf(_("Did not find any meta-information about namespaces.\n"));  
-  for (i=0;i<cnt;i++) 
+
+  pname = getConfigurationString("PSEUDONYM",
+				 "SET-RATING");
+  if (pname != NULL) {
+    if (NULL == strstr(pname, ":")) {
+      fprintf(stderr,
+	      _("Invalid argument '%s' for option '%s', needs a '%s'.\n"),
+	      pname, "-s", ":");
+      FREE(pname);
+      pname = NULL;
+    } else {
+      cpos = (strstr(pname, ":") - pname) + 1;
+    }
+  }
+  for (i=0;i<cnt;i++) {
+    int delta;
+
     printNBlock(stdout, &info[i]);  
+    delta = 0;
+    if (pname != NULL) {
+      char * iname = getUniqueNickname(&info[i].namespace);
+      if ( (strlen(iname)+1 == cpos) &&
+	   (0 == strncmp(pname,
+			 iname,
+			 cnt)) ) {
+	delta = strtol(&pname[cpos],
+		       NULL, /* no error handling yet */
+		       10);	      
+      }
+      FREE(iname);
+    }
+    if (delta != 0) {
+      fprintf(stdout, 
+	      _("\tRating (before): %d\n"), 
+	      evaluateNamespace(&info[i].namespace,
+				0));
+      evaluateNamespace(&info[i].namespace,
+			delta);
+      fprintf(stdout, 
+	      _("\tRating (after): %d\n"), 
+	      evaluateNamespace(&info[i].namespace,
+				0));
+    } else {
+      fprintf(stdout, 
+	      _("\tRating: %d\n"), 
+	      evaluateNamespace(&info[i].namespace,
+				0));
+    }
+  }
+  FREENONNULL(pname);
   FREENONNULL(info);
 
   doneUtil();

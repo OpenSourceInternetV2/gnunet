@@ -40,9 +40,11 @@
  * 2.2.x: with directories
  * 3.0.x: with namespaces
  * 3.1.x: with namespace meta-data
+ * 3.2.x: with collections
+ * 4.x.x: with expiration (future work)
  */
 
-#define AFS_VERSION "3.1.0"
+#define AFS_VERSION "3.2.0"
 
 /* size of the Blocks we slice file data into 
    (DBlocks and IBlocks). Never change this! */
@@ -2415,6 +2417,49 @@ void encryptSBlock(const HashCode160 * k,
 		   SBlock * out);
 
 void decryptNBlock(NBlock * sb);
+
+
+/**
+ * Makes a root-node available to the current collection.
+ * If we are currently not collecting, this function does
+ * nothing.
+ *
+ * @param root the file identifier that was produced
+ */
+void publishToCollection(const RootNode * root);
+
+
+/**
+ * Start a new collection.  Creates a fresh pseudonym
+ * and starts collecting data into the corresponding
+ * collection.  Note that calling startCollection will
+ * affect GNUnet until the next time startCollection or
+ * stopCollection is called -- and this is independent of
+ * the process that called startCollection exiting!
+ * Starting a collection automatically stops the
+ * previous collection.  There can only be one collection
+ * at a time for each GNUnet user.
+ *
+ * @param name the name for the collection
+ * @param desc the description of the collection
+ * @param realname the real name of the user hosting the collection
+ * @param uri a URI associated with the collection
+ * @param contact a contact address for contacting the host
+ * @return OK on success, SYSERR on error
+ */ 
+int startCollection(const char * name,
+		    const char * desc,
+		    const char * realname,
+		    const char * uri,
+		    const char * contact);
+
+/**
+ * Close the current collection.  Future insertions
+ * are no longer collected.
+ */
+int stopCollection();
+ 
+
 
 
 #endif

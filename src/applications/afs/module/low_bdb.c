@@ -286,7 +286,8 @@ void * lowInitContentDatabase(const char * dir)
   
   dbh = getDatabase(dir);
   if (dbh == NULL) 
-    errexit(_("Could not open BDB database '%s'!\n"),
+    errexit(_("Could not open '%s' database '%s'!\n"),
+	    "BDB",
 	    dir);  
   MUTEX_CREATE_RECURSIVE(&dbh->DATABASE_Lock_);
   return dbh;

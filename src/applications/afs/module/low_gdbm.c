@@ -191,7 +191,9 @@ void * lowInitContentDatabase(const char * dir) {
   
   dbh = getDatabase(dir);
   if (dbh == NULL) 
-    errexit(_("Could not open GDBM database '%s'!\n"), dir);  
+    errexit(_("Could not open '%s' database '%s'!\n"), 
+	    "GDBM", 
+	    dir);  
   MUTEX_CREATE_RECURSIVE(&dbh->DATABASE_Lock_);
   return dbh;
 }

@@ -214,18 +214,6 @@ SBlock * buildSBlock(const Hostkey pseudonym,
   EncName enc1;
   EncName enc2;
   
-  IFLOG(LOG_DEBUG,
-	hash2enc(k, &enc1);
-	hash2enc(n, &enc2));
-  LOG(LOG_DEBUG,
-      "Building SBlock %s: %s -- %s\n",
-      filename,
-      description,
-      mimetype);
-  LOG(LOG_DEBUG,
-      "Building SBlock with key '%s' and next key '%s'.\n",
-      &enc1, &enc2);
-
   result = MALLOC(sizeof(SBlock));
   memset(result, 0, sizeof(SBlock));
   result->major_formatVersion 
@@ -235,15 +223,18 @@ SBlock * buildSBlock(const Hostkey pseudonym,
   memcpy(&result->fileIdentifier,
 	 fi,
 	 sizeof(FileIdentifier));
-  memcpy(&result->description[0],
-	 description,
-	 MIN(strlen(description), MAX_DESC_LEN-1));
-  memcpy(&result->filename[0],
-	 filename,
-	 MIN(strlen(filename), MAX_FILENAME_LEN/2-1));
-  memcpy(&result->mimetype[0],
-	 mimetype,
-	 MIN(strlen(mimetype), MAX_MIMETYPE_LEN/2-1));
+  if (description != NULL)
+    memcpy(&result->description[0],
+	   description,
+	   MIN(strlen(description), MAX_DESC_LEN-1));
+  if (filename != NULL)
+    memcpy(&result->filename[0],
+	   filename,
+	   MIN(strlen(filename), MAX_FILENAME_LEN/2-1));
+  if (mimetype != NULL)
+    memcpy(&result->mimetype[0],
+	   mimetype,
+	   MIN(strlen(mimetype), MAX_MIMETYPE_LEN/2-1));
   result->creationTime = htonl(creationTime);
   result->updateInterval = htonl(interval);
   getPublicKey(pseudonym,
@@ -338,7 +329,7 @@ int insertSBlock(GNUNET_TCP_SOCKET * sock,
   } else {
     if (res == SYSERR)
       LOG(LOG_WARNING, 
-	  _("Server could not perform insertion\n"));
+	  _("Server could not perform insertion.\n"));
     ok = res;
   }
   return ok;
@@ -559,7 +550,8 @@ int searchSBlock(GNUNET_TCP_SOCKET * sock,
       break;
     default:
       LOG(LOG_WARNING,
-	  _("Message from server is of unexpected type.\n"));
+	  _("Message from server is of unexpected type %d.\n"),
+	  ntohs(buffer->tcpType));
       break;
     }
     FREE(buffer);

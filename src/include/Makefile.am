@@ -1,10 +1,11 @@
 SUBDIRS = .
 
 EXTRA_DIST = \
-  gettext.h 
+  gettext.h \
+  platform.h \
+  winproc.h 
 
 include_HEADERS = \
-  platform.h \
   gnunet_util.h \
   gnunet_core.h \
   gnunet_dht.h \
@@ -13,5 +14,4 @@ include_HEADERS = \
   gnunet_dht_datastore_memory.h \
   gnunet_rpc_service.h \
   gnunet_afs_esed2.h \
-  gnunet_transport.h \
-  winproc.h
+  gnunet_transport.h 

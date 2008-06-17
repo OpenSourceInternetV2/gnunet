@@ -155,17 +155,23 @@ static void cronReduceImportance(void * unused) {
 /**
  * Encode a block from a file on the drive, put the
  * result in the result buffer (allocate) and return
- * the size of the block.
+ * the size of the buffer. If readCount is larger than
+ * one, the routine tries to read a longer linear block,
+ * starting from the location given by ce (this can
+ * be used for more efficient migration buffer filling).
  */ 
-static int encodeOnDemand(const ContentIndex * ce,
-			  CONTENT_Block ** result) {
+int encodeOnDemand(const ContentIndex * ce,
+ 	           CONTENT_Block ** result,
+	           int readCount) {
   char * fn;
   int fileHandle;
   ssize_t blen;
   HashCode160 hc;
   CONTENT_Block * iobuf;
   EncName enc;
-
+  int i;
+  int lastBlockSize = sizeof(CONTENT_Block);
+  
   /* on-demand encoding mechanism */
   fn = getIndexedFileName(ntohs(ce->fileNameIndex));
   if (fn == NULL) {
@@ -215,12 +221,12 @@ static int encodeOnDemand(const ContentIndex * ce,
     CLOSE(fileHandle);
     return SYSERR;
   }
-  iobuf = MALLOC(sizeof(CONTENT_Block));
+  iobuf = MALLOC(sizeof(CONTENT_Block) * readCount);
   blen = READ(fileHandle, 
 	      iobuf,
-	      sizeof(CONTENT_Block));
+	      sizeof(CONTENT_Block) * readCount);
   if (blen <= 0) {
-    if(blen == 0)      
+    if (blen == 0)      
       LOG(LOG_WARNING,
      	  _("Read 0 bytes from file '%s' at %s:%d.\n"),
   	  fn, __FILE__, __LINE__);
@@ -231,28 +237,46 @@ static int encodeOnDemand(const ContentIndex * ce,
     CLOSE(fileHandle);
     return SYSERR;
   }
-  memset(&((char*)iobuf)[blen],
-	 0,
-	 sizeof(CONTENT_Block)-blen);
+  readCount = blen / sizeof(CONTENT_Block);
+  if (blen % sizeof(CONTENT_Block) != 0) {
+/*     LOG(LOG_DEBUG, "Tuning last block\n"); */
+    readCount++;
+    lastBlockSize = sizeof(CONTENT_Block) 
+                    - (readCount*sizeof(CONTENT_Block) - blen);
+    memset(&((char*)iobuf)[blen],
+	   0,
+	   readCount*sizeof(CONTENT_Block)-blen);
+  }
   LOG(LOG_DEBUG,
-      "Read %u bytes from %s for on-demand encoding at %u.\n",
+      "Read %u bytes from %s for ODE at %u, realized rc %d lb %d\n",
       blen, 
       fn,
-      ntohl(ce->fileOffset));
+      ntohl(ce->fileOffset),
+      readCount,
+      lastBlockSize);
   FREE(fn);
   CLOSE(fileHandle);
-  hash(iobuf,
-       blen, 
-       &hc);
-  *result = MALLOC(sizeof(CONTENT_Block));
-  if (SYSERR == encryptContent(iobuf,
-			       &hc,
-			       *result)) 
-    GNUNET_ASSERT(0);
+  *result = MALLOC(sizeof(CONTENT_Block)*readCount);
+  for (i=0;i<readCount;i++) {
+    if (i == readCount - 1) {
+      hash(&iobuf[i],
+           lastBlockSize, 
+           &hc);
+    } else {
+      hash(&iobuf[i],
+           sizeof(CONTENT_Block), 
+           &hc);
+    }
+    
+    if (SYSERR == encryptContent(&iobuf[i],
+		  	         &hc,
+			         &(*result)[i])) 
+      GNUNET_ASSERT(0);
+  }
 
   FREE(iobuf);
   IFLOG(LOG_DEBUG,
-	hash(*result,
+	hash(result[0],
 	     sizeof(CONTENT_Block),
 	     &hc);
 	hash2enc(&hc,
@@ -260,7 +284,7 @@ static int encodeOnDemand(const ContentIndex * ce,
   /*LOG(LOG_DEBUG,
     " on-demand encoded content has query %s\n",
     &enc);*/
-  return sizeof(CONTENT_Block);
+  return sizeof(CONTENT_Block)*readCount;
 }
 
 static void * bindDynamicMethod_(void * libhandle,
@@ -742,7 +766,8 @@ int retrieveContent(const HashCode160 * query,
   }
   statChange(stat_handle_lookup_ondemand, 1);
   return encodeOnDemand(ce, 
-			(CONTENT_Block**)result);
+			(CONTENT_Block**)result,
+			1);
 }
 
 static int handleVLSResultSet(const HashCode160 * query,
@@ -1087,11 +1112,13 @@ int insertContent(ContentIndex * ce,
  * @param ce output information about the key 
  * @return SYSERR on error, OK if ok.
  */
-int retrieveRandomContent(ContentIndex * ce) {
+int retrieveRandomContent(ContentIndex * ce, 
+			  CONTENT_Block ** data) {
   int bucket = randomi(dbAPI->buckets);
   GNUNET_ASSERT(dbAPI->dbHandles[bucket] != NULL);
   return dbAPI->getRandomContent(dbAPI->dbHandles[bucket],
-				 ce);
+				 ce,
+				 data);
 }
 
 /**

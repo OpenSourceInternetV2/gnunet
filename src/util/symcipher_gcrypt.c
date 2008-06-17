@@ -37,6 +37,7 @@
 #include "locking_gcrypt.h"
 #include <gcrypt.h>
 
+#define DEBUG_SYMCIPHER 0
 
 /**
  * Log an error message at log-level 'level' that indicates
@@ -81,6 +82,13 @@ int encryptBlock(const void * block,
   gcry_cipher_hd_t handle;
   int rc;
 
+#if DEBUG_SYMCIPHER
+  LOG(LOG_DEBUG,
+      "Encrypting block of %u bytes with key '%x%x'\n",
+      len,
+      ((unsigned int*)sessionkey)[0],
+      ((unsigned int*)sessionkey)[1]);
+#endif
   lockGcrypt();
   rc = gcry_cipher_open(&handle,
 			GCRY_CIPHER_BLOWFISH,
@@ -146,6 +154,13 @@ int decryptBlock(const SESSIONKEY * sessionkey,
   gcry_cipher_hd_t handle;
   int rc;
 
+#if DEBUG_SYMCIPHER
+  LOG(LOG_DEBUG,
+      "Decrypting block of %u bytes with key '%x%x'\n",
+      size,
+      ((unsigned int*)sessionkey)[0],
+      ((unsigned int*)sessionkey)[1]);
+#endif
   lockGcrypt();
   rc = gcry_cipher_open(&handle,
 			GCRY_CIPHER_BLOWFISH,

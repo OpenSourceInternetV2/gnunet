@@ -320,7 +320,7 @@ int encryptHostkey(const void * block,
     return SYSERR;
   }
   len = RSA_public_encrypt(size, 
-			   block, 
+			   (void*)block,  /* cast for old OpenSSL versions */
 			   &target->encoding[0], 
 			   HOSTKEY(foreignkey),
 			   RSA_PKCS1_PADDING);
@@ -364,7 +364,7 @@ int decryptHostkey(const Hostkey hostkey,
     return -1;
 
   size = RSA_private_decrypt(sizeof(RSAEncryptedData), 
-			     &block->encoding[0],
+			     (void*)&block->encoding[0], /* cast for old OpenSSL versions */
 			     &tmp.encoding[0], 
 			     HOSTKEY(hostkey),
 			     RSA_PKCS1_PADDING);

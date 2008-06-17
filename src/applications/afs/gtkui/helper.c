@@ -198,7 +198,7 @@ gint doGuiMessage(SaveCall *call) {
   GtkWidget * box;
   GtkWidget * button;
 
-  window = gtk_window_new(GTK_WINDOW_POPUP);
+  window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   gtk_container_set_border_width(GTK_CONTAINER(window), 10);
   gtk_window_set_title(GTK_WINDOW(window), 
 		       _("Notification"));
@@ -592,6 +592,7 @@ static int launchWithExec() {
     char * path;
     char * cp;
 
+    path = NULL;
     cp = getConfigurationString("MAIN", 
 				"ARGV[0]");
     if (cp != NULL) {
@@ -599,16 +600,17 @@ static int launchWithExec() {
       while ( (i >= 0) && 
 	      (cp[i] != DIR_SEPARATOR) )
 	i--;
-      cp[i+1] = '\0';
-      path = MALLOC(i+1+strlen("gnunetd"));
-      strcpy(path, cp);
-      strcat(path, "gnunetd");      
-      args[0] = path;
-      FREE(cp);
-    } else {
-      path = NULL;
-      args[0] = "gnunetd";
-    }    
+      if ( i != -1 ) {
+	cp[i+1] = '\0';
+	path = MALLOC(i+1+strlen("gnunetd"));
+	strcpy(path, cp);
+	strcat(path, "gnunetd");      
+	args[0] = path;
+	FREE(cp);
+      } else {
+	args[0] = "gnunetd";
+      }
+    }
     cp = getConfigurationString("GNUNET-GTK",
 				"GNUNETD-CONFIG");
     if (cp != NULL) {

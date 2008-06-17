@@ -40,12 +40,12 @@ $ make
 # make install
 # cp contrib/gnunet.root /etc/gnunet.conf
 # cp contrib/initgnunet /etc/init.d/gnunetd
-$ mkdir ~/.gnunet
-$ cp contrib/gnunet.user ~/.gnunet/gnunet.conf
 
 This will compile and install GNUnet to ~/bin/, ~/lib/ and ~/man/ and
-put the configuration files where GNUnet expects them.  For more general
-information about the GNU build process read the INSTALL file.
+put the configuration file where gnunetd expect it.  Note that
+per-user configuration files (~/.gnunet/gnunet.conf) will be created
+the first time a user starts a GNUnet user interface.  For more
+general information about the GNU build process read the INSTALL file.
 
 GNUnet requires the GNU MP library (http://www.gnu.org/software/gmp/)
 and either libgcrypt or OpenSSL.  You can specify the path to 
@@ -58,32 +58,27 @@ extraction (recommended) you may have to pass the additional flag
 "--with-extractor=PATH-TO-LIBEXTRACTOR" to configure.  You should also
 make sure that libextractor is actually found by the linker.
 
-If you are compiling the CVS version, you have to run ./bootstrap
+If you are compiling the CVS version, you have to run ". bootstrap"
 before ./configure.  If you receive an error during the running of
-./bootstrap that looks like " macro `AM_PATH_GTK' not found in
+". bootstrap" that looks like "macro `AM_PATH_GTK' not found in
 library", you may need to run aclocal by hand with the -I option,
 pointing to your aclocal m4 macros, i.e.
 
 # aclocal -I /usr/local/share/aclocal
 
-The default configuration file for gnunetd that is provided under
-"contrib/gnunet.root" should be put under "/etc/gnunet.conf".  The
-per-user configuration from "contrib/gnunet.user" should be put in
-every home directory under "~/.gnunet/gnunet.conf" and as a template
-in "/etc/skel/.gnunet/gnunet.conf".  In order to start a "permanent"
-node, you should create a new user "gnunet" and start "gnunetd" as
-that user whenever the system boots.  The file contrib/initgnunet in
-the source distribution contains a script that may be helpful for that
-purpose.  The RPM installs the script in /etc/init.d/gnunetd.  Note
-that you still have to enable the service by creating the appropriate
-links to start gnunetd at boot time.
+In order to start a "permanent" node, you should create a new user
+"gnunet" and start "gnunetd" as that user whenever the system boots.
+The file contrib/initgnunet in the source distribution contains a
+script that may be helpful for that purpose.  Note that you will have
+to enable the service by creating the appropriate links to start
+gnunetd at boot time (if that is desired).
 
 GNUnet needs to store data in a simple database. We currently support
-MySQL, GDBM, BerkeleyDB and TDB.  You can also use a simple directory,
-but this will be slow.
+MySQL, SQLite, GDBM, BerkeleyDB and TDB.  You can also use a simple
+directory, but this will be slow.
 
 autoconf >= 2.57 is recommended for compiling the CVS version.
-libextractor >= 0.3.6 is highly recommended.
+libextractor >= 0.3.10 is highly recommended.
 
 
 Configuration
@@ -127,10 +122,10 @@ can of course use any other source for these files.  Copy the hostkeys
 to "$GNUNETD-HOME/.gnunet/data/hosts/" (where $GNUNETD_HOME is the
 directory specified in the /etc/gnunet.conf configuration file).
 
-Now start the local node using "gnunetd".  gnunetd should run whenever
-you are online.  You may start it as a service with
-"/etc/init.d/gnunetd start".  To insert files into GNUnet, use the
-"gnunet-insert" command.
+Now start the local node using "gnunetd".  gnunetd should run 24/7 if
+you want to maximize your anonymity.  You may start it as a service
+with "/etc/init.d/gnunetd start".  To insert files into GNUnet, use
+the "gnunet-insert" command.
 
 If want to use a GUI, just invoke 
 
@@ -144,8 +139,8 @@ This will display a list of results to the console. Then use
 
 # gnunet-download -o FILENAME -- GNUNET_URI
 
-to retrieve a file.  The GNUNET_URI is printed by
-gnunet-search together with a description.
+to retrieve a file.  The GNUNET_URI is printed by gnunet-search
+together with a description.
 
 For further documentation, see our webpage.
 
@@ -154,9 +149,10 @@ Hacking GNUnet
 ==============
 
 Contributions are welcome, please submit bugs to
-http://www.ovmj.org/~mantis/.  Please make sure to run
-contrib/report.sh and include the output with your bug reports.
-Submit patches via E-Mail to gnunet-developers@gnu.org.
+http://ovmj.org/~mantis/.  Please make sure to run contrib/report.sh
+and include the output with your bug reports.  More about how to
+report bugs can be found in the GNUnet FAQ on the webpage.  Submit
+patches via E-Mail to gnunet-developers@gnu.org.
 
 
 Stay tuned

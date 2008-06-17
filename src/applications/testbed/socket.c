@@ -48,9 +48,7 @@ static void writeAll(int fd,
     if (ret > 0) 
       pos += ret;
     else
-      LOG(LOG_WARNING,
-	  " write to socket failed: %s\n",
-	  STRERROR(errno));
+      LOG_STRERROR(LOG_WARNING, "write");
   }
 }
 
@@ -112,7 +110,7 @@ unsigned int readSocket(char ** rbuf,
     if (ret >= 0) 
       pos += ret;
     else
-      errexit(" socket protocol error (%s)\n", STRERROR(errno));
+      DIE_STRERROR("read");
   }
   mlen = ntohl(mlen);
   
@@ -122,7 +120,7 @@ unsigned int readSocket(char ** rbuf,
     if (ret >= 0) 
       pos += ret;
     else
-      errexit(" socket protocol error (%s)\n", STRERROR(errno));
+      DIE_STRERROR("read");
   }
   
 #if DEBUG

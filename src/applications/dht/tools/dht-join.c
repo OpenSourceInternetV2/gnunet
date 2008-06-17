@@ -272,7 +272,7 @@ int main(int argc,
   if (OK != DHT_LIB_leave(&table,
 			  getConfigurationInt("DHT-JOIN",
 					      "TIMEOUT") * cronSECONDS,
-			  flags)) {
+			  0)) {
     LOG(LOG_WARNING,
 	_("Error leaving DHT.\n"));
     destroy_datastore_memory((DHT_Datastore*)myStore.closure);

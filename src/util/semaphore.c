@@ -113,7 +113,7 @@ void create_mutex_(Mutex * mutex) {
 #if USE_CHECKING_MUTEX
 #if LINUX
   pthread_mutexattr_setkind_np(&attr,
-			       PTHREAD_MUTEX_ERRORCHECK_NP);  
+			       PTHREAD_MUTEX_ERRORCHECK_NP);
 #endif
 #else
   pthread_mutexattr_setkind_np(&attr,
@@ -121,8 +121,7 @@ void create_mutex_(Mutex * mutex) {
 #endif
   mut = MALLOC(sizeof(pthread_mutex_t));
   mutex->internal = mut;
-  if ( pthread_mutex_init(mut, &attr) != 0)
-    DIE_STRERROR("pthread_mutex_init");
+  GNUNET_ASSERT(0 == pthread_mutex_init(mut, &attr));
 }
 
 void create_recursive_mutex_(Mutex * mutex) {
@@ -131,25 +130,29 @@ void create_recursive_mutex_(Mutex * mutex) {
 
   pthread_mutexattr_init(&attr);
 #if LINUX
-  pthread_mutexattr_setkind_np(&attr,  
-			       PTHREAD_MUTEX_RECURSIVE_NP);
+  GNUNET_ASSERT(0 == pthread_mutexattr_setkind_np
+		(&attr,  
+		 PTHREAD_MUTEX_RECURSIVE_NP));
 #elif SOMEBSD
-  pthread_mutexattr_setkind_np(&attr,
-			       PTHREAD_MUTEX_RECURSIVE);
+  GNUNET_ASSERT(0 == pthread_mutexattr_setkind_np
+		(&attr,
+		 PTHREAD_MUTEX_RECURSIVE));
 #elif SOLARIS
-  pthread_mutexattr_settype(&attr,
-			    PTHREAD_MUTEX_RECURSIVE);
+  GNUNET_ASSERT(0 == pthread_mutexattr_settype
+		(&attr,
+		 PTHREAD_MUTEX_RECURSIVE));
 #elif OSX
-  pthread_mutexattr_settype(&attr,
-			    PTHREAD_MUTEX_RECURSIVE);
+  GNUNET_ASSERT(0 == pthread_mutexattr_settype
+		(&attr,
+		 PTHREAD_MUTEX_RECURSIVE));
 #elif WINDOWS
-  pthread_mutexattr_settype(&attr,
-			    PTHREAD_MUTEX_RECURSIVE);
+  GNUNET_ASSERT(0 == pthread_mutexattr_settype
+		(&attr,
+		 PTHREAD_MUTEX_RECURSIVE));
 #endif
   mut = MALLOC(sizeof(pthread_mutex_t));
   mutex->internal = mut;
-  if (pthread_mutex_init(mut, &attr) != 0)
-    DIE_STRERROR("ptherad_mutex_init");
+  GNUNET_ASSERT(pthread_mutex_init(mut, &attr) == 0);
 }
 
 void destroy_mutex_(Mutex * mutex) {
@@ -160,37 +163,60 @@ void destroy_mutex_(Mutex * mutex) {
     return;
   }
   mutex->internal = NULL;
-  pthread_mutex_destroy(mut);
+  errno = 0;
+  GNUNET_ASSERT(0 == pthread_mutex_destroy(mut));
   FREE(mut);
 }
 
 void mutex_lock_(Mutex * mutex,
 		 const char * filename,
 		 const int line) {
-  int return_value;
   pthread_mutex_t * mut;
+  int ret;
+
   mut = mutex->internal;
   if (mut == NULL) {
     BREAK_FL(filename, line);
     return;
   }
-  if ((return_value = pthread_mutex_lock(mut)) != 0)
-    DIE_STRERROR_FL("pthread_mutex_lock", filename, line);
+  ret = pthread_mutex_lock(mut);
+  if (ret != 0) {
+    if (ret == EINVAL)
+      errexit(_("Invalid argument for '%s' at %s:%d.\n"),
+	      "pthread_mutex_lock",
+	      filename, line);
+    if (ret == EDEADLK)
+      errexit(_("Deadlock due to '%s' at %s:%d.\n"),
+	      "pthread_mutex_lock",
+	      filename, line);
+    GNUNET_ASSERT(0);
+  }
 }
 
 void mutex_unlock_(Mutex * mutex,
 		   const char * filename,
 		   const int line) {
-  int return_value;
   pthread_mutex_t * mut;
+  int ret;
+
   mut = mutex->internal;
   if (mut == NULL) {
     BREAK_FL(filename, line);
     return;
   }
 
-  if ((return_value = pthread_mutex_unlock(mut)) != 0)
-    DIE_STRERROR_FL("pthread_mutex_unlock", filename, line);
+  ret = pthread_mutex_unlock(mut);
+  if (ret != 0) {
+    if (ret == EINVAL)
+      errexit(_("Invalid argument for '%s' at %s:%d.\n"),
+	      "pthread_mutex_unlock",
+	      filename, line);
+    if (ret == EPERM)
+      errexit(_("Permission denied for '%s' at %s:%d.\n"),
+	      "pthread_mutex_unlock",
+	      filename, line);
+    GNUNET_ASSERT_FL(0, filename, line);
+  } 
 }
 
 /**
@@ -210,8 +236,7 @@ Semaphore * semaphore_new_(int value,
   MUTEX_CREATE(&(s->mutex));
   cond = MALLOC(sizeof(pthread_cond_t));
   s->cond = cond;
-  if (pthread_cond_init(cond, NULL) != 0)
-    DIE_STRERROR_FL("pthread_cond_init", filename, linenumber);
+  GNUNET_ASSERT_FL(0 == pthread_cond_init(cond, NULL), filename, linenumber);
   return s;
 }
 
@@ -219,9 +244,10 @@ void semaphore_free_(Semaphore * s,
 		     const char * filename,
 		     const int linenumber) {
   pthread_cond_t * cond;
+
   MUTEX_DESTROY(&(s->mutex));
   cond = s->cond;
-  pthread_cond_destroy(cond);
+  GNUNET_ASSERT(0 == pthread_cond_destroy(cond));
   FREE(cond);
   xfree_(s,
 	 filename,
@@ -236,15 +262,14 @@ int semaphore_up_(Semaphore * s,
 		  const char * filename,
 		  const int linenumber) {
   int value_after_op;
-  int return_value;
   pthread_cond_t * cond;
 
   GNUNET_ASSERT_FL(s != NULL, filename, linenumber);
   cond = s->cond;
 #if DEBUG_SEMUPDOWN
   LOG(LOG_DEBUG,
-      "semaphore_up %d enter at %s:%d\n",
-      (int)s,
+      "semaphore_up %p enter at %s:%d\n",
+      s,
       filename,
       linenumber);
 #endif
@@ -252,12 +277,12 @@ int semaphore_up_(Semaphore * s,
   (s->v)++;
   value_after_op = s->v;  
   MUTEX_UNLOCK(&(s->mutex));
-  if ((return_value = pthread_cond_signal(cond) != 0))
-    DIE_STRERROR_FL("pthread_cond_signal", filename, linenumber);
+  GNUNET_ASSERT(0 == pthread_cond_signal(cond));
+  
 #if DEBUG_SEMUPDOWN
   LOG(LOG_DEBUG,
-      "semaphore_up %d exit at %s:%d\n",
-      (int)s,
+      "semaphore_up %p exit at %s:%d\n",
+      s,
       filename,
       linenumber);
 #endif
@@ -279,8 +304,8 @@ int semaphore_down_(Semaphore * s,
   cond = s->cond;
 #if DEBUG_SEMUPDOWN
   LOG(LOG_DEBUG,
-      "semaphore_down %d enter at %s:%d\n",
-      (int)s,
+      "semaphore_down %p enter at %s:%d\n",
+      s,
       filename,
       linenumber);
 #endif
@@ -295,8 +320,8 @@ int semaphore_down_(Semaphore * s,
   MUTEX_UNLOCK(&(s->mutex));  
 #if DEBUG_SEMUPDOWN
   LOG(LOG_DEBUG,
-      "semaphore_down %d exit at %s:%d\n",
-      (int)s,
+      "semaphore_down %p exit at %s:%d\n",
+      s,
       filename,
       linenumber);
 #endif

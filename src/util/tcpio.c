@@ -74,17 +74,18 @@ int initGNUnetClientSocket(unsigned short port,
 			   GNUNET_TCP_SOCKET * result) {
   struct hostent * he;
 
-  he = GETHOSTBYNAME(hostname); 
 #if DEBUG_TCPIO
   LOG(LOG_DEBUG,
       "Connecting to host '%s:%d'.\n",
       hostname,
       port);
 #endif
+  he = GETHOSTBYNAME(hostname); 
   if (he == NULL) {
     LOG(LOG_ERROR,
-	_("Could not find IP of host '%s'.\n"),
-	hostname);
+	_("Could not find IP of host '%s': %s\n"),
+	hostname,
+	hstrerror(h_errno));
     return SYSERR;
   }  
   result->ip.addr = (unsigned int) ((struct in_addr*)he->h_addr)->s_addr;

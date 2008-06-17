@@ -59,9 +59,9 @@ LTLIBRARIES = $(lib_LTLIBRARIES)
 @USE_LIBEXTRACTOR_FALSE@libgnunet_afs_esed2_la_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la
 @USE_LIBEXTRACTOR_TRUE@libgnunet_afs_esed2_la_DEPENDENCIES = $(top_builddir)/src/util/libgnunetutil.la
 am_libgnunet_afs_esed2_la_OBJECTS = block.lo contentencoding.lo \
-	deleteutil.lo directory.lo downloadutil.lo insertutil.lo \
-	keywords.lo nblock.lo policy.lo pseudonym.lo requestmanager.lo \
-	sblock.lo searchutil.lo priority.lo uri.lo
+	collection.lo deleteutil.lo directory.lo downloadutil.lo \
+	insertutil.lo keywords.lo nblock.lo policy.lo pseudonym.lo \
+	requestmanager.lo sblock.lo searchutil.lo priority.lo uri.lo
 libgnunet_afs_esed2_la_OBJECTS = $(am_libgnunet_afs_esed2_la_OBJECTS)
 am_uritest_OBJECTS = uritest.$(OBJEXT)
 uritest_OBJECTS = $(am_uritest_OBJECTS)
@@ -71,6 +71,7 @@ DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
 @AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/block.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/collection.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/contentencoding.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/deleteutil.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/directory.Plo \
@@ -156,6 +157,8 @@ HAVE_IPV6_FALSE = @HAVE_IPV6_FALSE@
 HAVE_IPV6_TRUE = @HAVE_IPV6_TRUE@
 HAVE_MYSQL_FALSE = @HAVE_MYSQL_FALSE@
 HAVE_MYSQL_TRUE = @HAVE_MYSQL_TRUE@
+HAVE_SQLITE_FALSE = @HAVE_SQLITE_FALSE@
+HAVE_SQLITE_TRUE = @HAVE_SQLITE_TRUE@
 HAVE_TDB_FALSE = @HAVE_TDB_FALSE@
 HAVE_TDB_TRUE = @HAVE_TDB_TRUE@
 HAVE_ZLIB_FALSE = @HAVE_ZLIB_FALSE@
@@ -268,6 +271,7 @@ lib_LTLIBRARIES = \
 libgnunet_afs_esed2_la_SOURCES = \
   block.c \
   contentencoding.c \
+  collection.c \
   deleteutil.c \
   directory.c \
   downloadutil.c \
@@ -377,6 +381,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/block.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/collection.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/contentencoding.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/deleteutil.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/directory.Plo@am__quote@

@@ -35,11 +35,14 @@ static int stat_handle_content_pushed;
 /* use a 64-entry RCB buffer */
 #define RCB_SIZE 128
 
+/* how many blocks to cache from on-demand files in a row */
+#define RCB_ONDEMAND_MAX 16
+
 /**
- * Semaphore on which the RCB aquire thread waits
+ * Semaphore on which the RCB acquire thread waits
  * if the RCB buffer is full.
  */
-static Semaphore * aquireMoreSignal;
+static Semaphore * acquireMoreSignal;
 
 static Semaphore * doneSignal;
 
@@ -49,42 +52,99 @@ static Semaphore * doneSignal;
 static Mutex lock;
 
 /**
- * Buffer with pre-fetched random content for migration.
+ * Buffer with pre-fetched, encoded random content for migration.
  */
-static ContentIndex * randomContentBuffer[RCB_SIZE];
+typedef struct {
+  HashCode160 hash;
+  CONTENT_Block data;
+} ContentBuffer;
+
+static ContentBuffer * randomContentBuffer[RCB_SIZE];
 
 /**
  * Highest index in RCB that is valid.
  */
-static int rCBPos;
+static int rCBPos = 0;
 
-static void * rcbAquire(void * unused) {
+/**
+ * Acquire new block(s) to the migration buffer.
+ *
+ * Notes: holds lock while reading/encoding data,
+ * might cause inefficiency -Igor.
+ *
+ **/
+static void * rcbAcquire(void * unused) {
   int ok;
 
   while (1) {
     ContentIndex ce;
+    CONTENT_Block * data;
+    int readCount;
 
-    SEMAPHORE_DOWN(aquireMoreSignal);
+    SEMAPHORE_DOWN(acquireMoreSignal);
     if (doneSignal != NULL)
       break;
-    ok = retrieveRandomContent(&ce);
-    if (ok == OK)
-      if (ntohs(ce.type) == LOOKUP_TYPE_3HASH ||
-	  ntohs(ce.type) == LOOKUP_TYPE_SUPER)
-	ok = SYSERR; /* can not migrate these */
-    if (ok == OK) {
-      ContentIndex * cp = MALLOC(sizeof(ContentIndex));
-      memcpy(cp, &ce, sizeof(ContentIndex));
-      MUTEX_LOCK(&lock);
-      randomContentBuffer[rCBPos++] = cp;
+    MUTEX_LOCK(&lock);
+    readCount = RCB_SIZE - rCBPos;
+    if (readCount < RCB_ONDEMAND_MAX) {
+      /* don't bother unless we have buffer space 
+       * to read a larger block at one go */
       MUTEX_UNLOCK(&lock);
+      continue;
+    }
+    data = NULL;
+    ok = retrieveRandomContent(&ce,&data);
+    if (ok == OK)  
+      if (ntohs(ce.type) == LOOKUP_TYPE_3HASH ||
+	  ntohs(ce.type) == LOOKUP_TYPE_SUPER) { 
+	ok = SYSERR; /* can not migrate these */
+	FREENONNULL(data);
+      }
+    if (ok == OK) { 
+      int i;
+
+      if (ntohs(ce.fileNameIndex)>0) {
+        /* if ondemand, encode a larger block right away */
+	if (readCount>RCB_ONDEMAND_MAX)
+	  readCount = RCB_ONDEMAND_MAX;
+        
+	readCount = encodeOnDemand(&ce,
+		                   &data,
+		                   readCount);
+	readCount = readCount / sizeof(CONTENT_Block);
+      } else {
+        readCount = 1;
+      }
+
+      for (i=0;i<readCount;i++) {
+	randomContentBuffer[rCBPos]
+          = MALLOC(sizeof(ContentBuffer));
+        memcpy(&randomContentBuffer[rCBPos]->hash,
+ 	       &ce.hash,
+	       sizeof(HashCode160));
+        memcpy(&randomContentBuffer[rCBPos]->data,
+	       &data[i],
+	       sizeof(CONTENT_Block));
+	rCBPos++;
+	/* we can afford to eat readCount-1 semaphores */
+	if(i>0) {
+  	  SEMAPHORE_DOWN_NONBLOCKING(acquireMoreSignal);
+	}
+      }
+      FREENONNULL(data);
+      MUTEX_UNLOCK(&lock);
+
     } else {
       int load = getCPULoad();
+      
+      /* no need to hold the lock while sleeping */
+      MUTEX_UNLOCK(&lock);
+
       if (load < 10)
 	load = 10;
       sleep(load / 5); /* the higher the load, the longer the sleep,
 			  but at least 2 seconds */
-      SEMAPHORE_UP(aquireMoreSignal); /* send myself signal to go again! */
+      SEMAPHORE_UP(acquireMoreSignal); /* send myself signal to go again! */
     }
   }
   SEMAPHORE_UP(doneSignal);
@@ -99,7 +159,7 @@ static void * rcbAquire(void * unused) {
  * @return SYSERR if the RCB is empty
  */
 static int selectMigrationContent(HostIdentity * receiver,
-				  ContentIndex * ce) {
+				  ContentBuffer * content) {
   unsigned int dist;
   unsigned int minDist;
   int minIdx;
@@ -119,15 +179,19 @@ static int selectMigrationContent(HostIdentity * receiver,
   if (minIdx == -1) {
     MUTEX_UNLOCK(&lock);
     return SYSERR;
-  }  
-  memcpy(ce,
-	 randomContentBuffer[minIdx],
-	 sizeof(ContentIndex));
+  }
+  memcpy(&content->hash,
+         &randomContentBuffer[minIdx]->hash,
+	 sizeof(HashCode160));
+  memcpy(&content->data,
+         &randomContentBuffer[minIdx]->data,
+	 sizeof(CONTENT_Block));
+  
   FREE(randomContentBuffer[minIdx]);
   randomContentBuffer[minIdx] = randomContentBuffer[--rCBPos];
   randomContentBuffer[rCBPos] = NULL;
   MUTEX_UNLOCK(&lock);
-  SEMAPHORE_UP(aquireMoreSignal);
+  SEMAPHORE_UP(acquireMoreSignal);
   return OK;
 }
 				  
@@ -136,37 +200,16 @@ static int selectMigrationContent(HostIdentity * receiver,
  * selected for migration.
  * @return OK on success, SYSERR on error
  */
-static int buildCHKReply(ContentIndex * ce,
+static int buildCHKReply(ContentBuffer * content,
 			 AFS_p2p_CHK_RESULT * pmsg) {
-  CONTENT_Block * data;
-  int ret;
-  
-  if (ntohs(ce->type) == LOOKUP_TYPE_3HASH ||
-      ntohs(ce->type) == LOOKUP_TYPE_SUPER)
-    return SYSERR;
-  
-  data = NULL;
-  ret = retrieveContent(&ce->hash,
-			ce,
-			(void**)&data,
-			0,
-			NO /* low prio! & should not matter for CHK anyway */);
-  if (ret == -1) /* can happen if we're concurrently inserting, 
-		    _should be_ rare but is OK! */
-    return SYSERR;
-  if (ret != sizeof(CONTENT_Block)) {
-    BREAK();
-    FREENONNULL(data);
-    return SYSERR;
-  }
   pmsg->header.size 
     = htons(sizeof(AFS_p2p_CHK_RESULT));
   pmsg->header.requestType
     = htons(AFS_p2p_PROTO_CHK_RESULT);
   memcpy(&pmsg->result,
-	 data,
+	 &content->data,
 	 sizeof(CONTENT_Block));
-  FREE(data);
+  
   return OK;
 }
 
@@ -190,19 +233,17 @@ static int activeMigrationCallback(HostIdentity * receiver,
 				   int padding) {
   AFS_p2p_CHK_RESULT * pmsg;
   int res;
-  void * data;
-  ContentIndex ce;
+  ContentBuffer content;
   
   res = 0;
-  memset(&ce, 0, sizeof(ContentIndex));
+  memset(&content, 0, sizeof(ContentBuffer));
   while (padding - res > (int) sizeof(AFS_p2p_CHK_RESULT)) {
-    data = NULL;
     if (SYSERR == selectMigrationContent(receiver,
-					 &ce)) 
+					 &content)) 
       return res; /* nothing selected, that's the end */
     /* append it! */
     pmsg = (AFS_p2p_CHK_RESULT*) &position[res];
-    if (OK == buildCHKReply(&ce,
+    if (OK == buildCHKReply(&content,
 			    pmsg)) {
 #if VERBOSE_STATS
       statChange(stat_handle_content_pushed, 1);
@@ -224,12 +265,12 @@ void initMigration() {
 #endif
   memset(&randomContentBuffer,
 	 0, 
-	 sizeof(ContentIndex*)*RCB_SIZE);
-  aquireMoreSignal = SEMAPHORE_NEW(RCB_SIZE);
+	 sizeof(ContentBuffer *)*RCB_SIZE);
+  acquireMoreSignal = SEMAPHORE_NEW(RCB_SIZE);
   doneSignal = NULL;
   MUTEX_CREATE(&lock);
   if (0 != PTHREAD_CREATE(&gather_thread,
-			  (PThreadMain)&rcbAquire,
+			  (PThreadMain)&rcbAcquire,
 			  NULL,
 			  64*1024)) 
     DIE_STRERROR("pthread_create");
@@ -244,9 +285,9 @@ void doneMigration() {
   coreAPI->unregisterSendCallback(sizeof(AFS_p2p_CHK_RESULT),
 				  (BufferFillCallback)&activeMigrationCallback);
   doneSignal = SEMAPHORE_NEW(0);
-  SEMAPHORE_UP(aquireMoreSignal);
+  SEMAPHORE_UP(acquireMoreSignal);
   SEMAPHORE_DOWN(doneSignal);
-  SEMAPHORE_FREE(aquireMoreSignal);
+  SEMAPHORE_FREE(acquireMoreSignal);
   SEMAPHORE_FREE(doneSignal);
   MUTEX_DESTROY(&lock);
   for (i=0;i<RCB_SIZE;i++)

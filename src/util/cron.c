@@ -282,7 +282,7 @@ void suspendCron() {
 }
 
 int isCronRunning() {
-  if (NO == cron_shutdown)
+  if ( (NO == cron_shutdown) || (inBlock > 0) )
     return YES;
   else
     return NO;
@@ -292,7 +292,7 @@ int isCronRunning() {
  * Resume running cron-jobs.
  */
 void resumeCron() {
-  GNUNET_ASSERT(cron_shutdown == NO);
+  GNUNET_ASSERT(inBlock > 0);
   SEMAPHORE_UP(cron_signal_up);
 }
 

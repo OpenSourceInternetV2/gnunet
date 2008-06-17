@@ -235,7 +235,8 @@ static void checkDatabaseContent(HashCode160 * query,
     } else {
       if (testBloomfilter(singleBloomFilter,
 			  query) == NO) {
-	PRINTQ(_("Bloomfilter test failed for CHK content '%s' "),
+	PRINTQ(_("Bloomfilter test failed for '%s' content '%s' "),
+	       "CHK",
 	       (char*)&hn);
 	if (do_fix == YES) {
 	  addToBloomfilter(singleBloomFilter,
@@ -275,7 +276,8 @@ static void checkDatabaseContent(HashCode160 * query,
     } else {
       if (testBloomfilter(singleBloomFilter,
 			  query) == NO) {
-	PRINTQ(_("Bloomfilter test failed for 3HASH content '%s' "),
+	PRINTQ(_("Bloomfilter test failed for '%s' content '%s' "),
+	       "3HASH",
 	       (char*)&hn);
 	if (do_fix == YES) {
 	  addToBloomfilter(singleBloomFilter,
@@ -293,7 +295,8 @@ static void checkDatabaseContent(HashCode160 * query,
     } else {
       if (testBloomfilter(superBloomFilter,
 			  query) == NO) {
-	PRINTQ(_("Bloomfilter test failed for SUPER hash '%s' "),
+	PRINTQ(_("Bloomfilter test failed for '%s' content '%s' "),
+	       "SUPER hash",
 	       (char*)&hn);
 	if (do_fix == YES) {
 	  addToBloomfilter(superBloomFilter,
@@ -311,7 +314,8 @@ static void checkDatabaseContent(HashCode160 * query,
     } else {
       if (testBloomfilter(singleBloomFilter,
 			  query) == NO) {
-        PRINTQ(_("Bloomfilter test failed for SBLOCK content '%s' "),
+        PRINTQ(_("Bloomfilter test failed for '%s' content '%s' "),
+	       "SBLOCK",
 	       (char*)&hn);
 	if (do_fix == YES) {
 	  addToBloomfilter(singleBloomFilter,

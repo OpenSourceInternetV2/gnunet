@@ -668,7 +668,7 @@ TransportAPI * inittransport_udp6(CoreAPIForTransport * core) {
     mtu = MESSAGE_SIZE;
   if (mtu < 1200)
     LOG(LOG_ERROR,
-	_("MTU for '%s' is probably to low (fragmentation not implemented!)\n"),
+	_("MTU for '%s' is probably too low (fragmentation not implemented!)\n"),
 	"UDP6");
 
   udp6API.protocolNumber       = UDP6_PROTOCOL_NUMBER;

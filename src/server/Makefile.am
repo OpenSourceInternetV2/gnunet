@@ -11,6 +11,7 @@ bin_PROGRAMS = \
 gnunetd_SOURCES = \
  connection.c \
  core.c \
+ fragmentation.c \
  gnunetd.c \
  handler.c  \
  heloexchange.c  \
@@ -24,6 +25,7 @@ gnunetd_SOURCES = \
  transport.c \
  connection.h \
  core.h \
+ fragmentation.h \
  handler.h \
  heloexchange.h \
  keyservice.h \
@@ -72,4 +74,19 @@ gnunet_peer_info_SOURCES = \
 gnunet_peer_info_LDADD  = \
  $(top_builddir)/src/util/libgnunetutil.la
 
+
+
+################################
+# TESTCASES 
+################################
+
+check_PROGRAMS = \
+ fragmentationtest
+
+TESTS = $(check_PROGRAMS)
+
+fragmentationtest_SOURCES = \
+ fragmentationtest.c 
+fragmentationtest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la  
 

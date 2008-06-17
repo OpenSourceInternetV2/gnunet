@@ -45,7 +45,7 @@
 typedef void (*sighandler_t)(int);
 #endif
 
-#define TESTBED_VERSION		"0.0.4"
+#define TESTBED_VERSION		"0.0.5"
 #define HELPER                  "==HELPER=="
 
 /* we may want to change SHELL and PORT into values
@@ -116,15 +116,13 @@ static int helperParseOptions(int argc, char *argv[]) {
 	HELP_END,
       };
       formatHelp("gnunet-testbed ==HELPER== [OPTIONS] [COMMAND]",
-		 "Start GNUnet-testbed helper.",
+		 _("Start GNUnet-testbed helper."),
 		 help);
       return SYSERR;
     }      
     default: 
       LOG(LOG_FAILURE,
-	  " Unknown option %c. Aborting.\n"		\
-	  "Use --help to get a list of options.\n",
-		c);
+	  _("Use --help to get a list of options.\n"));
       return -1;
     } /* end of parsing commandline */
   } /* while (1) */
@@ -164,9 +162,7 @@ static int helper_main(int argc,
 		SOCK_STREAM,
 		6); /* 6: TCP */
   if (sock == -1) {
-    LOG(LOG_FAILURE,
-	" Cannot create socket (%s).\n",
-	STRERROR(errno));
+    LOG_STRERROR(LOG_FAILURE, "socket");
     return SYSERR;
   }
   soaddr.sin_family
@@ -181,7 +177,7 @@ static int helper_main(int argc,
   if ( (res < 0) && 
        (errno != EINPROGRESS) ) {
     LOG(LOG_INFO,
-	" tcpio: Cannot connect to LOOPBACK:%d (%s)\n",
+	_("Cannot connect to LOOPBACK port %d: %s\n"),
 	PORT,
 	STRERROR(errno));
     CLOSE(sock);
@@ -253,9 +249,7 @@ static void bash_main() {
   
   configFile = getConfigurationString("FILES",
 				      "gnunet.conf");
-  if (configFile == NULL)
-    errexit("Assertion failed at %s:%d\n",
-	    __FILE__, __LINE__);
+  GNUNET_ASSERT(configFile != NULL);
   argv[0] = SHELL;
   aliases = FOPEN(TB_ALIASES, "w+");
   fprintf(aliases, 
@@ -282,7 +276,7 @@ static void bash_main() {
   doneUtil(); 
   execvp(SHELL, argv);       
   fprintf(stderr,
-	  " could not execute %s: %s\n",
+	  _("Could not execute '%s': %s\n"),
 	  SHELL,
 	  STRERROR(errno));
 }
@@ -322,10 +316,9 @@ static int server_main(pid_t bash_pid) {
   /* create the socket */
  CREATE_SOCKET:
   while ( (ssock = SOCKET(PF_INET, SOCK_STREAM, 0)) < 0) {
+    LOG_STRERROR(LOG_ERROR, "socket");
     LOG(LOG_ERROR, 
-	"ERROR opening socket (%s). No client service"	\
-	"started. Trying again in 30 seconds.\n",
-	STRERROR(errno));
+	_("No client service started. Trying again in 30 seconds.\n"));
     sleep(30);
   }
   
@@ -341,16 +334,16 @@ static int server_main(pid_t bash_pid) {
 		 SO_REUSEADDR,
 		 &on,
 		 sizeof(on)) < 0)
-    perror("setsockopt");
+    LOG_STRERROR(LOG_ERROR, "setsockopt");
   
   /* bind the socket */
   if (BIND(ssock,
 	   (struct sockaddr*)&serverAddr,
 	   sizeof(serverAddr)) < 0) {
     LOG(LOG_ERROR, 
-	"ERROR (%s) binding the TCP listener to "		\
-	"port %d. No proxy service started.\nTrying "		\
-	"again in %d seconds...\n",
+	_("Error (%s) binding the TCP listener to "
+	  "port %d. No proxy service started.\nTrying "
+	  "again in %d seconds...\n"),
 	STRERROR(errno),
 	PORT, 
 	secs);
@@ -369,16 +362,13 @@ static int server_main(pid_t bash_pid) {
   if (0 != sigaction(SIGCHLD,
 		     &newAct,
 		     &oldAct)) 
-    errexit(" could not install SIGCHLD handler: %s\n",
-	    strerror(errno));
+    DIE_STRERROR("sigaction");
   sigemptyset(&set);
   sigaddset(&set, SIGCHLD);
   if (0 != sigprocmask(SIG_UNBLOCK,
 		       &set,
 		       &oset))
-    errexit(" could not activate SIGCHLD handler: %s\n",
-	    strerror(errno));
-
+    DIE_STRERROR("sigprocmask");
   LISTEN(ssock, 5);
   while ( (do_quit == NO) &&
 	  (0 == waitpid(bash_pid, 
@@ -408,22 +398,17 @@ static int server_main(pid_t bash_pid) {
 		  (struct sockaddr *)&clientAddr,
 		  &lenOfIncomingAddr);
     if (sock < 0) {
-      fprintf(stderr,
-	      "ACCEPT returned %d: %s\n",
-	      sock,
-	      strerror(errno));
+      LOG_STRERROR(LOG_ERROR, "accept");
       continue;
     }
     /* access control! */
-    if (sizeof(struct in_addr) != sizeof(IPaddr))
-      errexit(" assertion failed at %s:%d\n",
-	      __FILE__, __LINE__);
+    GNUNET_ASSERT(sizeof(struct in_addr) == sizeof(IPaddr));
     memcpy(&ipaddr,
 	   &clientAddr.sin_addr,
 	   sizeof(struct in_addr));   
     if (NO == isWhitelisted(ipaddr)) {
       LOG(LOG_WARNING,
-	  " Rejected unauthorized connection from %d.%d.%d.%d.\n",
+	  _("Rejected unauthorized connection from %d.%d.%d.%d.\n"),
 	  PRIP(ntohl(*(int*)&clientAddr.sin_addr)));
       CLOSE(sock);
       continue;
@@ -436,8 +421,8 @@ static int server_main(pid_t bash_pid) {
     buf = NULL;
     if (SOCKET_BEGIN_COMMAND != readSocket(&buf, &len)) {
       fprintf(stderr,
-	      " protocol violation on socket. "	\
-	      "Expected command.\n");
+	      _("Protocol violation on socket. "
+		"Expected command.\n"));
       return -1;
     }
     command = MALLOC(len+1);
@@ -475,7 +460,7 @@ static int server_main(pid_t bash_pid) {
       /* should never happen unless the user
 	 plays by hand with the aliases... */
       i = -1;
-      PRINTF(" command %s not found!\n",
+      PRINTF(_("Command '%s' not found!\n"),
 	     command);
       socketSend(sizeof(unsigned int), 
 		 SOCKET_RETVAL, 
@@ -494,9 +479,7 @@ static int server_main(pid_t bash_pid) {
   if (0 != sigaction(SIGCHLD,
 		     &oldAct,
 		     &newAct)) 
-    LOG(LOG_WARNING,
-	" could not restore SIGCHLD handler: %s\n",
-	strerror(errno));
+    LOG_STRERROR(LOG_WARNING, "sigaction");
   return status;
 }
 
@@ -515,7 +498,9 @@ static int server_main(pid_t bash_pid) {
 static int parseOptions(int argc, char *argv[]) {
   int c, option_index;
   
-  FREENONNULL(setConfigurationString("GNUNETD", "LOGFILE", NULL));
+  FREENONNULL(setConfigurationString("GNUNETD",
+				     "LOGFILE",
+				     NULL));
   while (1) {
     static struct GNoption long_options[] = {
       LONG_DEFAULT_OPTIONS,
@@ -548,15 +533,13 @@ static int parseOptions(int argc, char *argv[]) {
 	HELP_END,
       };
       formatHelp("gnunet-testbed [OPTIONS]",
-		 "Start GNUnet testbed controller.",
+		 _("Start GNUnet testbed controller."),
 		 help);
       return SYSERR;
     }      
     default: 
       LOG(LOG_FAILURE,
-	  " Unknown option %c. Aborting.\n"		\
-	  "Use --help to get a list of options.\n",
-		c);
+	  _("Use --help to get a list of options.\n"));
       return -1;
     } /* end of parsing commandline */
   } /* while (1) */
@@ -604,7 +587,7 @@ int main(int argc, char *argv[]) {
   } else {
     trustedNetworks_ = parseRoutes(ch);    
     if (trustedNetworks_ == NULL) 
-      errexit("Malformed entry in the configuration in section %s under %s: %s\n",
+      errexit(_("Malformed entry in the configuration in section %s under %s: %s\n"),
 	      "GNUNET-TESTBED",
 	      "TRUSTED", 
 	      ch); 
@@ -616,7 +599,7 @@ int main(int argc, char *argv[]) {
   
   pid = fork();
   if (pid < 0)
-    errexit(" fork failed: %s\n", STRERROR(errno));
+    DIE_STRERROR("fork");
   if (pid == 0) {
     FREE(trustedNetworks_);
     bash_main();

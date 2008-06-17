@@ -55,7 +55,7 @@ if test -n "$TEST"; then
   autoconf --version |\
     head -n 1 |\
     awk '{\
-	if (length($4) == 0) {\
+	if (length($4) = 0) {\
 		print "autoconf       : "$3\
 	} else {\
 		print "autoconf       : "$4\
@@ -160,7 +160,7 @@ fi
 TEST=`$WHICH dpkg 2> /dev/null`
 if test -n "$TEST"; then
   LINES=`dpkg -s libgmp3-dev | grep Version | wc -l`
-  if test "$LINES" == "1"
+  if test "$LINES" = "1"
   then
     VERSION=`dpkg -s libgmp3-dev | grep Version | awk '{print $2}'`
     echo "GMP            : libgmp3-dev-$VERSION.deb"

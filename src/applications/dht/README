@@ -1,8 +1,8 @@
 Design for the DHT (by Christian Grothoff):
 ===========================================
 
-WARNING: The code is not finished yet and has many known bugs (and
-likely many more unknown ones).
+WARNING: The code has not been sufficiently tested yet and probably
+has quite a few tricky bugs left in it.
 
 
 The DHT code consists of 3 parts.  First, there is the DHT module, a
@@ -37,22 +37,3 @@ Low-level details:
 - routing tables are similar to kademlia (in terms of replacement 
   policy and ID space structure; the bucket size depends on the number
   of tables that the peer participates in)
-
-Not implemented:
-- for content stored in each table, the peer periodically checks
-  if it believes it is truely responsible for that content; if not
-  the content is migrated;
-
-Describe (and think about):
-- replication
-- reliability of deletion
-- table-0 'security' limitations
-
-
-
-PLAN:
-1) add dht-join verbosity and timeout options
-2) write some testcases
-3) document protocol
-4) implement demo-application based on DHT service
-

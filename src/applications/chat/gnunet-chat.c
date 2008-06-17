@@ -27,7 +27,7 @@
 #include "chat.h"
 #include "platform.h"
 
-#define CHAT_VERSION "0.0.1"
+#define CHAT_VERSION "0.0.2"
 
 static Semaphore * doneSem;
 
@@ -78,20 +78,18 @@ static int parseOptions(int argc,
 	HELP_HELP,
 	HELP_LOGLEVEL,
 	{ 'n', "nickname", NULL,
-	  "specify nickname" },
+	  gettext_noop("specify nickname") },
 	HELP_VERSION,
 	HELP_END,
       };
       formatHelp("gnunet-chat [OPTIONS]",
-		 "Start GNUnet chat client.",
+		 _("Start GNUnet chat client."),
 		 help);
       return SYSERR;
     }
     default: 
       LOG(LOG_FAILURE,
-	  " Unknown option %c. Aborting.\n"\
-	  "Use --help to get a list of options.\n",
-	  c);
+	  _("Use --help to get a list of options.\n"));
       return -1;
     } /* end of parsing commandline */
   } /* while (1) */
@@ -147,11 +145,12 @@ int main(int argc, char ** argv) {
     return 0; /* parse error, --help, etc. */ 
   sock = getClientSocket();
   if (sock == NULL)
-    errexit(" Could not connect to gnunetd.\n");
+    errexit(_("Could not connect to gnunetd.\n"));
 
   nick = getConfigurationString("GNUNET-CHAT", "NICK");
   if (nick == NULL) 
-    errexit("You must specify a nickname (use option -n).\n");  
+    errexit(_("You must specify a nickname (use option '%s').\n"),
+	    "-n");  
 
   doneSem = SEMAPHORE_NEW(0);
   PTHREAD_CREATE(&messageReceiveThread, 
@@ -176,7 +175,7 @@ int main(int argc, char ** argv) {
   /* send first "Hi!" message to gnunetd to indicate "join" */
   if (SYSERR == writeToSocket(sock,
 			      &msg.header))
-    errexit(" Could not send join message to gnunetd\n");
+    errexit(_("Could not send join message to gnunetd\n"));
 
   /* read messages from command line and send */
   while (1) {
@@ -185,7 +184,7 @@ int main(int argc, char ** argv) {
       break;
     if (SYSERR == writeToSocket(sock,
 				&msg.header))
-      errexit(" Could not send message to gnunetd\n");
+      errexit(_("Could not send message to gnunetd\n"));
   }
   closeSocketTemporarily(sock);
   SEMAPHORE_DOWN(doneSem);

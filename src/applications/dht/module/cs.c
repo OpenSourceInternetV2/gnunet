@@ -83,6 +83,13 @@ typedef struct {
   Semaphore * prereply;
 
   /**
+   * Semaphore that is down'ed by the client handler before storing
+   * the data from a reply.  The cs-functions need to up it
+   * once they have prepared the handlers.
+   */
+  Semaphore * postreply;
+
+  /**
    * Size of the results array; 
    */
   int maxResults;
@@ -187,6 +194,7 @@ static int tcp_lookup(void * closure,
   if (OK != coreAPI->sendToClient(handlers->handler,
 				  &req.header))
     return SYSERR;
+  SEMAPHORE_UP(handlers->postreply);
   SEMAPHORE_DOWN(handlers->prereply);
   ret = handlers->status;
   SEMAPHORE_UP(handlers->prerequest);
@@ -231,6 +239,7 @@ static int tcp_store(void * closure,
   FREE(req);
   LOG(LOG_EVERYTHING,
       "Sending STORE request to client!\n");
+  SEMAPHORE_UP(handlers->postreply);
   SEMAPHORE_DOWN(handlers->prereply);
   ret = handlers->status;
   LOG(LOG_EVERYTHING,
@@ -275,6 +284,7 @@ static int tcp_remove(void * closure,
     return SYSERR;
   }
   FREE(req);
+  SEMAPHORE_UP(handlers->postreply);
   SEMAPHORE_DOWN(handlers->prereply);
   ret = handlers->status;
   SEMAPHORE_UP(handlers->prerequest);
@@ -292,9 +302,62 @@ static int tcp_iterate(void * closure,
 		       int flags,
 		       DHT_DataProcessor processor,
 		       void * cls) {
-  /* send iterate request to matching ClientHandle,
-     read replies */
-  return SYSERR;
+  DHT_CS_REQUEST_ITERATE req;
+  CS_TableHandlers * handlers = closure;
+  DHT_DataContainer results;
+  int ret;
+  int i;
+  
+  SEMAPHORE_DOWN(handlers->prerequest);
+  handlers->maxResults = 1;
+  results.dataLength = 4;
+  results.data = &ret;
+  handlers->results = &results;
+  handlers->status = 0;
+  req.header.size = htons(sizeof(DHT_CS_REQUEST_ITERATE));
+  req.header.tcpType = htons(DHT_CS_PROTO_REQUEST_ITERATE);
+  req.flags = htonl(flags);
+  if (OK != coreAPI->sendToClient(handlers->handler,
+				  &req.header)) 
+    return SYSERR;
+
+  SEMAPHORE_UP(handlers->postreply);
+  SEMAPHORE_DOWN(handlers->prereply);
+  if (handlers->status == 1) {
+    ret = ntohl(ret);
+    
+
+    for (i=0;i<ret;i++) {
+      results.data = NULL;
+      results.dataLength = 0;
+      handlers->maxResults = 1;
+      SEMAPHORE_UP(handlers->postreply);
+      SEMAPHORE_DOWN(handlers->prereply);
+      if (handlers->status == 1) {
+	if (results.dataLength >= sizeof(HashCode160)) {
+	  DHT_DataContainer tmp;
+
+	  tmp.data = &((HashCode160*)results.data)[1];
+	  tmp.dataLength = results.dataLength - sizeof(HashCode160);
+	  processor((HashCode160*)results.data,
+		    &results,		  
+		    flags,
+		    cls);      
+	} else {
+	  GNUNET_ASSERT(0);
+	}
+	FREENONNULL(results.data);
+      } else {
+	ret = SYSERR;
+	break;
+      }
+    }
+  } else {
+    ret = SYSERR;
+  }
+
+  SEMAPHORE_UP(handlers->prerequest);
+  return ret;
 }
 
 /* *********************** CS handlers *********************** */
@@ -337,6 +400,7 @@ static int csJoin(ClientHandle client,
   ptr->table = req->table;
   ptr->prerequest = SEMAPHORE_NEW(1);
   ptr->prereply   = SEMAPHORE_NEW(0);
+  ptr->postreply  = SEMAPHORE_NEW(0);
   ret = dhtAPI->join(ptr->store,
 		     &req->table,
 		     ntohl(req->timeout),
@@ -349,6 +413,7 @@ static int csJoin(ClientHandle client,
   } else {
     SEMAPHORE_FREE(ptr->prerequest);
     SEMAPHORE_FREE(ptr->prereply);
+    SEMAPHORE_FREE(ptr->postreply);
     FREE(ptr->store);
     FREE(ptr);
   }
@@ -399,6 +464,7 @@ static int csLeave(ClientHandle client,
       SEMAPHORE_DOWN(ptr->prerequest);
       SEMAPHORE_FREE(ptr->prerequest);
       SEMAPHORE_FREE(ptr->prereply);
+      SEMAPHORE_FREE(ptr->postreply);
       FREE(ptr->store);
       FREE(ptr);
       return sendAck(client,
@@ -825,6 +891,7 @@ static int csACK(ClientHandle client,
     if ( (csHandlers[i]->handler == client) &&
 	 (equalsHashCode160(&csHandlers[i]->table,
 			    &req->table)) ) {     
+      SEMAPHORE_DOWN(ptr->postreply);
       ptr = csHandlers[i];
       ptr->status = ntohl(req->status);
       SEMAPHORE_UP(ptr->prereply);
@@ -866,6 +933,7 @@ static int csResults(ClientHandle client,
 	 (equalsHashCode160(&csHandlers[i]->table,
 			    &req->table)) ) {     
       ptr = csHandlers[i];
+      SEMAPHORE_DOWN(ptr->postreply);
       if ( (ptr->status == ptr->maxResults) ||
 	   (tot > ptr->maxResults) ) {
 	MUTEX_UNLOCK(&csLock);
@@ -923,7 +991,7 @@ static void csClientExit(ClientHandle client) {
       message.header.size = ntohs(sizeof(DHT_CS_REQUEST_LEAVE));
       message.header.tcpType = ntohs(DHT_CS_PROTO_REQUEST_LEAVE);
       message.timeout = ntohll(0);
-      message.flags = ntohl(csHandlers[i]->flags);
+      message.flags = ntohl(0);
       message.table = csHandlers[i]->table;
       csLeave(client,
 	      &message.header);

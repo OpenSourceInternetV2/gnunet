@@ -947,6 +947,7 @@ int csHandleRequestLinkFile(ClientHandle sock,
   char * tname;
   char * prefix;
   HashCode160 hc;
+  size_t len;
 
   if (ntohs(linkFileRequest->header.size) <=
       sizeof(AFS_CS_LINK_FILE)) {
@@ -956,10 +957,12 @@ int csHandleRequestLinkFile(ClientHandle sock,
 #if VERBOSE_STATS
   /* statChange(stat_cs_link_file_count, 1); */
 #endif
-  tname = MALLOC(ntohs(linkFileRequest->header.size) - sizeof(AFS_CS_LINK_FILE)+1);
+  len = ntohs(linkFileRequest->header.size) - sizeof(AFS_CS_LINK_FILE);
+  tname = MALLOC(len + 1);
   strncpy(tname,
 	  &((AFS_CS_LINK_FILE_GENERIC*)linkFileRequest)->data[0],
-	  ntohs(linkFileRequest->header.size) - sizeof(AFS_CS_LINK_FILE));
+	  len);
+  tname[len] = '\0';
   if ( (SYSERR == getFileHash(tname,
 			      &hc)) ||
        (0 != memcmp(&hc,
@@ -1055,6 +1058,11 @@ int csHandleRequestInsertSBlock(ClientHandle sock,
     BREAK();
     return SYSERR;
   }
+  if (OK != verifySBlock(&insertRequest->content)) {
+    BREAK();
+    return SYSERR;
+  }
+
 #if VERBOSE_STATS
   statChange(stat_cs_insert_sblock_count, 1);
 #endif

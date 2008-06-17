@@ -115,13 +115,17 @@ void handleHelper(const char * msg,
 
   if (crc32N(msg, size) != crc) {
     EncName enc;
-    IFLOG(LOG_INFO,
+    IFLOG(LOG_WARNING,
     	hash2enc(&sender->hashPubKey,
 		 &enc));
     LOG(LOG_WARNING, 
 	_("Received corrupt message claiming to be from peer '%s' in %s:%d.\n"),
 	&enc, __FILE__, __LINE__);
-    return;
+     LOG(LOG_DEBUG,
+	 "Crc is %x but should have been %x.\n",
+	 crc32N(msg, size),
+	 crc);
+   return;
   }
   trafficReceivedFrom(sender, size);
   pos = 0;

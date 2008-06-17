@@ -183,7 +183,7 @@ int requestAndPrintStatistics(GNUNET_TCP_SOCKET * sock) {
   csHdr.size = htons(sizeof(CS_HEADER));
   csHdr.tcpType = htons(STATS_CS_PROTO_GET_STATISTICS);
   if (SYSERR == writeToSocket(sock, &csHdr)) {
-    PRINTF("Error sending request for statistics to peer.\n");
+    PRINTF(_("Error sending request for statistics to peer.\n"));
     return SYSERR;
   }
   statMsg = MALLOC(MAX_BUFFER_SIZE);
@@ -194,13 +194,13 @@ int requestAndPrintStatistics(GNUNET_TCP_SOCKET * sock) {
        count, ntohl(statMsg->totalCounters) );*/
     if (SYSERR == readFromSocket(sock,
 				 (CS_HEADER**)&statMsg)) {
-      PRINTF("Error receiving reply for statistics from peer.\n");
+      PRINTF(_("Error receiving reply for statistics from peer.\n"));
       FREE(statMsg);
       return SYSERR;    
     }
     if (ntohs(statMsg->header.size) < sizeof(STATS_CS_MESSAGE)) {
       LOG(LOG_WARNING,
-	  " received malformed stats message (%d < %d)\n",
+	  _("Received malformed stats message (%d < %d)\n"),
 	  ntohs(statMsg->header.size), 
 	  sizeof(STATS_CS_MESSAGE) );
       break;
@@ -208,7 +208,7 @@ int requestAndPrintStatistics(GNUNET_TCP_SOCKET * sock) {
     mpos = sizeof(unsigned long long) * ntohl(statMsg->statCounters);
     if (count == 0) {
       PRINTF("%-60s: %16u\n",
-	     "Uptime (seconds)",
+	     _("Uptime (seconds)"),
 	     (unsigned int) 
 	     ((cronTime(NULL) - ntohll(statMsg->startTime))/
 	      cronSECONDS));
@@ -217,7 +217,7 @@ int requestAndPrintStatistics(GNUNET_TCP_SOCKET * sock) {
       if (mpos+strlen(&((char*)(((STATS_CS_MESSAGE_GENERIC*)statMsg)->values))[mpos])+1 > 
 	  ntohs(statMsg->header.size) - sizeof(STATS_CS_MESSAGE)) {
 	LOG(LOG_WARNING,
-	    " received malformed stats message (%d > %d)\n",
+	    _("Received malformed stats message (%d > %d)\n"),
 	    mpos+strlen(&((char*)(((STATS_CS_MESSAGE_GENERIC*)statMsg)->values))[mpos])+1,
 	    ntohs(statMsg->header.size)-sizeof(STATS_CS_MESSAGE));
 	break; /* out of bounds! */      
@@ -250,7 +250,7 @@ int requestAndPrintStatistic(GNUNET_TCP_SOCKET * sock,
   csHdr.size = htons(sizeof(CS_HEADER));
   csHdr.tcpType = htons(STATS_CS_PROTO_GET_STATISTICS);
   if (SYSERR == writeToSocket(sock, &csHdr)) {
-    PRINTF("Error sending request for statistics to peer.\n");
+    PRINTF(_("Error sending request for statistics to peer.\n"));
     return SYSERR;
   }
   statMsg = MALLOC(MAX_BUFFER_SIZE);
@@ -261,14 +261,14 @@ int requestAndPrintStatistic(GNUNET_TCP_SOCKET * sock,
        count, ntohl(statMsg->totalCounters) );*/
     if (SYSERR == readFromSocket(sock,
 				 (CS_HEADER**)&statMsg)) {
-      PRINTF("Error receiving reply for statistics from peer.\n");
+      PRINTF(_("Error receiving reply for statistics from peer.\n"));
       FREE(statMsg);
       return SYSERR;    
     }
     if (ntohs(statMsg->header.size) < sizeof(STATS_CS_MESSAGE)) {
-      PRINTF("Error receiving reply for statistics from peer.\n");
+      PRINTF(_("Error receiving reply for statistics from peer.\n"));
       LOG(LOG_WARNING,
-	  " received malformed stats message (%d < %d)\n",
+	  _("received malformed stats message (%d < %d)\n"),
 	  ntohs(statMsg->header.size), 
 	  sizeof(STATS_CS_MESSAGE) );
       break;
@@ -276,7 +276,7 @@ int requestAndPrintStatistic(GNUNET_TCP_SOCKET * sock,
     mpos = sizeof(unsigned long long) * ntohl(statMsg->statCounters);
     if (count == 0) {
       if (0 == strcmp(name,
-		      "Uptime (seconds)"))
+		      _("Uptime (seconds)")))
 	PRINTF("%u\n",
 	       (unsigned int) 
 	       ((cronTime(NULL) - ntohll(statMsg->startTime))/
@@ -286,7 +286,7 @@ int requestAndPrintStatistic(GNUNET_TCP_SOCKET * sock,
       if (mpos+strlen(&((char*)(((STATS_CS_MESSAGE_GENERIC*)statMsg)->values))[mpos])+1 > 
 	  ntohs(statMsg->header.size) - sizeof(STATS_CS_MESSAGE)) {
 	LOG(LOG_WARNING,
-	    " received malformed stats message (%d > %d)\n",
+	    _("Received malformed stats message (%d > %d)\n"),
 	    mpos+strlen(&((char*)(((STATS_CS_MESSAGE_GENERIC*)statMsg)->values))[mpos])+1,
 	    ntohs(statMsg->header.size)-sizeof(STATS_CS_MESSAGE));
 	break; /* out of bounds! */      
@@ -318,19 +318,19 @@ int requestAndPrintProtocols(GNUNET_TCP_SOCKET * sock) {
   
   csStatMsg.header.size 
     = htons(sizeof(STATS_CS_GET_MESSAGE_SUPPORTED));  
-  PRINTF("Supported Peer to Peer messages:\n");
+  PRINTF(_("Supported Peer to Peer messages:\n"));
   csStatMsg.header.tcpType
     = htons(STATS_CS_PROTO_GET_P2P_MESSAGE_SUPPORTED);
   for (i=0;i<65536;i++) {
     csStatMsg.tcpType = htons(i);
     
     if (SYSERR == writeToSocket(sock, &csStatMsg.header)) {
-      PRINTF("Error sending request for p2p protocol "
-	     "status to gnunetd.\n");
+      PRINTF(_("Error sending request for p2p protocol "
+	       "status to gnunetd.\n"));
       return SYSERR;
     }
     if (SYSERR == readTCPResult(sock, &supported)) {
-      PRINTF("Error reading p2p protocol status to gnunetd.\n");
+      PRINTF(_("Error reading p2p protocol status from gnunetd.\n"));
       return SYSERR;
     }
     
@@ -343,19 +343,19 @@ int requestAndPrintProtocols(GNUNET_TCP_SOCKET * sock) {
       PRINTF("\n");
     }
   }
-  PRINTF("Supported Client Server messages:\n");
+  PRINTF(_("Supported Client Server messages:\n"));
   csStatMsg.header.tcpType
     = htons(STATS_CS_PROTO_GET_CS_MESSAGE_SUPPORTED);
   for (i=0;i<65536;i++) {
     csStatMsg.tcpType = htons(i);   
     if (SYSERR == writeToSocket(sock, &csStatMsg.header)) {
-      PRINTF("Error sending request for client-server "
-	     "protocol status to gnunetd.\n");
+      PRINTF(_("Error sending request for client-server "
+	       "protocol status to gnunetd.\n"));
       return SYSERR;
     }
     if (SYSERR == readTCPResult(sock, &supported)) {
-      PRINTF("Error reading client-server protocol "
-	     "status to gnunetd.\n");
+      PRINTF(_("Error reading client-server protocol "
+	       "status from gnunetd.\n"));
       return SYSERR;
     }    
     if (supported == YES) {

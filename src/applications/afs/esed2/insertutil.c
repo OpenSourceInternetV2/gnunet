@@ -415,6 +415,7 @@ int insertRoot(GNUNET_TCP_SOCKET * sock,
       res = SYSERR;
   /* directory support... */
   makeRootNodeAvailable(rn, DIR_CONTEXT_INSERT);
+  publishToCollection(rn);
   if(rootNode != NULL)
     *rootNode = *rn;
   FREE(rn);
@@ -570,7 +571,7 @@ static RootNode * buildFileRBlock(GNUNET_TCP_SOCKET * sock,
 			  description,
 			  shortFN,
 			  mimetype);
-			    
+  publishToCollection(result);		    
   for (i=0;i<gloKeywordCnt;i++)
     if (OK != insertRootWithKeyword(sock,
 				    result, 

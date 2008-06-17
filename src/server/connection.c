@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -572,9 +572,10 @@ static int gcd(int a, int b) {
  * @param solution int[count] to store the solution as "YES" and "NO" values
  * @return the overall priority that was achieved 
  */ 
-static int approximateKnapsack(BufferEntry * be,
-			       int available,
-			       int * solution) {
+static unsigned int 
+approximateKnapsack(BufferEntry * be,
+		    unsigned int available,
+		    int * solution) {
   unsigned int i;
   unsigned int count;
   SendEntry ** entries;
@@ -612,9 +613,10 @@ static int approximateKnapsack(BufferEntry * be,
  * @param solution int[count] to store the solution as "YES" and "NO" values
  * @return the overall priority that was achieved 
  */
-static int solveKnapsack(BufferEntry * be,
-			 int available,
-			 int * solution) {
+static unsigned int 
+solveKnapsack(BufferEntry * be,
+	      unsigned int available,
+	      int * solution) {
   unsigned int i;
   int j;
   int max;
@@ -782,20 +784,18 @@ static void sendBuffer(BufferEntry * be) {
   }
 
   /* recompute max send frequency */
-  {
-    if (be->max_bpm <= 0)
-      be->max_bpm = 1;
-
-    be->MAX_SEND_FREQUENCY = /* ms per message */
-      be->session.mtu  /* byte per message */
-      / (be->max_bpm * cronMINUTES / cronMILLIS) /* bytes per ms */
-      / 2; /* some head-room */
-    
-    /* Also: allow at least MINIMUM_SAMPLE_COUNT knapsack
-       solutions for any MIN_SAMPLE_TIME! */
-    if (be->MAX_SEND_FREQUENCY > MIN_SAMPLE_TIME / MINIMUM_SAMPLE_COUNT)
-      be->MAX_SEND_FREQUENCY = MIN_SAMPLE_TIME / MINIMUM_SAMPLE_COUNT;
-  }
+  if (be->max_bpm <= 0)
+    be->max_bpm = 1;
+  
+  be->MAX_SEND_FREQUENCY = /* ms per message */
+    be->session.mtu  /* byte per message */
+    / (be->max_bpm * cronMINUTES / cronMILLIS) /* bytes per ms */
+    / 2; /* some head-room */
+  
+  /* Also: allow at least MINIMUM_SAMPLE_COUNT knapsack
+     solutions for any MIN_SAMPLE_TIME! */
+  if (be->MAX_SEND_FREQUENCY > MIN_SAMPLE_TIME / MINIMUM_SAMPLE_COUNT)
+    be->MAX_SEND_FREQUENCY = MIN_SAMPLE_TIME / MINIMUM_SAMPLE_COUNT;  
 
   if ( (be->lastSendAttempt + be->MAX_SEND_FREQUENCY > cronTime(NULL)) &&
        (be->sendBufferSize < MAX_SEND_BUFFER_SIZE/4) ) {
@@ -1125,8 +1125,9 @@ static void sendBuffer(BufferEntry * be) {
 	       p);
 #if DEBUG_CONNECTION
     LOG(LOG_DEBUG,
-	"calling transport layer to send %d bytes\n",
-	p);
+	"calling transport layer to send %d bytes with crc %x\n",
+	p,
+	crc);
 #endif
     if (OK == transportSend(be->session.tsession,
 			    encryptedMsg,
@@ -1163,6 +1164,110 @@ static void sendBuffer(BufferEntry * be) {
   FREE(plaintextMsg);
 }
 
+typedef struct {
+  HostIdentity sender;
+  unsigned short mtu;
+  SendEntry * se;
+} FragmentBMC;
+
+/**
+ * Send a message that had to be fragmented (right now!).  First grabs
+ * the first part of the message (obtained from ctx->se) and stores
+ * that in a FRAGMENT_Message envelope.  The remaining fragments are
+ * added to the send queue with EXTREME_PRIORITY (to ensure that they
+ * will be transmitted next).  The logic here is that if the priority
+ * for the first fragment was sufficiently high, the priority should
+ * also have been sufficiently high for all of the other fragments (at
+ * this time) since they have the same priority.  And we want to make
+ * sure that we send all of them since just sending the first fragment
+ * and then going to other messages of equal priority would not be
+ * such a great idea (i.e. would just waste bandwidth).
+ */
+static int fragmentBMC(void * buf,
+		       FragmentBMC * ctx,
+		       unsigned short len) {
+  static int idGen = 0;
+  char * tmp;
+  int ret;
+  FRAGMENT_Message * frag;
+  unsigned int pos;
+  int id;
+  unsigned short mlen;
+
+  GNUNET_ASSERT(len > sizeof(FRAGMENT_Message));
+  tmp = MALLOC(ctx->se->len);
+  ret = ctx->se->callback(tmp, ctx->se->closure, ctx->se->len);
+  if (ret == SYSERR) {
+    FREE(tmp);
+    return SYSERR;
+  }
+  id = (idGen++) + randomi(512);
+  /* write first fragment to buf */
+  frag = (FRAGMENT_Message*) buf;
+  frag->header.size = htons(len);
+  frag->header.requestType = htons(p2p_PROTO_FRAGMENT);
+  frag->id = id; 
+  frag->off = htons(0);
+  frag->len = htons(ctx->se->len);
+  memcpy(&((FRAGMENT_Message_GENERIC*)frag)->data[0],
+	 tmp,
+	 len - sizeof(FRAGMENT_Message));
+
+  /* create remaining fragments, add to queue! */
+  pos = len - sizeof(FRAGMENT_Message);
+  frag = MALLOC(ctx->mtu);
+  while (pos < ctx->se->len) {  
+    mlen = sizeof(FRAGMENT_Message) + ctx->se->len - pos;
+    if (mlen > ctx->mtu)
+      mlen = ctx->mtu;
+    GNUNET_ASSERT(mlen > sizeof(FRAGMENT_Message));
+    frag->header.size = htons(mlen);
+    frag->header.requestType = htons(p2p_PROTO_FRAGMENT);
+    frag->id = id;
+    frag->off = htons(pos);
+    frag->len = htons(ctx->se->len);
+    memcpy(&((FRAGMENT_Message_GENERIC*)frag)->data[0],
+	   &tmp[pos],
+	   mlen - sizeof(FRAGMENT_Message));
+    sendToNode(&ctx->sender,
+	       &frag->header,
+	       EXTREME_PRIORITY,
+	       0); /* is 0 a good value here??? */
+  }
+  FREE(frag);
+  FREE(tmp);
+  FREE(ctx->se);		
+  return OK;
+}
+
+
+/**
+ * The given message must be fragmented.  Produce a placeholder that
+ * corresponds to the first fragment.  Once that fragment is scheduled
+ * for transmission, the placeholder should automatically add all of
+ * the other fragments (with very high priority).
+ */
+static SendEntry * fragmentMessage(SendEntry * se,
+				   BufferEntry * be) {
+  SendEntry * ret;
+  FragmentBMC * bmc;
+
+  bmc = MALLOC(sizeof(FragmentBMC));
+  bmc->se = se;
+  bmc->mtu = be->session.mtu - sizeof(SEQUENCE_Message);
+  bmc->sender = be->session.sender;
+  GNUNET_ASSERT(se->len > be->session.mtu - sizeof(SEQUENCE_Message));
+  ret = MALLOC(sizeof(SendEntry));
+  ret->len = be->session.mtu - sizeof(SEQUENCE_Message);
+  GNUNET_ASSERT(se->len != 0);
+  ret->flags = se->flags;
+  ret->pri = se->pri * ret->len / se->len; /* compute new priority! */
+  ret->transmissionTime = se->transmissionTime;
+  ret->callback = (BuildMessageCallback) &fragmentBMC;
+  ret->closure = bmc;
+  return ret;
+}
+
 /**
  * Append a message to the current buffer. This method
  * assumes that the access to be is already synchronized.
@@ -1184,6 +1289,11 @@ static void appendToBuffer(BufferEntry * be,
     BREAK();
     return;
   }
+  if (se->len > be->session.mtu - sizeof(SEQUENCE_Message)) {
+    /* this message is so big that it must be fragmented! */
+    se = fragmentMessage(se, be);
+  }
+
 #if DEBUG_CONNECTION
   IFLOG(LOG_DEBUG,
 	hash2enc(&be->session.sender.hashPubKey, 
@@ -2842,10 +2952,10 @@ int acceptSessionKey(const HostIdentity * sender,
 				ANY_PROTOCOL_NUMBER,
 				NO,
 				&helo)) {
-      IFLOG(LOG_WARNING,
+      IFLOG(LOG_INFO,
  	    hash2enc(&sender->hashPubKey,
 		     &hostName));
-      LOG(LOG_WARNING, 
+      LOG(LOG_INFO, 
 	  _("Sessionkey received from peer '%s',"
 	    " but I could not find a transport that would allow me to reply (%d).\n"),
 	  &hostName,

@@ -109,6 +109,41 @@ static int sendAck(GNUNET_TCP_SOCKET * sock,
 		       &msg.header);
 }
 
+static int sendAllResults(const HashCode160 * key,
+			  const DHT_DataContainer * value,
+			  int flags,
+			  void * cls) {
+  TableList * list = (TableList*) cls;
+  DHT_CS_REPLY_RESULTS * reply;
+ 
+  reply = MALLOC(sizeof(DHT_CS_REPLY_RESULTS) + value->dataLength + sizeof(HashCode160));
+  reply->header.size = htons(sizeof(DHT_CS_REPLY_RESULTS) + value->dataLength + sizeof(HashCode160));
+  reply->header.tcpType = htons(DHT_CS_PROTO_REPLY_GET);
+  reply->totalResults = htonl(1);
+  reply->table = list->table;
+  memcpy(&((DHT_CS_REPLY_RESULTS_GENERIC*)reply)->data[sizeof(HashCode160)],
+	 key,
+	 sizeof(HashCode160));
+  memcpy(&((DHT_CS_REPLY_RESULTS_GENERIC*)reply)->data[sizeof(HashCode160)],
+	 value->data,
+	 value->dataLength);
+  if (OK != writeToSocket(list->sock,
+			  &reply->header)) {
+    LOG(LOG_WARNING,
+	_("Failed to send '%s'.  Closing connection.\n"),
+	"DHT_CS_REPLY_RESULTS");
+    MUTEX_LOCK(&list->lock);
+    releaseClientSocket(list->sock);
+    list->sock = NULL;
+    MUTEX_UNLOCK(&list->lock);
+    FREE(reply);
+    return SYSERR;
+  }
+  FREE(reply);
+  return OK;
+
+}
+
 /**
  * Thread that processes requests from gnunetd (by forwarding
  * them to the implementation of list->store).
@@ -228,7 +263,7 @@ static void * process_thread(TableList * list) {
 	  }
 	} else {
 	  DHT_CS_REPLY_RESULTS * reply;
-
+	  
 	  for (i=0;i<resCount;i++) {
 	    reply = MALLOC(sizeof(DHT_CS_REPLY_RESULTS) + results[i].dataLength);
 	    reply->header.size = htons(sizeof(DHT_CS_REPLY_RESULTS) + results[i].dataLength);
@@ -238,15 +273,15 @@ static void * process_thread(TableList * list) {
 	    memcpy(&((DHT_CS_REPLY_RESULTS_GENERIC*)reply)->data[0],
 		   results[i].data,
 		   results[i].dataLength);
-
+	    
 	    LOG(LOG_EVERYTHING,
 		"'%s' transmits %d-th result '%.*s'!\n",
 		__FUNCTION__,
 		i,
 		results[i].dataLength,
 		results[i].data);
-  
-
+	    
+	    
 	    if (OK != writeToSocket(list->sock,
 				    &reply->header)) {
 	      LOG(LOG_WARNING,
@@ -261,18 +296,18 @@ static void * process_thread(TableList * list) {
 	    FREE(reply);
 	  }
 	}
-
+	
 	for (i=0;i<maxResults;i++) 
 	  FREENONNULL(results[i].data);
 	FREE(results);
 	break;
       }
-
-
+	
+	
       case DHT_CS_PROTO_REQUEST_PUT: {
 	DHT_CS_REQUEST_PUT * req;
 	DHT_DataContainer value;
-
+	
 	if (sizeof(DHT_CS_REQUEST_PUT) > ntohs(buffer->size)) {
 	  LOG(LOG_ERROR,
 	      _("Received invalid '%s' request (size %d)\n"),
@@ -329,7 +364,7 @@ static void * process_thread(TableList * list) {
       case DHT_CS_PROTO_REQUEST_REMOVE: {
 	DHT_CS_REQUEST_REMOVE * req;
 	DHT_DataContainer value;
-
+	
 	if (sizeof(DHT_CS_REQUEST_REMOVE) > ntohs(buffer->size)) {
 	  LOG(LOG_ERROR,
 	      _("Received invalid '%s' request (size %d)\n"),
@@ -379,6 +414,69 @@ static void * process_thread(TableList * list) {
 	  MUTEX_UNLOCK(&list->lock);
 	}
 	FREENONNULL(value.data);
+	break;
+      }
+	
+      case DHT_CS_PROTO_REQUEST_ITERATE: {
+
+	DHT_CS_REPLY_RESULTS * reply;
+	DHT_CS_REQUEST_ITERATE * req;
+	DHT_DataContainer result;
+	int resCount;
+
+	if (sizeof(DHT_CS_REQUEST_ITERATE) != ntohs(buffer->size)) {
+	  LOG(LOG_ERROR,
+	      _("Received invalid '%s' request (size %d)\n"),
+	      "ITERATE",
+	      ntohs(buffer->size));
+	  MUTEX_LOCK(&list->lock);
+	  releaseClientSocket(list->sock);
+	  list->sock = NULL;
+	  MUTEX_UNLOCK(&list->lock);
+	  FREE(buffer);
+	}
+	req = (DHT_CS_REQUEST_ITERATE*) buffer;
+	resCount = list->store->iterate(list->store->closure,
+					ntohl(req->flags),
+					NULL,
+					NULL);
+	resCount = htonl(resCount);
+	result.dataLength = sizeof(int);
+	result.data = &resCount;	
+	reply = MALLOC(sizeof(DHT_CS_REPLY_RESULTS) + result.dataLength);
+	reply->header.size = htons(sizeof(DHT_CS_REPLY_RESULTS) + result.dataLength);
+	reply->header.tcpType = htons(DHT_CS_PROTO_REPLY_GET);
+	reply->totalResults = htonl(1);
+	reply->table = list->table;
+	memcpy(&((DHT_CS_REPLY_RESULTS_GENERIC*)reply)->data[0],
+	       result.data,
+	       result.dataLength);
+	if (OK != writeToSocket(list->sock,
+				&reply->header)) {
+	  LOG(LOG_WARNING,
+	      _("Failed to send '%s'.  Closing connection.\n"),
+	      "DHT_CS_REPLY_RESULTS");
+	  MUTEX_LOCK(&list->lock);
+	  releaseClientSocket(list->sock);
+	  list->sock = NULL;
+	  MUTEX_UNLOCK(&list->lock);
+	  break;
+	}		
+	FREE(reply);
+	resCount = list->store->iterate(list->store->closure,
+					ntohl(req->flags),
+					&sendAllResults,
+					list);
+	if (resCount == -1) {
+	  LOG(LOG_WARNING,
+	      _("Failed to send '%s'.  Closing connection.\n"),
+	      "DHT_CS_REPLY_RESULTS");
+	  MUTEX_LOCK(&list->lock);
+	  releaseClientSocket(list->sock);
+	  list->sock = NULL;
+	  MUTEX_UNLOCK(&list->lock);
+	}
+	
 	break;
       }
 
@@ -481,7 +579,7 @@ int DHT_LIB_join(DHT_Datastore * store,
  */
 int DHT_LIB_leave(DHT_TableId * table,
 		  cron_t timeout,
-		  int flags) {
+		  unsigned int flags) {
   TableList * list;
   int i;
   void * unused;

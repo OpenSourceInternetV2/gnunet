@@ -79,7 +79,7 @@ int * permute(int n) {
 unsigned long long randomi64(unsigned long long u) {
   unsigned long long ret;
 
-  ret = rand() << 32 | rand(); /* in case RAND_bytes fails, we got at least something! */
+  ret = ((unsigned long long)rand()) << 32 | rand(); /* in case RAND_bytes fails, we got at least something! */
   RAND_bytes((unsigned char*)&ret, 
 	     sizeof(unsigned long long));
   return ret % u;

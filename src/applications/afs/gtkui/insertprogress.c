@@ -502,6 +502,7 @@ void insertDirectoryGtkThread(InsertDirectoryModel * ilm) {
 	res = SYSERR;
     }
     makeRootNodeAvailable(top, DIR_CONTEXT_INSERT);
+    publishToCollection(top);
   } else {
     res = SYSERR;
   }

@@ -482,7 +482,7 @@ static int networkUsageAdvancedDown() {
       
       theInfo.dwIndex = atoi(interfacePtrs[i]);
       GNGetIfEntry(&theInfo);
-      rxnew = theInfo.dwInOctets - last_net_results[ifnum].last_in;
+      rxnew = theInfo.dwInOctets;
       rxdiff += rxnew - last_net_results[ifnum].last_in;
       last_net_results[ifnum].last_in = rxnew;
     }
@@ -677,8 +677,8 @@ static int networkUsageAdvancedUp() {
  
       theInfo.dwIndex = atoi(interfacePtrs[i]);     
       GNGetIfEntry(&theInfo);
-      txnew = theInfo.dwOutOctets - last_net_results[ifnum].last_out;
-  	  txdiff += txnew - last_net_results[ifnum].last_out;	  
+      txnew = theInfo.dwOutOctets;
+      txdiff += txnew - last_net_results[ifnum].last_out;	  
       last_net_results[ifnum].last_out = txnew;
     }
   }

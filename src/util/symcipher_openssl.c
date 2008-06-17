@@ -63,8 +63,8 @@ int encryptBlock(const void * block,
   /* compute result size by adding block-length, always padded */
   EVP_EncryptInit(&ctx, 
 		  EVP_bf_cfb(), 
-		  sessionkey->key,
-		  iv);
+		  (void*) sessionkey->key, /* cast for old OpenSSL versions */
+		  (void*) iv); /* cast for old OpenSSL versions */
 #if SSL_MICRO >= 6
   if (0 == EVP_EncryptUpdate(&ctx, 
 			     result, 
@@ -74,7 +74,11 @@ int encryptBlock(const void * block,
     return -1;
   }
 #else
-  EVP_EncryptUpdate(&ctx, result, &outlen, block, len);
+  EVP_EncryptUpdate(&ctx, 
+		    result,
+		    &outlen, 
+		    (void*) block, /* cast for old OpenSSL versions */
+		    len); 
 #endif
   len = outlen; /* save bytes written so far */
   outlen = 0;
@@ -116,13 +120,13 @@ int decryptBlock(const SESSIONKEY * sessionkey,
   /* use blowfish-cfb */
   EVP_DecryptInit(&ctx, 
 		  EVP_bf_cfb(), 
-		  sessionkey->key, 
-		  iv);
+		  (void*)sessionkey->key, /* cast for old OpenSSL versions */
+		  (void*)iv); /* cast for old OpenSSL versions */
 #if SSL_MICRO >= 6
   if (0 == EVP_DecryptUpdate(&ctx, 
 			     result, 
 			     &outlen,
-			     block, 
+			     (void*) block, /* cast for old OpenSSL versions */
 			     size)) {
     BREAK();
     return -1;
@@ -131,13 +135,15 @@ int decryptBlock(const SESSIONKEY * sessionkey,
   EVP_DecryptUpdate(&ctx, 
 		    result, 
 		    &outlen, 
-		    block, 
+		    (void*) block, /* cast for old OpenSSL versions */
 		    size);
 #endif
   size = outlen;
   outlen = 0; 
 #if SSL_MICRO >= 6
-  if (0 == EVP_DecryptFinal(&ctx, &((unsigned char*)result)[size], &outlen)) {
+  if (0 == EVP_DecryptFinal(&ctx, 
+			    &((unsigned char*)result)[size], 
+			    &outlen)) {
     BREAK();
     return -1;
   }

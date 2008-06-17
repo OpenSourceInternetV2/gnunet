@@ -63,9 +63,9 @@ libgnunetdht_datastore_memory_la_OBJECTS =  \
 	$(am_libgnunetdht_datastore_memory_la_OBJECTS)
 libgnunetdht_protocol_la_DEPENDENCIES =  \
 	$(top_builddir)/src/util/libgnunetutil.la \
-	$(top_builddir)/src/applications/rpc/libgnunetrpc_util.la \
-	$(top_builddir)/src/applications/dht/module/libgnunetdht_datastore_memory.la
-am_libgnunetdht_protocol_la_OBJECTS = dht.lo cs.lo
+	$(top_builddir)/src/applications/rpc/libgnunetrpc_util.la
+am_libgnunetdht_protocol_la_OBJECTS = dht.lo datastore_dht_master.lo \
+	cs.lo
 libgnunetdht_protocol_la_OBJECTS =  \
 	$(am_libgnunetdht_protocol_la_OBJECTS)
 am_datastore_memory_test_OBJECTS = datastore_memory_test.$(OBJEXT)
@@ -76,6 +76,7 @@ DEFAULT_INCLUDES = -I. -I$(srcdir) -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
 @AMDEP_TRUE@DEP_FILES = ./$(DEPDIR)/cs.Plo \
+@AMDEP_TRUE@	./$(DEPDIR)/datastore_dht_master.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/datastore_memory.Plo \
 @AMDEP_TRUE@	./$(DEPDIR)/datastore_memory_test.Po \
 @AMDEP_TRUE@	./$(DEPDIR)/dht.Plo
@@ -157,6 +158,8 @@ HAVE_IPV6_FALSE = @HAVE_IPV6_FALSE@
 HAVE_IPV6_TRUE = @HAVE_IPV6_TRUE@
 HAVE_MYSQL_FALSE = @HAVE_MYSQL_FALSE@
 HAVE_MYSQL_TRUE = @HAVE_MYSQL_TRUE@
+HAVE_SQLITE_FALSE = @HAVE_SQLITE_FALSE@
+HAVE_SQLITE_TRUE = @HAVE_SQLITE_TRUE@
 HAVE_TDB_FALSE = @HAVE_TDB_FALSE@
 HAVE_TDB_TRUE = @HAVE_TDB_TRUE@
 HAVE_ZLIB_FALSE = @HAVE_ZLIB_FALSE@
@@ -269,12 +272,13 @@ lib_LTLIBRARIES = \
 
 libgnunetdht_protocol_la_SOURCES = \
   dht.c \
+  datastore_dht_master.c \
+  datastore_dht_master.h \
   cs.c 
 
 libgnunetdht_protocol_la_LIBADD = \
  $(top_builddir)/src/util/libgnunetutil.la \
- $(top_builddir)/src/applications/rpc/libgnunetrpc_util.la \
- $(top_builddir)/src/applications/dht/module/libgnunetdht_datastore_memory.la 
+ $(top_builddir)/src/applications/rpc/libgnunetrpc_util.la
 
 libgnunetdht_protocol_la_LDFLAGS = \
   -export-dynamic -avoid-version -module
@@ -379,6 +383,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cs.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/datastore_dht_master.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/datastore_memory.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/datastore_memory_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dht.Plo@am__quote@
@@ -662,12 +667,6 @@ uninstall-am: uninstall-info-am uninstall-libLTLIBRARIES
 	mostlyclean-libtool pdf pdf-am ps ps-am tags uninstall \
 	uninstall-am uninstall-info-am uninstall-libLTLIBRARIES
 
-
-#dht_test_SOURCES = \
-#  dht_test.c
-#dht_test_LDADD = \
-#  $(top_builddir)/src/applications/rpc/libgnunetrpc_protocol.la \
-#  $(top_builddir)/src/util/libgnunetutil.la 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

@@ -165,10 +165,12 @@ typedef struct {
    *
    * @param handle the handle to the database
    * @param ce output information about the key 
+   * @param data the data block, if not on-demand entry
    * @return SYSERR on error, OK if ok.
    */
   int (*getRandomContent)(HighDBHandle handle,
-			  ContentIndex * ce);
+			  ContentIndex * ce,
+			  CONTENT_Block ** data);
   
   /**
    * Delete low-priority content from the database
@@ -307,7 +309,8 @@ int removeContent(const HashCode160 * query,
 /**
  * Get some random contet.
  */
-int retrieveRandomContent(ContentIndex * ce);
+int retrieveRandomContent(ContentIndex * ce, 
+			  CONTENT_Block ** data);
 
 /**
  * Iterator over all the queries in the database
@@ -344,6 +347,9 @@ unsigned int computeBucket(const HashCode160 * query,
  **/
 unsigned int computeBucketGlobal(const HashCode160 * query);
 
+int encodeOnDemand(const ContentIndex * ce,
+                   CONTENT_Block ** result,
+                   int readCount);				      
 
 #endif
 /* end of manager.h */

@@ -69,7 +69,7 @@ GNUNET_TCP_SOCKET * getClientSocket() {
 				       host,
 				       sock)) {    
     LOG(LOG_ERROR,
-	_("Could not connect to gnunetd\n"));
+	_("Could not connect to gnunetd.\n"));
     FREE(sock);
     FREE(host);
     return NULL;

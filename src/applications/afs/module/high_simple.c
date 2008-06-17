@@ -73,8 +73,6 @@ typedef struct {
 
 } DatabaseHandle;
 
-#define CONTENTDIR "content/"
-
 /**
  * Initialize content database
  * 
@@ -601,8 +599,8 @@ static void getRandomFileName(const char *file,
 }
 
 /**
- * Return a random key from the database (just the key, not the
- * content!).  Note that the selection is not strictly random but
+ * Return a random key from the database (content too, if not
+ * on-demand). Note that the selection is not strictly random but
  * strongly biased towards content of a low priority (which we are
  * likely to discard soon).
  *
@@ -611,10 +609,10 @@ static void getRandomFileName(const char *file,
  * @return SYSERR on error, OK if ok.
  */
 int getRandomContent(HighDBHandle handle,
-                     ContentIndex * ce) {
+                     ContentIndex * ce,
+		     CONTENT_Block ** data) {
   DatabaseHandle * dbf = handle;
   HashCode160 query;
-  void * vresult;
   int finiteLoop;
   int res=-1;
   
@@ -662,15 +660,13 @@ int getRandomContent(HighDBHandle handle,
     return SYSERR;
 
   /* now get the ContentIndex */
-  vresult = NULL;
   res = readContent(handle,
                     &query,
                     ce,
-                    &vresult,
+                    data,
                     0);
   if (res == -1)
     return SYSERR;
-  FREENONNULL(vresult);
   return OK;
 }
 
