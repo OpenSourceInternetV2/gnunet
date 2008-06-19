@@ -1,3 +1,25 @@
+gnunet (0.8.0-1) unstable; urgency=low
+
+  * Switching maintainer and uploaders fields.
+  * Correcting spelling error in gnunet long-description.
+  * Updating gnunet-client.install for 0.8.0.
+  * Adding libesmtp-dev to build-depends.
+  * Bumping versioned libmicrohttpd depends to 0.3.1.
+  * Reordering rules file.
+  * Also excluding gnunet meta package from ia64 since there is no gnunet on
+    ia64 anyway.
+  * Using lintian debhelper to intall lintian overrides.
+  * Removing watch file.
+  * Rewriting copyright file in machine-interpretable format.
+  * Bumping versioned libextractor depends to 0.5.20.
+  * Adding vcs fields in control file.
+  * Upgrading package to standards 3.8.0.
+  * Upgrading package to debhelper 7.
+  * Merging upstream version 0.8.0.
+  * Correcting typo in gnunet-client.install file.
+
+ -- Daniel Baumann <daniel@debian.org>  Thu, 19 Jun 2008 15:36:00 +0200
+
 gnunet (0.8.0~pre1-1) experimental; urgency=low
 
   * New upstream release.
