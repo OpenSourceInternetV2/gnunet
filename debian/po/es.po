@@ -29,7 +29,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: gnunet 0.7.1\n"
-"Report-Msgid-Bugs-To: Arnaud.Kyheng@free.fr\n"
+"Report-Msgid-Bugs-To: gnunet@packages.debian.org\n"
 "POT-Creation-Date: 2007-06-26 17:52+0200\n"
 "PO-Revision-Date: 2007-05-26 00:47-0500\n"
 "Last-Translator: César Gómez Martín <cesar.gomez@gmail.com>\n"

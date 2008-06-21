@@ -5,7 +5,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: gnunet\n"
-"Report-Msgid-Bugs-To: Arnaud.Kyheng@free.fr\n"
+"Report-Msgid-Bugs-To: gnunet@packages.debian.org\n"
 "POT-Creation-Date: 2007-06-26 17:52+0200\n"
 "PO-Revision-Date: 2007-06-11 13:21+0200\n"
 "Last-Translator: Jacobo Tarrio <jtarrio@debian.org>\n"
