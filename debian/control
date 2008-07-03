@@ -12,6 +12,8 @@ Vcs-Git: git://git.debian.net/git/gnunet.git
 Package: gnunet
 Architecture: alpha amd64 arm armel hppa hurd-i386 i386 m68k mips mipsel powerpc s390 sparc
 Depends: gnunet-client (= ${binary:Version}), gnunet-server (= ${binary:Version}), gnunet-tools (= ${binary:Version})
+Conflicts: gnunet (<< 0.8.0)
+Replaces: gnunet (<< 0.8.0)
 Description: secure, trust-based peer-to-peer framework (meta)
  GNUnet is a peer-to-peer framework which focuses on providing security. All
  link-to-link messages in the network are confidential and authenticated. The
