@@ -29,6 +29,13 @@ then
 	. /etc/default/gnunet-server
 fi
 
+# Check if /var/run/gnunetd exists (in case /var/run is on tmpfs)
+if ! [ -d /var/run/gnunetd ]
+then
+	mkdir -p /var/run/gnunetd
+	chown ${GNUNET_USER}:${GNUNET_GROUP} /var/run/gnunetd -R
+fi
+
 case "${1}" in
 	start)
 		# We should not need --background, but if not here, the
