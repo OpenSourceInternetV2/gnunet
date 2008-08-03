@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2003, 2004, 2005, 2006 Christian Grothoff (and other contributing authors)
+     (C) 2003, 2004, 2005, 2006, 2008 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -26,6 +26,7 @@
 
 #include "platform.h"
 #include "gnunet_util.h"
+#include <extractor.h>
 #include <zlib.h>
 
 #define EXTRA_CHECKS ALLOW_EXTRA_CHECKS
@@ -65,6 +66,9 @@ void
 GNUNET_meta_data_destroy (MetaData * md)
 {
   int i;
+
+  if (md == NULL)
+    return;
   for (i = 0; i < md->itemCount; i++)
     GNUNET_free (md->items[i].data);
   GNUNET_array_grow (md->items, md->itemCount, 0);
@@ -228,52 +232,6 @@ GNUNET_meta_data_get_first_by_types (const MetaData * md, ...)
   return ret;
 }
 
-
-/**
- * This function can be used to decode the binary data
- * stream produced by the thumbnailextractor.
- *
- * @param in 0-terminated string from the meta-data
- * @return 1 on error, 0 on success
- */
-static int
-decodeThumbnail (const char *in, unsigned char **out, size_t * outSize)
-{
-  unsigned char *buf;
-  size_t pos;
-  size_t wpos;
-  unsigned char marker;
-  size_t i;
-  size_t end;
-  size_t inSize;
-
-  inSize = strlen (in);
-  if (inSize == 0)
-    {
-      *out = NULL;
-      *outSize = 0;
-      return 1;
-    }
-
-  buf = malloc (inSize);        /* slightly more than needed ;-) */
-  *out = buf;
-
-  pos = 0;
-  wpos = 0;
-  while (pos < inSize)
-    {
-      end = pos + 255;          /* 255 here: count the marker! */
-      if (end > inSize)
-        end = inSize;
-      marker = in[pos++];
-      for (i = pos; i < end; i++)
-        buf[wpos++] = (in[i] == marker) ? 0 : in[i];
-      pos = end;
-    }
-  *outSize = wpos;
-  return 0;
-}
-
 /**
  * Get a thumbnail from the meta-data (if present).
  *
@@ -298,12 +256,11 @@ GNUNET_meta_data_get_thumbnail (const struct GNUNET_MetaData * md,
       return 0;                 /* invalid */
     }
   *thumb = NULL;
-  ret = decodeThumbnail (encoded, thumb, &size);
+  ret = EXTRACTOR_binaryDecode (encoded, thumb, &size);
   GNUNET_free (encoded);
-  if (ret == 0)
-    return size;
-  else
+  if (ret != 0)
     return 0;
+  return size;
 }
 
 /**
@@ -431,6 +388,10 @@ typedef struct
    * The version of the MD serialization.
    * The highest bit is used to indicate
    * compression.
+   *
+   * Version 0 is the current version;
+   * Version is 1 for a NULL pointer.
+   * Other version numbers are not yet defined.
    */
   unsigned int version;
 
@@ -478,7 +439,7 @@ GNUNET_meta_data_serialize (struct GNUNET_GE_Context *ectx,
 
   if (max < sizeof (MetaDataHeader))
     return GNUNET_SYSERR;       /* far too small */
-  ic = md->itemCount;
+  ic = md ? md->itemCount : 0;
   hdr = NULL;
   while (1)
     {
@@ -489,7 +450,7 @@ GNUNET_meta_data_serialize (struct GNUNET_GE_Context *ectx,
       while (size % 8 != 0)
         size++;
       hdr = GNUNET_malloc (size);
-      hdr->version = htonl (0);
+      hdr->version = htonl (md == NULL ? 1 : 0);
       hdr->entries = htonl (ic);
       for (i = 0; i < ic; i++)
         ((unsigned int *) &hdr[1])[i] =
@@ -563,7 +524,7 @@ GNUNET_meta_data_get_serialized_size (const MetaData * md, int part)
   int len;
   unsigned int ic;
 
-  ic = md->itemCount;
+  ic = md ? md->itemCount : 0;
   size = sizeof (MetaDataHeader);
   size += sizeof (unsigned int) * ic;
   for (i = 0; i < ic; i++)
@@ -571,12 +532,12 @@ GNUNET_meta_data_get_serialized_size (const MetaData * md, int part)
   while (size % 8 != 0)
     size++;
   hdr = GNUNET_malloc (size);
-  hdr->version = htonl (0);
-  hdr->entries = htonl (md->itemCount);
+  hdr->version = htonl (md == NULL ? 1 : 0);
+  hdr->entries = htonl (ic);
   for (i = 0; i < ic; i++)
     ((unsigned int *) &hdr[1])[i] = htonl ((unsigned int) md->items[i].type);
   pos = sizeof (MetaDataHeader);
-  pos += sizeof (unsigned int) * md->itemCount;
+  pos += sizeof (unsigned int) * ic;
   for (i = 0; i < ic; i++)
     {
       len = strlen (md->items[i].data) + 1;
@@ -593,9 +554,7 @@ GNUNET_meta_data_get_serialized_size (const MetaData * md, int part)
     }
   if (pos < size - sizeof (MetaDataHeader))
     size = pos + sizeof (MetaDataHeader);
-
   GNUNET_free (hdr);
-
   return size;
 }
 
@@ -618,12 +577,19 @@ GNUNET_meta_data_deserialize (struct GNUNET_GE_Context *ectx,
   int i;
   unsigned int pos;
   int len;
+  unsigned int version;
 
   if (size < sizeof (MetaDataHeader))
     return NULL;
   hdr = (const MetaDataHeader *) input;
-  if ((ntohl (MAKE_UNALIGNED (hdr->version)) & HEADER_VERSION_MASK) != 0)
-    return NULL;                /* unsupported version */
+  version = ntohl (MAKE_UNALIGNED (hdr->version)) & HEADER_VERSION_MASK;
+  if (version == 1)
+    return NULL; /* null pointer */
+  if (version != 0)
+    {
+      GNUNET_GE_BREAK_OP(NULL, 0); /* unsupported version */
+      return NULL; 
+    }
   ic = ntohl (MAKE_UNALIGNED (hdr->entries));
   compressed =
     (ntohl (MAKE_UNALIGNED (hdr->version)) & HEADER_COMPRESSED) != 0;

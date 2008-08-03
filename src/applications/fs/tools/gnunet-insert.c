@@ -45,6 +45,8 @@ static struct GNUNET_FSUI_UploadList *ul;
 
 static GNUNET_CronTime start_time;
 
+static GNUNET_CronTime expiration = 2 * GNUNET_CRON_YEARS;
+
 /* ************ config options ******** */
 
 static char *cfgFilename = GNUNET_DEFAULT_CLIENT_CONFIG_FILE;
@@ -104,7 +106,7 @@ postProcess (const struct GNUNET_ECRS_URI *uri)
                                       anonymity,
                                       priority,
                                       GNUNET_get_time () +
-                                      2 * GNUNET_CRON_YEARS, &nsid,
+                                      expiration, &nsid,
                                       this_id, next_id, uri, meta);
   if (nsuri != NULL)
     {
@@ -414,6 +416,14 @@ main (int argc, char *const *argv)
           errorCode = -1;
           goto quit;
         }
+      if (NULL == this_id)
+        {
+          fprintf (stderr,
+                   _("Option `%s' is required when using option `%s'.\n"),
+                   "-t", "-P");
+          errorCode = -1;
+          goto quit;
+        }
     }
   else
     {                           /* ordinary insertion checks */
@@ -451,16 +461,14 @@ main (int argc, char *const *argv)
                                            gloKeywords,
                                            anonymity,
                                            priority,
-                                           start_time + 2 * GNUNET_CRON_YEARS,
-                                           us, meta);
+                                           start_time + expiration, us, meta);
       if (topKeywords != NULL)
         GNUNET_ECRS_publish_under_keyword (ectx,
                                            cfg,
                                            topKeywords,
                                            anonymity,
                                            priority,
-                                           start_time + 2 * GNUNET_CRON_YEARS,
-                                           us, meta);
+                                           start_time + expiration, us, meta);
       GNUNET_ECRS_uri_destroy (us);
       goto quit;
     }
@@ -482,7 +490,7 @@ main (int argc, char *const *argv)
                                  priority,
                                  do_simulate ? GNUNET_SYSERR : (!do_insert),
                                  GNUNET_YES, !do_no_direct_references,
-                                 start_time + 2 * GNUNET_CRON_YEARS, meta,
+                                 start_time + expiration, meta,
                                  gloKeywords, topKeywords);
   GNUNET_free (tmp);
   if (ul != NULL)

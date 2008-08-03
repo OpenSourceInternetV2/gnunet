@@ -22,6 +22,12 @@
  * @file dht/tools/dht_api.c
  * @brief DHT-module's core API's implementation.
  * @author Tomi Tukiainen, Christian Grothoff, Nathan Evans
+ * 
+ * TODO:
+ * - track active requests
+ * - automatically re-issue all requests if connection with gnunetd
+ *   gets re-established
+ * - re-establish connections with gnunetd (just like fslib does)
  */
 
 #include "dht_api.h"
@@ -38,14 +44,23 @@ poll_thread (void *cls)
 
   while (info->aborted == GNUNET_NO)
     {
-      if (GNUNET_client_connection_test_connected (info->sock) == 0)
-        break;
       reply = NULL;
       if (GNUNET_OK != GNUNET_client_connection_read (info->sock, &reply))
-        break;
+        {
+          /* FIXME: we need to handle this better,
+             if we were not aborted, we need to try
+             to reconnect! -- this assertion failure
+             is more like a warning to the end-user/developer
+             that the code is not yet perfect... */
+          GNUNET_GE_BREAK (NULL, info->aborted != GNUNET_NO);
+          break;
+        }
       if ((sizeof (CS_dht_request_put_MESSAGE) > ntohs (reply->size)) ||
           (GNUNET_CS_PROTO_DHT_REQUEST_PUT != ntohs (reply->type)))
         {
+          fprintf (stderr,
+                   "Received message of type %u and size %u\n",
+                   ntohs (reply->type), ntohs (reply->size));
           GNUNET_GE_BREAK (NULL, 0);
           GNUNET_free (reply);
           break;                /*  invalid reply */
@@ -120,10 +135,7 @@ GNUNET_DHT_get_start (struct GNUNET_DHT_Context *ctx,
   req.type = htonl (type);
   req.key = *key;
   if (GNUNET_OK != GNUNET_client_connection_write (ctx->sock, &req.header))
-    {
-      return GNUNET_SYSERR;
-    }
-
+    return GNUNET_SYSERR;
   return GNUNET_OK;
 }
 
@@ -149,10 +161,7 @@ GNUNET_DHT_get_stop (struct GNUNET_DHT_Context *ctx,
   req.type = htonl (type);
   req.key = *key;
   if (GNUNET_OK != GNUNET_client_connection_write (ctx->sock, &req.header))
-    {
-      return GNUNET_SYSERR;
-    }
-
+    return GNUNET_SYSERR;
   return GNUNET_OK;
 
 }

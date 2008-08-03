@@ -1,7 +1,7 @@
 /********************************************************************************
 ** Form generated from reading ui file 'gnunet-setup.ui'
 **
-** Created: Sat Jun 14 18:48:57 2008
+** Created: Sat Jul 12 20:45:47 2008
 **      by: Qt User Interface Compiler version 4.4.0
 **
 ** WARNING! All changes made in this file will be lost when recompiling ui file!
@@ -53,20 +53,17 @@ public:
   QSpacerItem *spacerItem2;
   QLineEdit *editIP;
   QSpacerItem *spacerItem3;
-  QLabel *label_5;
-  QHBoxLayout *hboxLayout2;
-  QCheckBox *cbSNAT;
   QSpacerItem *spacerItem4;
   QWidget *page_3;
   QVBoxLayout *vboxLayout4;
   QGroupBox *groupBox_2;
   QVBoxLayout *vboxLayout5;
   QLabel *label_6;
-  QHBoxLayout *hboxLayout3;
+  QHBoxLayout *hboxLayout2;
   QLabel *label_7;
   QSpacerItem *spacerItem5;
   QLineEdit *editUp;
-  QHBoxLayout *hboxLayout4;
+  QHBoxLayout *hboxLayout3;
   QLabel *label_8;
   QSpacerItem *spacerItem6;
   QLineEdit *editDown;
@@ -75,7 +72,7 @@ public:
   QRadioButton *rbShared;
   QSpacerItem *spacerItem8;
   QLabel *label_9;
-  QHBoxLayout *hboxLayout5;
+  QHBoxLayout *hboxLayout4;
   QLabel *label_10;
   QSpacerItem *spacerItem9;
   QSpinBox *spinCPU;
@@ -85,11 +82,11 @@ public:
   QGroupBox *groupBox_3;
   QVBoxLayout *vboxLayout7;
   QLabel *label_11;
-  QHBoxLayout *hboxLayout6;
+  QHBoxLayout *hboxLayout5;
   QLabel *label_12;
   QSpacerItem *spacerItem11;
   QLineEdit *editUser;
-  QHBoxLayout *hboxLayout7;
+  QHBoxLayout *hboxLayout6;
   QLabel *label_13;
   QSpacerItem *spacerItem12;
   QLineEdit *editGroup;
@@ -102,7 +99,7 @@ public:
   QCheckBox *cbMigr;
   QSpacerItem *spacerItem14;
   QLabel *label_15;
-  QHBoxLayout *hboxLayout8;
+  QHBoxLayout *hboxLayout7;
   QLabel *label_16;
   QSpacerItem *spacerItem15;
   QSpinBox *spinQuota;
@@ -117,7 +114,7 @@ public:
   QLabel *label_18;
   QCheckBox *cbGNUpdate;
   QSpacerItem *spacerItem20;
-  QHBoxLayout *hboxLayout9;
+  QHBoxLayout *hboxLayout8;
   QSpacerItem *spacerItem21;
   QPushButton *pbPrev;
   QPushButton *pbNext;
@@ -260,27 +257,6 @@ public:
 
     vboxLayout3->addItem (spacerItem3);
 
-    label_5 = new QLabel (groupBox);
-    label_5->setObjectName (QString::fromUtf8 ("label_5"));
-    label_5->setWordWrap (true);
-
-    vboxLayout3->addWidget (label_5);
-
-    hboxLayout2 = new QHBoxLayout ();
-#ifndef Q_OS_MAC
-    hboxLayout2->setSpacing (6);
-#endif
-    hboxLayout2->setMargin (0);
-    hboxLayout2->setObjectName (QString::fromUtf8 ("hboxLayout2"));
-    cbSNAT = new QCheckBox (groupBox);
-    cbSNAT->setObjectName (QString::fromUtf8 ("cbSNAT"));
-    cbSNAT->setFont (font);
-
-    hboxLayout2->addWidget (cbSNAT);
-
-
-    vboxLayout3->addLayout (hboxLayout2);
-
     spacerItem4 =
       new QSpacerItem (20, 40, QSizePolicy::Minimum, QSizePolicy::Expanding);
 
@@ -316,57 +292,57 @@ public:
 
     vboxLayout5->addWidget (label_6);
 
+    hboxLayout2 = new QHBoxLayout ();
+#ifndef Q_OS_MAC
+    hboxLayout2->setSpacing (6);
+#endif
+    hboxLayout2->setMargin (0);
+    hboxLayout2->setObjectName (QString::fromUtf8 ("hboxLayout2"));
+    label_7 = new QLabel (groupBox_2);
+    label_7->setObjectName (QString::fromUtf8 ("label_7"));
+    label_7->setFont (font);
+
+    hboxLayout2->addWidget (label_7);
+
+    spacerItem5 =
+      new QSpacerItem (40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
+
+    hboxLayout2->addItem (spacerItem5);
+
+    editUp = new QLineEdit (groupBox_2);
+    editUp->setObjectName (QString::fromUtf8 ("editUp"));
+    editUp->setMinimumSize (QSize (420, 0));
+
+    hboxLayout2->addWidget (editUp);
+
+
+    vboxLayout5->addLayout (hboxLayout2);
+
     hboxLayout3 = new QHBoxLayout ();
 #ifndef Q_OS_MAC
     hboxLayout3->setSpacing (6);
 #endif
     hboxLayout3->setMargin (0);
     hboxLayout3->setObjectName (QString::fromUtf8 ("hboxLayout3"));
-    label_7 = new QLabel (groupBox_2);
-    label_7->setObjectName (QString::fromUtf8 ("label_7"));
-    label_7->setFont (font);
-
-    hboxLayout3->addWidget (label_7);
-
-    spacerItem5 =
-      new QSpacerItem (40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
-
-    hboxLayout3->addItem (spacerItem5);
-
-    editUp = new QLineEdit (groupBox_2);
-    editUp->setObjectName (QString::fromUtf8 ("editUp"));
-    editUp->setMinimumSize (QSize (420, 0));
-
-    hboxLayout3->addWidget (editUp);
-
-
-    vboxLayout5->addLayout (hboxLayout3);
-
-    hboxLayout4 = new QHBoxLayout ();
-#ifndef Q_OS_MAC
-    hboxLayout4->setSpacing (6);
-#endif
-    hboxLayout4->setMargin (0);
-    hboxLayout4->setObjectName (QString::fromUtf8 ("hboxLayout4"));
     label_8 = new QLabel (groupBox_2);
     label_8->setObjectName (QString::fromUtf8 ("label_8"));
     label_8->setFont (font);
 
-    hboxLayout4->addWidget (label_8);
+    hboxLayout3->addWidget (label_8);
 
     spacerItem6 =
       new QSpacerItem (50, 20, QSizePolicy::Maximum, QSizePolicy::Minimum);
 
-    hboxLayout4->addItem (spacerItem6);
+    hboxLayout3->addItem (spacerItem6);
 
     editDown = new QLineEdit (groupBox_2);
     editDown->setObjectName (QString::fromUtf8 ("editDown"));
     editDown->setMinimumSize (QSize (420, 0));
 
-    hboxLayout4->addWidget (editDown);
+    hboxLayout3->addWidget (editDown);
 
 
-    vboxLayout5->addLayout (hboxLayout4);
+    vboxLayout5->addLayout (hboxLayout3);
 
     spacerItem7 =
       new QSpacerItem (20, 20, QSizePolicy::Minimum, QSizePolicy::Fixed);
@@ -396,32 +372,32 @@ public:
 
     vboxLayout5->addWidget (label_9);
 
-    hboxLayout5 = new QHBoxLayout ();
+    hboxLayout4 = new QHBoxLayout ();
 #ifndef Q_OS_MAC
-    hboxLayout5->setSpacing (6);
+    hboxLayout4->setSpacing (6);
 #endif
-    hboxLayout5->setMargin (0);
-    hboxLayout5->setObjectName (QString::fromUtf8 ("hboxLayout5"));
+    hboxLayout4->setMargin (0);
+    hboxLayout4->setObjectName (QString::fromUtf8 ("hboxLayout4"));
     label_10 = new QLabel (groupBox_2);
     label_10->setObjectName (QString::fromUtf8 ("label_10"));
     label_10->setFont (font);
 
-    hboxLayout5->addWidget (label_10);
+    hboxLayout4->addWidget (label_10);
 
     spacerItem9 =
       new QSpacerItem (50, 20, QSizePolicy::Maximum, QSizePolicy::Minimum);
 
-    hboxLayout5->addItem (spacerItem9);
+    hboxLayout4->addItem (spacerItem9);
 
     spinCPU = new QSpinBox (groupBox_2);
     spinCPU->setObjectName (QString::fromUtf8 ("spinCPU"));
     spinCPU->setMinimumSize (QSize (420, 0));
     spinCPU->setMaximum (100);
 
-    hboxLayout5->addWidget (spinCPU);
+    hboxLayout4->addWidget (spinCPU);
 
 
-    vboxLayout5->addLayout (hboxLayout5);
+    vboxLayout5->addLayout (hboxLayout4);
 
     spacerItem10 =
       new QSpacerItem (20, 40, QSizePolicy::Minimum, QSizePolicy::Expanding);
@@ -458,57 +434,57 @@ public:
 
     vboxLayout7->addWidget (label_11);
 
+    hboxLayout5 = new QHBoxLayout ();
+#ifndef Q_OS_MAC
+    hboxLayout5->setSpacing (6);
+#endif
+    hboxLayout5->setMargin (0);
+    hboxLayout5->setObjectName (QString::fromUtf8 ("hboxLayout5"));
+    label_12 = new QLabel (groupBox_3);
+    label_12->setObjectName (QString::fromUtf8 ("label_12"));
+    label_12->setFont (font);
+
+    hboxLayout5->addWidget (label_12);
+
+    spacerItem11 =
+      new QSpacerItem (50, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
+
+    hboxLayout5->addItem (spacerItem11);
+
+    editUser = new QLineEdit (groupBox_3);
+    editUser->setObjectName (QString::fromUtf8 ("editUser"));
+    editUser->setMinimumSize (QSize (440, 0));
+
+    hboxLayout5->addWidget (editUser);
+
+
+    vboxLayout7->addLayout (hboxLayout5);
+
     hboxLayout6 = new QHBoxLayout ();
 #ifndef Q_OS_MAC
     hboxLayout6->setSpacing (6);
 #endif
     hboxLayout6->setMargin (0);
     hboxLayout6->setObjectName (QString::fromUtf8 ("hboxLayout6"));
-    label_12 = new QLabel (groupBox_3);
-    label_12->setObjectName (QString::fromUtf8 ("label_12"));
-    label_12->setFont (font);
-
-    hboxLayout6->addWidget (label_12);
-
-    spacerItem11 =
-      new QSpacerItem (50, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
-
-    hboxLayout6->addItem (spacerItem11);
-
-    editUser = new QLineEdit (groupBox_3);
-    editUser->setObjectName (QString::fromUtf8 ("editUser"));
-    editUser->setMinimumSize (QSize (440, 0));
-
-    hboxLayout6->addWidget (editUser);
-
-
-    vboxLayout7->addLayout (hboxLayout6);
-
-    hboxLayout7 = new QHBoxLayout ();
-#ifndef Q_OS_MAC
-    hboxLayout7->setSpacing (6);
-#endif
-    hboxLayout7->setMargin (0);
-    hboxLayout7->setObjectName (QString::fromUtf8 ("hboxLayout7"));
     label_13 = new QLabel (groupBox_3);
     label_13->setObjectName (QString::fromUtf8 ("label_13"));
     label_13->setFont (font);
 
-    hboxLayout7->addWidget (label_13);
+    hboxLayout6->addWidget (label_13);
 
     spacerItem12 =
       new QSpacerItem (50, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
 
-    hboxLayout7->addItem (spacerItem12);
+    hboxLayout6->addItem (spacerItem12);
 
     editGroup = new QLineEdit (groupBox_3);
     editGroup->setObjectName (QString::fromUtf8 ("editGroup"));
     editGroup->setMinimumSize (QSize (440, 0));
 
-    hboxLayout7->addWidget (editGroup);
+    hboxLayout6->addWidget (editGroup);
 
 
-    vboxLayout7->addLayout (hboxLayout7);
+    vboxLayout7->addLayout (hboxLayout6);
 
     spacerItem13 =
       new QSpacerItem (20, 40, QSizePolicy::Minimum, QSizePolicy::Expanding);
@@ -562,32 +538,32 @@ public:
 
     vboxLayout9->addWidget (label_15);
 
-    hboxLayout8 = new QHBoxLayout ();
+    hboxLayout7 = new QHBoxLayout ();
 #ifndef Q_OS_MAC
-    hboxLayout8->setSpacing (6);
+    hboxLayout7->setSpacing (6);
 #endif
-    hboxLayout8->setMargin (0);
-    hboxLayout8->setObjectName (QString::fromUtf8 ("hboxLayout8"));
+    hboxLayout7->setMargin (0);
+    hboxLayout7->setObjectName (QString::fromUtf8 ("hboxLayout7"));
     label_16 = new QLabel (groupBox_4);
     label_16->setObjectName (QString::fromUtf8 ("label_16"));
     label_16->setFont (font);
 
-    hboxLayout8->addWidget (label_16);
+    hboxLayout7->addWidget (label_16);
 
     spacerItem15 =
       new QSpacerItem (50, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
 
-    hboxLayout8->addItem (spacerItem15);
+    hboxLayout7->addItem (spacerItem15);
 
     spinQuota = new QSpinBox (groupBox_4);
     spinQuota->setObjectName (QString::fromUtf8 ("spinQuota"));
     spinQuota->setMinimumSize (QSize (370, 0));
     spinQuota->setMaximum (1000000);
 
-    hboxLayout8->addWidget (spinQuota);
+    hboxLayout7->addWidget (spinQuota);
 
 
-    vboxLayout9->addLayout (hboxLayout8);
+    vboxLayout9->addLayout (hboxLayout7);
 
     spacerItem16 =
       new QSpacerItem (20, 20, QSizePolicy::Minimum, QSizePolicy::Fixed);
@@ -610,6 +586,7 @@ public:
 
     cbAutoshare = new QCheckBox (groupBox_4);
     cbAutoshare->setObjectName (QString::fromUtf8 ("cbAutoshare"));
+    cbAutoshare->setEnabled (false);
     cbAutoshare->setFont (font1);
 
     vboxLayout9->addWidget (cbAutoshare);
@@ -662,16 +639,16 @@ public:
 
     vboxLayout->addWidget (stackedWidget);
 
-    hboxLayout9 = new QHBoxLayout ();
+    hboxLayout8 = new QHBoxLayout ();
 #ifndef Q_OS_MAC
-    hboxLayout9->setSpacing (6);
+    hboxLayout8->setSpacing (6);
 #endif
-    hboxLayout9->setMargin (0);
-    hboxLayout9->setObjectName (QString::fromUtf8 ("hboxLayout9"));
+    hboxLayout8->setMargin (0);
+    hboxLayout8->setObjectName (QString::fromUtf8 ("hboxLayout8"));
     spacerItem21 =
       new QSpacerItem (40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
 
-    hboxLayout9->addItem (spacerItem21);
+    hboxLayout8->addItem (spacerItem21);
 
     pbPrev = new QPushButton (SetupWizard);
     pbPrev->setObjectName (QString::fromUtf8 ("pbPrev"));
@@ -681,7 +658,7 @@ public:
     pbPrev->setIcon (icon1);
     pbPrev->setIconSize (QSize (22, 22));
 
-    hboxLayout9->addWidget (pbPrev);
+    hboxLayout8->addWidget (pbPrev);
 
     pbNext = new QPushButton (SetupWizard);
     pbNext->setObjectName (QString::fromUtf8 ("pbNext"));
@@ -690,7 +667,7 @@ public:
     pbNext->setIcon (icon2);
     pbNext->setIconSize (QSize (22, 22));
 
-    hboxLayout9->addWidget (pbNext);
+    hboxLayout8->addWidget (pbNext);
 
     pbClose = new QPushButton (SetupWizard);
     pbClose->setObjectName (QString::fromUtf8 ("pbClose"));
@@ -699,10 +676,10 @@ public:
     pbClose->setIcon (icon3);
     pbClose->setIconSize (QSize (22, 22));
 
-    hboxLayout9->addWidget (pbClose);
+    hboxLayout8->addWidget (pbClose);
 
 
-    vboxLayout->addLayout (hboxLayout9);
+    vboxLayout->addLayout (hboxLayout8);
 
 
     retranslateUi (SetupWizard);
@@ -742,16 +719,6 @@ public:
     label_4->
       setText (QApplication::
                translate ("SetupWizard", "IP-Address/Hostname:", 0,
-                          QApplication::UnicodeUTF8));
-    label_5->
-      setText (QApplication::
-               translate ("SetupWizard",
-                          "If you are connected to the internet through another computer doing SNAT, a router or a \"hardware firewall\" and other computers on the internet cannot connect to this computer, check the this option on this page. Leave it unchecked on direct connections through modems, ISDN cards and DNAT (also known as \"port forwarding\").",
-                          0, QApplication::UnicodeUTF8));
-    cbSNAT->
-      setText (QApplication::
-               translate ("SetupWizard",
-                          "Computer cannot receive inbound connections", 0,
                           QApplication::UnicodeUTF8));
     groupBox_2->
       setTitle (QApplication::

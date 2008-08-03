@@ -537,6 +537,9 @@
 /* Define to 1 if you have the <terminos.h> header file. */
 #undef HAVE_TERMINOS_H
 
+/* We can access-64 bit values that are only 32-bit aligned */
+#undef HAVE_UNALIGNED_64_ACCESS
+
 /* Define to 1 if you have the `uname' function. */
 #undef HAVE_UNAME
 

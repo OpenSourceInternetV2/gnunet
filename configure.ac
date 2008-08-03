@@ -21,8 +21,8 @@
 #
 #
 AC_PREREQ(2.61)
-AC_INIT([GNUnet], [0.8.0],[bug-gnunet@gnu.org])
-AM_INIT_AUTOMAKE([GNUnet], [0.8.0])
+AC_INIT([GNUnet], [0.8.0a],[bug-gnunet@gnu.org])
+AM_INIT_AUTOMAKE([GNUnet], [0.8.0a])
 AC_CONFIG_HEADERS([config.h])
 
 AH_TOP([#define _GNU_SOURCE  1])
@@ -164,7 +164,8 @@ netbsd*)
      AC_DEFINE_UNQUOTED(WINDOWS,1,[This is a Windows system])
      AC_DEFINE_UNQUOTED(_WIN32,1,[This is a Windows system])
      AC_CHECK_LIB(intl, gettext)
-     LDFLAGS="$LDFLAGS -no-undefined -Wl,--export-all-symbols -lws2_32 -lplibc"
+     LDFLAGS="$LDFLAGS -no-undefined -Wl,--export-all-symbols"
+     LIBS="$LIBS -lws2_32 -lplibc"
      CFLAGS="-mms-bitfields $CFLAGS"
      build_target="mingw"
      AC_PROG_CXX
@@ -191,6 +192,8 @@ AM_CONDITIONAL(OPENBSD, test "$build_target" = "openbsd")
 AM_CONDITIONAL(LINUX, test "$build_target" = "linux")
 AC_MSG_RESULT([$build_target])
 AC_SUBST(build_target)
+
+AC_UNALIGNED_64_ACCESS
 
 
 CHECK_PTHREAD

@@ -71,7 +71,13 @@ static struct GNUNET_GE_Context *ectx;
 
 static struct GNUNET_FSUI_Context *ctx;
 
-static char *cfgFilename = GNUNET_DEFAULT_CLIENT_CONFIG_FILE;
+static char *cfgFilename =
+#ifndef MINGW
+  GNUNET_DEFAULT_CLIENT_CONFIG_FILE
+#else
+  GNUNET_DEFAULT_CLIENT_SITE_CONFIG_FILE
+#endif
+  ;
 
 static struct GNUNET_ECRS_URI *gloKeywords;
 
@@ -105,6 +111,15 @@ printstatus (void *ctx, const GNUNET_FSUI_Event * event)
   switch (event->type)
     {
     case GNUNET_FSUI_upload_progress:
+      if ((*verboselevel > 2) && (event->data.UploadProgress.uc.pos != ul))
+        {
+          fprintf (myout,
+                   _("Upload of `%s' at %llu out of %llu bytes.\n"),
+                   event->data.UploadProgress.filename,
+                   event->data.UploadProgress.completed,
+                   event->data.UploadProgress.total);
+          fflush (myout);
+        }
       break;
     case GNUNET_FSUI_upload_completed:
       if (*verboselevel)
@@ -121,24 +136,54 @@ printstatus (void *ctx, const GNUNET_FSUI_Event * event)
         upload_done = GNUNET_YES;
       break;
     case GNUNET_FSUI_upload_aborted:
-      fprintf (myout, _("\nUpload aborted.\n"));
+      fprintf (myout, _("Upload aborted.\n"));
       fflush (myout);
       upload_done = GNUNET_YES;
       break;
     case GNUNET_FSUI_upload_error:
       fprintf (myout,
-               _("\nError uploading file: %s"),
+               _("Error uploading file: %s\n"),
                event->data.UploadError.message);
       fflush (myout);
       upload_done = GNUNET_YES;
       break;
     case GNUNET_FSUI_upload_started:
+      if ((*verboselevel > 1) && (ul == NULL))
+        {
+          fprintf (myout,
+                   _("Starting upload of `%s'.\n"),
+                   event->data.UploadStarted.filename);
+          fflush (myout);
+        }
+      break;
     case GNUNET_FSUI_upload_stopped:
+      break;
     case GNUNET_FSUI_upload_suspended:
+      if ((ul != NULL) && (event->data.UploadSuspended.uc.pos == ul))
+        {
+          fprintf (myout, _("Uploading suspended.\n"));
+          fflush (myout);
+          ul = NULL;
+        }
+      break;
     case GNUNET_FSUI_upload_resumed:
+      if (ul == NULL)
+        {
+          ul = event->data.UploadResumed.uc.pos;
+          if (GNUNET_FSUI_ACTIVE != event->data.UploadResumed.state)
+            {
+              upload_done = GNUNET_YES;
+            }
+          else
+            {
+              fprintf (myout, _("Uploading `%s' resumed.\n"),
+                       event->data.UploadResumed.filename);
+              fflush (myout);
+            }
+        }
       break;
     default:
-      fprintf (myout, _("\nUnexpected event: %d\n"), event->type);
+      fprintf (myout, _("Unexpected event: %d\n"), event->type);
       fflush (myout);
       GNUNET_GE_BREAK (ectx, 0);
       break;
@@ -154,6 +199,8 @@ static struct GNUNET_CommandLineOption gnunetauto_shareOptions[] = {
    gettext_noop ("set the desired LEVEL of sender-anonymity"),
    1, &GNUNET_getopt_configure_set_uint, &anonymity},
   GNUNET_COMMAND_LINE_OPTION_CFG_FILE (&cfgFilename),   /* -c */
+  {'@', "win-service", NULL, "", 0,
+   &GNUNET_getopt_configure_set_option, "GNUNET-AUTO-SHARE:WINSERVICE"},
   {'d', "debug", NULL,
    gettext_noop ("run in debug mode; gnunet-auto-share will "
                  "not daemonize and error messages will "
@@ -186,9 +233,12 @@ get_record_file_name (const char *dirname)
 
   GNUNET_hash (dirname, strlen (dirname), &hc);
   GNUNET_hash_to_enc (&hc, &enc);
-  return GNUNET_get_home_filename (ectx,
-                                   cfg,
+  return GNUNET_get_home_filename (ectx, cfg,
+#ifndef MINGW
                                    GNUNET_NO,
+#else
+                                   GNUNET_YES,
+#endif
                                    "auto-share-info",
                                    (const char *) &enc, NULL);
 }
@@ -650,13 +700,16 @@ auto_share_main ()
     GNUNET_terminal_detach_complete (ectx, filedes, GNUNET_YES);
   GNUNET_free (metafn);
   /* fundamental init */
-  ctx = GNUNET_FSUI_start (ectx, cfg, "gnunet-auto-share", GNUNET_NO, 32,
+  ctx = GNUNET_FSUI_start (ectx, cfg, "gnunet-auto-share", GNUNET_YES, 32,
                            &printstatus, &verbose);
 
   dirs_idx1 = dirs_idx2 = dirs;
   while (1)
     if ((*dirs_idx2 == ';') || (*dirs_idx2 == '\0'))
       {
+        int end;
+
+        end = *dirs_idx2 == '\0';
         *dirs_idx2 = 0;
 
         pos = GNUNET_malloc (sizeof (struct DirectoryRecord));
@@ -667,7 +720,7 @@ auto_share_main ()
         pos->next = head;
         head = pos;
 
-        if (*dirs_idx2 == 0)
+        if (end)
           break;
 
         dirs_idx1 = ++dirs_idx2;
@@ -681,11 +734,26 @@ auto_share_main ()
     {
       work_done = GNUNET_NO;
       GNUNET_thread_sleep (250 * GNUNET_CRON_MILLISECONDS);
-      pos = head;
-      while ((pos != NULL) && (GNUNET_NO == GNUNET_shutdown_test ()))
+      if (ul == NULL)
         {
-          GNUNET_disk_directory_scan (ectx, pos->dirname, &probe_directory,
-                                      pos);
+          pos = head;
+          while ((pos != NULL) && (GNUNET_NO == GNUNET_shutdown_test ()))
+            {
+              GNUNET_disk_directory_scan (ectx, pos->dirname,
+                                          &probe_directory, pos);
+              if (GNUNET_YES == upload_done)
+                {
+                  work_done = GNUNET_YES;
+                  GNUNET_FSUI_upload_abort (ul);
+                  GNUNET_FSUI_upload_stop (ul);
+                  upload_done = GNUNET_NO;
+                  ul = NULL;
+                }
+              pos = pos->next;
+            }
+        }
+      else
+        {
           if (GNUNET_YES == upload_done)
             {
               work_done = GNUNET_YES;
@@ -694,7 +762,6 @@ auto_share_main ()
               upload_done = GNUNET_NO;
               ul = NULL;
             }
-          pos = pos->next;
         }
       if ((ul == NULL) &&
           (work_done == GNUNET_NO) && (GNUNET_NO == GNUNET_shutdown_test ()))
@@ -741,7 +808,7 @@ quit:
 void
 auto_share_shutdown_initiate ()
 {
-  // FIXME
+  GNUNET_shutdown_initiate ();
 }
 
 /**
@@ -837,6 +904,16 @@ main (int argc, char *const *argv)
   int i;
   int errorCode;
   char *log_file_name;
+  char *dirs;
+  unsigned int dirs_len;
+  char *fullname;
+  struct stat stbuf;
+  const char *dirs_idx1;
+  char *dirs_idx2;
+  char *base;
+  int seen;
+  int added;
+  int do_break;
 
   errorCode = 0;
   myout = stdout;
@@ -852,16 +929,6 @@ main (int argc, char *const *argv)
 
   if (i < argc)
     {
-      char *dirs;
-      unsigned int dirs_len;
-      char *fullname;
-      struct stat stbuf;
-      const char *dirs_idx1;
-      char *dirs_idx2;
-      char *base;
-      int seen;
-      int added;
-
       GNUNET_GC_get_configuration_value_string (cfg, "GNUNET-AUTO-SHARE",
                                                 "DIRS", "", &dirs);
       dirs_len = strlen (dirs);
@@ -885,7 +952,8 @@ main (int argc, char *const *argv)
             {
               if ((*dirs_idx2 == ';') || (*dirs_idx2 == '\0'))
                 {
-                  *dirs_idx2 = 0;
+                  do_break = ('\0' == *dirs_idx2);
+                  *dirs_idx2 = '\0';
                   if (0 == strcmp (dirs_idx1, fullname))
                     {
                       seen = 1;
@@ -895,7 +963,7 @@ main (int argc, char *const *argv)
                                fullname);
                       break;
                     }
-                  if (*dirs_idx2 == 0)
+                  if (do_break)
                     break;
                   dirs_idx1 = ++dirs_idx2;
                 }
@@ -964,7 +1032,7 @@ main (int argc, char *const *argv)
                                                GNUNET_NO) == GNUNET_YES)
     {
       SERVICE_TABLE_ENTRY DispatchTable[] =
-        { {"gnunet-auto-share", ServiceMain}
+        { {"GNUnet Auto Share", ServiceMain}
       , {NULL, NULL}
       };
       errorCode = (GNStartServiceCtrlDispatcher (DispatchTable) != 0);

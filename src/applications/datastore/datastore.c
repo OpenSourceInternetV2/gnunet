@@ -1,6 +1,6 @@
 /*
      This file is part of GNUnet.
-     (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007 Christian Grothoff (and other contributing authors)
+     (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008 Christian Grothoff (and other contributing authors)
 
      GNUnet is free software; you can redistribute it and/or modify
      it under the terms of the GNU General Public License as published
@@ -39,6 +39,8 @@
 #include "prefetch.h"
 
 #define DEBUG_DATASTORE GNUNET_NO
+
+#define MAINTENANCE_FREQUENCY (10 * GNUNET_CRON_SECONDS)
 
 /**
  * SQ-store handle
@@ -110,7 +112,7 @@ static int
 get (const GNUNET_HashCode * query,
      unsigned int type, GNUNET_DatastoreValueIterator iter, void *closure)
 {
-  int ret;
+  int ret = 0;
 
   if (!testAvailable (query))
     {
@@ -127,7 +129,15 @@ get (const GNUNET_HashCode * query,
 #endif
       if (stats != NULL)
         stats->change (stat_filtered, 1);
-      return 0;
+
+#if 0
+      /* this is just an extra check to validate that 
+         the bloomfilter was corret; doing this check
+         is very costly -- do not do in production! */
+      ret = sq->get (query, NULL, type, iter, closure);
+      GNUNET_GE_BREAK (NULL, ret == 0);
+#endif
+      return ret;
     }
   ret = sq->get (query, NULL, type, iter, closure);
   if ((ret == 0) && (stats != NULL))
@@ -204,7 +214,7 @@ typedef struct
   int exists;
   const GNUNET_DatastoreValue *value;
   unsigned long long uid;
-  unsigned long long expiration;
+  GNUNET_CronTime expiration;
 } CE;
 
 static int
@@ -307,6 +317,8 @@ putUpdate (const GNUNET_HashCode * key, const GNUNET_DatastoreValue * value)
 /**
  * @return *closure if we are below quota,
  *         GNUNET_SYSERR if we have deleted all of the expired content
+ *                       (or if we should briefly stop doing this to give
+ *                        other work a chance to progress)
  *         GNUNET_OK if we deleted expired content and are above quota
  */
 static int
@@ -314,9 +326,12 @@ freeSpaceExpired (const GNUNET_HashCode * key,
                   const GNUNET_DatastoreValue * value, void *closure,
                   unsigned long long uid)
 {
-  if ((available > 0) && (available >= MIN_GNUNET_free))
-    return GNUNET_SYSERR;
-  if (GNUNET_get_time () < GNUNET_ntohll (value->expiration_time))
+  GNUNET_CronTime * start = closure;
+  GNUNET_CronTime now;
+
+  now = GNUNET_get_time();
+  if ( (now - *start > MAINTENANCE_FREQUENCY / 2) ||
+       (GNUNET_get_time () < GNUNET_ntohll (value->expiration_time)) )
     return GNUNET_SYSERR;       /* not expired */
   available += ntohl (value->size);
   minPriority = 0;
@@ -345,15 +360,13 @@ freeSpaceLow (const GNUNET_HashCode * key,
 static void
 cronMaintenance (void *unused)
 {
+  GNUNET_CronTime now = GNUNET_get_time();
+
   available = quota - sq->getSize ();
+  sq->iterateExpirationTime (GNUNET_ECRS_BLOCKTYPE_ANY,
+                             &freeSpaceExpired, &now);
   if ((available < 0) || (available < MIN_GNUNET_free))
-    {
-      sq->iterateExpirationTime (GNUNET_ECRS_BLOCKTYPE_ANY,
-                                 &freeSpaceExpired, NULL);
-      if ((available < 0) || (available < MIN_GNUNET_free))
-        sq->iterateLowPriority (GNUNET_ECRS_BLOCKTYPE_ANY,
-                                &freeSpaceLow, NULL);
-    }
+    sq->iterateLowPriority (GNUNET_ECRS_BLOCKTYPE_ANY, &freeSpaceLow, NULL);
 }
 
 /**
@@ -389,9 +402,9 @@ provide_module_datastore (GNUNET_CoreAPIForPlugins * capi)
       stat_filter_failed =
         stats->create (gettext_noop ("# bloom filter false positives"));
 
-      stats->
-        set (stats->create (gettext_noop ("# bytes allowed in datastore")),
-             quota);
+      stats->set (stats->
+                  create (gettext_noop ("# bytes allowed in datastore")),
+                  quota);
     }
   state = capi->service_request ("state");
   if (state != NULL)
@@ -450,8 +463,9 @@ provide_module_datastore (GNUNET_CoreAPIForPlugins * capi)
   available = quota - sq->getSize ();
   cron = GNUNET_cron_create (capi->ectx);
   GNUNET_cron_add_job (cron,
-                       &cronMaintenance, 10 * GNUNET_CRON_SECONDS,
-                       10 * GNUNET_CRON_SECONDS, NULL);
+                       &cronMaintenance, 
+		       MAINTENANCE_FREQUENCY,
+                       MAINTENANCE_FREQUENCY, NULL);
   GNUNET_cron_start (cron);
   api.getSize = &getSize;
   api.fast_get = &testAvailable;
@@ -470,7 +484,8 @@ void
 release_module_datastore ()
 {
   GNUNET_cron_stop (cron);
-  GNUNET_cron_del_job (cron, &cronMaintenance, 10 * GNUNET_CRON_SECONDS,
+  GNUNET_cron_del_job (cron, &cronMaintenance, 
+		       MAINTENANCE_FREQUENCY,
                        NULL);
   GNUNET_cron_destroy (cron);
   cron = NULL;
@@ -487,6 +502,13 @@ release_module_datastore ()
   coreAPI = NULL;
 }
 
+struct FAAProgressInfo
+{
+  unsigned long long pos;
+  unsigned long long total;
+  GNUNET_CronTime start;
+};
+
 /**
  * Callback that adds all element of the SQStore to the
  * bloomfilter.
@@ -496,7 +518,20 @@ filterAddAll (const GNUNET_HashCode * key,
               const GNUNET_DatastoreValue * value, void *closure,
               unsigned long long uid)
 {
+  struct FAAProgressInfo *pi = closure;
+  unsigned int pct_old;
+  unsigned int pct;
+
   makeAvailable (key);
+  pct_old = (100 * pi->pos) / pi->total;
+  pi->pos += ntohl (value->size);
+  pct = (100 * pi->pos) / pi->total;
+  if (pct != pct_old)
+    {
+      fprintf (stdout,
+               _("Datastore conversion at approximately %u%%\n"), pct);
+    }
+
   return GNUNET_OK;
 }
 
@@ -512,6 +547,7 @@ update_module_datastore (GNUNET_UpdateAPI * uapi)
   unsigned long long lastQuota;
   unsigned long long *lq;
   GNUNET_State_ServiceAPI *state;
+  struct FAAProgressInfo pi;
 
   if (-1 == GNUNET_GC_get_configuration_value_number (uapi->cfg,
                                                       "FS",
@@ -533,15 +569,22 @@ update_module_datastore (GNUNET_UpdateAPI * uapi)
       GNUNET_free (lq);
       return;                   /* no change */
     }
-  GNUNET_free_non_null (lq);
   /* ok, need to convert! */
   deleteFilter (uapi->ectx, uapi->cfg);
   initFilters (uapi->ectx, uapi->cfg);
   sq = uapi->service_request ("sqstore");
   if (sq != NULL)
     {
-      sq->iterateAllNow (&filterAddAll, NULL);
+      fprintf (stdout,
+               _("Starting datastore conversion (this may take a while).\n"));
+      pi.start = GNUNET_get_time ();
+      pi.pos = 0;
+      pi.total = (lq != NULL) ? GNUNET_ntohll (*lq) : 0;
+      if (pi.total == 0)
+        pi.total = 1;
+      sq->iterateAllNow (&filterAddAll, &pi);
       uapi->service_release (sq);
+      fprintf (stdout, _("Completed datastore conversion.\n"));
     }
   else
     {
@@ -551,6 +594,7 @@ update_module_datastore (GNUNET_UpdateAPI * uapi)
                      _
                      ("Failed to load sqstore service.  Check your configuration!\n"));
     }
+  GNUNET_free_non_null (lq);
   sq = NULL;
   doneFilters ();
   if (state != NULL)

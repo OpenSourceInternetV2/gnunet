@@ -153,7 +153,7 @@ GNUNET_pid_file_kill_owner (struct GNUNET_GE_Context *ectx,
     }
   fclose (pidfd);
   errno = 0;
-  if ((0 != KILL (pid, SIGTERM)) && (errno != ESRCH))
+  if ((0 != PLIBC_KILL (pid, SIGTERM)) && (errno != ESRCH))
     {
       GNUNET_GE_LOG_STRERROR (ectx,
                               GNUNET_GE_ERROR | GNUNET_GE_ADMIN |
@@ -176,7 +176,7 @@ GNUNET_pid_file_kill_owner (struct GNUNET_GE_Context *ectx,
           GNUNET_free (pif);
           return GNUNET_OK;
         }
-      if (0 != KILL (pid, SIGKILL))
+      if (0 != PLIBC_KILL (pid, SIGKILL))
         {
           GNUNET_GE_LOG_STRERROR (ectx,
                                   GNUNET_GE_ERROR | GNUNET_GE_ADMIN |
@@ -225,7 +225,7 @@ GNUNET_pid_file_delete (struct GNUNET_GE_Context *ectx,
 
 /**
  * Fork and start a new session to go into the background
- * in the way a good deamon should.
+ * in the way a good daemon should.
  *
  * @param filedes pointer to an array of 2 file descriptors
  *        to complete the detachment protocol (handshake)

@@ -96,8 +96,8 @@ public:
                             static_cast < QSizePolicy::Policy > (0));
       sizePolicy.setHorizontalStretch (0);
       sizePolicy.setVerticalStretch (0);
-      sizePolicy.setHeightForWidth (textBrowser->
-                                    sizePolicy ().hasHeightForWidth ());
+      sizePolicy.setHeightForWidth (textBrowser->sizePolicy ().
+                                    hasHeightForWidth ());
       textBrowser->setSizePolicy (sizePolicy);
       textBrowser->setMaximumSize (QSize (16777215, 150));
       splitter->addWidget (textBrowser);

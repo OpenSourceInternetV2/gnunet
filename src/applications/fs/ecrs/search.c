@@ -229,7 +229,7 @@ process_sblock_result (const GNUNET_EC_SBlock * sb,
   static GNUNET_HashCode allZeros;
   struct GNUNET_GE_Context *ectx = sqc->ectx;
   GNUNET_ECRS_FileInfo fi;
-  struct GNUNET_ECRS_URI updateURI;
+  URI updateURI;
   int ret;
   const char *id;
   const char *uris;
@@ -253,6 +253,15 @@ process_sblock_result (const GNUNET_EC_SBlock * sb,
     }
   isRoot = 0 == memcmp (&sb->identifier, &allZeros, sizeof (GNUNET_HashCode));
   fi.uri = GNUNET_ECRS_string_to_uri (ectx, uris);
+  if ((isRoot) && (fi.uri == NULL))
+    {
+      fi.uri = GNUNET_malloc (sizeof (URI));
+      fi.uri->type = sks;
+      GNUNET_hash (&sb->subspace,
+                   sizeof (GNUNET_RSA_PublicKey),
+                   &fi.uri->data.sks.namespace);
+      fi.uri->data.sks.identifier = GNUNET_strdup (id);
+    }
   if (fi.uri == NULL)
     {
       GNUNET_GE_BREAK_OP (ectx, 0);     /* sblock malformed */
@@ -267,7 +276,7 @@ process_sblock_result (const GNUNET_EC_SBlock * sb,
     }
   else
     ret = GNUNET_OK;
-  if (strlen (id) > 0)
+  if ((strlen (id) > 0) && (strlen (uris) > 0))
     {
       updateURI.type = sks;
       GNUNET_hash (&sb->subspace,
@@ -278,6 +287,7 @@ process_sblock_result (const GNUNET_EC_SBlock * sb,
       GNUNET_free (updateURI.data.sks.identifier);
     }
   GNUNET_meta_data_destroy (fi.meta);
+  GNUNET_ECRS_uri_destroy (fi.uri);
   return ret;
 }
 
@@ -301,7 +311,11 @@ receive_response_callback (const GNUNET_HashCode * key,
   unsigned int size;
   int ret;
   GNUNET_HashCode query;
+  GNUNET_CronTime expiration;
 
+  expiration = GNUNET_ntohll (value->expiration_time);
+  if (expiration < GNUNET_get_time ())
+    return GNUNET_OK;           /* expired, ignore! */
   type = ntohl (value->type);
   size = ntohl (value->size) - sizeof (GNUNET_DatastoreValue);
 #if DEBUG_SEARCH

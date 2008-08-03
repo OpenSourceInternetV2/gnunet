@@ -154,19 +154,19 @@ write_namespace_key (struct GNUNET_GC_Configuration *cfg,
  * as well as KNBlocks under all keywords specified in
  * the advertisementURI.
  *
- * @param name the name for the namespace
  * @param anonymity_level for the namespace advertismement
  * @param priority for the namespace advertisement
  * @param expiration for the namespace advertisement
  * @param advertisementURI the keyword (!) URI to advertise the
  *        namespace under (GNUNET_EC_KNBlock)
  * @param meta meta-data for the namespace advertisement
+ *        (will be used to derive a name)
  * @param rootEntry name of the root entry in the namespace (for
  *        the namespace advertisement)
  * @param rootURI set to the URI of the namespace, NULL if
  *        no advertisement was created
  *
- * @return GNUNET_OK on success, GNUNET_SYSERR on error (namespace already exists)
+ * @return URI on success, NULL on error 
  */
 struct GNUNET_ECRS_URI *
 GNUNET_ECRS_namespace_create (struct GNUNET_GE_Context *ectx,
@@ -309,8 +309,8 @@ GNUNET_ECRS_namespace_create (struct GNUNET_GE_Context *ectx,
                                                           sizeof (unsigned
                                                                   int),
                                                           &ksb->sblock,
-                                                          &ksb->
-                                                          kblock.signature));
+                                                          &ksb->kblock.
+                                                          signature));
           /* extra check: verify sig */
           GNUNET_RSA_free_key (pk);
           if (GNUNET_OK != GNUNET_FS_insert (sock, knvalue))
@@ -388,11 +388,13 @@ read_namespace_key (struct GNUNET_GC_Configuration *cfg,
 /**
  * Add an entry into a namespace.
  *
- * @param name in which namespace to publish, use just the
- *        nickname of the namespace
- * @param dst to which URI should the namespace entry refer?
+ * @param dstU to which URI should the namespace entry refer?
  * @param md what meta-data should be associated with the
  *        entry?
+ * @param thisId name of this entry in the namespace (keyword/identifier)
+ * @param nextId name of the update for this entry (to be published in
+ *               the future; maybe NULL)
+ * @param pid unique identifier of the namespace/pseudonym
  * @return URI on success, NULL on error
  */
 struct GNUNET_ECRS_URI *

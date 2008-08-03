@@ -307,6 +307,8 @@ readDownloadList (struct GNUNET_GE_Context *ectx,
       GNUNET_free (ret);
       return NULL;
     }
+  ret->lastProgressTime = GNUNET_get_time();
+  ret->progressBits = 1;
   fixState (&ret->state);
   ret->filename = GNUNET_malloc (big + 1);
   ret->filename[big] = '\0';
@@ -868,7 +870,6 @@ readUploads (ReadBuffer * rb, struct GNUNET_FSUI_Context *ctx)
 #endif
           break;
         }
-
     }
   return GNUNET_SYSERR;
 }

@@ -158,6 +158,8 @@ GNUNET_ECRS_keyword_command_line_to_uri (struct GNUNET_GE_Context *ectx,
   const char *r;
   char *w;
 
+  if (num_keywords == 0)
+    return NULL;
   uri = GNUNET_malloc (sizeof (URI));
   uri->type = ksk;
   uri->data.ksk.keywordCount = num_keywords;
@@ -184,6 +186,7 @@ GNUNET_ECRS_keyword_command_line_to_uri (struct GNUNET_GE_Context *ectx,
           else
             *(w++) = *(r++);
         }
+      *w = '\0';
       uri->data.ksk.keywords[i] = GNUNET_strdup (val);
       GNUNET_free (val);
     }
