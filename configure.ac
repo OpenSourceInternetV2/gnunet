@@ -21,13 +21,14 @@
 #
 #
 AC_PREREQ(2.61)
-AC_INIT([GNUnet], [0.8.0a],[bug-gnunet@gnu.org])
-AM_INIT_AUTOMAKE([GNUnet], [0.8.0a])
+AC_INIT([GNUnet], [0.8.0b],[bug-gnunet@gnu.org])
+AM_INIT_AUTOMAKE([GNUnet], [0.8.0b])
 AC_CONFIG_HEADERS([config.h])
 
 AH_TOP([#define _GNU_SOURCE  1])
 
 # Checks for programs.
+AC_CANONICAL_HOST
 AC_PROG_AWK
 AC_PROG_CC
 AC_PROG_CPP
@@ -40,7 +41,6 @@ AC_DISABLE_STATIC
 AC_LIBTOOL_WIN32_DLL
 AC_LIBLTDL_INSTALLABLE
 AC_PROG_LIBTOOL
-AC_CANONICAL_HOST
 AC_LIB_LTDL
 m4_ifdef([_AC_SEEN_TAG(libltdl)], [], [AC_CONFIG_SUBDIRS(libltdl)])
 AC_SUBST(LTDLINCL)

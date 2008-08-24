@@ -9,10 +9,12 @@ plugin_LTLIBRARIES = \
 libgnunetsetup_qt_la_SOURCES = \
 				gstring.cc gstring.h \
         qtconfig.cc \
-        setupWizard.cc setupWizard.h \
-        moc_setupWizard.cpp \
-        resources.cpp \
-        ui_enhanced.h ui_gnunet-setup.h
+        setupWizard.cc setupWizard.h
+
+nodist_libgnunetsetup_qt_la_SOURCES = \
+  moc_setupWizard.cpp \
+  resources.cpp \
+  ui_gnunet-setup.h
 
 libgnunetsetup_qt_la_LDFLAGS = \
  $(QTLIBS) @EXT_LIB_PATH@ @EXT_LIBS@ \

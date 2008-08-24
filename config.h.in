@@ -25,8 +25,14 @@
 /* Define to 1 if you have the <adns.h> header file. */
 #undef HAVE_ADNS_H
 
+/* Define to 1 if you have the `argz_add' function. */
+#undef HAVE_ARGZ_ADD
+
 /* Define to 1 if you have the `argz_append' function. */
 #undef HAVE_ARGZ_APPEND
+
+/* Define to 1 if you have the `argz_count' function. */
+#undef HAVE_ARGZ_COUNT
 
 /* Define to 1 if you have the `argz_create_sep' function. */
 #undef HAVE_ARGZ_CREATE_SEP
@@ -46,14 +52,8 @@
 /* Define to 1 if you have the <arpa/inet.h> header file. */
 #undef HAVE_ARPA_INET_H
 
-/* Define to 1 if you have the <assert.h> header file. */
-#undef HAVE_ASSERT_H
-
 /* Define to 1 if you have the `atoll' function. */
 #undef HAVE_ATOLL
-
-/* Define to 1 if you have the `bcopy' function. */
-#undef HAVE_BCOPY
 
 /* We have cdialog */
 #undef HAVE_CDIALOG
@@ -69,9 +69,6 @@
 
 /* Define to 1 if you have the `closedir' function. */
 #undef HAVE_CLOSEDIR
-
-/* Define to 1 if you have the <ctype.h> header file. */
-#undef HAVE_CTYPE_H
 
 /* Define if the GNU dcgettext() function is already present or preinstalled.
    */
@@ -204,9 +201,6 @@
 /* Define to 1 if you have the <ifaddrs.h> header file. */
 #undef HAVE_IFADDRS_H
 
-/* Define to 1 if you have the `index' function. */
-#undef HAVE_INDEX
-
 /* Define to 1 if you have the `inet_ntoa' function. */
 #undef HAVE_INET_NTOA
 
@@ -233,6 +227,9 @@
 
 /* Define if you have the libdl library or equivalent. */
 #undef HAVE_LIBDL
+
+/* Define if libdlloader will be built on this platform */
+#undef HAVE_LIBDLLOADER
 
 /* Define to 1 if you have the <libesmtp.h> header file. */
 #undef HAVE_LIBESMTP_H
@@ -282,20 +279,17 @@
 /* Define to 1 if you have the `localtime_r' function. */
 #undef HAVE_LOCALTIME_R
 
+/* Define this if a modern libltdl is already installed */
+#undef HAVE_LTDL
+
 /* Define to 1 if you have the <mach/mach.h> header file. */
 #undef HAVE_MACH_MACH_H
 
 /* Define to 1 if you have the <mach-o/dyld.h> header file. */
 #undef HAVE_MACH_O_DYLD_H
 
-/* Define to 1 if you have the <malloc.h> header file. */
-#undef HAVE_MALLOC_H
-
 /* Define to 1 if you have the <math.h> header file. */
 #undef HAVE_MATH_H
-
-/* Define to 1 if you have the `memcpy' function. */
-#undef HAVE_MEMCPY
 
 /* Define to 1 if you have the `memmove' function. */
 #undef HAVE_MEMMOVE
@@ -378,9 +372,6 @@
 /* Define to 1 if you have the `realpath' function. */
 #undef HAVE_REALPATH
 
-/* Define to 1 if you have the `rindex' function. */
-#undef HAVE_RINDEX
-
 /* Define to 1 if you have the `rmdir' function. */
 #undef HAVE_RMDIR
 
@@ -438,9 +429,6 @@
 
 /* Define to 1 if you have the `strchr' function. */
 #undef HAVE_STRCHR
-
-/* Define to 1 if you have the `strcmp' function. */
-#undef HAVE_STRCMP
 
 /* Define to 1 if you have the `strdup' function. */
 #undef HAVE_STRDUP
@@ -555,6 +543,9 @@
 /* Define to 1 if you have the `vprintf' function. */
 #undef HAVE_VPRINTF
 
+/* This value is set to 1 to indicate that the system argz facility works */
+#undef HAVE_WORKING_ARGZ
+
 /* Define to 1 if `fork' works. */
 #undef HAVE_WORKING_FORK
 
@@ -628,19 +619,22 @@
 /* Define if the OS needs help to load dependent libraries for dlopen(). */
 #undef LTDL_DLOPEN_DEPLIBS
 
-/* Define to the sub-directory in which libtool stores uninstalled libraries.
-   */
-#undef LTDL_OBJDIR
-
-/* Define to the name of the environment variable that determines the dynamic
-   library search path. */
-#undef LTDL_SHLIBPATH_VAR
-
-/* Define to the extension used for shared libraries, say, ".so". */
-#undef LTDL_SHLIB_EXT
+/* Define if dlopen(NULL) is able to resolve symbols from the main program. */
+#undef LTDL_DLOPEN_SELF_WORKS
 
 /* Define to the system default library search path. */
-#undef LTDL_SYSSEARCHPATH
+#undef LT_DLSEARCH_PATH
+
+/* Define to the extension used for runtime loadable modules, say, ".so". */
+#undef LT_MODULE_EXT
+
+/* Define to the name of the environment variable that determines the run-time
+   module search path. */
+#undef LT_MODULE_PATH_VAR
+
+/* Define to the sub-directory in which libtool stores uninstalled libraries.
+   */
+#undef LT_OBJDIR
 
 /* This is a MinGW system */
 #undef MINGW
@@ -731,6 +725,9 @@
 
 /* This is a Windows system */
 #undef _WIN32
+
+/* Define so that glibc/gnulib argp.h does not typedef error_t. */
+#undef __error_t_defined
 
 /* Define to empty if `const' does not conform to ANSI C. */
 #undef const
