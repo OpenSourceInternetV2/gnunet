@@ -26,7 +26,7 @@ Description: secure, trust-based peer-to-peer framework (meta)
 Package: gnunet-client
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, gnunet-common (= ${binary:Version}), gettext
-Suggests: libextractor-plugins
+Suggests: gnunet-server, libextractor-plugins
 Description: secure, trust-based peer-to-peer framework (client)
  GNUnet is a peer-to-peer framework which focuses on providing security. All
  link-to-link messages in the network are confidential and authenticated. The
