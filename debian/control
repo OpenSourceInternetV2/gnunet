@@ -34,7 +34,8 @@ Description: secure, trust-based peer-to-peer framework (client)
  the peer-to-peer traffic in UDP, TCP, or SMTP messages.
  .
  This package contains the command line client applications, such as
- gnunet-search and gnunet-download.
+ gnunet-search and gnunet-download. In order use GNUnet, you also need
+ gnunet-server either on your server or on your local machine.
 
 Package: gnunet-common
 Architecture: any
