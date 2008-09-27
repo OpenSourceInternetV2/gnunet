@@ -43,6 +43,7 @@ EOF
 		gnunet_group="${RET}"
 		db_get gnunet-server/launch_at_startup
 		launch_at_startup="${RET}"
+		db_stop
 
 		# Creating gnunet group if needed
 		if ! getent group ${gnunet_group} > /dev/null
