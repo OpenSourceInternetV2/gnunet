@@ -13,6 +13,7 @@ clean:
 	dh_testdir
 	dh_testroot
 	rm -f build-stamp
+	rm -f config.guess config.sub
 
 	[ ! -f Makefile ] || $(MAKE) distclean
 	debconf-updatepo
