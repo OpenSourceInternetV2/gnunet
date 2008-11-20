@@ -1,3 +1,15 @@
+gnunet (0.8.0b-4) unstable; urgency=low
+
+  * Removing config.guess and config.sub in clean target of rules.
+  * Adding db_stop call in gnunet-server.postinst to properly stop
+    debconf interactions.
+  * Replacing obsolete dh_clean -k with dh_prep.
+  * Adding '|| true' to gnunet-update call, this way a hanging gnunet-
+    update can be aborted in a (almost) sane way. Also see
+    https://gnunet.org/mantis/view.php?id=1349 (Closes: #506264).
+
+ -- Daniel Baumann <daniel@debian.org>  Thu, 20 Nov 2008 07:16:00 +0100
+
 gnunet (0.8.0b-3) unstable; urgency=low
 
   * Adding libmicrohttpd-dev to gnunet-dev depends.
