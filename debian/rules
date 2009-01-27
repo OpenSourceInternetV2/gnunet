@@ -48,6 +48,11 @@ install: build
 
 	$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp
 
+	set -e; for FILE in debian/tmp/usr/lib/*.la debian/tmp/usr/lib/GNUnet/*.la; \
+	do \
+		sed -i "/dependency_libs/ s/'.*'/''/" $$FILE; \
+	done
+
 	install -D -m 0644 debian/config/gnunetd.conf debian/gnunet-server/etc/gnunetd.conf
 	mv debian/tmp/usr/bin/remotetest debian/tmp/usr/bin/gnunet-remotetest
 
