@@ -2,10 +2,22 @@
 
 set -e
 
+. /usr/share/debconf/confmodule
+
 case "${1}" in
 	configure)
-		# Source debconf library.
-		. /usr/share/debconf/confmodule
+		db_version 2.0
+
+		db_get gnunet-server/gnunet_user
+		gnunet_user="${RET}"
+
+		db_get gnunet-server/gnunet_group
+		gnunet_group="${RET}"
+
+		db_get gnunet-server/launch_at_startup
+		launch_at_startup="${RET}"
+
+		db_stop
 
 		# Read default values
 		CONFIG_FILE="/etc/default/gnunet-server"
@@ -35,15 +47,6 @@ EOF
 
 			echo "done."
 		fi
-
-		# Read debconf values
-		db_get gnunet-server/gnunet_user
-		gnunet_user="${RET}"
-		db_get gnunet-server/gnunet_group
-		gnunet_group="${RET}"
-		db_get gnunet-server/launch_at_startup
-		launch_at_startup="${RET}"
-		db_stop
 
 		# Creating gnunet group if needed
 		if ! getent group ${gnunet_group} > /dev/null
