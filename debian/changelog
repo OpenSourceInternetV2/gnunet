@@ -1,3 +1,14 @@
+gnunet (0.8.0b-5) unstable; urgency=low
+
+  * Making use of code from cdbs' clean-la.mk file to clear the
+    dependency_libs field in all .la files in the gnunet-dev static
+    libraries.
+  * Removing Arnaud from uploaders, he is MIA (Closes: #513162).
+  * Updating year in copyright file.
+  * Updating debconf operations.
+
+ -- Daniel Baumann <daniel@debian.org>  Thu,  5 Feb 2009 00:08:00 +0100
+
 gnunet (0.8.0b-4) unstable; urgency=low
 
   * Removing config.guess and config.sub in clean target of rules.
