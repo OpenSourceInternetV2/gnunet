@@ -2,7 +2,6 @@ Source: gnunet
 Section: net
 Priority: optional
 Maintainer: Daniel Baumann <daniel@debian.org>
-Uploaders: Arnaud Kyheng <Arnaud.Kyheng@free.fr>
 Build-Depends: debhelper (>= 7), autotools-dev, dialog (>= 1.1-20071028-3), gettext, guile-1.8-dev, libadns1-dev, libcurl4-gnutls-dev, libesmtp-dev, libextractor-dev (>= 0.5.20), libgcrypt11-dev, libglade2-dev, libgmp3-dev, libgtk2.0-dev, libmicrohttpd-dev (>= 0.3.1), libltdl3-dev, libmysqlclient15-dev, libncursesw5-dev, libsqlite3-dev, libssl-dev, libxml2-dev, po-debconf, zlib1g-dev
 Standards-Version: 3.8.0
 Homepage: http://www.gnunet.org/
