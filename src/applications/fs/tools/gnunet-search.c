@@ -51,7 +51,7 @@ static int
 itemPrinter (EXTRACTOR_KeywordType type, const char *data, void *closure)
 {
   printf ("\t%20s: %s\n",
-          dgettext ("libextractor",
+          dgettext (LIBEXTRACTOR_GETTEXT_DOMAIN,
                     EXTRACTOR_getKeywordTypeAsString (type)), data);
   return GNUNET_OK;
 }
@@ -103,6 +103,7 @@ eventCallback (void *cls, const GNUNET_FSUI_Event * event)
         printf ("gnunet-download %s\n", uri);
       printMeta (event->data.SearchResult.fi.meta);
       printf ("\n");
+      fflush(stdout);
       GNUNET_free_non_null (filename);
       GNUNET_free (uri);
       break;

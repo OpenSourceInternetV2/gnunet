@@ -21,8 +21,8 @@
 #
 #
 AC_PREREQ(2.61)
-AC_INIT([GNUnet], [0.8.0b],[bug-gnunet@gnu.org])
-AM_INIT_AUTOMAKE([GNUnet], [0.8.0b])
+AC_INIT([GNUnet], [0.8.0c],[bug-gnunet@gnu.org])
+AM_INIT_AUTOMAKE([GNUnet], [0.8.0c])
 AC_CONFIG_HEADERS([config.h])
 
 AH_TOP([#define _GNU_SOURCE  1])
@@ -33,18 +33,14 @@ AC_PROG_AWK
 AC_PROG_CC
 AC_PROG_CPP
 AC_PROG_CXX
+AC_PROG_OBJC
 AC_PROG_INSTALL
 AC_PROG_LN_S
 AC_PROG_MAKE_SET
-AC_LIBTOOL_DLOPEN
-AC_DISABLE_STATIC
-AC_LIBTOOL_WIN32_DLL
-AC_LIBLTDL_INSTALLABLE
-AC_PROG_LIBTOOL
-AC_LIB_LTDL
-m4_ifdef([_AC_SEEN_TAG(libltdl)], [], [AC_CONFIG_SUBDIRS(libltdl)])
-AC_SUBST(LTDLINCL)
-AC_SUBST(LIBLTDL)
+LT_CONFIG_LTDL_DIR([libltdl])
+LT_INIT([disable-static dlopen win32-dll])
+AM_PATH_LIBLTDL([lt_dlopenext lt_dlsym], ,AC_MSG_ERROR([GNUnet needs libltdl]))
+LT_LIB_DLLOAD
 AC_SUBST(MKDIR_P)
 
 # large file support
@@ -71,8 +67,7 @@ DEFAULT_INTERFACE="\"eth0\""
 case "$host_os" in
 *darwin* | *rhapsody* | *macosx*)
      AC_DEFINE_UNQUOTED(OSX,1,[This is an OS X system])
-     CFLAGS="-no-cpp-precomp $CFLAGS"
-     LDFLAGS="-flat_namespace -undefined suppress $LDFLAGS"
+     CFLAGS="-no-cpp-precomp -fno-common $CFLAGS"
      AC_MSG_WARN([The VPN application cannot be compiled on your OS])
      build_target="macosx"
      DEFAULT_INTERFACE="\"en0\""
@@ -181,6 +176,7 @@ netbsd*)
 ;;
 esac
 AC_DEFINE_UNQUOTED([GNUNET_DEFAULT_INTERFACE], $DEFAULT_INTERFACE, [This should be the default choice for the name of the first network interface])
+AC_SUBST(DEFAULT_INTERFACE)
 
 AC_MSG_CHECKING([for build target])
 AM_CONDITIONAL(MACOSX,  test "$build_target" = "macosx")
@@ -192,7 +188,7 @@ AM_CONDITIONAL(OPENBSD, test "$build_target" = "openbsd")
 AM_CONDITIONAL(LINUX, test "$build_target" = "linux")
 AC_MSG_RESULT([$build_target])
 AC_SUBST(build_target)
-
+AM_CONDITIONAL([am__fastdepOBJC], false)
 AC_UNALIGNED_64_ACCESS
 
 
@@ -220,7 +216,6 @@ AC_CHECK_FUNCS(pthread_equal)
 
 # libgcrypt
 gcrypt=0
-AC_MSG_CHECKING(for libgcrypt)
 AM_PATH_LIBGCRYPT(1.2.0, gcrypt=1)
 
 if test $gcrypt = 0
@@ -248,7 +243,7 @@ AC_CHECK_LIB([kstat],[kstat_open])
 extractor=0
 AC_MSG_CHECKING(for libextractor)
 AC_ARG_WITH(extractor,
-   [  --with-extractor=PFX    Base of libextractor installation],
+   [  --with-extractor=PFX    base of libextractor installation],
    [AC_MSG_RESULT([$with_extractor])
     case $with_extractor in
       no)
@@ -279,11 +274,25 @@ fi
 # restore LIBS
 LIBS=$SAVE_LIBS
 
+
+# Checks for standard header files.
+AC_HEADER_DIRENT
+AC_HEADER_STDC
+
+# Check for headers that are ALWAYS required
+AC_CHECK_HEADERS([fcntl.h math.h errno.h ctype.h limits.h stdio.h stdlib.h string.h unistd.h stdarg.h signal.h locale.h sys/stat.h sys/types.h pthread.h],,AC_MSG_ERROR([Compiling GNUnet requires standard UNIX headers files]))
+
+# Checks for headers that are only required on some systems or opional (and where we do NOT abort if they are not there)
+AC_CHECK_HEADERS([langinfo.h sys/param.h sys/mount.h sys/statvfs.h sys/select.h sockLib.h sys/mman.h sys/msg.h sys/vfs.h arpa/inet.h fcntl.h libintl.h netdb.h netinet/in.h sys/ioctl.h sys/socket.h sys/time.h unistd.h kstat.h sys/sysinfo.h kvm.h sys/file.h sys/resource.h iconv.h ifaddrs.h mach/mach.h stddef.h sys/timeb.h terminos.h])
+
+# Check for GMP header (and abort if not present)
+AC_CHECK_HEADERS([gmp.h],,AC_MSG_ERROR([Compiling GNUnet requires gmp.h (from the GNU MP library, libgmp)]))
+
 # test for libgmp
 gmp=0
 AC_MSG_CHECKING(for libgmp)
 AC_ARG_WITH(gmp,
-   [  --with-gmp=PFX    Base of libgmp installation],
+   [  --with-gmp=PFX          base of libgmp installation],
    [AC_MSG_RESULT([$with_gmp])
     case $with_gmp in
       no)
@@ -319,7 +328,7 @@ SAVE_CPPFLAGS=$CPPFLAGS
 sqlite=false
 AC_MSG_CHECKING(for SQLite)
 AC_ARG_WITH(sqlite,
-  [  --with-sqlite=PFX   Base of SQLite installation],
+  [  --with-sqlite=PFX       base of SQLite installation],
   [AC_MSG_RESULT("$with_sqlite")
    case $with_sqlite in
    no)
@@ -347,6 +356,38 @@ AM_CONDITIONAL(HAVE_SQLITE, test x$sqlite = xtrue)
 AC_SUBST(SQLITE_CPPFLAGS)
 AC_SUBST(SQLITE_LDFLAGS)
 
+# test for postgres
+postgres=false
+AC_MSG_CHECKING(for postgres)
+AC_ARG_WITH(postgres,
+  [  --with-postgres=PFX       base of postgres installation],
+  [AC_MSG_RESULT("$with_postgres")
+   case $with_postgres in
+   no)
+     ;;
+   yes)
+    AC_CHECK_HEADERS(postgresql/libpq-fe.h,
+     postgres=true)
+     ;;
+   *)
+    LDFLAGS="-L$with_postgres/lib $LDFLAGS"
+    CPPFLAGS="-I$with_postgres/include $CPPFLAGS"
+    AC_CHECK_HEADERS(postgresql/libpq-fe.h,
+     EXT_LIB_PATH="-L$with_postgres/lib $EXT_LIB_PATH"
+     SQLITE_LDFLAGS="-L$with_postgres/lib"
+     SQLITE_CPPFLAGS="-I$with_postgres/include"
+     postgres=true)
+    LDFLAGS=$SAVE_LDFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+    ;;
+   esac
+  ],
+  [AC_MSG_RESULT([--with-postgres not specified])
+    AC_CHECK_HEADERS(postgresql/libpq-fe.h, postgres=true)])
+AM_CONDITIONAL(HAVE_POSTGRES, test x$postgres = xtrue)
+AC_SUBST(POSTGRES_CPPFLAGS)
+AC_SUBST(POSTGRES_LDFLAGS)
+
 
 # test for libz (maybe required for linking mysql)
 zlib=1
@@ -373,7 +414,7 @@ SAVE_LDFLAGS=$LDFLAGS
 SAVE_CPPFLAGS=$CPPFLAGS
 AC_MSG_CHECKING(for mysql)
 AC_ARG_WITH(mysql,
-  [  --with-mysql=PFX   Base of mysql installation],
+  [  --with-mysql=PFX        base of MySQL installation],
   [AC_MSG_RESULT("$with_mysql")
    if test "$with_mysql" != "no"
    then
@@ -404,7 +445,8 @@ AC_SUBST(MYSQL_LDFLAGS)
 AC_SUBST(MYSQL_CPPFLAGS)
 
 # additional version check for mysql
-if test "$mysql" = "true"
+AC_ARG_ENABLE(mysql-version-check, [  --disable-mysql-version-check  do not check MySQL version],, enable_mysql_version_check=yes)
+if test "$mysql" = "true" -a "x$enable_mysql_version_check" = "xyes"
 then
   AC_MSG_CHECKING(mysql version)
   AC_RUN_IFELSE([AC_LANG_PROGRAM(
@@ -442,7 +484,7 @@ LIBS="-lm $LIBS"
 AC_CHECK_LIB([ncursesw],[wmove])
 AC_MSG_CHECKING([for dialog 1.0-20051207])
 AC_ARG_WITH(dialog,
-   [  --with-dialog=PFX    Base of dialog installation],
+   [  --with-dialog=PFX       base of dialog installation],
    [AC_MSG_RESULT([$with_dialog])
     case $with_dialog in
       no)
@@ -472,7 +514,7 @@ AC_DEFINE_UNQUOTED([HAVE_DIALOG], $dialog, [We have dialog])
 
 cdialog=0
 AC_ARG_WITH(cdialog,
-   [  --with-cdialog=PFX    Base of cdialog installation],
+   [  --with-cdialog=PFX      base of cdialog installation],
    [AC_MSG_RESULT([$with_cdialog])
     case $with_cdialog in
       no)
@@ -509,7 +551,7 @@ AC_LANG_PUSH([C++])
 qt=0
 AC_MSG_CHECKING(for Qt)
 AC_ARG_WITH(qt,
-   [  --with-qt=PFX    Base of Qt installation],
+   [  --with-qt=PFX           base of Qt installation],
    [AC_MSG_RESULT([$with_qt])
     case $with_qt in
       no)
@@ -532,10 +574,16 @@ AC_ARG_WITH(qt,
     esac
    ],
   [AC_MSG_RESULT([--with-qt not specified])
-    QTLIBS="$QTLIBS -L/usr/lib"
-    LDFLAGS="$QTLIBS $LDFLAGS"
     QTINC="$QTINC -I/usr/include -I/usr/include/qt4"
+    QTLIBS="$QTLIBS -L/usr/lib"
+    if ( pkg-config --help > /dev/null 2> /dev/null ) ; then
+      if ( pkg-config --cflags QtGui && pkg-config --libs QtGui ) ; then
+        QTINC=`pkg-config --cflags QtGui`
+        QTLIBS=`pkg-config --libs QtGui`
+      fi
+    fi
     CPPFLAGS="$QTINC $CPPFLAGS"
+    LDFLAGS="$QTLIBS $LDFLAGS"
     AC_CHECK_HEADERS([Qt/qpixmap.h],
        	  AC_SEARCH_LIBS([_ZN7QPixmap12defaultDepthEv], [QtGui QtGui4],
            EXT_LIB_PATH="-L$with_qt/lib $EXT_LIB_PATH"
@@ -634,17 +682,19 @@ CPPFLAGS=$SAVE_CPPFLAGS
 lmhd=0
 AC_MSG_CHECKING([for libmicrohttpd])
 AC_ARG_WITH(microhttpd,
-   [  --with-microhttpd=PFX    Base of libmicrohttpd installation],
+   [  --with-microhttpd=PFX   base of libmicrohttpd installation],
    [AC_MSG_RESULT([$with_microhttpd])
     case $with_microhttpd in
       no)
         ;;
       yes)
-        AC_CHECK_HEADERS(microhttpd.h,
+        AC_CHECK_HEADERS([microhttpd.h],
 	  AC_CHECK_DECL(MHD_OPTION_PER_IP_CONNECTION_LIMIT,
             AC_CHECK_LIB([microhttpd], [MHD_start_daemon],
               lmhd=1),
-	    [],[#include <microhttpd.h>]))
+	    [],[#include "src/include/platform.h"
+                #include <microhttpd.h>]),,
+            [#include "src/include/platform.h"])
         ;;
       *)
         LDFLAGS="-L$with_microhttpd/lib $LDFLAGS"
@@ -654,16 +704,20 @@ AC_ARG_WITH(microhttpd,
             AC_CHECK_LIB([microhttpd], [MHD_start_daemon],
               EXT_LIB_PATH="-L$with_microhttpd/lib $EXT_LIB_PATH"
               lmhd=1),
-	    [],[#include <microhttpd.h>]))
+	    [],[#include "src/include/platform.h"
+                #include <microhttpd.h>]),,
+            [#include "src/include/platform.h"])
         ;;
     esac
    ],
    [AC_MSG_RESULT([--with-microhttpd not specified])
-    AC_CHECK_HEADERS(microhttpd.h,
+    AC_CHECK_HEADERS([microhttpd.h],
       AC_CHECK_DECL(MHD_OPTION_PER_IP_CONNECTION_LIMIT,
         AC_CHECK_LIB([microhttpd], [MHD_start_daemon],
           lmhd=1),
-	[],[#include <microhttpd.h>]))])
+	[],[#include "src/include/platform.h"
+            #include <microhttpd.h>]),,
+       [#include "src/include/platform.h"])])
 AM_CONDITIONAL(HAVE_MHD, test x$lmhd = x1)
 AC_DEFINE_UNQUOTED([HAVE_MHD], $lmhd, [We have libmicrohttpd])
 # restore LIBS
@@ -673,7 +727,7 @@ LIBS=$SAVE_LIBS
 esmtp=0
 AC_MSG_CHECKING([for libesmtp])
 AC_ARG_WITH(esmtp,
-   [  --with-esmtp=PFX    Base of libesmtp installation],
+   [  --with-esmtp=PFX        base of libesmtp installation],
    [AC_MSG_RESULT([$with_esmtp])
     case $with_esmtp in
       no)
@@ -702,13 +756,45 @@ AC_DEFINE_UNQUOTED([HAVE_ESMTP], $esmtp, [We have libesmtp])
 # restore LIBS
 LIBS=$SAVE_LIBS
 
+# c-ares (asynch dns)
+c_ares=0
+AC_MSG_CHECKING([for c-ares])
+AC_ARG_WITH(c-ares,
+   [  --with-c-ares=PFX       base of c-ares installation],
+   [AC_MSG_RESULT([$with_c_ares])
+    case $with_c_ares in
+      no)
+        ;;
+      yes)
+        AC_CHECK_HEADERS(ares.h,
+          AC_CHECK_LIB([cares], [ares_process_fd],
+            c_ares=1))
+        ;;
+      *)
+        LDFLAGS="-L$with_c_ares/lib $LDFLAGS"
+        CPPFLAGS="-I$with_c_ares/include $CPPFLAGS"
+        AC_CHECK_HEADERS(ares.h,
+          AC_CHECK_LIB([cares], [ares_process_fd],
+            EXT_LIB_PATH="-L$with_c_ares/lib $EXT_LIB_PATH"
+              c_ares=1))
+        ;;
+    esac
+   ],
+   [AC_MSG_RESULT([--with-c-ares not specified])
+    AC_CHECK_HEADERS(ares.h,
+      AC_CHECK_LIB([cares], [ares_process_fd],
+          c_ares=1))])
+
+AM_CONDITIONAL(HAVE_C_ARES, test x$c_ares = x1)
+AC_DEFINE_UNQUOTED([HAVE_C_ARES], $c_ares, [We have c-ares])
+# restore LIBS
+LIBS=$SAVE_LIBS
 
 # GNU adns
 adns=0
-AC_CHECK_LIB([adns],[adns_init])
 AC_MSG_CHECKING([for GNU adns])
 AC_ARG_WITH(adns,
-   [  --with-adns=PFX    Base of GNU adns installation],
+   [  --with-adns=PFX         base of GNU adns installation],
    [AC_MSG_RESULT([$with_adns])
     case $with_adns in
       no)
@@ -758,27 +844,11 @@ fi
 AM_CONDITIONAL(HAVE_GTK, test x$without_gtk != xtrue)
 
 # check for gettext
-AM_GNU_GETTEXT_VERSION([0.13.1])
+AM_GNU_GETTEXT_VERSION([0.16.1])
 AM_GNU_GETTEXT([external])
 
 # check for iconv
 AM_ICONV
-
-
-
-# Checks for standard header files.
-AC_HEADER_DIRENT
-AC_HEADER_STDC
-
-# Check for headers that are ALWAYS required
-AC_CHECK_HEADERS([fcntl.h math.h errno.h limits.h stdio.h locale.h sys/stat.h sys/types.h pthread.h],,AC_MSG_ERROR([Compiling GNUnet requires standard UNIX headers files]))
-
-# Checks for headers that are only required on some systems or opional (and where we do NOT abort if they are not there)
-AC_CHECK_HEADERS([langinfo.h sys/param.h sys/mount.h sys/statvfs.h sys/vfs.h arpa/inet.h fcntl.h libintl.h netdb.h netinet/in.h sys/ioctl.h sys/socket.h sys/time.h unistd.h kstat.h sys/sysinfo.h kvm.h sys/file.h sys/resource.h iconv.h ifaddrs.h mach/mach.h stddef.h sys/timeb.h terminos.h])
-
-# Check for GMP header (and abort if not present)
-AC_CHECK_HEADERS([gmp.h],,AC_MSG_ERROR([Compiling GNUnet requires gmp.h (from the GNU MP library, libgmp)]))
-
 
 # Checks for standard typedefs, structures, and compiler characteristics.
 AC_C_CONST
@@ -813,17 +883,13 @@ AC_CHECK_FUNCS([floor gethostname memmove rmdir strncasecmp strrchr strtol atoll
 # restore LIBS
 LIBS=$SAVE_LIBS
 
-AC_SUBST(CPPFLAGS)
-AC_SUBST(LIBS)
-AC_SUBST(LDFLAGS)
-AC_SUBST(EXT_LIB_PATH)
-AC_SUBST(EXT_LIBS)
+
 
 # check for guile
 guile=0
 AC_MSG_CHECKING(for guile 1.8)
 AC_ARG_WITH(guile,
-   [  --with-guile=PFX    Base of guile installation],
+   [  --with-guile=PFX        base of guile installation],
    [AC_MSG_RESULT([$with_guile])
     case $with_guile in
       no)
@@ -831,7 +897,8 @@ AC_ARG_WITH(guile,
       yes)
         AC_CHECK_HEADERS(libguile.h,
           AC_CHECK_LIB([guile], [scm_c_define_gsubr],
-            guile=1))
+            guile=1, [],
+            -lgmp $LIBLTDL))
         ;;
       *)
         LDFLAGS="-L$with_guile/lib $LDFLAGS"
@@ -839,24 +906,27 @@ AC_ARG_WITH(guile,
         AC_CHECK_HEADERS(libguile.h,
           AC_CHECK_LIB([guile], [scm_c_define_gsubr],
             EXT_LIB_PATH="-L$with_guile/lib $EXT_LIB_PATH"
-            guile=1))
+            guile=1, [],
+            -lgmp $LIBLTDL))
         ;;
     esac
    ],
    [AC_MSG_RESULT([--with-guile not specified])
     AC_CHECK_HEADERS(libguile.h,
      AC_CHECK_LIB([guile], [scm_c_define_gsubr],
-      guile=1))])
+      guile=1, [], -lgmp $LIBLTDL))])
 
 if test "$guile" = 1
 then
  AC_CHECK_LIB([guile], [scm_init_guile], [],
-    	AC_MSG_ERROR([Guile doesn't provide scm_init_guile(). Please report to bug-gnunet@gnu.org]))
+    	AC_MSG_ERROR([Guile doesn't provide scm_init_guile(). Please report to bug-gnunet@gnu.org]), -lgmp $LIBLTDL)
  AC_DEFINE_UNQUOTED([HAVE_GUILE], 1, [We have GUILE])
 else
  AC_DEFINE_UNQUOTED([HAVE_GUILE], 0, [We do NOT have GUILE])
 fi
 AM_CONDITIONAL(HAVE_GUILE, test x$guile = x1)
+# restore LIBS
+LIBS=$SAVE_LIBS
 
 if test "$qt" = 1
 then
@@ -864,17 +934,101 @@ then
 fi
 AM_CONDITIONAL(HAVE_QT, test x$qt != x0)
 
+gn_user_home_dir="~/.gnunet"
+AC_ARG_WITH(user-home-dir,
+        AC_HELP_STRING(
+                [--with-user-home-dir=DIR],
+                [default user home directory (~/.gnunet)]),
+        [gn_user_home_dir=$withval])
+AC_SUBST(GN_USER_HOME_DIR, $gn_user_home_dir)
+gn_daemon_home_dir="/var/lib/gnunet"
+AC_ARG_WITH(daemon-home-dir,
+        AC_HELP_STRING(
+                [--with-daemon-home-dir=DIR],
+                [default daemon home directory (/var/lib/gnunet)]),
+        [gn_daemon_home_dir=$withval])
+AC_SUBST(GN_DAEMON_HOME_DIR, $gn_daemon_home_dir)
+gn_daemon_config_dir="/etc"
+AC_ARG_WITH(daemon-config-dir,
+        AC_HELP_STRING(
+                [--with-daemon-config-dir=DIR],
+                [default daemon config directory (/etc)]),
+        [gn_daemon_config_dir=$withval])
+AC_SUBST(GN_DAEMON_CONFIG_DIR, $gn_daemon_config_dir)
+gn_daemon_pidfile="/var/run/gnunetd/pid"
+AC_ARG_WITH(daemon-pidfile,
+        AC_HELP_STRING(
+                [--with-daemon-pidfile=FILE],
+                [default daemon pidfile (/var/run/gnunetd/pid)]),
+        [gn_daemon_pidfile=$withval])
+AC_SUBST(GN_DAEMON_PIDFILE, $gn_daemon_pidfile)
+
+GN_INTLINCL=""
+GN_LIBINTL="$LTLIBINTL"
+AC_ARG_ENABLE(framework, [  --enable-framework      enable Mac OS X framework build helpers],enable_framework_build=$enableval)
+AM_CONDITIONAL(WANT_FRAMEWORK, test x$enable_framework_build = xyes)
+if test x$enable_framework_build = xyes
+then
+  AC_DEFINE([FRAMEWORK_BUILD], 1, [Build a Mac OS X Framework])
+  GN_INTLINCL='-I$(top_srcdir)/src/intlemu'
+  GN_LIBINTL='$(top_builddir)/src/intlemu/libintlemu.la -framework CoreFoundation'
+  AC_LIB_APPENDTOVAR([CPPFLAGS], [$GN_INTLINCL]) 
+fi
+
+GN_LIB_LDFLAGS="-export-dynamic -no-undefined"
+GN_PLUGIN_LDFLAGS="-export-dynamic -avoid-version -module -no-undefined"
+dnl TODO insert a proper check here
+AC_CACHE_CHECK([whether -export-symbols-regex works],
+ gn_cv_export_symbols_regex_works, 
+ [
+  case "$host_os" in
+  mingw*) gn_cv_export_symbols_regex_works=no;;
+  *) gn_cv_export_symbols_regex_works=yes;;
+  esac
+ ])
+if test "x$gn_cv_export_symbols_regex_works" = "xyes"
+then
+ GN_LIB_LDFLAGS="$GN_LIB_LDFLAGS -export-symbols-regex \"GNUNET_@<:@a-zA-Z0-9_@:>@*\""
+ GN_PLUGIN_LDFLAGS="$GN_PLUGIN_LDFLAGS -export-symbols-regex \"@<:@a-zA-Z0-9_@:>@*\""
+fi
+AC_SUBST(GN_LIB_LDFLAGS)
+AC_SUBST(GN_PLUGIN_LDFLAGS)
+AC_SUBST(GN_INTLINCL)
+AC_SUBST(GN_LIBINTL)
+
+AC_SUBST(CPPFLAGS)
+AC_SUBST(LIBS)
+AC_SUBST(LDFLAGS)
+AC_SUBST(EXT_LIB_PATH)
+AC_SUBST(EXT_LIBS)
+
 AC_SUBST(LIBPREFIX)
 AC_SUBST(DLLDIR)
 AC_SUBST(EXT_LIB_PATH)
 
+
+# gcov compilation
+use_gcov=no
+AC_ARG_ENABLE([coverage], AS_HELP_STRING([--enable-coverage],
+                                        [Compile the library with code coverage support (default is NO)]),
+                                        [use_gcov=yes], [use_gcov=no])
+AM_CONDITIONAL([USE_COVERAGE], [test "x$use_gcov" = "xyes"])
+
+
+
+
 AC_CONFIG_FILES([ po/Makefile.in m4/Makefile
 Makefile
 contrib/Makefile
+contrib/config-client.scm
+contrib/config-daemon.scm
+contrib/macosx/Info.plist
 doc/Makefile
 doc/man/Makefile
 src/Makefile
 src/include/Makefile
+src/include/gnunet_directories.h
+src/intlemu/Makefile
 src/applications/Makefile
 src/applications/advertising/Makefile
 src/applications/bootstrap_http/Makefile
@@ -906,6 +1060,7 @@ src/applications/pingpong/Makefile
 src/applications/rpc/Makefile
 src/applications/session/Makefile
 src/applications/sqstore_mysql/Makefile
+src/applications/sqstore_postgres/Makefile
 src/applications/sqstore_sqlite/Makefile
 src/applications/state/Makefile
 src/applications/stats/Makefile
@@ -917,11 +1072,14 @@ src/applications/tracekit/Makefile
 src/applications/traffic/Makefile
 src/applications/transport/Makefile
 src/applications/vpn/Makefile
+src/libs/Makefile
+src/libs/mysql/Makefile
 src/setup/Makefile
 src/setup/lib/Makefile
 src/setup/gtk/Makefile
 src/setup/qt/Makefile
 src/setup/qt/pixmaps/Makefile
+src/setup/cocoa/Makefile
 src/setup/ncurses/Makefile
 src/setup/text/Makefile
 src/server/Makefile
@@ -996,9 +1154,14 @@ then
  AC_MSG_NOTICE([WARNING: Guile not found, gnunet-setup will not be installed.])
 fi
 
-if test "$adns" != 1
+if test "$adns" != 1 -a "$c_ares" != 1
 then
- AC_MSG_NOTICE([WARNING: GNU adns not found, will use synchronous DNS resolution.])
+ AC_MSG_NOTICE([WARNING: Asynchronous resolver (adns or c-ares) not found, will use synchronous DNS resolution.])
+fi
+
+if test "$enable_framework_build" = "yes"
+then
+  AC_MSG_NOTICE([NOTICE: Mac OS X framework build enabled.])
 fi
 
 AC_MSG_NOTICE([********************************************

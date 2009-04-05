@@ -125,6 +125,10 @@ static GNUNET_CoreAPIForPlugins *coreAPI;
 
 static unsigned int stat_size;
 
+#if DEBUG_SQLITE
+static unsigned int stat_mem;
+#endif
+
 static struct GNUNET_GE_Context *ectx;
 
 static struct GNUNET_Mutex *lock;
@@ -367,7 +371,12 @@ getSize ()
   GNUNET_mutex_lock (lock);
   ret = payload;
   if (stats)
-    stats->set (stat_size, ret);
+    {
+      stats->set (stat_size, ret);
+#if DEBUG_SQLITE
+      stats->set (stat_mem, sqlite3_memory_used ());
+#endif
+    }
   GNUNET_mutex_unlock (lock);
   return (unsigned long long) (ret * 1.13);
   /* benchmarking shows 13% overhead */
@@ -1335,7 +1344,7 @@ put (const GNUNET_HashCode * key, const GNUNET_DatastoreValue * value)
         {
           sqlite3_reset (stmt);
           GNUNET_mutex_unlock (lock);
-	  GNUNET_GE_BREAK(NULL, 0);
+          GNUNET_GE_BREAK (NULL, 0);
           return GNUNET_NO;
         }
       LOG_SQLITE (dbh,
@@ -1428,7 +1437,14 @@ provide_module_sqstore_sqlite (GNUNET_CoreAPIForPlugins * capi)
       GNUNET_free (dir);
       return NULL;
     }
-  fn = dir;
+  fn = GNUNET_convert_string_to_utf8 (ectx, dir, strlen (dir),
+#ifdef ENABLE_NLS
+                                      nl_langinfo (CODESET)
+#else
+                                      "UTF-8"   /* good luck */
+#endif
+    );
+  GNUNET_free (dir);
   dbh = getDBHandle ();
   if (dbh == NULL)
     {
@@ -1454,7 +1470,12 @@ provide_module_sqstore_sqlite (GNUNET_CoreAPIForPlugins * capi)
   coreAPI = capi;
   stats = coreAPI->service_request ("stats");
   if (stats)
-    stat_size = stats->create (gettext_noop ("# bytes in datastore"));
+    {
+      stat_size = stats->create (gettext_noop ("# bytes in datastore"));
+#if DEBUG_SQLITE
+      stat_mem = stats->create (gettext_noop ("# bytes allocated by SQLite"));
+#endif
+    }
 
   api.getSize = &getSize;
   api.put = &put;

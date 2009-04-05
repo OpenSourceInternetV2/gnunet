@@ -105,6 +105,13 @@ char *GNUNET_ECRS_suggest_better_filename (struct GNUNET_GE_Context *ectx,
 struct GNUNET_ECRS_URI;
 
 /**
+ * Get a unique key from a URI.  This is for putting URIs
+ * into HashMaps.  The key may change between ECRS implementations.
+ */
+void GNUNET_ECRS_uri_to_key (const struct GNUNET_ECRS_URI *uri,
+                             GNUNET_HashCode * key);
+
+/**
  * Convert a URI to a UTF-8 String.
  */
 char *GNUNET_ECRS_uri_to_string (const struct GNUNET_ECRS_URI *uri);
@@ -581,11 +588,10 @@ int GNUNET_ECRS_publish_under_keyword (struct GNUNET_GE_Context *ectx,
  * The search has found another result.  Callback to notify
  * whoever is controlling the search.
  *
- * @param uri the URI of the datum
+ * @param fi the URI and metadata of the result
  * @param key under which the result was found (GNUNET_hash of keyword),
  *        NULL if no key is known
  * @param isRoot is this a namespace root advertisement?
- * @param md a description for the URI
  * @return GNUNET_OK, GNUNET_SYSERR to abort
  */
 typedef int (*GNUNET_ECRS_SearchResultProcessor)
@@ -772,6 +778,8 @@ int GNUNET_ECRS_file_download_partial (struct GNUNET_GE_Context *ectx,
  *
  * @param data pointer to the beginning of the directory
  * @param len number of bytes in data
+ * @param offset stores the number of bytes into directory to start listing
+ *   on input and where the next element begins on output, can be NULL
  * @param md set to the MD for the directory if the first
  *   block is part of data
  * @return number of entries on success, GNUNET_SYSERR if the
@@ -780,6 +788,7 @@ int GNUNET_ECRS_file_download_partial (struct GNUNET_GE_Context *ectx,
 int GNUNET_ECRS_directory_list_contents (struct GNUNET_GE_Context *ectx,
                                          const char *data,
                                          unsigned long long len,
+                                         unsigned long long *offset,
                                          struct GNUNET_MetaData **md,
                                          GNUNET_ECRS_SearchResultProcessor
                                          spcb, void *spcbClosure);

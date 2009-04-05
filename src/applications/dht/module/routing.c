@@ -44,9 +44,10 @@
 
 /**
  * What is the estimated per-hop delay for DHT operations
- * (this is how much we will request from the GNUnet core)
+ * (this is how much we will request from the GNUnet core);
+ * Must not be zero!
  */
-#define DHT_DELAY (5 * GNUNET_CRON_SECONDS)
+#define DHT_DELAY (500 * GNUNET_CRON_MILLISECONDS)
 
 /**
  * What is the maximum number of results returned by any DHT
@@ -248,9 +249,9 @@ get_forward_count (unsigned int hop_count, double target_replication)
  * where to send it next.
  */
 static int
-routeResult (const GNUNET_HashCode * key,
-             unsigned int type,
-             unsigned int size, const char *data, void *cls)
+route_result (const GNUNET_HashCode * key,
+              unsigned int type,
+              unsigned int size, const char *data, void *cls)
 {
   DHTQueryRecord *q;
   unsigned int i;
@@ -396,8 +397,8 @@ routeResult (const GNUNET_HashCode * key,
  * @return GNUNET_OK if route was added, GNUNET_SYSERR if not
  */
 static int
-addRoute (const GNUNET_PeerIdentity * sender,
-          GNUNET_ResultProcessor handler, void *cls, const DHT_MESSAGE * get)
+add_route (const GNUNET_PeerIdentity * sender,
+           GNUNET_ResultProcessor handler, void *cls, const DHT_MESSAGE * get)
 {
   DHTQueryRecord *q;
   unsigned int i;
@@ -482,8 +483,8 @@ addRoute (const GNUNET_PeerIdentity * sender,
  * Handle GET message.
  */
 static int
-handleGet (const GNUNET_PeerIdentity * sender,
-           const GNUNET_MessageHeader * msg)
+handle_get (const GNUNET_PeerIdentity * sender,
+            const GNUNET_MessageHeader * msg)
 {
   GNUNET_PeerIdentity next[GET_TRIES + 1];
   const DHT_MESSAGE *get;
@@ -515,7 +516,7 @@ handleGet (const GNUNET_PeerIdentity * sender,
 #endif
   if (stats != NULL)
     stats->change (stat_get_requests_received, 1);
-  if ((sender != NULL) && (GNUNET_OK != addRoute (sender, NULL, NULL, get)))
+  if ((sender != NULL) && (GNUNET_OK != add_route (sender, NULL, NULL, get)))
     {
 #if DEBUG_ROUTING
       GNUNET_GE_LOG (coreAPI->ectx,
@@ -525,7 +526,7 @@ handleGet (const GNUNET_PeerIdentity * sender,
 #endif
       return GNUNET_OK;         /* could not route */
     }
-  total = dstore->get (&get->key, ntohl (get->type), &routeResult, NULL);
+  total = dstore->get (&get->key, ntohl (get->type), &route_result, NULL);
   if (total > MAX_RESULTS)
     {
 #if DEBUG_ROUTING
@@ -581,8 +582,8 @@ handleGet (const GNUNET_PeerIdentity * sender,
  * Handle PUT message.
  */
 static int
-handlePut (const GNUNET_PeerIdentity * sender,
-           const GNUNET_MessageHeader * msg)
+handle_put (const GNUNET_PeerIdentity * sender,
+            const GNUNET_MessageHeader * msg)
 {
   GNUNET_PeerIdentity next[PUT_TRIES + 1];
   const DHT_MESSAGE *put;
@@ -691,8 +692,8 @@ handlePut (const GNUNET_PeerIdentity * sender,
  * Handle RESULT message.
  */
 static int
-handleResult (const GNUNET_PeerIdentity * sender,
-              const GNUNET_MessageHeader * msg)
+handle_result (const GNUNET_PeerIdentity * sender,
+               const GNUNET_MessageHeader * msg)
 {
   const DHT_MESSAGE *result;
 #if DEBUG_ROUTING
@@ -713,10 +714,10 @@ handleResult (const GNUNET_PeerIdentity * sender,
                  GNUNET_GE_DEBUG | GNUNET_GE_REQUEST | GNUNET_GE_DEVELOPER,
                  "Received REMOTE DHT RESULT for key `%s'.\n", &enc);
 #endif
-  routeResult (&result->key,
-               ntohl (result->type),
-               ntohs (result->header.size) - sizeof (DHT_MESSAGE),
-               (const char *) &result[1], (void *) msg);
+  route_result (&result->key,
+                ntohl (result->type),
+                ntohs (result->header.size) - sizeof (DHT_MESSAGE),
+                (const char *) &result[1], (void *) msg);
   return GNUNET_OK;
 }
 
@@ -746,9 +747,9 @@ GNUNET_DHT_get_start (const GNUNET_HashCode * key,
                  "Initiating DHT GET (based on local request) for key `%s'.\n",
                  &enc);
 #endif
-  if (GNUNET_OK != addRoute (NULL, handler, cls, &get))
+  if (GNUNET_OK != add_route (NULL, handler, cls, &get))
     return GNUNET_SYSERR;
-  handleGet (NULL, &get.header);
+  handle_get (NULL, &get.header);
   return GNUNET_OK;
 }
 
@@ -827,7 +828,7 @@ GNUNET_DHT_put (const GNUNET_HashCode * key,
   put->hop_count = htonl (0);
   put->network_size = htonl (GNUNET_DHT_estimate_network_diameter ());
   memcpy (&put[1], data, size);
-  handlePut (NULL, &put->header);
+  handle_put (NULL, &put->header);
   GNUNET_free (put);
   return GNUNET_OK;
 }
@@ -892,11 +893,11 @@ GNUNET_DHT_init_routing (GNUNET_CoreAPIForPlugins * capi)
                  "dht", GNUNET_P2P_PROTO_DHT_GET, GNUNET_P2P_PROTO_DHT_PUT,
                  GNUNET_P2P_PROTO_DHT_RESULT);
   coreAPI->p2p_ciphertext_handler_register (GNUNET_P2P_PROTO_DHT_GET,
-                                            &handleGet);
+                                            &handle_get);
   coreAPI->p2p_ciphertext_handler_register (GNUNET_P2P_PROTO_DHT_PUT,
-                                            &handlePut);
+                                            &handle_put);
   coreAPI->p2p_ciphertext_handler_register (GNUNET_P2P_PROTO_DHT_RESULT,
-                                            &handleResult);
+                                            &handle_result);
   coreAPI->send_callback_register (sizeof (DHT_MESSAGE), 0,
                                    &extra_get_callback);
   return GNUNET_OK;
@@ -916,11 +917,11 @@ GNUNET_DHT_done_routing ()
   coreAPI->send_callback_unregister (sizeof (DHT_MESSAGE),
                                      &extra_get_callback);
   coreAPI->p2p_ciphertext_handler_unregister (GNUNET_P2P_PROTO_DHT_GET,
-                                              &handleGet);
+                                              &handle_get);
   coreAPI->p2p_ciphertext_handler_unregister (GNUNET_P2P_PROTO_DHT_PUT,
-                                              &handlePut);
+                                              &handle_put);
   coreAPI->p2p_ciphertext_handler_unregister (GNUNET_P2P_PROTO_DHT_RESULT,
-                                              &handleResult);
+                                              &handle_result);
   if (stats != NULL)
     {
       coreAPI->service_release (stats);

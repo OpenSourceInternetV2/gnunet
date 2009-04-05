@@ -350,6 +350,7 @@ main (int argc, char *const *argv)
       count = GNUNET_ECRS_directory_list_contents (ectx,
                                                    data,
                                                    sbuf.st_size,
+                                                   NULL,
                                                    &meta, &directoryIterator,
                                                    ctx);
       GNUNET_meta_data_destroy (meta);

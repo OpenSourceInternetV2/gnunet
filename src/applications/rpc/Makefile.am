@@ -1,27 +1,30 @@
 INCLUDES = -I$(top_srcdir)/src/include
 
+if USE_COVERAGE
+  AM_CFLAGS = -fprofile-arcs -ftest-coverage
+endif
 plugindir = $(libdir)/GNUnet
 
 lib_LTLIBRARIES = \
-  libgnunetrpc_util.la 
+  libgnunetrpcutil.la 
 
 plugin_LTLIBRARIES = \
   libgnunetmodule_rpc.la
 
 libgnunetmodule_rpc_la_SOURCES = \
   rpc.c 
-
-libgnunetmodule_rpc_la_LIBADD = \
-  $(top_builddir)/src/util/libgnunetutil.la \
-  $(top_builddir)/src/applications/rpc/libgnunetrpc_util.la
-
 libgnunetmodule_rpc_la_LDFLAGS = \
-  -export-dynamic -avoid-version -module
+  $(GN_PLUGIN_LDFLAGS)
+libgnunetmodule_rpc_la_LIBADD = \
+  $(top_builddir)/src/applications/rpc/libgnunetrpcutil.la \
+  $(top_builddir)/src/util/libgnunetutil.la \
+  $(GN_LIBINTL)
 
-libgnunetrpc_util_la_SOURCES = \
+libgnunetrpcutil_la_SOURCES = \
   parameters.c 
-
-libgnunetrpc_util_la_LIBADD = \
+libgnunetrpcutil_la_LDFLAGS = \
+  $(GN_LIB_LDFLAGS)
+libgnunetrpcutil_la_LIBADD = \
   $(top_builddir)/src/util/libgnunetutil.la 
 
 

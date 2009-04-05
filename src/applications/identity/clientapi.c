@@ -210,20 +210,18 @@ GNUNET_IDENTITY_request_peer_infos (struct GNUNET_ClientServerConnection
           GNUNET_free (reply);
           return GNUNET_SYSERR;
         }
-      if (callback != NULL)
+      info = (CS_identity_peer_info_MESSAGE *) reply;
+      if ((callback != NULL) &&
+          (GNUNET_OK != callback (cls,
+                                  &info->peer,
+                                  &info[1],
+                                  ntohs (reply->size) -
+                                  sizeof (CS_identity_peer_info_MESSAGE),
+                                  GNUNET_ntohll (info->last_message),
+                                  ntohl (info->trust), ntohl (info->bpm))))
         {
-          info = (CS_identity_peer_info_MESSAGE *) reply;
-          if (GNUNET_OK != callback (cls,
-                                     &info->peer,
-                                     &info[1],
-                                     ntohs (reply->size) -
-                                     sizeof (CS_identity_peer_info_MESSAGE),
-                                     GNUNET_ntohll (info->last_message),
-                                     ntohl (info->trust), ntohl (info->bpm)))
-            {
-              GNUNET_free (reply);
-              return GNUNET_SYSERR;
-            }
+          GNUNET_free (reply);
+          return GNUNET_SYSERR;
         }
       GNUNET_free (reply);
     }

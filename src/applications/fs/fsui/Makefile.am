@@ -1,5 +1,10 @@
 INCLUDES = -I$(top_srcdir)/src/include
 
+
+if USE_COVERAGE
+  AM_CFLAGS = -fprofile-arcs -ftest-coverage
+endif
+
 lib_LTLIBRARIES = \
   libgnunetfsui.la 
 
@@ -13,14 +18,17 @@ libgnunetfsui_la_SOURCES = \
   serialize.c \
   unindex.c \
   upload.c
+libgnunetfsui_la_LDFLAGS = \
+  $(GN_LIB_LDFLAGS)
 libgnunetfsui_la_LIBADD = \
- -lextractor \
- $(top_builddir)/src/applications/identity/libgnunetidentity_api.la \
- $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
- $(top_builddir)/src/applications/fs/lib/libgnunetfs.la \
- $(top_builddir)/src/applications/fs/namespace/libgnunetnamespace.la \
- $(top_builddir)/src/applications/fs/uritrack/libgnuneturitrack.la \
- $(top_builddir)/src/util/libgnunetutil.la 
+  -lextractor \
+  $(top_builddir)/src/applications/identity/libgnunetidentityapi.la \
+  $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
+  $(top_builddir)/src/applications/fs/lib/libgnunetfs.la \
+  $(top_builddir)/src/applications/fs/namespace/libgnunetnamespace.la \
+  $(top_builddir)/src/applications/fs/uritrack/libgnuneturitrack.la \
+  $(top_builddir)/src/util/libgnunetutil.la \
+  $(GN_LIBINTL) 
 
 EXTRA_DIST = \
   check.conf \

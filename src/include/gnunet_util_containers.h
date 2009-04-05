@@ -23,10 +23,6 @@
  * @brief container classes for GNUnet
  *
  * @author Christian Grothoff
- * @author Krista Bennett
- * @author Gerd Knorr <kraxel@bytesex.org>
- * @author Ioana Patrascu
- * @author Tzvetan Horozov
  * @author Nils Durner
  */
 
@@ -330,6 +326,260 @@ struct GNUNET_MetaData *GNUNET_meta_data_deserialize (struct
  *  we have no mime-type information (treat as 'GNUNET_NO')
  */
 int GNUNET_meta_data_test_for_directory (const struct GNUNET_MetaData *md);
+
+
+/* ******************************* HashMap **************************** */
+
+/**
+ * Opaque handle for a HashMap.
+ */
+struct GNUNET_MultiHashMap;
+
+/**
+ * Options for storing values in the HashMap.
+ */
+enum GNUNET_MultiHashMapOption
+{
+  /**
+   * If a value with the given key exists, replace it.
+   * Note that the old value would NOT be freed
+   * by replace (the application has to make sure that
+   * this happens if required).
+   */
+  GNUNET_MultiHashMapOption_REPLACE,
+
+  /**
+   * Allow multiple values with the same key.
+   */
+  GNUNET_MultiHashMapOption_MULTIPLE,
+
+  /**
+   * There must only be one value per key; storing
+   * a value should fail if a value under the same
+   * key already exists.
+   */
+  GNUNET_MultiHashMapOption_UNIQUE_ONLY,
+
+  /**
+   * There must only be one value per key, but don't
+   * bother checking if a value already exists
+   * (faster than UNIQUE_ONLY; implemented just like
+   * MULTIPLE but this option documents better what
+   * is intended if UNIQUE is what is desired).
+   */
+  GNUNET_MultiHashMapOption_UNIQUE_FAST
+};
+
+/**
+ * Iterator over HashCodes.
+ *
+ * @param key current key code
+ * @param value value in the hash map
+ * @param cls client-defined argument
+ * @return GNUNET_YES if we should continue to
+ *         iterate,
+ *         GNUNET_NO if not.
+ */
+typedef int (*GNUNET_HashMapIterator) (const GNUNET_HashCode * key,
+                                       void *value, void *cls);
+
+
+/**
+ * Create a multi hash map.
+ *
+ * @param map the map
+ * @param len initial size (map will grow as needed)
+ * @return NULL on error
+ */
+struct GNUNET_MultiHashMap *GNUNET_multi_hash_map_create (unsigned int len);
+
+/**
+ * Destroy a hash map.  Will not free any values
+ * stored in the hash map!
+ *
+ * @param map the map
+ */
+void GNUNET_multi_hash_map_destroy (struct GNUNET_MultiHashMap *map);
+
+/**
+ * Given a key find a value in the
+ * map matching the key.
+ *
+ * @param map the map
+ * @param key what to look for
+ * @return NULL if no value was found; note that
+ *   this is indistinguishable from values that just
+ *   happen to be NULL; use "contains" to test for
+ *   key-value pairs with value NULL
+ */
+void *GNUNET_multi_hash_map_get (const struct GNUNET_MultiHashMap *map,
+                                 const GNUNET_HashCode * key);
+
+/**
+ * Remove the given key-value pair from the map.
+ * Note that if the key-value pair is in the map
+ * multiple times, only one of the pairs will be
+ * removed.
+ *
+ * @param map the map
+ * @param key key of the key-value pair
+ * @param value value of the key-value pair
+ * @return GNUNET_YES on success, GNUNET_NO if the key-value pair
+ *  is not in the map
+ */
+int GNUNET_multi_hash_map_remove (struct GNUNET_MultiHashMap *map,
+                                  const GNUNET_HashCode * key, void *value);
+
+/**
+ * Remove all entries for the given key from the map.
+ * Note that the values would not be "freed".
+ *
+ * @param map the map
+ * @param key identifies values to be removed
+ * @return number of values removed
+ */
+int GNUNET_multi_hash_map_remove_all (struct GNUNET_MultiHashMap *map,
+                                      const GNUNET_HashCode * key);
+
+/**
+ * Check if the map contains any value under the given
+ * key (including values that are NULL).
+ *
+ * @param map the map
+ * @param key the key to test if a value exists for it
+ * @return GNUNET_YES if such a value exists,
+ *         GNUNET_NO if not
+ */
+int GNUNET_multi_hash_map_contains (const struct GNUNET_MultiHashMap *map,
+                                    const GNUNET_HashCode * key);
+
+/**
+ * Store a key-value pair in the map.
+ *
+ * @param map the map
+ * @param key key to use
+ * @param value value to use
+ * @param opt options for put
+ * @return GNUNET_OK on success,
+ *         GNUNET_NO if a value was replaced (with REPLACE)
+ *         GNUNET_SYSERR if UNIQUE_ONLY was the option and the
+ *                       value already exists
+ */
+int GNUNET_multi_hash_map_put (struct GNUNET_MultiHashMap *map,
+                               const GNUNET_HashCode * key,
+                               void *value,
+                               enum GNUNET_MultiHashMapOption opt);
+
+/**
+ * Get the number of key-value pairs in the map.
+ *
+ * @param map the map
+ * @return the number of key value pairs
+ */
+unsigned int GNUNET_multi_hash_map_size (const struct GNUNET_MultiHashMap
+                                         *map);
+
+
+/**
+ * Iterate over all entries in the map.
+ *
+ * @param map the map
+ * @param iterator function to call on each entry
+ * @param cls extra argument to it
+ * @return the number of key value pairs processed,
+ *         GNUNET_SYSERR if it aborted iteration
+ */
+int GNUNET_multi_hash_map_iterate (const struct GNUNET_MultiHashMap *map,
+                                   GNUNET_HashMapIterator iterator,
+                                   void *cls);
+
+/**
+ * Iterate over all entries in the map
+ * that match a particular key.
+ *
+ * @param map the map
+ * @param key key that the entries must correspond to
+ * @param iterator function to call on each entry
+ * @param cls extra argument to it
+ * @return the number of key value pairs processed,
+ *         GNUNET_SYSERR if it aborted iteration
+ */
+int GNUNET_multi_hash_map_get_multiple (const struct GNUNET_MultiHashMap *map,
+                                        const GNUNET_HashCode * key,
+                                        GNUNET_HashMapIterator iterator,
+                                        void *cls);
+/**
+ * Returns the stored value of a random non-null entry
+ * in the hash table.  Returns only the first value, does
+ * not go inside bucket linked list (yet).  Runs with a
+ * worst case time of N, so it's not efficient in any way
+ * shape or form!!!!.
+ */
+void *GNUNET_multi_hash_map_get_random (const struct GNUNET_MultiHashMap
+                                        *map);
+
+
+
+
+/* ******************** doubly-linked list *************** */
+
+/**
+ * Insert an element into a DLL. Assumes
+ * that head, tail and element are structs
+ * with prev and next fields.
+ */
+#define GNUNET_DLL_insert(head,tail,element) \
+  (element)->next = (head); \
+  (element)->prev = NULL; \
+  if ((tail) == NULL) \
+    (tail) = element; \
+  else \
+    (head)->prev = element; \
+  (head) = (element);
+
+/**
+ * Insert an element into a DLL after the given other
+ * element.  Insert at the head if the other
+ * element is NULL.
+ */
+#define GNUNET_DLL_insert_after(head,tail,other,element) \
+  (element)->prev = (other); \
+  if (NULL == other) \
+    { \
+      (element)->next = (head); \
+      (head) = (element); \
+    } \
+  else \
+    { \
+      (element)->next = (other)->next; \
+      (other)->next = (element); \
+    } \
+  if (NULL == (element)->next) \
+    (tail) = (element); \
+  else \
+    (element)->next->prev = (element);
+
+
+
+
+/**
+ * Remove an element from a DLL. Assumes
+ * that head, tail and element are structs
+ * with prev and next fields.
+ */
+#define GNUNET_DLL_remove(head,tail,element) \
+  if ((element)->prev == NULL) \
+    (head) = (element)->next;  \
+  else \
+    (element)->prev->next = (element)->next; \
+  if ((element)->next == NULL) \
+    (tail) = (element)->prev;  \
+  else \
+    (element)->next->prev = (element)->prev;
+
+
+
+
 
 #if 0                           /* keep Emacsens' auto-indent happy */
 {

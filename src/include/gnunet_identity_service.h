@@ -210,9 +210,12 @@ typedef struct
   int (*changeHostTrust) (const GNUNET_PeerIdentity * hostId, int value);
 
   /**
-   * Obtain the trust record of the host.
+   * Get the amount of trust we have in a host.
+   *
+   * @param hostId is the identity of the host
+   * @returns trust we have in the host (-1 on error)
    */
-  unsigned int (*getHostTrust) (const GNUNET_PeerIdentity * hostId);
+  int (*getHostTrust) (const GNUNET_PeerIdentity * hostId);
 
 } GNUNET_Identity_ServiceAPI;
 

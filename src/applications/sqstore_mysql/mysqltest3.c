@@ -68,7 +68,8 @@ putValue (GNUNET_SQstore_ServiceAPI * api, int i, int k)
       sizeof (GNUNET_DatastoreValue) +
       GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK, 32 * 1024);
   size = size - (size & 7);     /* always multiple of 8 */
-
+  if (size == 0)
+    size = 8;                   /* never zero */
   /* generate random key */
   key.bits[0] = (unsigned int) GNUNET_get_time ();
   GNUNET_hash (&key, sizeof (GNUNET_HashCode), &key);
@@ -180,6 +181,7 @@ main (int argc, char *argv[])
   struct GNUNET_GC_Configuration *cfg;
   struct GNUNET_CronManager *cron;
 
+  GNUNET_disable_entropy_gathering ();
   cfg = GNUNET_GC_create ();
   if (-1 == GNUNET_GC_parse_configuration (cfg, "check.conf"))
     {

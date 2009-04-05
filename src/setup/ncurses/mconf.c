@@ -54,7 +54,7 @@ static void
 show_help (const char *option, const char *helptext)
 {
   dialog_vars.help_button = 0;
-  dialog_msgbox (option, gettext (helptext), 20, 70, TRUE);
+  dialog_msgbox (option, helptext, 20, 70, TRUE);
   dialog_vars.help_button = 1;
 }
 
@@ -125,8 +125,8 @@ run_menu (struct GNUNET_GNS_Context *ctx,
               if (pos->children[i]->visible)
                 {
                   items[st].name = pos->children[i]->option;
-                  items[st].text = gettext (pos->children[i]->description);
-                  items[st].help = gettext (pos->children[i]->help);
+                  items[st].text = pos->children[i]->description;
+                  items[st].help = pos->children[i]->help;
                   if (st == msel)
                     items[st].state = 1;
                   else
@@ -135,7 +135,7 @@ run_menu (struct GNUNET_GNS_Context *ctx,
                 }
               i++;
             }
-          st = dlg_menu (gettext (pos->description),
+          st = dlg_menu (pos->description,
                          "Select configuration option to change",
                          20, 70, 13, st, items, &msel, NULL);
           GNUNET_free (items);
@@ -171,26 +171,22 @@ run_menu (struct GNUNET_GNS_Context *ctx,
           switch (pos->type & GNUNET_GNS_TYPE_MASK)
             {
             case GNUNET_GNS_TYPE_BOOLEAN:
-              st = dialog_yesno (pos->option,
-                                 gettext (pos->description), 5, 60);
+              st = dialog_yesno (pos->option, pos->description, 5, 60);
               switch (st)
                 {
                 case DLG_EXIT_OK:
                 case DLG_EXIT_CANCEL:
                   if (0 != GNUNET_GC_set_configuration_value_string (cfg,
                                                                      ectx,
-                                                                     pos->
-                                                                     section,
-                                                                     pos->
-                                                                     option,
+                                                                     pos->section,
+                                                                     pos->option,
                                                                      st ==
                                                                      DLG_EXIT_OK
                                                                      ? "YES" :
                                                                      "NO"))
                     {
                       show_help (pos->option,
-                                 gettext_noop
-                                 ("Internal error! (Choice invalid?)"));
+                                 _("Internal error! (Choice invalid?)"));
                       break;
                     }
                   return;
@@ -217,16 +213,12 @@ run_menu (struct GNUNET_GNS_Context *ctx,
                 case DLG_EXIT_OK:
                   if (0 != GNUNET_GC_set_configuration_value_string (cfg,
                                                                      ectx,
-                                                                     pos->
-                                                                     section,
-                                                                     pos->
-                                                                     option,
-                                                                     fitem.
-                                                                     text))
+                                                                     pos->section,
+                                                                     pos->option,
+                                                                     fitem.text))
                     {
                       show_help (pos->option,
-                                 gettext_noop
-                                 ("Internal error! (Value invalid?)"));
+                                 _("Internal error! (Value invalid?)"));
                       break;
                     }
                   GNUNET_free (fitem.text);
@@ -274,8 +266,8 @@ run_menu (struct GNUNET_GNS_Context *ctx,
                     msel = i;
                   i++;
                 }
-              st = dlg_checklist (gettext (pos->option),
-                                  gettext (pos->description),
+              st = dlg_checklist (pos->option,
+                                  pos->description,
                                   20,
                                   70, 13, i, items, " *", FLAG_RADIO, &msel);
               GNUNET_free (items);
@@ -284,18 +276,13 @@ run_menu (struct GNUNET_GNS_Context *ctx,
                 case DLG_EXIT_OK:
                   if (0 != GNUNET_GC_set_configuration_value_choice (cfg,
                                                                      ectx,
-                                                                     pos->
-                                                                     section,
-                                                                     pos->
-                                                                     option,
-                                                                     val->
-                                                                     String.
-                                                                     legalRange
+                                                                     pos->section,
+                                                                     pos->option,
+                                                                     val->String.legalRange
                                                                      [msel]))
                     {
                       show_help (pos->option,
-                                 gettext_noop
-                                 ("Internal error! (Choice invalid?)"));
+                                 _("Internal error! (Choice invalid?)"));
                       break;
                     }
                   return;
@@ -346,8 +333,8 @@ run_menu (struct GNUNET_GNS_Context *ctx,
                     }
                   i++;
                 }
-              st = dlg_checklist (gettext (pos->option),
-                                  gettext (pos->description),
+              st = dlg_checklist (pos->option,
+                                  pos->description,
                                   20,
                                   70, 13, i, items, " *", FLAG_CHECK, &msel);
               switch (st)
@@ -369,16 +356,13 @@ run_menu (struct GNUNET_GNS_Context *ctx,
                     tmp[strlen (tmp) - 1] = '\0';
                   if (0 != GNUNET_GC_set_configuration_value_choice (cfg,
                                                                      ectx,
-                                                                     pos->
-                                                                     section,
-                                                                     pos->
-                                                                     option,
+                                                                     pos->section,
+                                                                     pos->option,
                                                                      tmp))
                     {
                       GNUNET_free (tmp);
                       show_help (pos->option,
-                                 gettext_noop
-                                 ("Internal error! (Choice invalid?)"));
+                                 _("Internal error! (Choice invalid?)"));
                       break;
                     }
                   GNUNET_free (tmp);
@@ -410,22 +394,18 @@ run_menu (struct GNUNET_GNS_Context *ctx,
                   if (1 != sscanf (fitem.text, "%lf", &dval))
                     {
                       show_help (pos->option,
-                                 gettext_noop
+                                 _
                                  ("Invalid input, expecting floating point value."));
                       break;
                     }
                   if (0 != GNUNET_GC_set_configuration_value_string (cfg,
                                                                      ectx,
-                                                                     pos->
-                                                                     section,
-                                                                     pos->
-                                                                     option,
-                                                                     fitem.
-                                                                     text))
+                                                                     pos->section,
+                                                                     pos->option,
+                                                                     fitem.text))
                     {
                       show_help (pos->option,
-                                 gettext_noop
-                                 ("Internal error! (Value invalid?)"));
+                                 _("Internal error! (Value invalid?)"));
                       break;
                     }
                   GNUNET_free (fitem.text);
@@ -456,29 +436,24 @@ run_menu (struct GNUNET_GNS_Context *ctx,
                       if (1 != sscanf (fitem.text, "%llu", &lval))
                         {
                           show_help (pos->option,
-                                     gettext_noop
-                                     ("Invalid input, expecting integer."));
+                                     _("Invalid input, expecting integer."));
                           continue;
                         }
                       if ((lval < pos->value.UInt64.min) ||
                           (lval > pos->value.UInt64.max))
                         {
                           show_help (pos->option,
-                                     gettext_noop
-                                     ("Value is not in legal range."));
+                                     _("Value is not in legal range."));
                           continue;
                         }
                       if (0 != GNUNET_GC_set_configuration_value_number (cfg,
                                                                          ectx,
-                                                                         pos->
-                                                                         section,
-                                                                         pos->
-                                                                         option,
+                                                                         pos->section,
+                                                                         pos->option,
                                                                          lval))
                         {
                           show_help (pos->option,
-                                     gettext_noop
-                                     ("Internal error! (Choice invalid?)"));
+                                     _("Internal error! (Choice invalid?)"));
                           continue;
                         }
                       break;

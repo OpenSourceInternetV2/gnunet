@@ -84,31 +84,44 @@ static GNUNET_Pingpong_ServiceAPI *pingpong;
  */
 static double saturation = 0.0;
 
-/**
- * Array of our friends.
- */
-static GNUNET_PeerIdentity *friends;
+typedef struct
+{
+        /**
+	 * Array of our friends.
+	 */
+  GNUNET_PeerIdentity *friends;
+
+        /**
+	 * Number of friends that we have.
+	 */
+  unsigned int friendCount;
+
+        /**
+	 * Minimum number of friends to have in the
+	 * connection set.
+	 */
+  unsigned int minimum_friend_count;
+
+        /**
+	 * Flag to disallow non-friend connections (pure F2F mode).
+	 */
+  int friends_only;
+
+        /**
+	 * Last modification of friends file
+	 */
+  time_t friends_mtime;
+
+        /**
+	 * Last size of friends file
+	 */
+  unsigned int friends_size;
+} FriendListInfo;
+
+static FriendListInfo fInfo;
 
 /**
- * Number of friends that we have.
- */
-static unsigned int friendCount;
-
-/**
- * Minimum number of friends to have in the
- * connection set.
- */
-static unsigned int minimum_friend_count;
-
-/**
- * Flag to disallow non-friend connections (pure F2F mode).
- */
-static int friends_only;
-
-
-
-/**
- * Record for state maintanance between scanHelperCount,
+ * Record for state maintenance between scanHelperCount,
  * scanHelperSelect and scanForHosts.
  */
 typedef struct
@@ -409,13 +422,156 @@ estimateSaturation ()
   return saturation;
 }
 
+/**
+ * @return 0 on success.
+ */
+static int
+rereadConfiguration (void *ctx,
+                     struct GNUNET_GC_Configuration *cfg,
+                     struct GNUNET_GE_Context *ectx,
+                     const char *section, const char *option)
+{
+  char *fn;
+  char *data;
+  size_t pos;
+  GNUNET_EncName enc;
+  GNUNET_HashCode hc;
+  unsigned long long opt;
+  struct stat frstat;
+
+  if (0 != strcmp (section, "F2F"))
+    return 0;
+  fInfo.friends_only = GNUNET_GC_get_configuration_value_yesno (cfg,
+                                                                "F2F",
+                                                                "FRIENDS-ONLY",
+                                                                GNUNET_NO);
+  if (fInfo.friends_only == GNUNET_SYSERR)
+    return GNUNET_SYSERR;       /* invalid */
+  opt = 0;
+  GNUNET_GC_get_configuration_value_number (cfg,
+                                            "F2F",
+                                            "MINIMUM",
+                                            0, 1024 * 1024, 0, &opt);
+  fInfo.minimum_friend_count = (unsigned int) opt;
+
+  fn = NULL;
+  GNUNET_GC_get_configuration_value_filename (cfg,
+                                              "F2F",
+                                              "FRIENDS",
+                                              GNUNET_DEFAULT_DAEMON_VAR_DIRECTORY
+                                              "/friends", &fn);
+
+  if (GNUNET_OK != GNUNET_disk_file_test (ectx, fn))
+    GNUNET_disk_file_write (ectx, fn, NULL, 0, "600");
+  if ((0 == GNUNET_disk_file_test (ectx, fn)) || (0 != STAT (fn, &frstat)))
+    {
+      GNUNET_free (fn);
+      fn = NULL;
+      if ((fInfo.friends_only) || (fInfo.minimum_friend_count > 0))
+        {
+          GNUNET_GE_LOG (ectx,
+                         GNUNET_GE_USER | GNUNET_GE_ADMIN | GNUNET_GE_ERROR |
+                         GNUNET_GE_IMMEDIATE,
+                         _("Could not read friends list `%s'\n"), fn);
+          return GNUNET_SYSERR;
+        }
+    }
+  if ((frstat.st_mtime != fInfo.friends_mtime)
+      || (frstat.st_size != fInfo.friends_size))
+    {
+      fInfo.friends_mtime = frstat.st_mtime;
+      fInfo.friends_size = frstat.st_size;
+    }
+  else
+    {
+      GNUNET_free_non_null (fn);
+      return 0;
+    }
+  if ((fn != NULL) && (frstat.st_size > 0))
+    {
+      GNUNET_array_grow (fInfo.friends, fInfo.friendCount, 0);
+      data = GNUNET_malloc (frstat.st_size);
+      if (frstat.st_size !=
+          GNUNET_disk_file_read (ectx, fn, frstat.st_size, data))
+        {
+          GNUNET_GE_LOG (ectx,
+                         GNUNET_GE_ERROR | GNUNET_GE_BULK | GNUNET_GE_USER,
+                         _("Failed to read friends list from `%s'\n"), fn);
+          GNUNET_free (fn);
+          GNUNET_free (data);
+          return GNUNET_SYSERR;
+        }
+      GNUNET_free (fn);
+      fn = NULL;
+      pos = 0;
+      while ((pos < frstat.st_size) && isspace (data[pos]))
+        pos++;
+      while ((frstat.st_size >= sizeof (GNUNET_EncName)) &&
+             (pos <= frstat.st_size - sizeof (GNUNET_EncName)))
+        {
+          memcpy (&enc, &data[pos], sizeof (GNUNET_EncName));
+          if (!isspace (enc.encoding[sizeof (GNUNET_EncName) - 1]))
+            {
+              GNUNET_GE_LOG (ectx,
+                             GNUNET_GE_WARNING | GNUNET_GE_BULK |
+                             GNUNET_GE_USER,
+                             _
+                             ("Syntax error in topology specification, skipping bytes.\n"));
+              pos++;
+              while ((pos < frstat.st_size) && (!isspace (data[pos])))
+                pos++;
+              continue;
+            }
+          enc.encoding[sizeof (GNUNET_EncName) - 1] = '\0';
+          if (GNUNET_OK == GNUNET_enc_to_hash ((char *) &enc, &hc))
+            {
+              GNUNET_array_grow (fInfo.friends, fInfo.friendCount,
+                                 fInfo.friendCount + 1);
+              fInfo.friends[fInfo.friendCount - 1].hashPubKey = hc;
+            }
+          else
+            {
+              GNUNET_GE_LOG (ectx,
+                             GNUNET_GE_WARNING | GNUNET_GE_BULK |
+                             GNUNET_GE_USER,
+                             _
+                             ("Syntax error in topology specification, skipping bytes `%s'.\n"),
+                             &enc);
+            }
+          pos = pos + sizeof (GNUNET_EncName);
+          while ((pos < frstat.st_size) && isspace (data[pos]))
+            pos++;
+        }
+      if ((fInfo.minimum_friend_count > fInfo.friendCount)
+          && (fInfo.friends_only == GNUNET_NO))
+        {
+          GNUNET_GE_LOG (ectx,
+                         GNUNET_GE_WARNING | GNUNET_GE_BULK | GNUNET_GE_USER,
+                         _
+                         ("Fewer friends specified than required by minimum friend count. Will only connect to friends.\n"));
+        }
+      if ((fInfo.minimum_friend_count >
+           coreAPI->core_slots_count ()) && (fInfo.friends_only == GNUNET_NO))
+        {
+          GNUNET_GE_LOG (ectx,
+                         GNUNET_GE_WARNING | GNUNET_GE_BULK | GNUNET_GE_USER,
+                         _
+                         ("More friendly connections required than target total number of connections.\n"));
+        }
+      GNUNET_free (data);
+    }
+  GNUNET_free_non_null (fn);
+  return 0;
+}
+
 static int
 is_friend (const GNUNET_PeerIdentity * peer)
 {
   unsigned int i;
 
-  for (i = 0; i < friendCount; i++)
-    if (0 == memcmp (&friends[i], peer, sizeof (GNUNET_PeerIdentity)))
+  rereadConfiguration (NULL, coreAPI->cfg, coreAPI->ectx, "F2F", NULL);
+  for (i = 0; i < fInfo.friendCount; i++)
+    if (0 == memcmp (&fInfo.friends[i], peer, sizeof (GNUNET_PeerIdentity)))
       return 1;
   return 0;
 }
@@ -456,9 +612,10 @@ allowConnection (const GNUNET_PeerIdentity * peer)
     return GNUNET_SYSERR;       /* disallow connections to self */
   if (is_friend (peer))
     return GNUNET_OK;
-  if (friends_only)
+  if (fInfo.friends_only)
     return GNUNET_SYSERR;
-  if (count_connected_friends (&core_wrapper, NULL) >= minimum_friend_count)
+  if (count_connected_friends (&core_wrapper, NULL) >=
+      fInfo.minimum_friend_count)
     return GNUNET_OK;
   return GNUNET_SYSERR;
 }
@@ -474,7 +631,7 @@ isConnectionGuarded (const GNUNET_PeerIdentity * peer,
   if (!is_friend (peer))
     return GNUNET_NO;
   if (count_connected_friends (connectionIterator, cls) <=
-      minimum_friend_count)
+      fInfo.minimum_friend_count)
     return GNUNET_YES;
   return GNUNET_NO;
 }
@@ -482,139 +639,8 @@ isConnectionGuarded (const GNUNET_PeerIdentity * peer,
 static unsigned int
 countGuardedConnections ()
 {
-  return minimum_friend_count;
+  return fInfo.minimum_friend_count;
 }
-
-/**
- * @return 0 on success.
- */
-static int
-rereadConfiguration (void *ctx,
-                     struct GNUNET_GC_Configuration *cfg,
-                     struct GNUNET_GE_Context *ectx,
-                     const char *section, const char *option)
-{
-  char *fn;
-  char *data;
-  unsigned long long size;
-  size_t pos;
-  GNUNET_EncName enc;
-  GNUNET_HashCode hc;
-  unsigned long long opt;
-
-  if (0 != strcmp (section, "F2F"))
-    return 0;
-  friends_only = GNUNET_GC_get_configuration_value_yesno (cfg,
-                                                          "F2F",
-                                                          "FRIENDS-ONLY",
-                                                          GNUNET_NO);
-  if (friends_only == GNUNET_SYSERR)
-    return GNUNET_SYSERR;       /* invalid */
-  opt = 0;
-  GNUNET_GC_get_configuration_value_number (cfg,
-                                            "F2F",
-                                            "MINIMUM",
-                                            0, 1024 * 1024, 0, &opt);
-  minimum_friend_count = (unsigned int) opt;
-  GNUNET_array_grow (friends, friendCount, 0);
-  fn = NULL;
-  GNUNET_GC_get_configuration_value_filename (cfg,
-                                              "F2F",
-                                              "FRIENDS",
-                                              GNUNET_DEFAULT_DAEMON_VAR_DIRECTORY
-                                              "/friends", &fn);
-        /**Nate change, don't beat me up if it's not pretty!*/
-  if (GNUNET_OK != GNUNET_disk_file_test (ectx, fn))
-    {
-      GNUNET_disk_file_write (ectx, fn, NULL, 0, "600");
-    }
-  if ((0 == GNUNET_disk_file_test (ectx, fn))
-      || (GNUNET_OK != GNUNET_disk_file_size (ectx, fn, &size, GNUNET_YES)))
-    {
-      GNUNET_free (fn);
-      fn = NULL;
-      if ((friends_only) || (minimum_friend_count > 0))
-        {
-          GNUNET_GE_LOG (ectx,
-                         GNUNET_GE_USER | GNUNET_GE_ADMIN | GNUNET_GE_ERROR |
-                         GNUNET_GE_IMMEDIATE,
-                         _("Could not read friends list `%s'\n"), fn);
-          return GNUNET_SYSERR;
-        }
-    }
-  if ((fn != NULL) && (size > 0))
-    {
-      data = GNUNET_malloc (size);
-      if (size != GNUNET_disk_file_read (ectx, fn, size, data))
-        {
-          GNUNET_GE_LOG (ectx,
-                         GNUNET_GE_ERROR | GNUNET_GE_BULK | GNUNET_GE_USER,
-                         _("Failed to read friends list from `%s'\n"), fn);
-          GNUNET_free (fn);
-          GNUNET_free (data);
-          return GNUNET_SYSERR;
-        }
-      GNUNET_free (fn);
-      fn = NULL;
-      pos = 0;
-      while ((pos < size) && isspace (data[pos]))
-        pos++;
-      while ((size >= sizeof (GNUNET_EncName)) &&
-             (pos <= size - sizeof (GNUNET_EncName)))
-        {
-          memcpy (&enc, &data[pos], sizeof (GNUNET_EncName));
-          if (!isspace (enc.encoding[sizeof (GNUNET_EncName) - 1]))
-            {
-              GNUNET_GE_LOG (ectx,
-                             GNUNET_GE_WARNING | GNUNET_GE_BULK |
-                             GNUNET_GE_USER,
-                             _
-                             ("Syntax error in topology specification, skipping bytes.\n"));
-              pos++;
-              while ((pos < size) && (!isspace (data[pos])))
-                pos++;
-              continue;
-            }
-          enc.encoding[sizeof (GNUNET_EncName) - 1] = '\0';
-          if (GNUNET_OK == GNUNET_enc_to_hash ((char *) &enc, &hc))
-            {
-              GNUNET_array_grow (friends, friendCount, friendCount + 1);
-              friends[friendCount - 1].hashPubKey = hc;
-            }
-          else
-            {
-              GNUNET_GE_LOG (ectx,
-                             GNUNET_GE_WARNING | GNUNET_GE_BULK |
-                             GNUNET_GE_USER,
-                             _
-                             ("Syntax error in topology specification, skipping bytes `%s'.\n"),
-                             &enc);
-            }
-          pos = pos + sizeof (GNUNET_EncName);
-          while ((pos < size) && isspace (data[pos]))
-            pos++;
-        }
-      if ((minimum_friend_count > friendCount) && (friends_only == GNUNET_NO))
-        {
-          GNUNET_GE_LOG (ectx,
-                         GNUNET_GE_WARNING | GNUNET_GE_BULK | GNUNET_GE_USER,
-                         _
-                         ("Fewer friends specified than required by minimum friend count. Will only connect to friends.\n"));
-        }
-      if ((minimum_friend_count >
-           coreAPI->core_slots_count ()) && (friends_only == GNUNET_NO))
-        {
-          GNUNET_GE_LOG (ectx,
-                         GNUNET_GE_WARNING | GNUNET_GE_BULK | GNUNET_GE_USER,
-                         _
-                         ("More friendly connections required than target total number of connections.\n"));
-        }
-      GNUNET_free (data);
-    }
-  GNUNET_free_non_null (fn);
-  return 0;
-}
-
 
 GNUNET_Topology_ServiceAPI *
 provide_module_topology_default (GNUNET_CoreAPIForPlugins * capi)
@@ -682,7 +708,7 @@ release_module_topology_default ()
   coreAPI->service_release (pingpong);
   pingpong = NULL;
   coreAPI = NULL;
-  GNUNET_array_grow (friends, friendCount, 0);
+  GNUNET_array_grow (fInfo.friends, fInfo.friendCount, 0);
   return GNUNET_OK;
 }
 

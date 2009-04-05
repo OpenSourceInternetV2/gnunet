@@ -122,8 +122,8 @@ configChangeListener (void *ctx,
         val = GNUNET_GC_get_configuration_value_yesno (cfg,
                                                        section,
                                                        option,
-                                                       pos->value.Boolean.
-                                                       def);
+                                                       pos->value.
+                                                       Boolean.def);
         if (val == GNUNET_SYSERR)
           {
             return GNUNET_SYSERR;
@@ -138,18 +138,9 @@ configChangeListener (void *ctx,
         if (GNUNET_SYSERR == GNUNET_GC_get_configuration_value_number (cfg,
                                                                        section,
                                                                        option,
-                                                                       pos->
-                                                                       value.
-                                                                       UInt64.
-                                                                       min,
-                                                                       pos->
-                                                                       value.
-                                                                       UInt64.
-                                                                       max,
-                                                                       pos->
-                                                                       value.
-                                                                       UInt64.
-                                                                       def,
+                                                                       pos->value.UInt64.min,
+                                                                       pos->value.UInt64.max,
+                                                                       pos->value.UInt64.def,
                                                                        &val))
           {
             return GNUNET_SYSERR;
@@ -194,10 +185,7 @@ configChangeListener (void *ctx,
         if (GNUNET_SYSERR == GNUNET_GC_get_configuration_value_string (cfg,
                                                                        section,
                                                                        option,
-                                                                       pos->
-                                                                       value.
-                                                                       String.
-                                                                       def,
+                                                                       pos->value.String.def,
                                                                        &val))
           return GNUNET_SYSERR;
         GNUNET_free (pos->value.String.val);
@@ -214,14 +202,8 @@ configChangeListener (void *ctx,
                                                                        (const
                                                                         char
                                                                         **)
-                                                                       pos->
-                                                                       value.
-                                                                       String.
-                                                                       legalRange,
-                                                                       pos->
-                                                                       value.
-                                                                       String.
-                                                                       def,
+                                                                       pos->value.String.legalRange,
+                                                                       pos->value.String.def,
                                                                        &ival))
           return GNUNET_SYSERR;
         GNUNET_free (pos->value.String.val);
@@ -274,8 +256,8 @@ free_tree (struct GNUNET_GNS_TreeNode *t)
       GNUNET_GE_BREAK (NULL, 0);
       break;
     }
-  GNUNET_free (t->description);
-  GNUNET_free (t->help);
+  GNUNET_free (t->untranslatedDescription);
+  GNUNET_free (t->untranslatedHelp);
   GNUNET_free (t->children);
   GNUNET_free (t);
 }

@@ -1,12 +1,12 @@
 INCLUDES = -I$(top_srcdir)/src/include
-SUBDIRS  = m4 po libltdl src doc contrib
+SUBDIRS  = m4 po src doc contrib
 
 EXTRA_DIST = \
  ABOUT-NLS \
  config.rpath \
  install-sh \
- mkinstalldirs \
  HACKING \
+ README.de \
  README.fr \
  README.win32 \
  README.debian \

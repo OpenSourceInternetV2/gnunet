@@ -12,6 +12,9 @@
    language is requested. */
 #undef ENABLE_NLS
 
+/* Build a Mac OS X Framework */
+#undef FRAMEWORK_BUILD
+
 /* This is a FreeBSD system */
 #undef FREEBSD
 
@@ -25,29 +28,8 @@
 /* Define to 1 if you have the <adns.h> header file. */
 #undef HAVE_ADNS_H
 
-/* Define to 1 if you have the `argz_add' function. */
-#undef HAVE_ARGZ_ADD
-
-/* Define to 1 if you have the `argz_append' function. */
-#undef HAVE_ARGZ_APPEND
-
-/* Define to 1 if you have the `argz_count' function. */
-#undef HAVE_ARGZ_COUNT
-
-/* Define to 1 if you have the `argz_create_sep' function. */
-#undef HAVE_ARGZ_CREATE_SEP
-
-/* Define to 1 if you have the <argz.h> header file. */
-#undef HAVE_ARGZ_H
-
-/* Define to 1 if you have the `argz_insert' function. */
-#undef HAVE_ARGZ_INSERT
-
-/* Define to 1 if you have the `argz_next' function. */
-#undef HAVE_ARGZ_NEXT
-
-/* Define to 1 if you have the `argz_stringify' function. */
-#undef HAVE_ARGZ_STRINGIFY
+/* Define to 1 if you have the <ares.h> header file. */
+#undef HAVE_ARES_H
 
 /* Define to 1 if you have the <arpa/inet.h> header file. */
 #undef HAVE_ARPA_INET_H
@@ -61,18 +43,33 @@
 /* Define to 1 if you have the <cdialog/dialog.h> header file. */
 #undef HAVE_CDIALOG_DIALOG_H
 
+/* Define to 1 if you have the MacOS X function CFLocaleCopyCurrent in the
+   CoreFoundation framework. */
+#undef HAVE_CFLOCALECOPYCURRENT
+
+/* Define to 1 if you have the MacOS X function CFPreferencesCopyAppValue in
+   the CoreFoundation framework. */
+#undef HAVE_CFPREFERENCESCOPYAPPVALUE
+
 /* Define to 1 if your system has a working `chown' function. */
 #undef HAVE_CHOWN
 
 /* Define to 1 if you have the `clock_gettime' function. */
 #undef HAVE_CLOCK_GETTIME
 
-/* Define to 1 if you have the `closedir' function. */
-#undef HAVE_CLOSEDIR
+/* Define to 1 if you have the <ctype.h> header file. */
+#undef HAVE_CTYPE_H
+
+/* We have c-ares */
+#undef HAVE_C_ARES
 
 /* Define if the GNU dcgettext() function is already present or preinstalled.
    */
 #undef HAVE_DCGETTEXT
+
+/* Define to 1 if you have the declaration of `cygwin_conv_path', and to 0 if
+   you don't. */
+#undef HAVE_DECL_CYGWIN_CONV_PATH
 
 /* We have dialog */
 #undef HAVE_DIALOG
@@ -87,17 +84,11 @@
 /* Define if you have the GNU dld library. */
 #undef HAVE_DLD
 
-/* Define to 1 if you have the <dld.h> header file. */
-#undef HAVE_DLD_H
-
 /* Define to 1 if you have the `dlerror' function. */
 #undef HAVE_DLERROR
 
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
-
-/* Define to 1 if you have the <dl.h> header file. */
-#undef HAVE_DL_H
 
 /* Define to 1 if you don't have `vprintf' but do have `_doprnt.' */
 #undef HAVE_DOPRNT
@@ -110,9 +101,6 @@
 
 /* Define to 1 if you have the <errno.h> header file. */
 #undef HAVE_ERRNO_H
-
-/* Define to 1 if the system has the type `error_t'. */
-#undef HAVE_ERROR_T
 
 /* We have libesmtp */
 #undef HAVE_ESMTP
@@ -219,9 +207,6 @@
 /* Define to 1 if you have the <langinfo.h> header file. */
 #undef HAVE_LANGINFO_H
 
-/* Define to 1 if you have the `adns' library (-ladns). */
-#undef HAVE_LIBADNS
-
 /* Define to 1 if you have a functional curl library. */
 #undef HAVE_LIBCURL
 
@@ -279,14 +264,8 @@
 /* Define to 1 if you have the `localtime_r' function. */
 #undef HAVE_LOCALTIME_R
 
-/* Define this if a modern libltdl is already installed */
-#undef HAVE_LTDL
-
 /* Define to 1 if you have the <mach/mach.h> header file. */
 #undef HAVE_MACH_MACH_H
-
-/* Define to 1 if you have the <mach-o/dyld.h> header file. */
-#undef HAVE_MACH_O_DYLD_H
 
 /* Define to 1 if you have the <math.h> header file. */
 #undef HAVE_MATH_H
@@ -342,11 +321,8 @@
 /* Define to 1 if the system has the type `off_t'. */
 #undef HAVE_OFF_T
 
-/* Define to 1 if you have the `opendir' function. */
-#undef HAVE_OPENDIR
-
-/* Define if libtool can extract symbol lists from object files. */
-#undef HAVE_PRELOADED_SYMBOLS
+/* Define to 1 if you have the <postgresql/libpq-fe.h> header file. */
+#undef HAVE_POSTGRESQL_LIBPQ_FE_H
 
 /* Define to 1 if you have the `pthread_equal' function. */
 #undef HAVE_PTHREAD_EQUAL
@@ -365,9 +341,6 @@
 
 /* Define to 1 if you have the `rand' function. */
 #undef HAVE_RAND
-
-/* Define to 1 if you have the `readdir' function. */
-#undef HAVE_READDIR
 
 /* Define to 1 if you have the `realpath' function. */
 #undef HAVE_REALPATH
@@ -390,6 +363,9 @@
 /* Define if you have the shl_load function. */
 #undef HAVE_SHL_LOAD
 
+/* Define to 1 if you have the <signal.h> header file. */
+#undef HAVE_SIGNAL_H
+
 /* Define to 1 if the system has the type `sigset_t'. */
 #undef HAVE_SIGSET_T
 
@@ -398,6 +374,9 @@
 
 /* Define to 1 if you have the `socket' function. */
 #undef HAVE_SOCKET
+
+/* Define to 1 if you have the <sockLib.h> header file. */
+#undef HAVE_SOCKLIB_H
 
 /* Define to 1 if you have the <sqlite3.h> header file. */
 #undef HAVE_SQLITE3_H
@@ -408,6 +387,9 @@
 /* Define to 1 if `stat' has the bug that it succeeds when given the
    zero-length file name argument. */
 #undef HAVE_STAT_EMPTY_STRING_BUG
+
+/* Define to 1 if you have the <stdarg.h> header file. */
+#undef HAVE_STDARG_H
 
 /* Define to 1 if stdbool.h conforms to C99. */
 #undef HAVE_STDBOOL_H
@@ -470,17 +452,20 @@
    */
 #undef HAVE_SYS_DIR_H
 
-/* Define to 1 if you have the <sys/dl.h> header file. */
-#undef HAVE_SYS_DL_H
-
 /* Define to 1 if you have the <sys/file.h> header file. */
 #undef HAVE_SYS_FILE_H
 
 /* Define to 1 if you have the <sys/ioctl.h> header file. */
 #undef HAVE_SYS_IOCTL_H
 
+/* Define to 1 if you have the <sys/mman.h> header file. */
+#undef HAVE_SYS_MMAN_H
+
 /* Define to 1 if you have the <sys/mount.h> header file. */
 #undef HAVE_SYS_MOUNT_H
+
+/* Define to 1 if you have the <sys/msg.h> header file. */
+#undef HAVE_SYS_MSG_H
 
 /* Define to 1 if you have the <sys/ndir.h> header file, and it defines `DIR'.
    */
@@ -542,9 +527,6 @@
 
 /* Define to 1 if you have the `vprintf' function. */
 #undef HAVE_VPRINTF
-
-/* This value is set to 1 to indicate that the system argz facility works */
-#undef HAVE_WORKING_ARGZ
 
 /* Define to 1 if `fork' works. */
 #undef HAVE_WORKING_FORK
@@ -616,31 +598,12 @@
    slash. */
 #undef LSTAT_FOLLOWS_SLASHED_SYMLINK
 
-/* Define if the OS needs help to load dependent libraries for dlopen(). */
-#undef LTDL_DLOPEN_DEPLIBS
-
-/* Define if dlopen(NULL) is able to resolve symbols from the main program. */
-#undef LTDL_DLOPEN_SELF_WORKS
-
-/* Define to the system default library search path. */
-#undef LT_DLSEARCH_PATH
-
-/* Define to the extension used for runtime loadable modules, say, ".so". */
-#undef LT_MODULE_EXT
-
-/* Define to the name of the environment variable that determines the run-time
-   module search path. */
-#undef LT_MODULE_PATH_VAR
-
 /* Define to the sub-directory in which libtool stores uninstalled libraries.
    */
 #undef LT_OBJDIR
 
 /* This is a MinGW system */
 #undef MINGW
-
-/* Define if dlsym() requires a leading underscore in symbol names. */
-#undef NEED_USCORE
 
 /* This is a NetBSD system */
 #undef NETBSD
@@ -726,17 +689,11 @@
 /* This is a Windows system */
 #undef _WIN32
 
-/* Define so that glibc/gnulib argp.h does not typedef error_t. */
-#undef __error_t_defined
-
 /* Define to empty if `const' does not conform to ANSI C. */
 #undef const
 
 /* Define curl_free() as free() if our version of curl lacks curl_free. */
 #undef curl_free
-
-/* Define to a type to use for `error_t' if it is not otherwise available. */
-#undef error_t
 
 /* Define to `int' if <sys/types.h> doesn't define. */
 #undef gid_t

@@ -33,7 +33,9 @@
 
 #ifndef HAVE_USED_CONFIG_H
 #define HAVE_USED_CONFIG_H
+#if HAVE_CONFIG_H
 #include "config.h"
+#endif
 #endif
 
 #ifdef WINDOWS
@@ -163,12 +165,18 @@
 
 #include <pthread.h>
 #include <locale.h>
+#ifndef FRAMEWORK_BUILD
 #include "gettext.h"
-
 /**
  * GNU gettext support macro.
  */
 #define _(String) dgettext("GNUnet",String)
+#define LIBEXTRACTOR_GETTEXT_DOMAIN "libextractor"
+#else
+#include "libintlemu.h"
+#define _(String) dgettext("org.gnunet.GNUnet",String)
+#define LIBEXTRACTOR_GETTEXT_DOMAIN "org.gnunet.libextractor"
+#endif
 
 #ifdef CYGWIN
 #define SIOCGIFCONF     _IOW('s', 100, struct ifconf)   /* get if list */

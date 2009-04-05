@@ -30,6 +30,7 @@
 #include "gnunet_transport.h"
 #include "gnunet_stats_service.h"
 #include "gnunet_upnp_service.h"
+#include <stdint.h>
 #include <microhttpd.h>
 #include <curl/curl.h>
 #include "ip.h"
@@ -452,7 +453,7 @@ static void
 signal_select ()
 {
   static char c;
-  write (signal_pipe[1], &c, sizeof (c));
+  WRITE (signal_pipe[1], &c, sizeof (c));
 }
 
 /**
@@ -694,7 +695,7 @@ addTSession (GNUNET_TSession * tsession)
  * @return number of bytes written, 0 is allowed!
  */
 static int
-contentReaderCallback (void *cls, size_t pos, char *buf, int max)
+contentReaderCallback (void *cls, uint64_t pos, char *buf, int max)
 {
   struct MHDGetData *mgd = cls;
 
@@ -754,7 +755,7 @@ accessHandlerCallback (void *cls,
                        const char *method,
                        const char *version,
                        const char *upload_data,
-                       unsigned int *upload_data_size,
+                       size_t *upload_data_size,
                        void **httpSessionCache)
 {
   GNUNET_TSession *tsession;
@@ -1006,8 +1007,9 @@ receiveContentCallback (void *ptr, size_t size, size_t nmemb, void *ctx)
           cpy = sizeof (GNUNET_MessageHeader) - httpSession->cs.client.rpos1;
           if (cpy > have)
             cpy = have;
-          memcpy (&httpSession->cs.client.
-                  rbuff1[httpSession->cs.client.rpos1], &inbuf[poff], cpy);
+          memcpy (&httpSession->cs.
+                  client.rbuff1[httpSession->cs.client.rpos1], &inbuf[poff],
+                  cpy);
           httpSession->cs.client.rpos1 += cpy;
           have -= cpy;
           poff += cpy;
@@ -1027,8 +1029,9 @@ receiveContentCallback (void *ptr, size_t size, size_t nmemb, void *ctx)
             httpSession->cs.client.rpos2;
           if (cpy > have)
             cpy = have;
-          memcpy (&httpSession->cs.client.
-                  rbuff2[httpSession->cs.client.rpos2], &inbuf[poff], cpy);
+          memcpy (&httpSession->cs.
+                  client.rbuff2[httpSession->cs.client.rpos2], &inbuf[poff],
+                  cpy);
           have -= cpy;
           poff += cpy;
           httpSession->cs.client.rpos2 += cpy;

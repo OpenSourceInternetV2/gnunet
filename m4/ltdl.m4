@@ -7,7 +7,7 @@
 # unlimited permission to copy and/or distribute it, with or without
 # modifications, as long as this notice is preserved.
 
-# serial 13 LTDL_INIT
+# serial 15 LTDL_INIT
 
 # LT_CONFIG_LTDL_DIR(DIRECTORY, [LTDL-MODE])
 # ------------------------------------------
@@ -47,7 +47,7 @@ m4_define([_LT_BUILD_PREFIX],
 [m4_ifdef([AC_AUTOCONF_VERSION],
    [m4_if(m4_version_compare(m4_defn([AC_AUTOCONF_VERSION]), [2.62]),
 	  [-1], [m4_ifdef([_AC_HAVE_TOP_BUILD_PREFIX],
-	  		  [${top_build_prefix}],
+			  [${top_build_prefix}],
 			  [${top_builddir}/])],
 	  [${top_build_prefix}])],
    [${top_builddir}/])[]dnl
@@ -79,7 +79,7 @@ _$0()
 # AC_LIBLTDL_CONVENIENCE accepted a directory argument in older libtools,
 # now we have LT_CONFIG_LTDL_DIR:
 AU_DEFUN([AC_LIBLTDL_CONVENIENCE],
-[_LT_CONFIG_LTDL_DIR([$1])
+[_LT_CONFIG_LTDL_DIR([m4_default([$1], [libltdl])])
 _LTDL_CONVENIENCE])
 
 dnl aclocal-1.4 backwards compatibility:
@@ -135,7 +135,7 @@ _$0()
 # AC_LIBLTDL_INSTALLABLE accepted a directory argument in older libtools,
 # now we have LT_CONFIG_LTDL_DIR:
 AU_DEFUN([AC_LIBLTDL_INSTALLABLE],
-[_LT_CONFIG_LTDL_DIR([$1])
+[_LT_CONFIG_LTDL_DIR([m4_default([$1], [libltdl])])
 _LTDL_INSTALLABLE])
 
 dnl aclocal-1.4 backwards compatibility:
@@ -154,7 +154,7 @@ m4_defun([_LTDL_INSTALLABLE],
   if test x"${lt_lib_ltdl-no}" = xyes; then
     if test x"$enable_ltdl_install" != xyes; then
       # Don't overwrite $prefix/lib/libltdl.la without --enable-ltdl-install
-      AC_MSG_WARN([not overwriting libltdl at $prefix, force with \`--enable-ltdl-install'])
+      AC_MSG_WARN([not overwriting libltdl at $prefix, force with `--enable-ltdl-install'])
       enable_ltdl_install=no
     fi
   elif test x"$enable_ltdl_install" = xno; then
@@ -287,7 +287,7 @@ AC_ARG_WITH([ltdl_include],
 if test -n "$with_ltdl_include"; then
   if test -f "$with_ltdl_include/ltdl.h"; then :
   else
-    AC_MSG_ERROR([invalid ltdl include directory: \`$with_ltdl_include'])
+    AC_MSG_ERROR([invalid ltdl include directory: `$with_ltdl_include'])
   fi
 else
   with_ltdl_include=no
@@ -300,7 +300,7 @@ AC_ARG_WITH([ltdl_lib],
 if test -n "$with_ltdl_lib"; then
   if test -f "$with_ltdl_lib/libltdl.la"; then :
   else
-    AC_MSG_ERROR([invalid ltdl library directory: \`$with_ltdl_lib'])
+    AC_MSG_ERROR([invalid ltdl library directory: `$with_ltdl_lib'])
   fi
 else
   with_ltdl_lib=no
@@ -323,7 +323,7 @@ case ,$with_included_ltdl,$with_ltdl_include,$with_ltdl_lib, in
 	LTDLINCL=
 	;;
   ,no*,no,*)
-	AC_MSG_ERROR([\`--with-ltdl-include' and \`--with-ltdl-lib' options must be used together])
+	AC_MSG_ERROR([`--with-ltdl-include' and `--with-ltdl-lib' options must be used together])
 	;;
   *)	with_included_ltdl=no
 	LIBLTDL="-L$with_ltdl_lib -lltdl"
@@ -472,6 +472,13 @@ AC_CACHE_CHECK([whether deplibs are loaded by dlopen],
   aix[[4-9]]*)
     lt_cv_sys_dlopen_deplibs=yes
     ;;
+  amigaos*)
+    case $host_cpu in
+    powerpc)
+      lt_cv_sys_dlopen_deplibs=no
+      ;;
+    esac
+    ;;
   darwin*)
     # Assuming the user has installed a libdl from somewhere, this is true
     # If you are looking for one http://www.opendarwin.org/projects/dlcompat
@@ -500,7 +507,7 @@ AC_CACHE_CHECK([whether deplibs are loaded by dlopen],
     # at 6.2 and later dlopen does load deplibs.
     lt_cv_sys_dlopen_deplibs=yes
     ;;
-  netbsd*)
+  netbsd* | netbsdelf*-gnu)
     lt_cv_sys_dlopen_deplibs=yes
     ;;
   openbsd*)
@@ -704,6 +711,7 @@ beos*)
   LT_DLLOADERS="$LT_DLLOADERS ${lt_dlopen_dir+$lt_dlopen_dir/}load_add_on.la"
   ;;
 cygwin* | mingw* | os2* | pw32*)
+  AC_CHECK_DECLS([cygwin_conv_path], [], [], [[#include <sys/cygwin.h>]])
   LT_DLLOADERS="$LT_DLLOADERS ${lt_dlopen_dir+$lt_dlopen_dir/}loadlibrary.la"
   ;;
 esac

@@ -21,11 +21,6 @@
 /**
  * @file include/gnunet_dht_lib.h
  * @brief convenience API to the DHT infrastructure for use by clients
- *        This API is synchronous and ugly (each get operation creates
- *        a thread and a client connection to gnunetd).  If this code
- *        if ever used by more than a testcase, the API should be
- *        made asynchronous.
- *
  * @author Christian Grothoff
  */
 
@@ -42,7 +37,15 @@ extern "C"
 #endif
 #endif
 
+/**
+ * Opaque handle for asynchronous DHT get operation group.
+ */
 struct GNUNET_DHT_Context;
+
+/**
+ * Opaque handle for a DHT get request.
+ */
+struct GNUNET_DHT_GetRequest;
 
 /**
  * Set up a context for performing asynchronous DHT operations.
@@ -68,21 +71,22 @@ struct GNUNET_DHT_Context *GNUNET_DHT_context_create (struct
  *
  * @param type the type of key to look up
  * @param key the key to look up
- * @return GNUNET_OK on success, GNUNET_SYSERR on error
+ * @return NULL on error
  */
-int GNUNET_DHT_get_start (struct GNUNET_DHT_Context *ctx,
-                          unsigned int type, const GNUNET_HashCode * key);
-
+struct GNUNET_DHT_GetRequest *GNUNET_DHT_get_start (struct GNUNET_DHT_Context
+                                                    *ctx, unsigned int type,
+                                                    const GNUNET_HashCode *
+                                                    key);
 
 /**
  * Stop an asynchronous GET operation on the DHT looking for
  * key.
- * @param type the type of key to look up
- * @param key the key to look up
+ *
+ * @param handle request to stop
  * @return GNUNET_OK on success, GNUNET_SYSERR on error
  */
 int GNUNET_DHT_get_stop (struct GNUNET_DHT_Context *ctx,
-                         unsigned int type, const GNUNET_HashCode * key);
+                         struct GNUNET_DHT_GetRequest *handle);
 
 /**
  * Destroy a previously created context for DHT operations.
@@ -103,6 +107,18 @@ int GNUNET_DHT_put (struct GNUNET_GC_Configuration *cfg,
                     struct GNUNET_GE_Context *ectx,
                     const GNUNET_HashCode * key,
                     unsigned int type, unsigned int size, const char *value);
+
+
+
+/**
+ * Check if this peer has DHT connections to 
+ * any other peer.
+ *
+ * @param sock connection to gnunetd
+ * @return number of connections
+ */
+unsigned long long
+GNUNET_DHT_test_connected(struct GNUNET_ClientServerConnection *sock);
 
 #if 0                           /* keep Emacsens' auto-indent happy */
 {

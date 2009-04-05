@@ -248,6 +248,8 @@ GNUNET_parse_ipv6_network_specification (struct GNUNET_GE_Context * ectx,
   int ret;
   char *routeList;
   CIDR6Network *result;
+  unsigned int bits;
+  unsigned int off;
 
   if (routeListX == NULL)
     return NULL;
@@ -294,25 +296,51 @@ GNUNET_parse_ipv6_network_specification (struct GNUNET_GE_Context * ectx,
                            &routeList[slash + 1], &result[i].netmask);
           if (ret <= 0)
             {
-              GNUNET_GE_LOG (ectx,
-                             GNUNET_GE_ERROR | GNUNET_GE_USER |
-                             GNUNET_GE_IMMEDIATE,
-                             _("Wrong format `%s' for netmask: %s\n"),
-                             &routeList[slash + 1], STRERROR (errno));
-              GNUNET_free (result);
-              GNUNET_free (routeList);
-              return NULL;
+              if ((1 != SSCANF (&routeList[slash + 1],
+                                "%u", &bits)) && (bits >= 0) && (bits <= 128))
+                {
+                  if (ret == 0)
+                    GNUNET_GE_LOG (ectx,
+                                   GNUNET_GE_ERROR | GNUNET_GE_USER |
+                                   GNUNET_GE_IMMEDIATE,
+                                   _("Wrong format `%s' for netmask\n"),
+                                   &routeList[slash + 1]);
+                  else
+                    GNUNET_GE_LOG_STRERROR (ectx,
+                                            GNUNET_GE_ERROR | GNUNET_GE_USER |
+                                            GNUNET_GE_IMMEDIATE, "inet_pton");
+                  GNUNET_free (result);
+                  GNUNET_free (routeList);
+                  return NULL;
+                }
+              off = 0;
+              while (bits > 8)
+                {
+                  result[i].netmask.s6_addr[off++] = 0xFF;
+                  bits -= 8;
+                }
+              while (bits > 0)
+                {
+                  result[i].netmask.s6_addr[off]
+                    = (result[i].netmask.s6_addr[off] >> 1) + 0x80;
+                  bits--;
+                }
             }
         }
       routeList[slash] = '\0';
       ret = inet_pton (AF_INET6, &routeList[start], &result[i].network);
       if (ret <= 0)
         {
-          GNUNET_GE_LOG (ectx,
-                         GNUNET_GE_ERROR | GNUNET_GE_USER |
-                         GNUNET_GE_IMMEDIATE,
-                         _("Wrong format `%s' for network: %s\n"),
-                         &routeList[slash + 1], STRERROR (errno));
+          if (ret == 0)
+            GNUNET_GE_LOG (ectx,
+                           GNUNET_GE_ERROR | GNUNET_GE_USER |
+                           GNUNET_GE_IMMEDIATE,
+                           _("Wrong format `%s' for network\n"),
+                           &routeList[slash + 1]);
+          else
+            GNUNET_GE_LOG_STRERROR (ectx,
+                                    GNUNET_GE_ERROR | GNUNET_GE_USER |
+                                    GNUNET_GE_IMMEDIATE, "inet_pton");
           GNUNET_free (result);
           GNUNET_free (routeList);
           return NULL;
@@ -366,20 +394,20 @@ GNUNET_check_ipv6_listed (const CIDR6Network * list,
   unsigned int j;
   struct in6_addr zero;
 
-  i = 0;
   if (list == NULL)
     return GNUNET_NO;
 
   memset (&zero, 0, sizeof (struct in6_addr));
-  while ((memcmp (&zero, &list[i].network, sizeof (struct in6_addr)) != 0) ||
-         (memcmp (&zero, &list[i].netmask, sizeof (struct in6_addr)) != 0))
+  i = 0;
+NEXT:
+  while (memcmp (&zero, &list[i].network, sizeof (struct in6_addr)) != 0)
     {
       for (j = 0; j < sizeof (struct in6_addr) / sizeof (int); j++)
         if (((((int *) ip)[j] & ((int *) &list[i].netmask)[j])) !=
             (((int *) &list[i].network)[j] & ((int *) &list[i].netmask)[j]))
           {
             i++;
-            continue;
+            goto NEXT;
           }
       return GNUNET_YES;
     }

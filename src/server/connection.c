@@ -282,10 +282,25 @@ struct DisconnectNotificationList
 
 };
 
+/**
+ * DisconnectNotificationList created first, this is just a copy.
+ * Maybe there should just be a NotificationList that both use?
+ */
+struct ConnectNotificationList
+{
+
+  struct ConnectNotificationList *next;
+
+  GNUNET_NodeIteratorCallback callback;
+
+  void *cls;
+
+};
+
 
 /**
  * The other side has decided to terminate the connection.  This
- * message MAY be send if the other node decides to be nice.  It is
+ * message MAY be sent if the other node decides to be nice.  It is
  * not required.  Mind that the message contains for which host the
  * termination is, such that we don't hang up the wrong connection...
  * A node can also choose to ignore the HANGUP message, though this is
@@ -625,6 +640,11 @@ static struct SendCallbackList *scl_head;
 static struct DisconnectNotificationList *disconnect_notification_list;
 
 /**
+ * Callbacks for connect notifications.
+ */
+static struct ConnectNotificationList *connect_notification_list;
+
+/**
  * Lock for the connection module.
  */
 static struct GNUNET_Mutex *lock;
@@ -721,8 +741,8 @@ check_invariants ()
           if (root->session.tsession != NULL)
             GNUNET_GE_ASSERT (NULL,
                               GNUNET_OK ==
-                              transport->assert_associated (root->session.
-                                                            tsession,
+                              transport->assert_associated (root->
+                                                            session.tsession,
                                                             __FILE__));
           root = root->overflowChain;
         }
@@ -744,6 +764,22 @@ notify_disconnect (BufferEntry * be)
       l = l->next;
     }
 }
+
+/**
+ * Notify all connect callbacks that a peer
+ * was connected.
+ */
+static void
+notify_connect (BufferEntry * be)
+{
+  struct ConnectNotificationList *l = connect_notification_list;
+  while (l != NULL)
+    {
+      l->callback (&be->session.sender, l->cls);
+      l = l->next;
+    }
+}
+
 
 /**
  * This allocates and initializes a BufferEntry.
@@ -1903,8 +1939,8 @@ sendBuffer (BufferEntry * be)
         stats->change (stat_transmitted, p);
       be->available_send_window -= p;
       be->lastSequenceNumberSend++;
-      GNUNET_CORE_connection_reserve_downstream_bandwidth (&be->session.
-                                                           sender, 0);
+      GNUNET_CORE_connection_reserve_downstream_bandwidth (&be->
+                                                           session.sender, 0);
       if (be->idealized_limit > be->max_transmitted_limit)
         be->max_transmitted_limit = be->idealized_limit;
       else                      /* age */
@@ -2402,7 +2438,7 @@ scheduleInboundTraffic ()
 
   /* if time difference is too small, we don't have enough
      sample data and should NOT update the limits;
-     however, if we have FAR to few peers, reschedule
+     however, if we have FAR too few peers, reschedule
      aggressively (since we are unlikely to get close
      to the limits anyway) */
   timeDifference = now - lastRoundStart;
@@ -2484,8 +2520,8 @@ scheduleInboundTraffic ()
         {
           IF_GELOG (ectx,
                     GNUNET_GE_INFO | GNUNET_GE_BULK | GNUNET_GE_USER,
-                    GNUNET_hash_to_enc (&entries[u]->session.sender.
-                                        hashPubKey, &enc));
+                    GNUNET_hash_to_enc (&entries[u]->session.
+                                        sender.hashPubKey, &enc));
           GNUNET_GE_LOG (ectx,
                          GNUNET_GE_INFO | GNUNET_GE_BULK | GNUNET_GE_USER,
                          "peer `%s' transmitted above limit: %llu bpm > %u bpm\n",
@@ -2508,8 +2544,8 @@ scheduleInboundTraffic ()
 #if DEBUG_CONNECTION
               IF_GELOG (ectx,
                         GNUNET_GE_INFO | GNUNET_GE_BULK | GNUNET_GE_DEVELOPER,
-                        GNUNET_hash_to_enc (&entries[u]->session.sender.
-                                            hashPubKey, &enc));
+                        GNUNET_hash_to_enc (&entries[u]->session.
+                                            sender.hashPubKey, &enc));
               GNUNET_GE_LOG (ectx,
                              GNUNET_GE_INFO | GNUNET_GE_BULK |
                              GNUNET_GE_DEVELOPER,
@@ -2570,8 +2606,8 @@ scheduleInboundTraffic ()
   for (u = 0; u < activePeerCount; u++)
     {
       GNUNET_CORE_connection_reserve_downstream_bandwidth (&entries
-                                                           [u]->
-                                                           session.sender, 0);
+                                                           [u]->session.
+                                                           sender, 0);
       entries[u]->idealized_limit = 0;
     }
   while ((schedulableBandwidth > activePeerCount * 100) &&
@@ -2905,8 +2941,8 @@ cronDecreaseLiveness (void *unused)
                   IF_GELOG (ectx,
                             GNUNET_GE_DEBUG | GNUNET_GE_REQUEST |
                             GNUNET_GE_DEVELOPER,
-                            GNUNET_hash_to_enc (&root->session.sender.
-                                                hashPubKey, &enc));
+                            GNUNET_hash_to_enc (&root->session.
+                                                sender.hashPubKey, &enc));
                   GNUNET_GE_LOG (ectx,
                                  GNUNET_GE_DEBUG | GNUNET_GE_REQUEST |
                                  GNUNET_GE_DEVELOPER,
@@ -3009,8 +3045,8 @@ cronDecreaseLiveness (void *unused)
                   IF_GELOG (ectx,
                             GNUNET_GE_DEBUG | GNUNET_GE_REQUEST |
                             GNUNET_GE_DEVELOPER,
-                            GNUNET_hash_to_enc (&root->session.sender.
-                                                hashPubKey, &enc));
+                            GNUNET_hash_to_enc (&root->session.
+                                                sender.hashPubKey, &enc));
                   GNUNET_GE_LOG (ectx,
                                  GNUNET_GE_DEBUG | GNUNET_GE_REQUEST |
                                  GNUNET_GE_DEVELOPER,
@@ -3366,6 +3402,7 @@ GNUNET_CORE_connection_mark_session_as_confirmed (const GNUNET_PeerIdentity *
           be->status = STAT_UP;
           be->lastSequenceNumberReceived = 0;
           be->lastSequenceNumberSend = 1;
+          notify_connect (be);
         }
     }
   GNUNET_mutex_unlock (lock);
@@ -4440,6 +4477,66 @@ int
         {
           if (prev == NULL)
             disconnect_notification_list = pos->next;
+          else
+            prev->next = pos->next;
+          GNUNET_free (pos);
+          GNUNET_mutex_unlock (lock);
+          return GNUNET_OK;
+        }
+      prev = pos;
+      pos = pos->next;
+    }
+  GNUNET_mutex_unlock (lock);
+  return GNUNET_SYSERR;
+
+}
+
+
+/**
+ * Call the given function whenever we
+ * connect to a peer.
+ *
+ * @return GNUNET_OK
+ */
+int
+  GNUNET_CORE_connection_register_notify_peer_connect
+  (GNUNET_NodeIteratorCallback callback, void *cls)
+{
+  struct ConnectNotificationList *l;
+
+  l = GNUNET_malloc (sizeof (struct ConnectNotificationList));
+  l->callback = callback;
+  l->cls = cls;
+  GNUNET_mutex_lock (lock);
+  l->next = connect_notification_list;
+  connect_notification_list = l;
+  GNUNET_mutex_unlock (lock);
+  return GNUNET_OK;
+}
+
+/**
+ * Stop calling the given function whenever we
+ * connect to a peer.
+ *
+ * @return GNUNET_OK on success, GNUNET_SYSERR
+ *         if this callback is not registered
+ */
+int
+  GNUNET_CORE_connection_unregister_notify_peer_connect
+  (GNUNET_NodeIteratorCallback callback, void *cls)
+{
+  struct ConnectNotificationList *pos;
+  struct ConnectNotificationList *prev;
+
+  prev = NULL;
+  GNUNET_mutex_lock (lock);
+  pos = connect_notification_list;
+  while (pos != NULL)
+    {
+      if ((pos->callback == callback) && (pos->cls == cls))
+        {
+          if (prev == NULL)
+            connect_notification_list = pos->next;
           else
             prev->next = pos->next;
           GNUNET_free (pos);

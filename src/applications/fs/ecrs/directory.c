@@ -54,6 +54,7 @@ int
 GNUNET_ECRS_directory_list_contents (struct GNUNET_GE_Context *ectx,
                                      const char *data,
                                      unsigned long long len,
+                                     unsigned long long *offset,
                                      struct GNUNET_MetaData **md,
                                      GNUNET_ECRS_SearchResultProcessor spcb,
                                      void *spcbClosure)
@@ -67,8 +68,11 @@ GNUNET_ECRS_directory_list_contents (struct GNUNET_GE_Context *ectx,
 
   count = 0;
   *md = NULL;
-  pos = 0;
-  if ((len >= 8 + sizeof (unsigned int)) &&
+  if (offset != NULL)
+    pos = *offset;
+  else
+    pos = 0;
+  if ((pos == 0) && (len >= 8 + sizeof (unsigned int)) &&
       (0 == memcmp (data, GNUNET_DIRECTORY_MAGIC, 8)))
     {
       memcpy (&mdSize, &data[8], sizeof (unsigned int));
@@ -146,8 +150,11 @@ GNUNET_ECRS_directory_list_contents (struct GNUNET_GE_Context *ectx,
         }
       pos += mdSize;
       count++;
-      if (spcb != NULL)
-        spcb (&fi, NULL, GNUNET_NO, spcbClosure);
+      if (offset != NULL)
+        *offset = pos;
+      if ((spcb != NULL) &&
+          (GNUNET_SYSERR == spcb (&fi, NULL, GNUNET_NO, spcbClosure)))
+        pos = len;              /* break out of loop */
       GNUNET_meta_data_destroy (fi.meta);
       GNUNET_ECRS_uri_destroy (fi.uri);
     }

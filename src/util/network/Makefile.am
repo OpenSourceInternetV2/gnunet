@@ -4,9 +4,16 @@ SUBDIRS = .
 
 noinst_LTLIBRARIES = \
   libnetwork.la
+if USE_COVERAGE
+  AM_CFLAGS = -fprofile-arcs -ftest-coverage
+endif
 
+if HAVE_C_ARES
+ AR_LINK=-lcares
+else
 if HAVE_ADNS
-ADNS_LINK=-ladns
+ AR_LINK=-ladns
+endif
 endif
 
 libnetwork_la_SOURCES = \
@@ -16,7 +23,8 @@ libnetwork_la_SOURCES = \
  ip.c \
  ipcheck.c \
  select.c 
-libnetwork_la_LIBADD = $(ADNS_LINK)
+libnetwork_la_LIBADD = \
+ $(AR_LINK)
 
 check_PROGRAMS = \
  ipchecktest \

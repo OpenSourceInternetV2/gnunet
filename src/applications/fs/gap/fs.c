@@ -401,7 +401,7 @@ handle_cs_test_indexed_request (struct GNUNET_ClientHandle *sock,
 struct FPPClosure
 {
   struct GNUNET_ClientHandle *sock;
-  struct ResponseList *seen;
+  struct GNUNET_MultiHashMap *seen;
   unsigned int processed;
   int have_more;
 };
@@ -409,7 +409,7 @@ struct FPPClosure
 /**
  * Any response that we get should be passed
  * back to the client.  If the response is unique,
- * we should about the iteration (return GNUNET_SYSERR).
+ * we should abort the iteration (return GNUNET_SYSERR).
  */
 static int
 fast_path_processor (const GNUNET_HashCode * key,
@@ -418,7 +418,6 @@ fast_path_processor (const GNUNET_HashCode * key,
 {
   struct FPPClosure *cls = closure;
   GNUNET_HashCode hc;
-  struct ResponseList *rl;
   unsigned int type;
   int ret;
 
@@ -437,10 +436,11 @@ fast_path_processor (const GNUNET_HashCode * key,
     cls->have_more = GNUNET_YES;        /* switch to async processing */
   if ((type == GNUNET_ECRS_BLOCKTYPE_DATA) || (ret != GNUNET_OK))
     return GNUNET_SYSERR;       /* unique response or client can take no more */
-  rl = GNUNET_malloc (sizeof (struct ResponseList));
-  rl->hash = hc;
-  rl->next = cls->seen;
-  cls->seen = rl;
+  if (cls->seen == NULL)
+    cls->seen = GNUNET_multi_hash_map_create (8);
+  GNUNET_multi_hash_map_put (cls->seen,
+                             &hc,
+                             NULL, GNUNET_MultiHashMapOption_UNIQUE_FAST);
   return GNUNET_OK;
 }
 
@@ -456,7 +456,6 @@ handle_cs_query_start_request (struct GNUNET_ClientHandle *sock,
 {
   static GNUNET_PeerIdentity all_zeros;
   struct FPPClosure fpp;
-  struct ResponseList *pos;
   const CS_fs_request_search_MESSAGE *rs;
   unsigned int keyCount;
   unsigned int type;
@@ -515,12 +514,8 @@ handle_cs_query_start_request (struct GNUNET_ClientHandle *sock,
                                       have_target ? &rs->target : NULL,
                                       fpp.seen, fpp.have_more);
 CLEANUP:
-  while (fpp.seen != NULL)
-    {
-      pos = fpp.seen;
-      fpp.seen = pos->next;
-      GNUNET_free (pos);
-    }
+  if (fpp.seen != NULL)
+    GNUNET_multi_hash_map_destroy (fpp.seen);
   return GNUNET_OK;
 }
 
@@ -699,7 +694,7 @@ handle_p2p_query (const GNUNET_PeerIdentity * sender,
                                &req->queries[0],
                                ntohl (req->filter_mutator),
                                bloomfilter_size,
-                               &req->queries[query_count + 1]);
+                               &req->queries[query_count]);
   return GNUNET_OK;
 }
 

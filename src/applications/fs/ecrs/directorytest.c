@@ -123,7 +123,7 @@ testDirectory (unsigned int i)
   cls.pos = 0;
   cls.fi = fis;
   if (i !=
-      GNUNET_ECRS_directory_list_contents (NULL, data, dlen, &meta2,
+      GNUNET_ECRS_directory_list_contents (NULL, data, dlen, NULL, &meta2,
                                            &processor, &cls))
     {
       printf ("expected %u\n", i);

@@ -159,6 +159,7 @@ createDirectoryHelper (struct GNUNET_GE_Context *ectx,
   int handle;
   struct GNUNET_GE_Memory *mem;
   struct GNUNET_GE_Context *ee;
+  const char *tmpdir;
 
   fis = NULL;
   size = 0;
@@ -208,7 +209,15 @@ createDirectoryHelper (struct GNUNET_GE_Context *ectx,
       pos = pos->next;
     }
   GNUNET_GE_memory_reset (mem);
-  tempName = GNUNET_strdup ("/tmp/gnunet-upload-dir.XXXXXX");
+
+  tmpdir = getenv ("TMPDIR");
+  tmpdir = tmpdir ? tmpdir : "/tmp";
+
+#define TEMPLATE "/gnunet-upload-dirXXXXXX"
+  tempName = GNUNET_malloc (strlen (tmpdir) + sizeof (TEMPLATE) + 1);
+  strcpy (tempName, tmpdir);
+  strcat (tempName, TEMPLATE);
+#undef TEMPLATE
   handle = mkstemp (tempName);
   if (handle == -1)
     {
@@ -478,16 +487,17 @@ GNUNET_FSUI_uploadThread (void *cls)
              (copied here to allow free later) */
           loc = GNUNET_ECRS_uri_duplicate (utc->uri);
         }
+      uri = NULL;
       if (utc->shared->individualKeywords == GNUNET_YES)
-	{
-	  /* need to convert to URI *before*
-	     removing split/lower from meta */
-	  uri = GNUNET_meta_data_to_uri (utc->meta);
-	}
+        {
+          /* need to convert to URI *before*
+             removing split/lower from meta */
+          uri = GNUNET_meta_data_to_uri (utc->meta);
+        }
       while (GNUNET_OK ==
-	     GNUNET_meta_data_delete (utc->meta, EXTRACTOR_SPLIT, NULL));
+             GNUNET_meta_data_delete (utc->meta, EXTRACTOR_SPLIT, NULL));
       while (GNUNET_OK ==
-	     GNUNET_meta_data_delete (utc->meta, EXTRACTOR_LOWERCASE, NULL));
+             GNUNET_meta_data_delete (utc->meta, EXTRACTOR_LOWERCASE, NULL));
       if (utc->shared->individualKeywords == GNUNET_YES)
         {
           GNUNET_ECRS_publish_under_keyword (ectx,
@@ -630,21 +640,14 @@ static struct GNUNET_FSUI_UploadList *addUploads (struct
                                                   *parent);
 
 static int
-addChildUpload (const char *name, const char *dirName, void *data)
+addChildUpload (void *data, const char *filename)
 {
   struct GNUNET_FSUI_UploadList *parent = data;
-  char *filename;
   struct GNUNET_FSUI_UploadList *child;
   struct GNUNET_MetaData *md_tmp;
 
-  filename = GNUNET_malloc (strlen (dirName) + strlen (name) + 2);
-  strcpy (filename, dirName);
-  if (dirName[strlen (dirName) - 1] != DIR_SEPARATOR)
-    strcat (filename, DIR_SEPARATOR_STR);
-  strcat (filename, name);
   md_tmp = GNUNET_meta_data_create ();
   child = addUploads (parent->shared, filename, NULL, md_tmp, parent);
-  GNUNET_free (filename);
   GNUNET_meta_data_destroy (md_tmp);
   if (child == NULL)
     return GNUNET_SYSERR;
@@ -660,7 +663,16 @@ addUploads (struct GNUNET_FSUI_UploadShared *shared,
             struct GNUNET_FSUI_UploadList *parent)
 {
   GNUNET_FSUI_UploadList *utc;
+  int ret;
 
+  ret = GNUNET_disk_file_test (shared->ctx->ectx, filename);
+  if(GNUNET_SYSERR == ret)
+    {
+      GNUNET_GE_LOG (shared->ctx->ectx,
+                     GNUNET_GE_FATAL | GNUNET_GE_BULK | GNUNET_GE_USER,
+                     "Unable to access file: %s\n", filename);
+      return NULL;
+    }
   utc = GNUNET_malloc (sizeof (GNUNET_FSUI_UploadList));
   utc->completed = 0;
   utc->total = 0;               /* to be set later */
@@ -672,7 +684,7 @@ addUploads (struct GNUNET_FSUI_UploadShared *shared,
   utc->uri = NULL;
   utc->cctx = NULL;             /* to be set later */
   utc->state = GNUNET_FSUI_ACTIVE;
-  if (GNUNET_YES == GNUNET_disk_file_test (shared->ctx->ectx, filename))
+  if (GNUNET_YES == ret)
     {
       utc->is_directory = GNUNET_NO;
       /* add this file */

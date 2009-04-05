@@ -52,6 +52,10 @@
  */
 static struct RequestList **table;
 
+static unsigned long long total_priority;
+
+static unsigned int active_request_count;
+
 static GNUNET_CoreAPIForPlugins *coreAPI;
 
 static GNUNET_Datastore_ServiceAPI *datastore;
@@ -203,7 +207,7 @@ datastore_value_processor (const GNUNET_HashCode * key,
   msg->header.type = htons (GNUNET_P2P_PROTO_GAP_RESULT);
   msg->header.size = htons (size);
   msg->reserved = htonl (0);
-  msg->expiration = GNUNET_htonll(et);
+  msg->expiration = GNUNET_htonll (et);
   memcpy (&msg[1], &value[1], size - sizeof (P2P_gap_reply_MESSAGE));
   cls->result_count++;
   if (cls->result_count > 2 * (1 + req->value))
@@ -299,6 +303,7 @@ GNUNET_FS_GAP_execute_query (const GNUNET_PeerIdentity * respond_to,
             }
           if (stats != NULL)
             stats->change (stat_gap_query_refreshed, 1);
+          total_priority += priority;
           rl->value += priority;
           rl->remaining_value += priority;
           rl->expiration = newTTL;
@@ -342,7 +347,7 @@ GNUNET_FS_GAP_execute_query (const GNUNET_PeerIdentity * respond_to,
       rl = rl->next;
     }
 
-  if ((total >= MAX_ENTRIES_PER_SLOT) && (minTTL > newTTL))
+  if ((total >= MAX_ENTRIES_PER_SLOT) && (minTTL >= newTTL))
     {
       /* do not process */
       GNUNET_FS_PT_change_rc (peer, -1);
@@ -365,6 +370,8 @@ GNUNET_FS_GAP_execute_query (const GNUNET_PeerIdentity * respond_to,
         table[index] = rl->next;
       else
         prev->next = rl->next;
+      active_request_count--;
+      total_priority -= rl->value;
       GNUNET_FS_SHARED_free_request_list (rl);
     }
   /* create new table entry */
@@ -389,9 +396,11 @@ GNUNET_FS_GAP_execute_query (const GNUNET_PeerIdentity * respond_to,
   rl->remaining_value = priority > 0 ? priority - 1 : 0;
   rl->value_offered = original_priority;
   rl->expiration = newTTL;
-  rl->next = table[index];
   rl->response_target = peer;
   rl->policy = policy;
+  rl->next = table[index];
+  active_request_count++;
+  total_priority += rl->value;
   table[index] = rl;
   if (stats != NULL)
     stats->change (stat_gap_query_routed, 1);
@@ -456,78 +465,84 @@ GNUNET_FS_GAP_handle_response (const GNUNET_PeerIdentity * sender,
   rid = GNUNET_FS_PT_intern (sender);
   index = get_table_index (primary_query);
   rl = table[index];
-  prev = NULL;
+  block_count = 0;
   if (rid != 0)
-    {
-      blocked[0] = rid;
-      block_count = 1;
-    }
-  else
-    {
-      block_count = 0;
-    }
+    blocked[block_count++] = rid;
   was_new = GNUNET_NO;
+  prev = NULL;
   while (rl != NULL)
     {
-      if (GNUNET_OK == GNUNET_FS_SHARED_test_valid_new_response (rl,
+      if (GNUNET_OK != GNUNET_FS_SHARED_test_valid_new_response (rl,
                                                                  primary_query,
                                                                  size,
                                                                  data, &hc))
+
         {
-          was_new = GNUNET_YES;
-          GNUNET_GE_ASSERT (NULL, rl->response_target != 0);
-          GNUNET_FS_PT_resolve (rl->response_target, &target);
-          GNUNET_GE_ASSERT (NULL, block_count <= MAX_ENTRIES_PER_SLOT);
-          blocked[block_count++] = rl->response_target;
-          GNUNET_FS_PT_change_rc (rl->response_target, 1);
-
-          rl->value_offered = 0;
-          if (stats != NULL)
-            stats->change (stat_trust_earned, rl->value_offered);
-          if (rl->type != GNUNET_ECRS_BLOCKTYPE_DATA)
-            GNUNET_FS_SHARED_mark_response_seen (rl, &hc);
-          GNUNET_FS_PLAN_success (rid, NULL, rl->response_target, rl);
-          value += rl->value;
-          rl_value = rl->value;
-          rl->value = 0;
-
-          if (rl->type == GNUNET_ECRS_BLOCKTYPE_DATA)
-            {
-              if (prev == NULL)
-                table[index] = rl->next;
-              else
-                prev->next = rl->next;
-              GNUNET_FS_SHARED_free_request_list (rl);
-              if (prev == NULL)
-                rl = table[index];
-              else
-                rl = prev->next;
-              continue;
-            }
-
-          /* queue response (do this last since ciphertext_send may
-             cause the core to detect that the connection died which
-             may result in changes to the request list!) */
-          msg = GNUNET_malloc (sizeof (P2P_gap_reply_MESSAGE) + size);
-          msg->header.type = htons (GNUNET_P2P_PROTO_GAP_RESULT);
-          msg->header.size = htons (sizeof (P2P_gap_reply_MESSAGE) + size);
-          msg->reserved = 0;
-          msg->expiration = GNUNET_htonll (expiration);
-          memcpy (&msg[1], data, size);
-          coreAPI->ciphertext_send (&target,
-                                    &msg->header,
-                                    GNUNET_GAP_BASE_REPLY_PRIORITY * (1 +
-                                                                      rl_value),
-                                    GNUNET_GAP_MAX_GAP_DELAY);
-          GNUNET_free (msg);
-
-          /* since the linked list may have changed, start again
-             from the beginning! */
-          rl = table[index];
+          prev = rl;
+          rl = rl->next;
           continue;
         }
-      prev = rl;
-      rl = rl->next;
+      was_new = GNUNET_YES;
+      GNUNET_GE_ASSERT (NULL, rl->response_target != 0);
+      GNUNET_FS_PT_resolve (rl->response_target, &target);
+      GNUNET_GE_ASSERT (NULL, block_count <= MAX_ENTRIES_PER_SLOT);
+      blocked[block_count++] = rl->response_target;
+      GNUNET_FS_PT_change_rc (rl->response_target, 1);
+
+      rl->value_offered = 0;
+      if (stats != NULL)
+        stats->change (stat_trust_earned, rl->value_offered);
+      if (rl->type != GNUNET_ECRS_BLOCKTYPE_DATA)
+        GNUNET_FS_SHARED_mark_response_seen (&hc, rl);
+      GNUNET_FS_PLAN_success (rid, NULL, rl->response_target, rl);
+      value += rl->value;
+      rl_value = rl->value;
+      total_priority -= rl->value;
+      rl->value = 0;
+
+      if (rl->type == GNUNET_ECRS_BLOCKTYPE_DATA)
+        {
+          if (prev == NULL)
+            table[index] = rl->next;
+          else
+            prev->next = rl->next;
+          active_request_count--;
+          total_priority -= rl->value;
+          GNUNET_FS_SHARED_free_request_list (rl);
+          if (prev == NULL)
+            rl = table[index];
+          else
+            rl = prev->next;
+          continue;
+        }
+
+      /* queue response (do this last since ciphertext_send may
+         cause the core to detect that the connection died which
+         may result in changes to the request list!) */
+      msg = GNUNET_malloc (sizeof (P2P_gap_reply_MESSAGE) + size);
+      msg->header.type = htons (GNUNET_P2P_PROTO_GAP_RESULT);
+      msg->header.size = htons (sizeof (P2P_gap_reply_MESSAGE) + size);
+      msg->reserved = 0;
+      msg->expiration = GNUNET_htonll (expiration);
+      memcpy (&msg[1], data, size);
+      coreAPI->ciphertext_send (&target,
+                                &msg->header,
+                                GNUNET_GAP_BASE_REPLY_PRIORITY * (1 +
+                                                                  rl_value),
+                                GNUNET_GAP_MAX_GAP_DELAY);
+      GNUNET_free (msg);
+
+      /* since the linked list may have changed, start again
+         from the beginning! */
+      rl = table[index];
+      GNUNET_FS_PT_decrement_rcs (blocked, block_count);
+      block_count = 0;
+      if (rid != 0)
+        {
+          rid = GNUNET_FS_PT_intern (sender);
+          if (rid != 0)
+            blocked[block_count++] = rid;
+        }
     }
   if (was_new == GNUNET_YES)
     GNUNET_FS_MIGRATION_inject (primary_query,
@@ -544,24 +559,12 @@ GNUNET_FS_GAP_handle_response (const GNUNET_PeerIdentity * sender,
 unsigned int
 GNUNET_FS_GAP_get_average_priority ()
 {
-  struct RequestList *rl;
   unsigned long long tot;
-  unsigned int i;
   unsigned int active;
 
-  tot = 0;
-  active = 0;
   GNUNET_mutex_lock (GNUNET_FS_lock);
-  for (i = 0; i < table_size; i++)
-    {
-      rl = table[i];
-      while (rl != NULL)
-        {
-          tot += rl->value;
-          active++;
-          rl = rl->next;
-        }
-    }
+  tot = total_priority;
+  active = active_request_count;
   GNUNET_mutex_unlock (GNUNET_FS_lock);
   if (active == 0)
     return 0;
@@ -596,6 +599,8 @@ cleanup_on_peer_disconnect (const GNUNET_PeerIdentity * peer, void *unused)
                 table[i] = rl->next;
               else
                 prev->next = rl->next;
+              active_request_count--;
+              total_priority -= rl->value;
               GNUNET_FS_SHARED_free_request_list (rl);
               if (prev == NULL)
                 rl = table[i];
@@ -718,6 +723,8 @@ GNUNET_FS_GAP_done ()
       while (NULL != (rl = table[i]))
         {
           table[i] = rl->next;
+          active_request_count--;
+          total_priority -= rl->value;
           GNUNET_FS_SHARED_free_request_list (rl);
         }
     }
@@ -734,6 +741,8 @@ GNUNET_FS_GAP_done ()
       coreAPI->service_release (stats);
       stats = NULL;
     }
+  GNUNET_GE_BREAK (NULL, active_request_count == 0);
+  GNUNET_GE_BREAK (NULL, total_priority == 0);
   return 0;
 }
 

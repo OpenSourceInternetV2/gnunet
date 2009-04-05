@@ -1,5 +1,10 @@
 INCLUDES = -I$(top_srcdir)/src/include
 
+
+if USE_COVERAGE
+  AM_CFLAGS = -fprofile-arcs -ftest-coverage
+endif
+
 lib_LTLIBRARIES = \
   libgnunetecrs.la 
 
@@ -17,14 +22,17 @@ libgnunetecrs_la_SOURCES = \
   unindex.c \
   upload.c \
   uri.c
+libgnunetecrs_la_LDFLAGS = \
+  $(GN_LIB_LDFLAGS)
 libgnunetecrs_la_LIBADD = \
- -lz \
- -lextractor \
- $(top_builddir)/src/applications/identity/libgnunetidentity_api.la \
- $(top_builddir)/src/applications/fs/libgnunetecrs_core.la \
- $(top_builddir)/src/applications/fs/lib/libgnunetfs.la \
- $(top_builddir)/src/applications/getoption/libgnunetgetoption_api.la \
- $(top_builddir)/src/util/libgnunetutil.la 
+  -lz \
+  -lextractor \
+  $(top_builddir)/src/applications/identity/libgnunetidentityapi.la \
+  $(top_builddir)/src/applications/fs/libgnunetecrscore.la \
+  $(top_builddir)/src/applications/fs/lib/libgnunetfs.la \
+  $(top_builddir)/src/applications/getoption/libgnunetgetoptionapi.la \
+  $(top_builddir)/src/util/libgnunetutil.la \
+  $(GN_LIBINTL) 
 
 
 check_PROGRAMS = \

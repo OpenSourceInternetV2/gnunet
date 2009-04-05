@@ -536,6 +536,7 @@ tcp_connect (const GNUNET_MessageHello * hello,
 #if TCP_SYNCNT
   static int zero = 0;
 #endif
+  static struct in6_addr zero6;
   const HostAddress *haddr;
   int sock;
   struct sockaddr_in soaddr4;
@@ -576,6 +577,9 @@ tcp_connect (const GNUNET_MessageHello * hello,
     }
   haddr = (const HostAddress *) &hello[1];
   available = ntohs (haddr->availability) & available_protocols;
+  if ((0 != (available & VERSION_AVAILABLE_IPV6)) &&
+      (0 == memcmp (&zero6, &haddr->ipv6, sizeof (zero6))))
+    available -= VERSION_AVAILABLE_IPV6;        /* invalid */
   if (available == (VERSION_AVAILABLE_IPV4 | VERSION_AVAILABLE_IPV6))
     {
       if (GNUNET_random_u32 (GNUNET_RANDOM_QUALITY_WEAK, 2) == 0)
@@ -607,9 +611,9 @@ tcp_connect (const GNUNET_MessageHello * hello,
       GNUNET_socket_destroy (s);
       return GNUNET_SYSERR;
     }
-  memset (&soaddr, 0, sizeof (soaddr));
   if ((available & VERSION_AVAILABLE_IPV4) > 0)
     {
+      memset (&soaddr4, 0, sizeof (soaddr4));
       soaddr4.sin_family = AF_INET;
       memcpy (&soaddr4.sin_addr, &haddr->ipv4, sizeof (struct in_addr));
       soaddr4.sin_port = haddr->port;
@@ -618,6 +622,7 @@ tcp_connect (const GNUNET_MessageHello * hello,
     }
   else
     {
+      memset (&soaddr6, 0, sizeof (soaddr6));
       soaddr6.sin6_family = AF_INET6;
       memcpy (&soaddr6.sin6_addr, &haddr->ipv6, sizeof (struct in6_addr));
       soaddr6.sin6_port = haddr->port;
@@ -627,9 +632,18 @@ tcp_connect (const GNUNET_MessageHello * hello,
   i = CONNECT (sock, soaddr, soaddrlen);
   if ((i < 0) && (errno != EINPROGRESS) && (errno != EWOULDBLOCK))
     {
+      char buf[INET6_ADDRSTRLEN];
       GNUNET_GE_LOG_STRERROR (coreAPI->ectx,
                               GNUNET_GE_DEBUG | GNUNET_GE_ADMIN |
                               GNUNET_GE_USER | GNUNET_GE_BULK, "connect");
+
+      GNUNET_GE_LOG (coreAPI->ectx,
+                     GNUNET_GE_DEBUG | GNUNET_GE_ADMIN |
+                     GNUNET_GE_USER | GNUNET_GE_BULK,
+                     "IP address used was `%s'\n",
+                     inet_ntop (soaddr->sa_family,
+                                soaddr, buf, sizeof (buf)));
+
       GNUNET_socket_destroy (s);
       return GNUNET_SYSERR;
     }

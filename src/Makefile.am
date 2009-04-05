@@ -1,3 +1,6 @@
-INCLUDES = -I$(top_srcdir)/src/include
+if WANT_FRAMEWORK
+  INTLEMU_SUBDIRS = intlemu
+endif
 
-SUBDIRS	= include util setup server transports applications 
+SUBDIRS = include $(INTLEMU_SUBDIRS) util libs setup server transports applications
+

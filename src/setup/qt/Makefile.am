@@ -17,8 +17,7 @@ nodist_libgnunetsetup_qt_la_SOURCES = \
   ui_gnunet-setup.h
 
 libgnunetsetup_qt_la_LDFLAGS = \
- $(QTLIBS) @EXT_LIB_PATH@ @EXT_LIBS@ \
- -export-dynamic -avoid-version -module
+ $(GN_PLUGIN_LDFLAGS)
 
 libgnunetsetup_qt_la_CXXFLAGS = \
  -I$(top_scrdir)/include \
@@ -27,9 +26,9 @@ libgnunetsetup_qt_la_CXXFLAGS = \
 
 libgnunetsetup_qt_la_LIBADD = \
  @QTLIBS@ @EXT_LIB_PATH@ @EXT_LIBS@ \
- $(INTLLIBS) \
  $(top_builddir)/src/util/libgnunetutil.la \
- $(top_builddir)/src/setup/lib/libgnunetsetup.la
+ $(top_builddir)/src/setup/lib/libgnunetsetup.la \
+ $(GN_LIBINTL)
 
 
 

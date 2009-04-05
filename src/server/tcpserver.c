@@ -124,7 +124,7 @@ shutdownHandler (struct GNUNET_ClientHandle *client,
     }
   GNUNET_GE_LOG (NULL,
                  GNUNET_GE_INFO | GNUNET_GE_USER | GNUNET_GE_REQUEST,
-                 "shutdown request accepted from client\n");
+                 "Shutdown request from client accepted.\n");
   ret = GNUNET_CORE_cs_send_result_to_client (client, GNUNET_OK);
   GNUNET_CORE_shutdown (cfg, 0);
   return ret;
@@ -191,7 +191,7 @@ select_accept_handler (void *ah_cls,
         {
           GNUNET_GE_LOG (ectx,
                          GNUNET_GE_DEBUG | GNUNET_GE_ADMIN | GNUNET_GE_BULK,
-                         "Rejected connection from untrusted client");
+                         "Rejected connection from untrusted client\n");
           return NULL;
         }
     }
@@ -200,7 +200,12 @@ select_accept_handler (void *ah_cls,
       a4 = (struct sockaddr_in *) addr;
       memcpy (&ip4, &a4->sin_addr, sizeof (struct in_addr));
       if (!isWhitelisted4 (&ip4))
-        return NULL;
+        {
+          GNUNET_GE_LOG (ectx,
+                         GNUNET_GE_DEBUG | GNUNET_GE_ADMIN | GNUNET_GE_BULK,
+                         "Rejected connection from untrusted client\n");
+          return NULL;
+        }
     }
   else
     {
@@ -334,6 +339,7 @@ startTCPServer ()
   struct sockaddr *serverAddr;
   socklen_t socklen;
   const int on = 1;
+  char *ch;
 
   listenerPort = getGNUnetPort ();
   if (listenerPort == 0)
@@ -354,7 +360,22 @@ startTCPServer ()
         }
       memset (&serverAddr4, 0, sizeof (serverAddr4));
       serverAddr4.sin_family = AF_INET;
-      serverAddr4.sin_addr.s_addr = htonl (INADDR_ANY);
+      ch = NULL;
+      GNUNET_GC_get_configuration_value_string (cfg,
+                                                "NETWORK",
+                                                "TRUSTED",
+                                                "127.0.0.0/8;", &ch);
+      if ((0 == strcmp (ch, "127.0.0.0/8;")) ||
+          (0 == strcmp (ch, "localhost;")) ||
+          (0 == strcmp (ch, "127.0.0.1;")))
+        {
+          serverAddr4.sin_addr.s_addr = htonl (INADDR_LOOPBACK);
+        }
+      else
+        {
+          serverAddr4.sin_addr.s_addr = htonl (INADDR_ANY);
+        }
+      GNUNET_free (ch);
       serverAddr4.sin_port = htons (listenerPort);
       socklen = sizeof (serverAddr4);
       serverAddr = (struct sockaddr *) &serverAddr4;
@@ -363,7 +384,10 @@ startTCPServer ()
     {
       memset (&serverAddr6, 0, sizeof (serverAddr6));
       serverAddr6.sin6_family = AF_INET6;
+      serverAddr6.sin6_addr = in6addr_any;
       serverAddr6.sin6_port = htons (listenerPort);
+
+
       socklen = sizeof (serverAddr6);
       serverAddr = (struct sockaddr *) &serverAddr6;
     }

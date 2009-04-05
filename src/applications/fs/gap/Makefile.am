@@ -1,5 +1,10 @@
 INCLUDES = -I$(top_srcdir)/src/include
 
+
+if USE_COVERAGE
+  AM_CFLAGS = -fprofile-arcs -ftest-coverage
+endif
+
 plugindir = $(libdir)/GNUnet
 
 plugin_LTLIBRARIES = \
@@ -17,12 +22,13 @@ libgnunetmodule_fs_la_SOURCES = \
   pid_table.c pid_table.h \
   querymanager.c querymanager.h \
   shared.c shared.h 
-
 libgnunetmodule_fs_la_LDFLAGS = \
-  -export-dynamic -avoid-version -module -lm
+  $(GN_PLUGIN_LDFLAGS)
 libgnunetmodule_fs_la_LIBADD = \
- $(top_builddir)/src/applications/fs/libgnunetecrs_core.la \
- $(top_builddir)/src/util/libgnunetutil.la 
+  $(top_builddir)/src/applications/fs/libgnunetecrscore.la \
+  $(top_builddir)/src/util/libgnunetutil.la \
+  -lm \
+  $(GN_LIBINTL)
 
 
 
@@ -37,8 +43,8 @@ TESTS = $(check_PROGRAMS)
 test_loopback_SOURCES = \
   test_loopback.c 
 test_loopback_LDADD = \
-  $(top_builddir)/src/applications/testing/libgnunettesting_api.la \
-  $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+  $(top_builddir)/src/applications/testing/libgnunettestingapi.la \
+  $(top_builddir)/src/applications/stats/libgnunetstatsapi.la \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
   $(top_builddir)/src/util/libgnunetutil.la 
 
@@ -46,16 +52,16 @@ test_loopback_LDADD = \
 test_linear_topology_SOURCES = \
   test_linear_topology.c 
 test_linear_topology_LDADD = \
-  $(top_builddir)/src/applications/testing/libgnunettesting_api.la \
-  $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+  $(top_builddir)/src/applications/testing/libgnunettestingapi.la \
+  $(top_builddir)/src/applications/stats/libgnunetstatsapi.la \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
   $(top_builddir)/src/util/libgnunetutil.la 
 
 test_multi_results_SOURCES = \
   test_multi_results.c 
 test_multi_results_LDADD = \
-  $(top_builddir)/src/applications/testing/libgnunettesting_api.la \
-  $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+  $(top_builddir)/src/applications/testing/libgnunettestingapi.la \
+  $(top_builddir)/src/applications/stats/libgnunetstatsapi.la \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
   $(top_builddir)/src/util/libgnunetutil.la 
 
@@ -63,9 +69,9 @@ test_multi_results_LDADD = \
 test_star_topology_SOURCES = \
   test_star_topology.c 
 test_star_topology_LDADD = \
-  $(top_builddir)/src/applications/identity/libgnunetidentity_api.la \
-  $(top_builddir)/src/applications/testing/libgnunettesting_api.la \
-  $(top_builddir)/src/applications/stats/libgnunetstats_api.la \
+  $(top_builddir)/src/applications/identity/libgnunetidentityapi.la \
+  $(top_builddir)/src/applications/testing/libgnunettestingapi.la \
+  $(top_builddir)/src/applications/stats/libgnunetstatsapi.la \
   $(top_builddir)/src/applications/fs/ecrs/libgnunetecrs.la \
   $(top_builddir)/src/util/libgnunetutil.la 
 

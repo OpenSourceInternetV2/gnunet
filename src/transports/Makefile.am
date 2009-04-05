@@ -2,6 +2,10 @@ INCLUDES = -I$(top_srcdir)/src/include
 
 EXTRA_DIST = common.c common.h test.conf
 
+if USE_COVERAGE
+  AM_CFLAGS = -fprofile-arcs -ftest-coverage
+endif
+
 plugindir = $(libdir)/GNUnet
 
 if HAVE_XML2
@@ -10,6 +14,7 @@ endif
 
 if HAVE_MHD
   httptransport = libgnunettransport_http.la
+  httptest = test_http testrepeat_http
 endif
 
 if !MINGW
@@ -23,20 +28,21 @@ SUBDIRS = . $(build_upnp)
 lib_LTLIBRARIES = \
   libgnunetip.la
 
-check_PROGRAMS = \
+check_PROGRAMS = $(httptest) \
   test_udp \
   test_tcp \
-  test_http \
   testrepeat_udp \
-  testrepeat_tcp \
-  testrepeat_http 
+  testrepeat_tcp 
 
 TESTS = $(check_PROGRAMS)
 
 libgnunetip_la_SOURCES = \
   ip.c ip.h
+libgnunetip_la_LDFLAGS = \
+ $(GN_LIB_LDFLAGS)
 libgnunetip_la_LIBADD = \
- $(top_builddir)/src/util/libgnunetutil.la
+ $(top_builddir)/src/util/libgnunetutil.la \
+ $(GN_LIBINTL)
 
 plugin_LTLIBRARIES = \
  libgnunettransport_tcp.la \
@@ -46,40 +52,45 @@ plugin_LTLIBRARIES = \
 
 libgnunettransport_smtp_la_SOURCES = smtp.c
 libgnunettransport_smtp_la_LIBADD = \
- $(top_builddir)/src/util/libgnunetutil.la -lesmtp
+ $(top_builddir)/src/util/libgnunetutil.la \
+ -lesmtp \
+ $(GN_LIBINTL)
 libgnunettransport_smtp_la_LDFLAGS = \
- -export-dynamic -avoid-version -module 
+ $(GN_PLUGIN_LDFLAGS)
 
 libgnunettransport_http_la_SOURCES = http.c
 libgnunettransport_http_la_LIBADD = \
  -lmicrohttpd @LIBCURL@ \
  $(top_builddir)/src/util/libgnunetutil.la \
- libgnunetip.la
+ libgnunetip.la \
+ $(GN_LIBINTL)
 libgnunettransport_http_la_LDFLAGS = \
- -export-dynamic -avoid-version -module 
+ $(GN_PLUGIN_LDFLAGS) 
 libgnunettransport_http_la_CPPFLAGS = \
  @LIBCURL_CPPFLAGS@
 
 libgnunettransport_tcp_la_SOURCES = tcp.c
 libgnunettransport_tcp_la_LIBADD = \
  $(top_builddir)/src/util/libgnunetutil.la \
- libgnunetip.la
+ libgnunetip.la \
+ $(GN_LIBINTL)
 libgnunettransport_tcp_la_LDFLAGS = \
- -export-dynamic -avoid-version -module 
+ $(GN_PLUGIN_LDFLAGS)
 
 libgnunettransport_nat_la_SOURCES = nat.c
 libgnunettransport_nat_la_LIBADD = \
  $(top_builddir)/src/util/libgnunetutil.la \
  libgnunetip.la 
 libgnunettransport_nat_la_LDFLAGS = \
- -export-dynamic -avoid-version -module 
+ $(GN_PLUGIN_LDFLAGS)
 
 libgnunettransport_udp_la_SOURCES = udp.c
 libgnunettransport_udp_la_LIBADD = \
  $(top_builddir)/src/util/libgnunetutil.la \
- libgnunetip.la
+ libgnunetip.la \
+ $(GN_LIBINTL)
 libgnunettransport_udp_la_LDFLAGS = \
- -export-dynamic -avoid-version -module 
+ $(GN_PLUGIN_LDFLAGS)
 
 
 

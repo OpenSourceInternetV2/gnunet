@@ -13,6 +13,9 @@ EXTRA_DIST = \
 
 gnunetincludedir = $(includedir)/GNUnet
 
+nodist_gnunetinclude_HEADERS = \
+  gnunet_directories.h
+
 gnunetinclude_HEADERS = \
   gnunet_bootstrap_service.h \
   gnunet_chat_lib.h \
@@ -21,7 +24,6 @@ gnunetinclude_HEADERS = \
   gnunet_datastore_service.h \
   gnunet_dht_lib.h \
   gnunet_dht_service.h \
-  gnunet_directories.h \
   gnunet_dstore_service.h \
   gnunet_ecrs_lib.h \
   gnunet_fragmentation_service.h \
@@ -31,6 +33,7 @@ gnunetinclude_HEADERS = \
   gnunet_identity_lib.h \
   gnunet_identity_service.h \
   gnunet_kvstore_service.h \
+  gnunet_mysql.h \
   gnunet_namespace_lib.h \
   gnunet_pingpong_service.h \
   gnunet_protocols.h \

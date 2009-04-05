@@ -1,10 +1,13 @@
 INCLUDES = -I$(top_srcdir)/src/include
 
-AM_CFLAGS = $(GTK_CFLAGS)
+
+if USE_COVERAGE
+  coverageflags = -fprofile-arcs -ftest-coverage
+endif
+
+AM_CFLAGS = $(GTK_CFLAGS) $(coverageflags)
 
 plugindir = $(libdir)/GNUnet
-
-LIBS = @LIBINTL@ @LIBS@
 
 plugin_LTLIBRARIES = \
   libgnunetmodule_upnp.la
@@ -18,13 +21,14 @@ libgnunetmodule_upnp_la_SOURCES = \
  xmlnode.c xmlnode.h 
 
 libgnunetmodule_upnp_la_LDFLAGS = \
- -export-dynamic -avoid-version -module
+ $(GN_PLUGIN_LDFLAGS)
 libgnunetmodule_upnp_la_CFLAGS = \
  -I$(top_scrdir)/include \
  @LIBCURL_CPPFLAGS@ @XML_CPPFLAGS@
 libgnunetmodule_upnp_la_LIBADD = \
  @EXT_LIB_PATH@ @EXT_LIBS@ @XML_LIBS@ @LIBCURL@ \
- $(top_builddir)/src/util/libgnunetutil.la  
+ $(top_builddir)/src/util/libgnunetutil.la \
+ $(GN_LIBINTL) 
 
 check_PROGRAMS = \
  upnptest 

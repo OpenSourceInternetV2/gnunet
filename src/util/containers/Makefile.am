@@ -2,11 +2,16 @@ SUBDIRS = .
 
 INCLUDES = -I$(top_srcdir)/src/include
 
+if USE_COVERAGE
+  AM_CFLAGS = -fprofile-arcs -ftest-coverage
+endif
+
 noinst_LTLIBRARIES = libcontainers.la
 
 libcontainers_la_SOURCES = \
  bloomfilter.c \
- meta.c 
+ meta.c \
+ multihashmap.c 
 
 libcontainers_la_LIBADD = \
  -lz \
@@ -14,7 +19,8 @@ libcontainers_la_LIBADD = \
 
 check_PROGRAMS = \
  bloomtest \
- metatest
+ maptest \
+ metatest 
 
 TESTS = $(check_PROGRAMS)
 
@@ -23,6 +29,10 @@ bloomtest_SOURCES = \
 bloomtest_LDADD = \
  $(top_builddir)/src/util/libgnunetutil.la 
 
+maptest_SOURCES = \
+ maptest.c
+maptest_LDADD = \
+ $(top_builddir)/src/util/libgnunetutil.la 
 
 metatest_SOURCES = \
  metatest.c

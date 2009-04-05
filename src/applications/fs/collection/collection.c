@@ -487,6 +487,7 @@ GNUNET_CO_collection_publish_now ()
   char *dirData;
   char this_revision_string[128];
   char next_revision_string[128];
+  const char *tmpdir;
 
   GNUNET_mutex_lock (lock);
   if ((collectionData == NULL) ||
@@ -495,7 +496,15 @@ GNUNET_CO_collection_publish_now ()
       GNUNET_mutex_unlock (lock);
       return;
     }
-  tmpName = GNUNET_strdup ("/tmp/gnunet-collectionXXXXXX");
+
+  tmpdir = getenv ("TMPDIR");
+  tmpdir = tmpdir ? tmpdir : "/tmp";
+
+#define TEMPLATE "/gnunet-collectionXXXXXX"
+  tmpName = GNUNET_malloc (strlen (tmpdir) + sizeof (TEMPLATE) + 1);
+  strcpy (tmpName, tmpdir);
+  strcat (tmpName, TEMPLATE);
+#undef TEMPLATE
   fd = mkstemp (tmpName);
   if (fd == -1)
     {
@@ -511,12 +520,9 @@ GNUNET_CO_collection_publish_now ()
                     GNUNET_OK == GNUNET_ECRS_directory_create (ectx,
                                                                &dirData,
                                                                &dirLen,
-                                                               collectionData->
-                                                               file_count,
-                                                               collectionData->
-                                                               files,
-                                                               collectionData->
-                                                               meta));
+                                                               collectionData->file_count,
+                                                               collectionData->files,
+                                                               collectionData->meta));
   if (-1 == WRITE (fd, dirData, dirLen))
     {
       GNUNET_GE_LOG_STRERROR (ectx,
@@ -530,10 +536,10 @@ GNUNET_CO_collection_publish_now ()
   GNUNET_free (dirData);
   CLOSE (fd);
   if (GNUNET_OK != GNUNET_ECRS_file_upload (ectx, cfg, tmpName, GNUNET_NO,      /* indexing */
-                                            ntohl (collectionData->data.
-                                                   anonymityLevel),
-                                            ntohl (collectionData->data.
-                                                   priority),
+                                            ntohl (collectionData->
+                                                   data.anonymityLevel),
+                                            ntohl (collectionData->
+                                                   data.priority),
                                             GNUNET_get_time () +
                                             COLLECTION_ADV_LIFETIME, NULL,
                                             NULL, NULL, NULL, &directoryURI))
@@ -558,10 +564,10 @@ GNUNET_CO_collection_publish_now ()
   uri = GNUNET_ECRS_namespace_add_content (ectx,
                                            cfg,
                                            &collectionData->data.pid,
-                                           ntohl (collectionData->data.
-                                                  anonymityLevel),
-                                           ntohl (collectionData->data.
-                                                  priority),
+                                           ntohl (collectionData->
+                                                  data.anonymityLevel),
+                                           ntohl (collectionData->
+                                                  data.priority),
                                            GNUNET_get_time () +
                                            COLLECTION_ADV_LIFETIME,
                                            this_revision_string,

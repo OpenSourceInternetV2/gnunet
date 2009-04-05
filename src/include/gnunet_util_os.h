@@ -312,7 +312,8 @@ enum GNUNET_INSTALL_PATH_KIND
   GNUNET_IPK_BINDIR,
   GNUNET_IPK_LIBDIR,
   GNUNET_IPK_DATADIR,
-  GNUNET_IPK_LOCALEDIR
+  GNUNET_IPK_LOCALEDIR,
+  GNUNET_IPK_SELF_PREFIX
 };
 
 /**
@@ -349,7 +350,7 @@ int GNUNET_pid_file_delete (struct GNUNET_GE_Context *ectx,
 /**
  * Kill the process that wrote the current PID file
  * (and try to wait for it to terminate).
- * 
+ *
  * @return GNUNET_OK kill successful
  *         GNUNET_NO no PID file exists
  *         GNUNET_SYSERR kill seems to have failed

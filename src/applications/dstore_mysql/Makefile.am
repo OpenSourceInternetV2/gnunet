@@ -2,6 +2,10 @@ INCLUDES = -I$(top_srcdir)/src/include
 
 plugindir = $(libdir)/GNUnet
 
+if USE_COVERAGE
+  AM_CFLAGS = -fprofile-arcs -ftest-coverage
+endif
+
 LDADD = \
  $(top_builddir)/src/util/libgnunetutil.la 
 
@@ -23,11 +27,13 @@ AM_CPPFLAGS = $(CPPFLAGS) $(MYSQL_CPPFLAGS)
 libgnunetmodule_dstore_mysql_la_SOURCES = \
   dstore_mysql.c 
 libgnunetmodule_dstore_mysql_la_LDFLAGS = \
-  -export-dynamic -avoid-version -module \
+  $(GN_PLUGIN_LDFLAGS) \
   $(MYSQL_LDFLAGS)
 libgnunetmodule_dstore_mysql_la_LIBADD = \
  $(top_builddir)/src/util/libgnunetutil.la \
- -lmysqlclient $(ZLIB_LNK)
+ $(top_builddir)/src/libs/mysql/libgnunetmysql.la \
+ -lmysqlclient $(ZLIB_LNK) \
+ $(GN_LIBINTL)
 
 EXTRA_DIST = check.conf
 
