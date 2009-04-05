@@ -30,7 +30,7 @@ ifneq "$(wildcard /usr/share/misc/config.guess)" ""
 	cp -f /usr/share/misc/config.guess config.guess
 endif
 
-	CFLAGS="$(CFLAGS)" LDFLAGS="-Wl,-z,defs" ./configure $(CROSS) --prefix=/usr --enable-guile --enable-ipv6 --disable-rpath --with-extractor=/usr --with-guile=/usr --with-libcurl=/usr --with-libgcrypt=/usr --with-mysql=/usr --with-sqlite=/usr
+	CFLAGS="$(CFLAGS)" LDFLAGS="-Wl,-z,defs" ./configure $(CROSS) --prefix=/usr --enable-guile --enable-ipv6 --disable-rpath --with-extractor=/usr --with-guile=/usr --with-libcurl=/usr --with-libgcrypt=/usr --with-microhttpd=yes --with-mysql=/usr --with-sqlite=/usr
 
 build: build-stamp
 build-stamp: config.status
