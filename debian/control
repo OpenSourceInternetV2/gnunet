@@ -11,8 +11,6 @@ Vcs-Git: git://git.debian.net/git/debian/gnunet.git
 Package: gnunet
 Architecture: all
 Depends: gnunet-client (= ${binary:Version}), gnunet-server (= ${binary:Version}), gnunet-tools (= ${binary:Version})
-Conflicts: gnunet (<< 0.8.0)
-Replaces: gnunet (<< 0.8.0)
 Description: secure, trust-based peer-to-peer framework (meta)
  GNUnet is a peer-to-peer framework which focuses on providing security. All
  link-to-link messages in the network are confidential and authenticated. The
@@ -63,8 +61,6 @@ Description: secure, trust-based peer-to-peer framework (debug)
 Package: gnunet-server
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, gnunet-common (= ${binary:Version}), adduser, gettext, netbase
-Conflicts: gnunet-daemon
-Replaces: gnunet-daemon
 Description: secure, trust-based peer-to-peer framework (server)
  GNUnet is a peer-to-peer framework which focuses on providing security. All
  link-to-link messages in the network are confidential and authenticated. The
