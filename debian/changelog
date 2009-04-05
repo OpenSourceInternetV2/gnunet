@@ -1,3 +1,12 @@
+gnunet (0.8.0c-1) unstable; urgency=low
+
+  * Merging upstream version 0.8.0c (Closes: #520427).
+  * Building with http transport support (Closes: #519810).
+  * Updating package to standards 3.8.1.
+  * Removing old conflicts and replaces.
+
+ -- Daniel Baumann <daniel@debian.org>  Sun,  5 Apr 2009 13:12:00 +0200
+
 gnunet (0.8.0b-5) unstable; urgency=low
 
   * Making use of code from cdbs' clean-la.mk file to clear the
