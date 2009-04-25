@@ -2,7 +2,6 @@
 /usr/bin/gnunet-chat
 /usr/bin/gnunet-directory
 /usr/bin/gnunet-download
-/usr/bin/gnunet-download-manager.scm
 /usr/bin/gnunet-insert
 /usr/bin/gnunet-pseudonym
 /usr/bin/gnunet-remotetest
