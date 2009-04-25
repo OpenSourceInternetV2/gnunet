@@ -6,6 +6,7 @@
 /usr/lib/libgnunetip.so.*
 /usr/lib/GNUnet/libgnunetmodule_*.so
 /usr/lib/GNUnet/libgnunettransport_*.so
+/usr/lib/libgnunetmysql.so.*
 /usr/share/man/man1/gnunetd.1
 /usr/share/man/man1/gnunet-peer-info.1
 /usr/share/man/man1/gnunet-transport-check.1

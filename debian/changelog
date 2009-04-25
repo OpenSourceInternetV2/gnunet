@@ -3,6 +3,8 @@ gnunet (0.8.0c-1-1ubuntu0~ppa1) jaunty; urgency=low
   * Backport from sid
   * changed Maintainer field in debian/control 
   * deleted gnunet-download-manager.scm
+  * altered some filenames inside the install script
+  * removed 2 files
 
  -- Markus Golser <elmargol@googlemail.com>  Sat, 25 Apr 2009 16:03:30 +0200
 
