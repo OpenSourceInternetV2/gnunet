@@ -1,3 +1,10 @@
+gnunet (0.8.0c-1-1ubuntu0~ppa1) jaunty; urgency=low
+
+  * Backport from sid
+  * changed Maintainer field in debian/control 
+
+ -- Markus Golser <elmargol@googlemail.com>  Sat, 25 Apr 2009 16:03:30 +0200
+
 gnunet (0.8.0c-1) unstable; urgency=low
 
   * Merging upstream version 0.8.0c (Closes: #520427).
