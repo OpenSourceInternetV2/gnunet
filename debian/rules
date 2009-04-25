@@ -53,9 +53,9 @@ install: build
 		sed -i "/dependency_libs/ s/'.*'/''/" $$FILE; \
 	done
 
-        install -D -m 0644 debian/config/gnunetd.conf debian/gnunet-server/etc/gnunetd.conf
-        rm debian/tmp/usr/share/GNUnet/gnunetd.conf.skel
-        rm debian/tmp/usr/share/GNUnet/gnunet-lab-testing.conf
+	install -D -m 0644 debian/config/gnunetd.conf debian/gnunet-server/etc/gnunetd.conf
+	rm debian/tmp/usr/share/GNUnet/gnunetd.conf.skel
+	rm debian/tmp/usr/share/GNUnet/gnunet-lab-testing.conf
 
 	mv debian/tmp/usr/bin/remotetest debian/tmp/usr/bin/gnunet-remotetest
 
